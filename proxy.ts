@@ -10,7 +10,7 @@ const ONE_SEGMENT = /^\/([^/]+)\/?$/;
 // never headers: the same rule a reverse proxy would apply if the backend moved out.
 function postTarget(pathname: string): string | null {
   const seg = ONE_SEGMENT.exec(pathname)?.[1];
-  if (seg === undefined || seg === "logout" || seg === "mcp" || seg === "metrics") return null; // /logout, /mcp and /metrics are route handlers themselves
+  if (seg === undefined || seg === "logout" || seg === "mcp" || seg === "metrics" || seg === "health") return null; // /logout, /mcp, /metrics and /health are route handlers themselves
   return seg === "login" ? "/api/login" : `/api/v1/feeds/${seg}/notes`; // reserved names get the handler's 400
 }
 
@@ -29,7 +29,8 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(pathname.slice(0, -1) + search, publicUrl(req.headers)), 308);
   }
 
-  // /login, /mcp, OAuth, and well-known paths are exempt from the lock because each checks credentials itself;
+  // /login, /mcp, OAuth, and well-known paths are exempt from the lock because each checks credentials itself
+  // (/health has none to check: a probe carries no session, and it says only whether the instance answers);
   // redirecting them to /login would turn a script's 401 into a success-looking 307.
   // Icons, the manifest and the share image are public too, so the login page and link previews have them.
   // /privacy and /imprint are public so the footer links work before signing in (the imprint must be easy to reach,
@@ -39,6 +40,7 @@ export function proxy(req: NextRequest) {
     pathname === "/report" ||
     pathname === "/mcp" ||
     pathname === "/metrics" ||
+    pathname === "/health" ||
     pathname === "/privacy" ||
     pathname === "/imprint" ||
     /^\/(r|_next|api|oauth|\.well-known)\//.test(pathname) ||

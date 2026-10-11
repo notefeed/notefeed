@@ -126,7 +126,7 @@ test.each(["/r/x/feed.xml", "/login", "/_next/static/x.js", "/api/v1/feeds/backu
   expect(isNext(proxy(req(p)))).toBe(true);
 });
 
-test.each(["/mcp", "/metrics", "/oauth/authorize?x=1", "/oauth/token", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])("locked: %s is not sent to /login", (p) => {
+test.each(["/mcp", "/metrics", "/health", "/oauth/authorize?x=1", "/oauth/token", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])("locked: %s is not sent to /login", (p) => {
   process.env.NOTEFEED_PASSWORD = "pw";
   expect(isNext(proxy(req(p)))).toBe(true);
 });
@@ -159,8 +159,8 @@ test("POST /mcp is not rewritten and passes (locked instance)", () => {
   expect(isNext(res)).toBe(true);
 });
 
-test("POST /metrics is not rewritten to a feed's notes", () => {
-  const res = proxy(req("/metrics", { method: "POST" }));
+test.each(["/metrics", "/health"])("POST %s is not rewritten to a feed's notes", (p) => {
+  const res = proxy(req(p, { method: "POST" }));
   expect(rewrite(res)).toBeNull();
   expect(isNext(res)).toBe(true);
 });
@@ -203,6 +203,6 @@ test("POST /logout (a real POST route) is not rewritten", () => {
   expect(isNext(res)).toBe(true);
 });
 
-test.each(["api", "health", "r"])("POST /%s (reserved) goes to the handler, which answers 400", (name) => {
+test.each(["api", "n", "r"])("POST /%s (reserved) goes to the handler, which answers 400", (name) => {
   expect(rewrite(proxy(req(`/${name}`, { method: "POST" })))).toBe(`http://localhost:3000/api/v1/feeds/${name}/notes`);
 });

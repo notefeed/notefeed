@@ -74,10 +74,10 @@ test("a path that is no route has no route; a bare 404 or 401 has the outcome it
   expect(logs[2]).toMatchObject({ method: "OTHER", status: 401, outcome: "auth" });
 });
 
-test("static files and the metrics scrape are logged at debug only", async () => {
-  const all = () => ["/_next/static/a.js", "/icon.svg", "/metrics", "/myfeed"].forEach((path) => requestLine({ id: "r" }, line({ path })));
+test("static files, the metrics scrape and the health probe are logged at debug only", async () => {
+  const all = () => ["/_next/static/a.js", "/icon.svg", "/metrics", "/health", "/myfeed"].forEach((path) => requestLine({ id: "r" }, line({ path })));
   expect((await logsOf(all, "info")).map((l) => l.route)).toEqual(["/[feed]"]);
-  expect((await logsOf(all, "debug")).map((l) => [l.level, l.route])).toEqual([["debug", "/_next/*"], ["debug", "/[file]"], ["debug", "/metrics"], ["info", "/[feed]"]]);
+  expect((await logsOf(all, "debug")).map((l) => [l.level, l.route])).toEqual([["debug", "/_next/*"], ["debug", "/[file]"], ["debug", "/metrics"], ["debug", "/health"], ["info", "/[feed]"]]);
 });
 
 test("every line logged inside a request carries its id; outside there is none", async () => {

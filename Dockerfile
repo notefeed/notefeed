@@ -19,6 +19,9 @@ RUN apk add --no-cache su-exec && mkdir /data && chown node:node /data
 COPY docker-entrypoint.sh /usr/local/bin/
 VOLUME /data
 EXPOSE 3000
+# GET /health (backend/http/health.ts): `docker ps` and monitors that read Docker's health status show it. BusyBox's wget fails on a 503.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO /dev/null "http://127.0.0.1:${PORT}/health" || exit 1
 # Starts as root only to switch to the owner of /data (see docker-entrypoint.sh).
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]
