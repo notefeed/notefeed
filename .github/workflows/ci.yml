@@ -110,7 +110,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -119,10 +120,45 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Attached to the image in the registry (docs/self-hosting/security.md shows how to read them).
+          sbom: true
+          provenance: mode=max
+      # The SBOM files of a release (CycloneDX). Written on main too, so a broken step shows before a tag needs it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: SBOM of the npm dependencies
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) version="${GITHUB_REF_NAME#v}" ;;
+            *) version="0.0.0-main.sha${GITHUB_SHA::7}" ;;
+          esac
+          echo "SBOM_VERSION=$version" >> "$GITHUB_ENV"
+          mkdir sbom
+          # The root package is private and stays at 0.1.0: the SBOM gets the version it describes.
+          npm version "$version" --no-git-tag-version --allow-same-version
+          # What package-lock.json resolves, without the packages only tests and the build use.
+          npm sbom --package-lock-only --omit dev --sbom-format cyclonedx > "sbom/notefeed-$version-npm.cdx.json"
+      # What is in the pushed image (linux/amd64), Alpine packages included.
+      - name: SBOM of the image
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: sbom/notefeed-${{ env.SBOM_VERSION }}-image.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+          dependency-snapshot: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom/
+          if-no-files-found: error
 
   # Tag a commit (git tag -a vX.Y.Z) to publish a GitHub release. The notes are the annotated
   # tag message, GitHub's generated "What's Changed" (the pull requests merged since the
-  # previous release) and a fixed install section. Re-runs update the release in place.
+  # previous release) and a fixed install section. The SBOM files the image job wrote are
+  # attached. Re-runs update the release in place.
   release:
     needs: image
     if: startsWith(github.ref, 'refs/tags/v')
@@ -178,6 +214,8 @@ jobs:
           Client packages at this version: `pip install notefeed==__VERSION__` · `npm install notefeed@__VERSION__`
 
           Documentation: https://docs.notefeed.me/
+
+          SBOM (CycloneDX): the two `.cdx.json` files attached to this release. See [Security fixes and SBOM](https://docs.notefeed.me/self-hosting/security/).
           EOF
           # The git tag keeps its v (v0.1.1); image and package versions drop it (0.1.1).
           sed -i "s|__VERSION__|${TAG#v}|g" notes.md
@@ -191,3 +229,12 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag
           fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: sbom
+          path: sbom
+      - name: Attach the SBOM files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release upload "$TAG" sbom/*.cdx.json --clobber

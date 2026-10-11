@@ -8,6 +8,7 @@ description: Use when cutting a release of notefeed: bumping the client package 
 A `vX.Y.Z` tag is a release (same tag scheme as the MCP repos).
 
 - `ci.yml` pushes the image as `:X.Y.Z`/`:X.Y`/`:X`/`:latest` and creates the GitHub release. The notes are the annotated tag message, so tag with `git tag -a`, followed by the generated list of pull requests merged since the previous release.
+- `ci.yml` also writes two SBOM files (npm dependencies, image) and attaches them to the release; nothing to do by hand.
 - `clients.yml` publishes the client packages to PyPI and npm.
 
 Before tagging:

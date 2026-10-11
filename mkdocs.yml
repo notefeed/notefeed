@@ -106,4 +106,5 @@ nav:
       - Health check: self-hosting/health.md
       - Logs: self-hosting/logs.md
       - Upgrading: self-hosting/upgrading.md
+      - Security fixes and SBOM: self-hosting/security.md
       - Running from source: self-hosting/running-from-source.md

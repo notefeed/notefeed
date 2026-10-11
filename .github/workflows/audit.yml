@@ -1,0 +1,58 @@
+name: Audit
+
+# Known vulnerabilities in what is shipped: the server's and the client packages' dependencies, and the published image.
+# A scheduled run, because an advisory appears without a commit. A red run means: upgrade the dependency, or release again so the
+# image is rebuilt on a fixed base.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths: [.github/workflows/audit.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  # Production dependencies only: what the tests and the build need is not in the image or the package.
+  npm:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [., packages/js]
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm audit --omit=dev --audit-level=high
+
+  python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # The locked versions, without the test extra and the package itself.
+      - run: uv export -q --locked --no-dev --no-emit-project --no-hashes -o requirements-audit.txt
+      - run: uvx pip-audit -r requirements-audit.txt --no-deps --disable-pip
+
+  # The image people run, Alpine packages included. Only findings that have a fix: the others cannot be acted on.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      # Derived from the repository so an account rename doesn't break the scan.
+      - run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: anchore/scan-action@v7
+        with:
+          image: ${{ env.IMAGE_NAME }}:latest
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          output-format: table
