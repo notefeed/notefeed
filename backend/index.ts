@@ -21,6 +21,7 @@ export { measured } from "./metrics";
 export { noteOutcome } from "./requestscope";
 export { hasLegalPage, readLegalPage, readNotice, type LegalPage } from "./legal";
 export { metricsRoute } from "./http/metrics";
+export { healthRoute } from "./http/health";
 export { moveImagesRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
 export { feedCookieName, feedUnlocked } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";

@@ -31,6 +31,7 @@ export const ROUTES = [
   "/api/operator/images/unreferenced",
   "/api/operator/takedown",
   "/api/v1/[...path]",
+  "/health",
   "/imprint",
   "/login",
   "/logout",
@@ -49,8 +50,9 @@ export const ROUTES = [
 
 const ASSETS = "/_next/*";
 const FILE = "/[file]";
-// Logged at `debug`, so that `info` stays readable: the app's own scripts, styles and icons, and the scrape of /metrics.
-const QUIET = new Set([ASSETS, FILE, "/metrics"]);
+// Logged at `debug`, so that `info` stays readable: the app's own scripts, styles and icons, the scrape of /metrics and
+// the probe of /health.
+const QUIET = new Set([ASSETS, FILE, "/metrics", "/health"]);
 
 type Pattern = { route: string; segments: string[]; rest: boolean };
 // A fixed segment wins over a parameter, as in Next: the patterns are tried with the fixed ones first.

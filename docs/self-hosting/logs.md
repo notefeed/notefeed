@@ -30,7 +30,7 @@ Every request notefeed answers gets one line, written by notefeed itself when th
 
 The line never holds the path, the query, the feed name, a read id, the client's address, the user agent, the referrer, a header or anything of the body.
 
-The app's own scripts, styles and icons (`"route":"/_next/*"` and `"route":"/[file]"`) and the scrape of `/metrics` are logged at `debug`, so that `info` shows what people and scripts do. `NOTEFEED_LOG_REQUESTS=0` turns the request line off and leaves every other line as it is; `NOTEFEED_LOG_LEVEL=warn` hides it together with the other `info` lines.
+The app's own scripts, styles and icons (`"route":"/_next/*"` and `"route":"/[file]"`) the scrape of `/metrics` and the probe of [`/health`](health.md) are logged at `debug`, so that `info` shows what people and scripts do. `NOTEFEED_LOG_REQUESTS=0` turns the request line off and leaves every other line as it is; `NOTEFEED_LOG_LEVEL=warn` hides it together with the other `info` lines.
 
 ### Your reverse proxy's access log
 
@@ -40,7 +40,7 @@ With the request line you do not need the proxy's access log to see what the ins
 
 | Level | `component` | `msg` | When |
 |---|---|---|---|
-| `info` | `http` | `request` | Every request: see [The request line](#the-request-line). `debug` for static files and `/metrics`. |
+| `info` | `http` | `request` | Every request: see [The request line](#the-request-line). `debug` for static files, `/metrics` and `/health`. |
 | `info` | `feeds` | `feed created`, `feed deleted` | A feed came to exist with its first note, or was deleted with everything in it; `protected` says whether it was created with a feed password. Never its name. |
 | `info` | `notes` | `note posted`, `note deleted` | A note was stored or deleted. `kind` is `markdown` or `image`, and a posted note has its size in `bytes`; a picture sent with a text is a `note posted` of its own. Never the feed, the note's id or its title. |
 | `info` | `storage` | `image stored in the image store`, `image deleted from the image store` | With [image bytes kept outside the database](storage.md#image-bytes-outside-the-database): an image's bytes were written to the image store (`bytes` is their size) or removed from it, when its note was posted, replaced or deleted or its feed was deleted. Never the object's key. |
@@ -60,6 +60,7 @@ With the request line you do not need the proxy's access log to see what the ins
 | `warn`, `error` | `feeds` | a feed's read id or a leftover folder | A problem with a feed's files that notefeed works around, such as a `.readid` it can't read; the feed's name is never in it. |
 | `error` | `http`, `mcp` | `request failed`, `tool failed` | An unexpected failure, answered with a bare `500` or `internal error`; `err` carries the error, with everything below the data directory in a path replaced by `<path>` (so no feed name or note title). |
 | `error` | `http` | `an operation answered a status it doesn't declare` | A bug: an API operation answered a status its OpenAPI description doesn't list, and the client got a bare `500`; `operation` is the operation's id and `status` the status it tried to send. |
+| `error` | `health` | `storage check failed` | A probe of [`/health`](health.md) found the storage not answering and got `503`; `err` carries the error. |
 | `error` | `posting` | `a picture of a failed post could not be removed` | A post or an edit of a note with pictures failed while storing, and one of the picture notes it had already stored could not be removed again: that picture may be left in the feed (the removal also reports a file that was already gone) and can be deleted by hand. `note` is the picture note's id (its file in `DATA_DIR` starts with it), and `err` carries the error when the removal itself failed; the feed's name is never in it. |
 | `debug` | `limits` | `rate limit reached` | A request over `NOTEFEED_RATE_LIMIT`; `kind` is `post` or `password`. |
 | `debug` | `auth` | `password bearer refused` | A script sent a wrong instance password as its bearer token. |

@@ -103,6 +103,7 @@ nav:
       - Backups: self-hosting/backups.md
       - Deleting notes and feeds: self-hosting/deleting.md
       - Metrics: self-hosting/metrics.md
+      - Health check: self-hosting/health.md
       - Logs: self-hosting/logs.md
       - Upgrading: self-hosting/upgrading.md
       - Running from source: self-hosting/running-from-source.md
