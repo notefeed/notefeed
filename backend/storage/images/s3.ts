@@ -17,6 +17,8 @@ export type S3Options = {
   pageSize?: number;
 };
 
+const CHECK_TIMEOUT_MS = 3000;
+
 const unescapeXml = (s: string) => s.replace(/&(lt|gt|quot|apos|amp);/g, (_, n: string) => ({ lt: "<", gt: ">", quot: '"', apos: "'", amp: "&" })[n]!);
 const tag = (xml: string, name: string) => new RegExp(`<${name}>([^<]*)</${name}>`).exec(xml)?.[1];
 
@@ -26,7 +28,7 @@ export function createS3ImageStore(o: S3Options): ImageStore {
 
   // Signed here and sent with the URL and the bytes themselves, never as a Request object: a Next server's fetch rebuilds a Request
   // from its body stream, the upload then goes out chunked, without Content-Length, and S3 stores refuse that (411).
-  async function once(path: string, method: string, body?: Uint8Array): Promise<Response> {
+  async function once(path: string, method: string, body?: Uint8Array, timeoutMs = o.timeoutMs ?? 30_000): Promise<Response> {
     const signed = await new AwsV4Signer({
       method,
       url: `${base}${path}`,
@@ -37,7 +39,7 @@ export function createS3ImageStore(o: S3Options): ImageStore {
       service: "s3",
       region: o.region,
     }).sign();
-    return fetch(signed.url.toString(), { method, headers: signed.headers, body: body as BodyInit | undefined, cache: "no-store", signal: AbortSignal.timeout(o.timeoutMs ?? 30_000) });
+    return fetch(signed.url.toString(), { method, headers: signed.headers, body: body as BodyInit | undefined, cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
   }
 
   function send(operation: string, key: string, method: string, body?: Uint8Array): Promise<Response> {
@@ -101,6 +103,18 @@ export function createS3ImageStore(o: S3Options): ImageStore {
         token = tag(xml, "IsTruncated") === "true" ? unescapeXml(tag(xml, "NextContinuationToken") ?? "") : undefined;
         if (!token) return;
       }
+    },
+    // A listing of at most one object: it needs the endpoint, the keys and the bucket to be right, and reads no object. Asked once and
+    // not for long, since a probe comes again by itself.
+    async check() {
+      let res: Response;
+      try {
+        res = await once("?list-type=2&max-keys=1", "GET", undefined, Math.min(o.timeoutMs ?? CHECK_TIMEOUT_MS, CHECK_TIMEOUT_MS));
+      } catch (e) {
+        throw new Error(`image store: check failed (${(e as Error)?.name === "TimeoutError" ? "timeout" : "no answer"})`);
+      }
+      await res.body?.cancel().catch(() => {});
+      if (!res.ok) throw new Error(`image store: check failed (${res.status})`);
     },
   };
 }

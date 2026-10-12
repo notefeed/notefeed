@@ -36,6 +36,10 @@ export function createFsImageStore(dir: string): ImageStore {
     async delete(key) {
       await rm(pathOf(key), { force: true });
     },
+    // The folder is made by the first put, so one that is not there yet is fine; one that cannot be read is not.
+    async check() {
+      await readdir(/*turbopackIgnore: true*/ dir).catch((e) => (isMissing(e) ? [] : Promise.reject(e)));
+    },
     // A file being written (`<key>.<random>.tmp`), or anything else someone put in the folder, is not named like a key and is passed over.
     async *list() {
       const folders = await readdir(/*turbopackIgnore: true*/ dir).catch((e) => (isMissing(e) ? [] : Promise.reject(e)));

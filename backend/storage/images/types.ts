@@ -11,6 +11,8 @@ export interface ImageStore {
   delete(key: string): Promise<void>;
   /** Every object that is named like a key, in no order, with its size and when it was last written. Anything else in the store is not ours and is left out. */
   list(): AsyncIterable<StoredImage>;
+  /** Does the store answer? One quick read that stores nothing, for GET /health; throws when it does not (no answer, wrong keys, no such bucket). */
+  check(): Promise<void>;
 }
 
 export type StoredImage = { key: string; size: number; modified: Date };
