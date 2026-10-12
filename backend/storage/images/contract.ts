@@ -43,6 +43,12 @@ export function describeImageStore(name: string, make: () => Promise<ImageStore>
       await s.delete(a);
       expect((await s.get(b))?.toString()).toBe("b");
     });
+    test("check passes on a store that answers, empty or not", async () => {
+      const s = await make();
+      await expect(s.check()).resolves.toBeUndefined();
+      await s.put(newKey(), Buffer.from("x"));
+      await expect(s.check()).resolves.toBeUndefined();
+    });
     test("list gives every object once, with its size and a time of writing, and none that was deleted", async () => {
       const s = await make();
       const before = Date.now() - 2000; // a store keeps whole seconds

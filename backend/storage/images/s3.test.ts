@@ -44,6 +44,22 @@ test("a failure names the operation and the status, and nothing of the endpoint,
   }
 });
 
+test("check asks for one listing of at most one object, once, and fails on a store that refuses or has no such bucket", async () => {
+  const f = await fake();
+  await storeOn(f, { retries: 2 }).check();
+  expect(f.requests).toEqual(["GET /images"]);
+  f.failNext(503, 5);
+  await expect(storeOn(f, { retries: 2 }).check()).rejects.toThrow("image store: check failed (503)");
+  expect(f.requests).toHaveLength(2); // not asked again
+  f.failNext(0, 0);
+  await expect(storeOn(f, { bucket: "nope" }).check()).rejects.toThrow("image store: check failed (404)");
+  const gone = storeOn(f);
+  await f.close();
+  fakes.length = 0;
+  const err = (await gone.check().catch((e: Error) => e)) as Error;
+  expect(err.message).toBe("image store: check failed (no answer)");
+});
+
 // A Next server's fetch rebuilds a Request object from its body stream, and the upload then has no Content-Length (issue #130).
 test("an upload is given to fetch as a URL and bytes, never as a Request, and says its length", async () => {
   const f = await fake();

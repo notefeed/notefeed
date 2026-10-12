@@ -47,6 +47,7 @@ function recording() {
       check("delete");
       objects.delete(key);
     },
+    async check() {},
     async *list() {
       check("list");
       for (const [key, bytes] of objects) yield { key, size: bytes.byteLength, modified: modified.get(key) ?? new Date() };

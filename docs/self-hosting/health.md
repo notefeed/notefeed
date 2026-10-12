@@ -4,10 +4,21 @@
 
 | Answer | Meaning |
 |---|---|
-| `200` `{"status":"ok"}` | The app runs and its [storage](storage.md) answered a lookup. |
-| `503` `{"status":"unavailable"}` | The app runs, but the storage did not answer: the database is away, or the data cannot be read. The reason is in the [logs](logs.md) (`"component":"health"`), never in the answer. |
+| `200` `{"status":"ok","checks":{…}}` | The app runs and every part it needs answered. |
+| `503` `{"status":"unavailable","checks":{…}}` | The app runs, but a part did not answer. `checks` says which; the reason is in the [logs](logs.md) (`"component":"health"`), never in the answer. |
 
-No answer at all means the app itself is down. The check is one lookup by name, so probing every few seconds costs nothing. With the file system as storage that lookup is answered from memory once the app has started, so `503` mostly shows a database that is away; with files, the check tells you that the process is up and serving.
+No answer at all means the app itself is down.
+
+`checks` has one entry per part, each `ok` or `unavailable`:
+
+| Check | What is asked |
+|---|---|
+| `storage` | The [storage](storage.md), by one lookup by name. With a database it fails when the database is away. With the file system the lookup is answered from memory once the app has started, so there it says little more than that the process is up and serving. |
+| `images` | The [image store](storage.md#image-bytes-outside-the-database), only when `NOTEFEED_IMAGES` is `fs` or `s3`. For `s3`: one listing of at most one object, which needs the endpoint, the keys and the bucket to be right; it waits 3 seconds at most and is not repeated. For `fs`: the folder can be read. Nothing is written. |
+
+With the image store away, text notes still work, but pictures do not, and the answer is `503` all the same: a health check has one status.
+
+Every probe is one small query, and one request to the object store where there is one: fine every few seconds for a store you run yourself. With a provider that bills requests, a probe every 30 seconds is about 2,900 listings a day.
 
 The probe is logged at `debug`, like the scrape of `/metrics`, so it does not fill the request log. `health` is a reserved feed name.
 
