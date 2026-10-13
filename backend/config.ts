@@ -54,7 +54,21 @@ const s3 = () => ({
 // nor is the endpoint or a key of the image store.
 const paymentProvider = () => env("NOTEFEED_PAYMENT_PROVIDER").trim().toLowerCase();
 
+// The payment provider, if any (ADR 0029): a known one, with what it needs.
+function validatePayments(): void {
+  const provider = paymentProvider();
+  if (provider === "") return;
+  if (provider === "fake") {
+    if (env("NOTEFEED_FAKE_WEBHOOK_SECRET") === "") throw new Error("NOTEFEED_PAYMENT_PROVIDER=fake needs NOTEFEED_FAKE_WEBHOOK_SECRET");
+    return;
+  }
+  if (provider !== "creem") throw new Error(`NOTEFEED_PAYMENT_PROVIDER=${provider} is not a payment provider; use creem`);
+  const missing = Object.entries({ NOTEFEED_CREEM_API_KEY: env("NOTEFEED_CREEM_API_KEY"), NOTEFEED_CREEM_PRODUCT_ID: env("NOTEFEED_CREEM_PRODUCT_ID"), NOTEFEED_CREEM_WEBHOOK_SECRET: env("NOTEFEED_CREEM_WEBHOOK_SECRET"), PUBLIC_URL: env("PUBLIC_URL") }).flatMap(([k, v]) => (v === "" ? [k] : []));
+  if (missing.length) throw new Error(`NOTEFEED_PAYMENT_PROVIDER=creem needs ${missing.join(", ")}`);
+}
+
 function validateStorage(): void {
+  validatePayments();
   const kind = storageKind();
   const images = imageStoreKind();
   if (kind === "fs" && images !== "db") throw new Error(`NOTEFEED_IMAGES=${images} needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend keeps images in the feed's folder`);
@@ -104,6 +118,10 @@ export const config = {
   // The payment provider of the SaaS (ADR 0029). Empty: no licensing, every feature open and no free-tier cap, as on a self-hosted instance.
   paymentProvider,
   // Notes a free feed keeps while a payment provider is set: the oldest is dropped past it.
+  // Creem (NOTEFEED_PAYMENT_PROVIDER=creem): the API key (`creem_test_…` for the sandbox), the product of the paid license and the webhook secret.
+  creem: () => ({ apiKey: env("NOTEFEED_CREEM_API_KEY"), productId: env("NOTEFEED_CREEM_PRODUCT_ID"), webhookSecret: env("NOTEFEED_CREEM_WEBHOOK_SECRET") }),
+  // The fake provider's webhook secret (tests, development).
+  fakeWebhookSecret: () => env("NOTEFEED_FAKE_WEBHOOK_SECRET"),
   freeNoteCap: () => Math.max(1, int("NOTEFEED_FREE_NOTE_CAP", 1000)),
   trustProxy: () => env("NOTEFEED_TRUST_PROXY") === "1",
   // Per minute and IP; 0 or below turns it off.

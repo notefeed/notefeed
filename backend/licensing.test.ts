@@ -48,6 +48,7 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
   describe("with a payment provider", () => {
     beforeEach(() => {
       vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+      vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
       vi.stubEnv("NOTEFEED_FREE_NOTE_CAP", "3");
     });
     const license = async (feed: string, ref = "sub_1") => {
@@ -106,6 +107,14 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
   test("a payment provider on the file system backend is refused at start", () => {
     vi.stubEnv("NOTEFEED_STORAGE", "fs");
     vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
     expect(() => config.validateStorage()).toThrow(/NOTEFEED_PAYMENT_PROVIDER needs NOTEFEED_STORAGE/);
+  });
+
+  test("a payment provider is checked at start: a known one, with what it needs", () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "paypal");
+    expect(() => config.validateStorage()).toThrow(/not a payment provider/);
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "creem");
+    expect(() => config.validateStorage()).toThrow(/needs NOTEFEED_CREEM_API_KEY, NOTEFEED_CREEM_PRODUCT_ID, NOTEFEED_CREEM_WEBHOOK_SECRET, PUBLIC_URL/);
   });
 });

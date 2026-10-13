@@ -23,7 +23,9 @@ export function licenses(): LicenseStore {
 /** Whether the feed has what a license unlocks: always, with no provider; else an active license attached to it. */
 export async function isLicensed(feed: string): Promise<boolean> {
   if (!licensingOn()) return true;
-  return (await licenses().byFeed(feed))?.status === "active";
+  const license = await licenses().byFeed(feed);
+  // A lapsed period counts even if the provider's webhook for it never came.
+  return license?.status === "active" && (license.validUntil === null || license.validUntil > Date.now());
 }
 
 /** For images and for setting or changing a feed password. Throws LicenseRequiredError. */
