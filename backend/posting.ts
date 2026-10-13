@@ -8,7 +8,7 @@ import { BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, Im
 import { type FeedAccess, checkFeedAccess, createProtected } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
 import { assertFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
-import { requireLicense, trimToFreeCap } from "./licensing";
+import { releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
 import { isBlockedImage } from "./takedown";
 import { capReached, rateLimit } from "./limits";
 import { logger } from "./log";
@@ -179,6 +179,7 @@ export async function updateFeed(feed: string, ip: string, read: () => Promise<u
 export async function deleteFeed(feed: string, ip: string, access: FeedAccess): Promise<void> {
   await admit(feed, ip, access);
   if (!(await removeWholeFeed(feed))) throw new NotFoundError("no such feed");
+  await releaseLicense(feed);
 }
 
 export { MAX_ATTACHMENTS }; // defined in shared/links.ts: the web box holds to it too

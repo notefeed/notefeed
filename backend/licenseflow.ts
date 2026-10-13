@@ -60,7 +60,6 @@ export async function attachLicense(feed: string, key: string): Promise<void> {
   const result = await licenses().attach(hashKey(key), feed);
   if (result === "unknown-key") throw new InvalidBodyError("that is not a license key");
   if (result === "feed-has-license") throw new InvalidBodyError("the feed already has a license; detach it first");
-  if (result === "no-feed") throw new NotFoundError("no such feed");
 }
 
 export async function detachLicense(feed: string): Promise<void> {

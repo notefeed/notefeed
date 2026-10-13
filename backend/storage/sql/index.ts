@@ -9,15 +9,11 @@ import { applyPatch, hasMeta, parseMeta } from "../meta";
 import { parseSettings, serializeSettings } from "../settings";
 import { FeedGoneError, type Meta, type Storage } from "../types";
 import { IMAGE_EXTS } from "../../../shared/images";
-import type { LicenseStore } from "../licenses";
-import { sqlLicenses } from "./licenses";
 import { migrate, type Kind } from "./migrations";
 import type { Schema } from "./schema";
 
 export type SqlStorage = Storage & {
   close(): Promise<void>;
-  /** The licenses of the SaaS (ADR 0029). */
-  licenses: LicenseStore;
   /**
    * The operator's clean-up: the objects in the image store that no note names, and, with `remove`, their deletion. An object written
    * less than `olderThanMs` ago is left alone and only counted (`tooRecent`): its note's row may not be there yet. `missing` counts
@@ -453,7 +449,6 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       return move;
     },
 
-    licenses: sqlLicenses(open),
     async close() {
       if (!opened) return;
       const db = await opened.catch(() => undefined);

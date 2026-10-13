@@ -78,10 +78,7 @@ function validateStorage(): void {
     if (missing.length) throw new Error(`NOTEFEED_IMAGES=s3 needs ${missing.join(", ")}`);
     if (!/^https?:\/\//i.test(endpoint) || !URL.canParse(endpoint)) throw new Error("NOTEFEED_S3_ENDPOINT must be an http(s) URL");
   }
-  if (kind === "fs") {
-    if (paymentProvider() !== "") throw new Error("NOTEFEED_PAYMENT_PROVIDER needs NOTEFEED_STORAGE=sqlite or postgres: licenses are kept in the database");
-    return;
-  }
+  if (kind === "fs") return;
   if (kind === "postgres" && databaseUrl() === "") throw new Error("NOTEFEED_STORAGE=postgres needs NOTEFEED_DATABASE_URL");
   if (Buffer.byteLength(env("NOTEFEED_SECRET")) < 32) {
     throw new Error(`NOTEFEED_STORAGE=${kind} needs NOTEFEED_SECRET of at least 32 bytes (e.g. openssl rand -hex 32): there is no data folder to keep a generated one in`);
@@ -117,6 +114,8 @@ export const config = {
   reportUrl: () => env("NOTEFEED_REPORT_URL").trim() || (env("NOTEFEED_REPORT_ENDPOINT").trim() ? REPORT_PAGE : ""),
   // The payment provider of the SaaS (ADR 0029). Empty: no licensing, every feature open and no free-tier cap, as on a self-hosted instance.
   paymentProvider,
+  // The SQLite file of the licenses (ADR 0029), apart from the feeds' storage: a path, or `file:<path>`.
+  licenseDb: () => (env("NOTEFEED_LICENSE_DB").trim() || `${dataDir().replace(/\/+$/, "")}/licenses.db`).replace(/^file:/, ""),
   // Notes a free feed keeps while a payment provider is set: the oldest is dropped past it.
   // Creem (NOTEFEED_PAYMENT_PROVIDER=creem): the API key (`creem_test_…` for the sandbox), the product of the paid license and the webhook secret.
   creem: () => ({ apiKey: env("NOTEFEED_CREEM_API_KEY"), productId: env("NOTEFEED_CREEM_PRODUCT_ID"), webhookSecret: env("NOTEFEED_CREEM_WEBHOOK_SECRET") }),

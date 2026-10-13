@@ -1,5 +1,7 @@
-// The licenses of the SaaS (ADR 0029, issue #42): one paid license per feed. Only the database backends hold them: a deployment with a
-// payment provider runs on a database, and with none the license checks are skipped, so the file system backend has nothing to keep.
+// The licenses of the SaaS (ADR 0029, issue #42): one paid license per feed. They live in a SQLite file of their own
+// (NOTEFEED_LICENSE_DB), apart from the feeds and notes on whatever storage backend the instance uses, so the two are backed up, restored
+// and replaced on their own, and billing records are not in the database that holds the content. The feed is a name here, not a
+// reference: the caller checks that it exists, and removes the link when the feed goes (backend/licensing.ts).
 // A license is found by the hash of its key (the key itself is never stored), by its feed, or by the provider's reference.
 
 export type LicenseStatus = "active" | "lapsed";
@@ -15,7 +17,7 @@ export type License = {
   validUntil: number | null;
 };
 
-export type AttachResult = "attached" | "unknown-key" | "feed-has-license" | "no-feed";
+export type AttachResult = "attached" | "unknown-key" | "feed-has-license";
 
 export interface LicenseStore {
   /** A new license, not attached. `providerRef` is unique: a second license with the same one is the first (a webhook delivered twice). */

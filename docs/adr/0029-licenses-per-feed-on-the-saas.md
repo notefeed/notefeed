@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-13
 decision-makers: Marcel Bruckner
 ---
@@ -24,6 +24,7 @@ Chosen: a license record per feed. Linking a license to a payment is a deterrent
 * **Licensed feed:** no note cap, a feed password can be set, images can be uploaded.
 * **Lapse:** the feed returns to the free tier and nothing is deleted. An existing feed password stays and keeps protecting the feed, but it cannot be set or changed; stored images keep being served, new uploads are refused; the note cap applies again to new notes.
 * **License record:** `key` (random, 128 bits, stored as a hash), `feedId` or none, `status` (`active`, `lapsed`), `providerRef` (the provider's subscription id, which is how a webhook finds it), `validUntil`. Operations: find by key, find by feed, find by `providerRef`, and move a license to another feed atomically. Attaching needs the key and write access to the target feed; detaching needs write access only. A lost key cannot be recovered, because the buyer is unknown; the provider's receipt and portal are the way back.
+* **Where they are kept:** in a SQLite file of their own (`NOTEFEED_LICENSE_DB`, default `DATA_DIR/licenses.db`), not in the database that holds the feeds, whatever that is (file system, SQLite or PostgreSQL). Billing records are then backed up, restored and replaced on their own, and a restore of the content cannot bring back a lapsed license or drop a paid one. The feed is a name in the license record, not a foreign key: attaching checks that the feed exists, and deleting or taking down a feed detaches its license, so the paid license is not lost and can be entered on another feed. One SQLite file means one writer: a deployment with several notefeed containers keeps the file on one volume, or moves the store to a shared database later (the store is an interface, `backend/storage/licenses.ts`).
 * **Provider interface:** `createCheckout()` returns a URL to redirect to; `handleWebhook(request)` verifies the signature and returns events (`started`, `renewed`, `cancelled`, `refunded`) that the license store applies. The provider is chosen by configuration. **With no provider configured, the license checks are skipped and every feature is open**, so self-hosted instances are unchanged.
 * **Provider:** a European merchant of record is preferred, for VAT and for the data-processing agreement. Creem is the first candidate (subscriptions, license keys, webhooks, 3.9 % + 40 ¢ in its docs); its legal entity, its acceptance of an anonymous feed host and its chargeback terms are to be confirmed before the first sale. Paddle is the fallback.
 * **Price:** first value 1.50 EUR a month or 15 EUR a year per feed (ntfy charges about 5 to 6 USD a month for 3 reserved topics), set in the provider, not in notefeed.
@@ -36,6 +37,7 @@ Chosen: a license record per feed. Linking a license to a payment is a deterrent
 * Good, because the provider is replaceable and the feature checks live in one place.
 * Good, because a self-hosted instance cannot be locked out of a feature by a missing license.
 * Bad, because a lost key cannot be recovered by notefeed.
+* Bad, because the license file is one more thing to back up, and a restore of the feeds from an older backup does not undo the detaching a deletion did.
 * Bad, because one person with several feeds buys and manages several licenses.
 * Bad, because the SaaS depends on the provider's webhooks being delivered; a missed one is repaired by the provider's retries and a periodic check of `validUntil`.
 * To settle before the first paid license is sold: the CRA question (#42, last comment) and the support period.

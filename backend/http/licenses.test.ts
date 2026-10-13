@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { hashKey } from "../licenseflow";
-import { isLicensed } from "../licensing";
+import { isLicensed, resetLicensesForTests } from "../licensing";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { createNote } from "../notes";
@@ -28,6 +28,7 @@ beforeEach(async () => {
   resetRateLimitsForTests();
 });
 afterEach(async () => {
+  await resetLicensesForTests();
   vi.unstubAllEnvs();
   resetFeedsForTests();
   await rm(dir, { recursive: true, force: true });

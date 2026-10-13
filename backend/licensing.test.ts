@@ -7,9 +7,9 @@ import { LicenseRequiredError } from "./errors";
 import { changePassword, createProtected, protectedFeed } from "./feedlock";
 import { resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
-import { isLicensed, licenses, licensingOn } from "./licensing";
+import { isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
 import { countNotes, createNote } from "./notes";
-import { postNote, postWithPictures } from "./posting";
+import { deleteFeed, postNote, postWithPictures } from "./posting";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -25,6 +25,7 @@ beforeEach(async () => {
   resetRateLimitsForTests();
 });
 afterEach(async () => {
+  await resetLicensesForTests();
   vi.unstubAllEnvs();
   resetFeedsForTests();
   await rm(dir, { recursive: true, force: true });
@@ -69,6 +70,17 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       expect(await countNotes("f", "markdown")).toBe(6);
     });
 
+    test("deleting a feed frees its license to be entered on another feed", async () => {
+      await text("f", "first");
+      await license("f");
+      await deleteFeed("f", "ip", {});
+      expect(await isLicensed("f")).toBe(false);
+      expect((await licenses().byProviderRef("sub_1"))?.feed).toBeNull();
+      await text("g", "first");
+      expect(await licenses().attach("h-sub_1", "g")).toBe("attached");
+      expect(await isLicensed("g")).toBe(true);
+    });
+
     test("an image needs a license, as a single post and with a text", async () => {
       await text("f", "first");
       await expect(image("f")).rejects.toBeInstanceOf(LicenseRequiredError);
@@ -104,11 +116,21 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
     });
   });
 
-  test("a payment provider on the file system backend is refused at start", () => {
+  test("the licenses are a file of their own, so any storage backend can sell them", async () => {
     vi.stubEnv("NOTEFEED_STORAGE", "fs");
     vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
     vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
-    expect(() => config.validateStorage()).toThrow(/NOTEFEED_PAYMENT_PROVIDER needs NOTEFEED_STORAGE/);
+    expect(() => config.validateStorage()).not.toThrow();
+    expect(config.licenseDb()).toBe(`${dir}/licenses.db`);
+    vi.stubEnv("NOTEFEED_LICENSE_DB", "file:/var/lib/licenses.db");
+    expect(config.licenseDb()).toBe("/var/lib/licenses.db");
+    vi.stubEnv("NOTEFEED_LICENSE_DB", "");
+    await licenses().createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+    await licenses().attach("h1", "f");
+    expect(await isLicensed("f")).toBe(true);
+    await releaseLicense("f"); // the feed was deleted
+    expect(await isLicensed("f")).toBe(false);
+    expect((await licenses().byKeyHash("h1"))?.feed).toBeNull();
   });
 
   test("a payment provider is checked at start: a known one, with what it needs", () => {

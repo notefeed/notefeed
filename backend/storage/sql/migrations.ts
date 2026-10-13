@@ -61,23 +61,6 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
         .execute();
     },
   },
-  // The licenses of the SaaS (issue #42, ADR 0029). `feed` is unique: one license per feed; it is nulled when the feed goes, so the
-  // license, which was paid for, survives the feed and can be attached to another.
-  "004_licenses": {
-    async up(db: Kysely<any>) {
-      await db.schema
-        .createTable("licenses")
-        .addColumn("id", "text", (c) => c.primaryKey())
-        .addColumn("key_hash", "text", (c) => c.notNull().unique())
-        .addColumn("feed", "text", (c) => c.unique())
-        .addColumn("status", "text", (c) => c.notNull())
-        .addColumn("provider_ref", "text", (c) => c.unique())
-        .addColumn("valid_until", "bigint")
-        .addColumn("created_at", "bigint", (c) => c.notNull())
-        .addForeignKeyConstraint("licenses_feed_fk", ["feed"], "feeds", ["name"], (c) => c.onDelete("set null"))
-        .execute();
-    },
-  },
 });
 
 /** Every migration's name, in order; the tests check the count the migrator recorded against it, so a new one changes no test. */

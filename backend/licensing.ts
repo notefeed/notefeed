@@ -6,18 +6,34 @@ import { config } from "./config";
 import { LicenseRequiredError } from "./errors";
 import { logger } from "./log";
 import { idsBeyond, removeNote } from "./notes";
-import { storage } from "./storage";
+import { processState } from "./state";
 import type { LicenseStore } from "./storage/licenses";
+import { createLicenseDb, type LicenseDb } from "./storage/licensedb";
 
 const log = logger("licensing");
 
 export const licensingOn = (): boolean => config.paymentProvider() !== "";
 
-/** The license store; only the database backends have one, and config.validateStorage refuses a provider without such a backend. */
+const state = processState("licenses", () => ({}) as { file?: string; db?: LicenseDb });
+
+/** The license store: a SQLite file of its own (config.licenseDb), apart from the feeds. One per file; processState because Next may bundle this module once per route. */
 export function licenses(): LicenseStore {
-  const s = storage();
-  if (!("licenses" in s)) throw new Error("licenses need a database backend");
-  return s.licenses as LicenseStore;
+  const file = config.licenseDb();
+  if (state.db && state.file === file) return state.db;
+  void state.db?.close();
+  state.file = file;
+  return (state.db = createLicenseDb(file));
+}
+
+export async function resetLicensesForTests(): Promise<void> {
+  await state.db?.close();
+  state.db = undefined;
+  state.file = undefined;
+}
+
+/** The feed is gone (deleted, or taken down): its license is not lost, it is free to be entered on another feed. */
+export async function releaseLicense(feed: string): Promise<void> {
+  if (licensingOn()) await licenses().detach(feed);
 }
 
 /** Whether the feed has what a license unlocks: always, with no provider; else an active license attached to it. */

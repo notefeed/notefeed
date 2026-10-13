@@ -33,13 +33,4 @@ export interface Schema {
     hash: string;
     added_at: Time;
   };
-  licenses: {
-    id: string;
-    key_hash: string;
-    feed: string | null;
-    status: string;
-    provider_ref: string | null;
-    valid_until: Time | null;
-    created_at: Time;
-  };
 }
