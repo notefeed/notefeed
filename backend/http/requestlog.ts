@@ -36,6 +36,7 @@ export const ROUTES = [
   "/api/v1/[...path]",
   "/health",
   "/imprint",
+  "/license",
   "/login",
   "/logout",
   "/mcp",

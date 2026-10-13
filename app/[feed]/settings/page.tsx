@@ -7,9 +7,10 @@ import { feedDetailsErrorMessage, feedErrorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
 import { FeedDetails } from "@/components/FeedDetails";
 import { FeedSettings } from "@/components/FeedSettings";
+import { LicenseSection } from "@/components/LicenseSection";
 import { Header } from "@/components/Header";
 import { heading } from "@/components/styles";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, customIdsOn, getFeed, getFeedImages, identityOn, isReservedFeed, publicUrl, readPath, rssPath } from "@/backend";
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, customIdsOn, getFeed, getFeedImages, identityOn, isLicensed, isReservedFeed, licensingOn, publicUrl, readPath, rssPath } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
           </h2>
           <pre className="overflow-x-auto font-mono text-ink">{curlFor(base, feed, access === "unlocked")}</pre>
         </section>
+        {licensingOn() && <LicenseSection feed={feed} licensed={await isLicensed(feed)} />}
         {access === "unlocked" && <FeedSettings feed={feed} error={passwordError ? feedErrorMessage(error, retry) : undefined} />}
       </FeedDetails>
     </>

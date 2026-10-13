@@ -34,6 +34,8 @@ export { mcpRoute } from "./mcp";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, authorizeRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 
+export { isLicensed, licensingOn } from "./licensing";
+
 export const instanceTitle = config.title;
 
 /** The sign-in providers for the buttons, in order: id (for /api/oidc/start?provider=) and label; empty while identity is off. */

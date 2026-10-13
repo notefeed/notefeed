@@ -42,6 +42,7 @@ export function proxy(req: NextRequest) {
     pathname === "/metrics" ||
     pathname === "/health" ||
     pathname === "/privacy" ||
+    pathname === "/license" ||
     pathname === "/imprint" ||
     /^\/(r|_next|api|oauth|\.well-known)\//.test(pathname) ||
     /^\/(icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest)$/.test(pathname);
