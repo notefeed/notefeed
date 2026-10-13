@@ -16,7 +16,7 @@ services:
 |---|---|
 | `NOTEFEED_IMPRINT_FILE` | `/imprint`, linked as **Imprint** in the footer |
 | `NOTEFEED_PRIVACY_FILE` | `/privacy`, linked as **Data privacy** in the footer |
-| `NOTEFEED_TERMS_FILE` | `/terms`, linked as **Terms** in the footer: the terms of service and refund policy that a [payment provider](selling-licenses.md) asks for |
+| `NOTEFEED_TERMS_FILE` | `/terms`, linked as **Terms** in the footer: the terms of service |
 
 - **The files are Markdown**, shown the way a note is: headings, lists, tables and links work, and raw HTML is shown as text.
 - **Each is optional.** Without a setting, or with one that names no readable file, the page answers `404` and the footer has no link to it. The [start-up log](logs.md#logs) says when a setting is there but its file cannot be read.
