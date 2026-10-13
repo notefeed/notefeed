@@ -8,6 +8,7 @@ import { BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, Im
 import { type FeedAccess, checkFeedAccess, createProtected } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
 import { assertFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
+import { requireLicense, trimToFreeCap } from "./licensing";
 import { isBlockedImage } from "./takedown";
 import { capReached, rateLimit } from "./limits";
 import { logger } from "./log";
@@ -52,6 +53,7 @@ async function protect(feed: string, ip: string, access: FeedAccess, proved: boo
   // A protected feed was already unlocked above; an open existing one can't be claimed.
   if (!proved && password !== undefined) {
     if (exists) throw new FeedExistsError();
+    await requireLicense(feed); // a new feed has no license yet: a password at creation is for licensed feeds (ADR 0029)
     await createProtected(feed, password, wantedReadId);
     return true;
   }
@@ -72,6 +74,11 @@ async function recheck(feed: string, ip: string, access: FeedAccess, proved: boo
 // written, after the access checks: who may not post is told that first.
 function refuseImages(images: boolean): void {
   if (images && !config.imageUploads()) throw new ImagesOffError();
+}
+
+// On an instance with a payment provider, an image needs a licensed feed (ADR 0029); after refuseImages, so "off" is said first.
+async function licenseForImages(feed: string, images: boolean): Promise<void> {
+  if (images) await requireLicense(feed);
 }
 
 // The caps are per type: images have their own, the notes limit counts the markdown ones. `adding` notes of that type; a feed that does not exist yet counts as empty.
@@ -104,6 +111,7 @@ export async function postNote(
   if (!parsed) throw new UnsupportedTypeError();
   const { type, ext } = parsed;
   refuseImages(type.name === "image");
+  await licenseForImages(feed, type.name === "image");
   if (exists) await checkCap(feed, type.name, 1);
   // Before createProtected: a refused note must not leave a protected, empty feed.
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
@@ -118,6 +126,7 @@ export async function postNote(
   // this check and createNoteOf's ensureFeed, which then finds the feed and writes into it: this one note is
   // then in the protected feed. A lock around creation, per feed, would close it.
   const made = await createNoteOf(feed, type, ext, input.body, { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId });
+  await trimToFreeCap(feed);
   return { ...made, created };
 }
 
@@ -128,6 +137,7 @@ export async function editContent(feed: string, id: string, ip: string, read: ()
   const current = await getNote(feed, id);
   if (!current) throw new NotFoundError("no such note"); // before the body is read: a missing note is 404 whatever the body
   refuseImages(current.type.startsWith("image/")); // replacing a picture's bytes is an upload too
+  await licenseForImages(feed, current.type.startsWith("image/"));
   const { body, mediaType } = await read();
   if (parseMediaType(mediaType)?.type.name === "image") await refuseBlocked(body);
   const note = await replaceContent(feed, id, body, mediaType);
@@ -254,6 +264,7 @@ export async function postWithPictures(
   const exists = await feedCapped(feed);
   const { text, title, ...input } = await read();
   const pictures = checkPictures(input.pictures);
+  await licenseForImages(feed, pictures.length > 0);
   for (const p of pictures) await refuseBlocked(p.body);
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
@@ -268,6 +279,7 @@ export async function postWithPictures(
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined }, async (stored, sent, readId) => {
     if (text === undefined) return { note: stored[0], created, readId, pictures: stored };
     const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title });
+    await trimToFreeCap(feed);
     return { ...made, created, pictures: stored };
   });
 }
@@ -289,6 +301,7 @@ export async function editWithPictures(
   if (note.type !== MARKDOWN_TYPE) throw new UnsupportedTypeError(`this note is ${note.type}: send that Content-Type`);
   const input = await read();
   const pictures = checkPictures(input.pictures);
+  await licenseForImages(feed, pictures.length > 0);
   for (const p of pictures) await refuseBlocked(p.body);
   const plan = await checkText(input.text, pictures);
   const tags = checkTags(input.tags);

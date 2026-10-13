@@ -10,6 +10,7 @@ export const ERROR_CODES = [
   "note_limit",
   "image_limit",
   "images_off",
+  "license_required",
   "empty_note",
   "too_large",
   "unsupported_type",

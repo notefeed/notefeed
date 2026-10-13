@@ -52,6 +52,8 @@ const s3 = () => ({
 
 // At startup, so a wrong setting shows then and not on the first signed cookie. The URL itself is never in a message,
 // nor is the endpoint or a key of the image store.
+const paymentProvider = () => env("NOTEFEED_PAYMENT_PROVIDER").trim().toLowerCase();
+
 function validateStorage(): void {
   const kind = storageKind();
   const images = imageStoreKind();
@@ -62,7 +64,10 @@ function validateStorage(): void {
     if (missing.length) throw new Error(`NOTEFEED_IMAGES=s3 needs ${missing.join(", ")}`);
     if (!/^https?:\/\//i.test(endpoint) || !URL.canParse(endpoint)) throw new Error("NOTEFEED_S3_ENDPOINT must be an http(s) URL");
   }
-  if (kind === "fs") return;
+  if (kind === "fs") {
+    if (paymentProvider() !== "") throw new Error("NOTEFEED_PAYMENT_PROVIDER needs NOTEFEED_STORAGE=sqlite or postgres: licenses are kept in the database");
+    return;
+  }
   if (kind === "postgres" && databaseUrl() === "") throw new Error("NOTEFEED_STORAGE=postgres needs NOTEFEED_DATABASE_URL");
   if (Buffer.byteLength(env("NOTEFEED_SECRET")) < 32) {
     throw new Error(`NOTEFEED_STORAGE=${kind} needs NOTEFEED_SECRET of at least 32 bytes (e.g. openssl rand -hex 32): there is no data folder to keep a generated one in`);
@@ -96,6 +101,10 @@ export const config = {
   // A URL template for the "Report" link on every note (shared/report.ts fills {read_id}, {note_id} and {file}).
   // Unset with an endpoint set, the link opens the built-in page; unset without one, there is no link.
   reportUrl: () => env("NOTEFEED_REPORT_URL").trim() || (env("NOTEFEED_REPORT_ENDPOINT").trim() ? REPORT_PAGE : ""),
+  // The payment provider of the SaaS (ADR 0029). Empty: no licensing, every feature open and no free-tier cap, as on a self-hosted instance.
+  paymentProvider,
+  // Notes a free feed keeps while a payment provider is set: the oldest is dropped past it.
+  freeNoteCap: () => Math.max(1, int("NOTEFEED_FREE_NOTE_CAP", 1000)),
   trustProxy: () => env("NOTEFEED_TRUST_PROXY") === "1",
   // Per minute and IP; 0 or below turns it off.
   rateLimit: () => int("NOTEFEED_RATE_LIMIT", 60),

@@ -153,6 +153,13 @@ export async function listNotes(feed: string, limit = 50, before?: string, tag?:
   return found.slice(0, limit);
 }
 
+/** The ids of the notes of a type past the newest `keep`: the oldest ones, without reading any note's content. */
+export async function idsBeyond(feed: string, keep: number, typeName?: string): Promise<string[]> {
+  const refs = await noteRefs(feed, typeName);
+  if (refs.length <= keep) return [];
+  return (await newestFirst(feed, refs)).slice(keep).map((r) => r.id);
+}
+
 export async function countNotes(feed: string, typeName?: string): Promise<number> {
   return (await noteRefs(feed, typeName)).length;
 }

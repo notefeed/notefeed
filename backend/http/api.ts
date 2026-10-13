@@ -59,6 +59,7 @@ const UNAUTHORIZED = err("The instance has a password, or the feed has its own, 
 const REMOVED = err("The operator removed this feed for good (`removed`): its name cannot be used again");
 const REMOVED_READ = err("The operator removed the feed this read id belonged to (`removed`)");
 const BLOCKED = err("An image the operator removed, which may not be posted again in any feed (`blocked`)");
+const LICENSE_REQUIRED = err("Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds");
 const IMAGES_OFF = err("Image uploads are off on this instance (`NOTEFEED_IMAGE_UPLOADS=0`, code `images_off`): an image body, a picture replaced, or a multipart body with pictures. Stored pictures are still served");
 
 // For the Feeds reads: the password first (a locked instance tells strangers nothing else), then the name.
@@ -168,6 +169,7 @@ const OPS: AnyOp[] = [
           `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad or repeated file name, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
+      402: LICENSE_REQUIRED,
       403: IMAGES_OFF,
       409: err("A password was sent for a feed that already exists without one: it can't be claimed; or the chosen read id is taken"),
       410: REMOVED,
@@ -248,6 +250,7 @@ const OPS: AnyOp[] = [
           `a multipart body with an unexpected part, no \`text\`, more than ${MAX_ATTACHMENTS} files, a bad or repeated file name, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
+      402: LICENSE_REQUIRED,
       403: IMAGES_OFF,
       404: err("No such note"),
       413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB`),
@@ -423,6 +426,7 @@ const OPS: AnyOp[] = [
       204: { description: "Changed; the old password and unlock cookies stop working" },
       400: err(`Invalid or reserved feed name, bad JSON, or a new password that is not ${PASSWORD_RULE}`),
       401: UNAUTHORIZED,
+      402: LICENSE_REQUIRED,
       409: err("The feed has no password"),
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
     },

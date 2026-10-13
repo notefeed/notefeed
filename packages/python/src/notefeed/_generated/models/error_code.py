@@ -12,6 +12,7 @@ class ErrorCode(StrEnum):
     INVALID_BODY = "invalid_body"
     INVALID_FEED = "invalid_feed"
     INVALID_REQUEST = "invalid_request"
+    LICENSE_REQUIRED = "license_required"
     NOTE_LIMIT = "note_limit"
     NOT_FOUND = "not_found"
     RATE_LIMITED = "rate_limited"
