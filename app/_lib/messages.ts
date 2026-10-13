@@ -27,6 +27,7 @@ const MESSAGES: Record<ErrorCode | "sign_in_failed", string> = {
   note_limit: "This feed has reached its note limit.",
   image_limit: "This feed has reached its image limit.",
   images_off: IMAGES_OFF,
+  license_required: "This needs a license for the feed.",
   empty_note: "The note is empty.",
   too_large: "The note is over 100 KB.",
   unsupported_type: "The note could not be read.",

@@ -8,6 +8,7 @@ import { FeedGoneError } from "./storage/types";
 import { AuthError, FeedExistsError, InvalidBodyError, NotFoundError, TooManyAttemptsError } from "./errors";
 import { checkFeed, createProtectedFeed, secret } from "./feeds";
 import { authAttempt } from "./limits";
+import { requireLicense } from "./licensing";
 
 // An empty password means none, wherever it comes from (header, body field, MCP argument).
 export type FeedAccess = { password?: string; cookie?: string };
@@ -114,6 +115,7 @@ async function currentHash(feed: string, current: string, ip: string): Promise<s
 // Returns the unlock cookie for the new password; every earlier cookie stops working.
 export async function changePassword(feed: string, current: string, next: string, ip: string): Promise<string> {
   checkNewPassword(next);
+  await requireLicense(feed); // setting or changing a password is for licensed feeds; removing one is not (ADR 0029)
   await currentHash(feed, current, ip);
   const hash = await hashPassword(next);
   // ponytail: checked, not locked. The write is by path after the scrypt wait, so a feed deleted and

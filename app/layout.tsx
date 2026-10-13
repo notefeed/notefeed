@@ -26,7 +26,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The imprint and the privacy page are the operator's own files (backend/legal.ts), looked for on every request:
   // a link only where there is a page.
   await connection();
-  const [imprint, privacy] = await Promise.all([hasLegalPage("imprint"), hasLegalPage("privacy")]);
+  const [imprint, privacy, terms] = await Promise.all([hasLegalPage("imprint"), hasLegalPage("privacy"), hasLegalPage("terms")]);
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable} antialiased`}>
       <body className="font-sans text-base leading-relaxed">
@@ -46,6 +46,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             {privacy && (
               <Link href="/privacy" className="hover:text-ink hover:underline">
                 Data privacy
+              </Link>
+            )}
+            {terms && (
+              <Link href="/terms" className="hover:text-ink hover:underline">
+                Terms
               </Link>
             )}
           </footer>

@@ -16,7 +16,7 @@ afterEach(async () => {
 test("without the settings there is neither page", async () => {
   vi.stubEnv("NOTEFEED_IMPRINT_FILE", "");
   vi.stubEnv("NOTEFEED_PRIVACY_FILE", "");
-  for (const page of ["imprint", "privacy"] as const) {
+  for (const page of ["imprint", "privacy", "terms"] as const) {
     expect(await hasLegalPage(page)).toBe(false);
     expect(await readLegalPage(page)).toBeNull();
   }

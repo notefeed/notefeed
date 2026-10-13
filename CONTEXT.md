@@ -102,6 +102,10 @@ _Avoid_: Feed key
 The optional way for a person to prove who they are, so that their notes carry a sender. Off by default.
 _Avoid_: Login, accounts, user management
 
+**License**:
+What a feed owner buys on a hosted instance: a key, kept by the buyer, that lifts the free tier's limits for one feed (no cap on stored notes, a feed password, images). notefeed stores only the key's hash. Instances with no payment provider have no licenses and no free tier.
+_Avoid_: Subscription, plan, account
+
 **Cap**:
 An operator-set upper limit on how much an instance stores: feeds, notes per feed, images per feed, and the size of an image.
 _Avoid_: Quota, limit

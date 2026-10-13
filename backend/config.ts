@@ -52,7 +52,23 @@ const s3 = () => ({
 
 // At startup, so a wrong setting shows then and not on the first signed cookie. The URL itself is never in a message,
 // nor is the endpoint or a key of the image store.
+const paymentProvider = () => env("NOTEFEED_PAYMENT_PROVIDER").trim().toLowerCase();
+
+// The payment provider, if any (ADR 0029): a known one, with what it needs.
+function validatePayments(): void {
+  const provider = paymentProvider();
+  if (provider === "") return;
+  if (provider === "fake") {
+    if (env("NOTEFEED_FAKE_WEBHOOK_SECRET") === "") throw new Error("NOTEFEED_PAYMENT_PROVIDER=fake needs NOTEFEED_FAKE_WEBHOOK_SECRET");
+    return;
+  }
+  if (provider !== "creem") throw new Error(`NOTEFEED_PAYMENT_PROVIDER=${provider} is not a payment provider; use creem`);
+  const missing = Object.entries({ NOTEFEED_CREEM_API_KEY: env("NOTEFEED_CREEM_API_KEY"), NOTEFEED_CREEM_PRODUCT_ID: env("NOTEFEED_CREEM_PRODUCT_ID"), NOTEFEED_CREEM_WEBHOOK_SECRET: env("NOTEFEED_CREEM_WEBHOOK_SECRET"), PUBLIC_URL: env("PUBLIC_URL") }).flatMap(([k, v]) => (v === "" ? [k] : []));
+  if (missing.length) throw new Error(`NOTEFEED_PAYMENT_PROVIDER=creem needs ${missing.join(", ")}`);
+}
+
 function validateStorage(): void {
+  validatePayments();
   const kind = storageKind();
   const images = imageStoreKind();
   if (kind === "fs" && images !== "db") throw new Error(`NOTEFEED_IMAGES=${images} needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend keeps images in the feed's folder`);
@@ -88,6 +104,8 @@ export const config = {
   // The operator's own imprint and privacy page: Markdown files (see legal.ts). Empty: the page does not exist.
   imprintFile: () => env("NOTEFEED_IMPRINT_FILE"),
   privacyFile: () => env("NOTEFEED_PRIVACY_FILE"),
+  // The operator's terms of service and refund policy, the page a payment provider asks for (see legal.ts).
+  termsFile: () => env("NOTEFEED_TERMS_FILE"),
   // The operator's notice on the start page, a Markdown file too. Empty: no notice.
   noticeFile: () => env("NOTEFEED_NOTICE_FILE"),
   // Where the built-in report page (/report) posts a report: the endpoint of a form in an inbox such as noticebox.
@@ -96,6 +114,16 @@ export const config = {
   // A URL template for the "Report" link on every note (shared/report.ts fills {read_id}, {note_id} and {file}).
   // Unset with an endpoint set, the link opens the built-in page; unset without one, there is no link.
   reportUrl: () => env("NOTEFEED_REPORT_URL").trim() || (env("NOTEFEED_REPORT_ENDPOINT").trim() ? REPORT_PAGE : ""),
+  // The payment provider of the SaaS (ADR 0029). Empty: no licensing, every feature open and no free-tier cap, as on a self-hosted instance.
+  paymentProvider,
+  // The SQLite file of the licenses (ADR 0029), apart from the feeds' storage: a path, or `file:<path>`.
+  licenseDb: () => (env("NOTEFEED_LICENSE_DB").trim() || `${dataDir().replace(/\/+$/, "")}/licenses.db`).replace(/^file:/, ""),
+  // Notes a free feed keeps while a payment provider is set: the oldest is dropped past it.
+  // Creem (NOTEFEED_PAYMENT_PROVIDER=creem): the API key (`creem_test_…` for the sandbox), the product of the paid license and the webhook secret.
+  creem: () => ({ apiKey: env("NOTEFEED_CREEM_API_KEY"), productId: env("NOTEFEED_CREEM_PRODUCT_ID"), webhookSecret: env("NOTEFEED_CREEM_WEBHOOK_SECRET") }),
+  // The fake provider's webhook secret (tests, development).
+  fakeWebhookSecret: () => env("NOTEFEED_FAKE_WEBHOOK_SECRET"),
+  freeNoteCap: () => Math.max(1, int("NOTEFEED_FREE_NOTE_CAP", 1000)),
   trustProxy: () => env("NOTEFEED_TRUST_PROXY") === "1",
   // Per minute and IP; 0 or below turns it off.
   rateLimit: () => int("NOTEFEED_RATE_LIMIT", 60),

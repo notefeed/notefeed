@@ -23,6 +23,9 @@ export const ROUTES = [
   "/[feed]/delete",
   "/[feed]/details",
   "/[feed]/settings",
+  "/api/licenses/attach",
+  "/api/licenses/checkout",
+  "/api/licenses/webhook",
   "/api/login",
   "/api/oauth/authorize",
   "/api/oidc/callback",
@@ -33,6 +36,7 @@ export const ROUTES = [
   "/api/v1/[...path]",
   "/health",
   "/imprint",
+  "/license",
   "/login",
   "/logout",
   "/mcp",
@@ -46,6 +50,7 @@ export const ROUTES = [
   "/r/[readId]/feed.xml",
   "/r/[readId]/files/[file]",
   "/report",
+  "/terms",
 ];
 
 const ASSETS = "/_next/*";

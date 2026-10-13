@@ -1,11 +1,11 @@
-// The imprint and the privacy page of an instance: Markdown files of the operator's own, named by NOTEFEED_IMPRINT_FILE
-// and NOTEFEED_PRIVACY_FILE. notefeed ships neither text. Without a file, or with one that cannot be read, the page does
+// The imprint, the privacy page and the terms of an instance: Markdown files of the operator's own, named by NOTEFEED_IMPRINT_FILE,
+// NOTEFEED_PRIVACY_FILE and NOTEFEED_TERMS_FILE. notefeed ships none of the texts. Without a file, or with one that cannot be read, the page does
 // not exist and the footer has no link to it. NOTEFEED_NOTICE_FILE is a third file of the same kind: a notice of the
 // operator's on the start page, which without a file is as notefeed ships it.
 import { readFile, stat } from "node:fs/promises";
 import { config } from "./config";
 
-export type LegalPage = "imprint" | "privacy";
+export type LegalPage = "imprint" | "privacy" | "terms";
 
 // A page of text, not a place to keep files: anything larger is a mistake in the setting.
 export const MAX_LEGAL_BYTES = 256 * 1024;
@@ -15,6 +15,7 @@ type OperatorFile = LegalPage | "notice";
 const SETTINGS: Record<OperatorFile, { name: string; path: () => string }> = {
   imprint: { name: "NOTEFEED_IMPRINT_FILE", path: config.imprintFile },
   privacy: { name: "NOTEFEED_PRIVACY_FILE", path: config.privacyFile },
+  terms: { name: "NOTEFEED_TERMS_FILE", path: config.termsFile },
   notice: { name: "NOTEFEED_NOTICE_FILE", path: config.noticeFile },
 };
 

@@ -185,6 +185,16 @@
               }
             }
           },
+          "402": {
+            "description": "Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Image uploads are off on this instance (`NOTEFEED_IMAGE_UPLOADS=0`, code `images_off`): an image body, a picture replaced, or a multipart body with pictures. Stored pictures are still served",
             "content": {
@@ -618,6 +628,16 @@
           },
           "401": {
             "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds",
             "content": {
               "application/json": {
                 "schema": {
@@ -1291,6 +1311,16 @@
           },
           "401": {
             "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds",
             "content": {
               "application/json": {
                 "schema": {
@@ -2032,6 +2062,7 @@
               "note_limit",
               "image_limit",
               "images_off",
+              "license_required",
               "empty_note",
               "too_large",
               "unsupported_type",

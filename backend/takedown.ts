@@ -2,6 +2,7 @@
 // and image bytes go, a tombstone keeps its name and read id from ever being used again, and the hashes of its images go on the
 // instance's blocklist, so the same bytes are refused in any feed (posting.ts checks). Nothing about anyone is written; the log
 // line says what went, never the feed (ADR 0015).
+import { releaseLicense } from "./licensing";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, NotFoundError } from "./errors";
 import { feedForReadId, isRemovedReadId, isReadId } from "./feeds";
@@ -47,6 +48,7 @@ export async function takedown(target: string): Promise<Takedown> {
   const images = await countNotes(feed, "image");
   const { removed, keys } = await storage().takedownFeed(feed, readId);
   await storage().blockImages([...hashes]);
+  await releaseLicense(feed);
   log.info({ notes, images, blocked: hashes.size, keys: keys.length }, "feed removed by the operator");
   return { removed, already_removed: false, notes, images, blocked: hashes.size, image_keys: keys };
 }
