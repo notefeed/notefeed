@@ -104,6 +104,8 @@ export const config = {
   // The operator's own imprint and privacy page: Markdown files (see legal.ts). Empty: the page does not exist.
   imprintFile: () => env("NOTEFEED_IMPRINT_FILE"),
   privacyFile: () => env("NOTEFEED_PRIVACY_FILE"),
+  // The operator's terms of service and refund policy, the page a payment provider asks for (see legal.ts).
+  termsFile: () => env("NOTEFEED_TERMS_FILE"),
   // The operator's notice on the start page, a Markdown file too. Empty: no notice.
   noticeFile: () => env("NOTEFEED_NOTICE_FILE"),
   // Where the built-in report page (/report) posts a report: the endpoint of a form in an inbox such as noticebox.

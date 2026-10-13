@@ -50,6 +50,7 @@ export const ROUTES = [
   "/r/[readId]/feed.xml",
   "/r/[readId]/files/[file]",
   "/report",
+  "/terms",
 ];
 
 const ASSETS = "/_next/*";
