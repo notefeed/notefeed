@@ -76,6 +76,13 @@ body {
 .md img { max-width: 100%; height: auto; }
 .md hr { border: 0; border-top: 1px solid var(--rule); }
 
+/* The operator's pages (components/LegalPage.tsx): a document, with room between its sections. */
+.doc .md > h1:first-child { font-size: 1.75rem; letter-spacing: -0.01em; margin-bottom: 0.25em; }
+.doc .md h2 { font-size: 1.125rem; margin-top: 1.75em; padding-top: 1.25em; border-top: 1px solid var(--rule); }
+.doc .md h1 + h2 { border-top: 0; padding-top: 0; }
+.doc .md { line-height: 1.65; }
+.doc .md ul { margin-block: 0.4em; }
+
 /* A feed's pages (components/AppShell.tsx): one column on a phone; from lg the feeds on the left; from xl the feed's
    details on the right. One element per area, so nothing is rendered twice. */
 .shell { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; grid-template-areas: "top" "about" "main"; }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Flag, Hash, NotebookText } from "lucide-react";
+import { Flag, Hash } from "lucide-react";
 import { card, chip, sectionLabel } from "@/components/styles";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
@@ -32,11 +32,11 @@ function groupByDay(notes: Note[]): [string, Note[]][] {
   return [...groups];
 }
 
-// The foot of a note's card: its tags, which link to the list filtered by that tag (`${base}?tag=…`), and the Report link.
-function Foot({ note, base, report }: { note: Note; base: string; report?: Report }) {
-  if (!note.tags.length && !report) return null;
+// The foot of a note's card, one line: its tags, which link to the list filtered by that tag (`${base}?tag=…`), then who
+// posted it, when, and the Report link. No header row: the title is the first thing in the card.
+function Foot({ note, base, when, report }: { note: Note; base: string; when: string; report?: Report }) {
   return (
-    <div className="mt-3 flex items-end gap-2">
+    <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
       <div className="flex min-w-0 flex-1 flex-wrap gap-2">
         {note.tags.map((t) => (
           <Link key={t} href={`${base}?tag=${encodeURIComponent(t)}`} className={chip}>
@@ -45,7 +45,18 @@ function Foot({ note, base, report }: { note: Note; base: string; report?: Repor
           </Link>
         ))}
       </div>
-      <ReportLink note={note} report={report} />
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 text-[13px] text-muted">
+        {note.sender && (
+          <>
+            <span className="max-w-32 truncate">{note.sender}</span>
+            <span aria-hidden>·</span>
+          </>
+        )}
+        <time dateTime={note.createdAt.toISOString()} className="tabular-nums">
+          {when}
+        </time>
+        <ReportLink note={note} report={report} />
+      </div>
     </div>
   );
 }
@@ -56,27 +67,10 @@ export type Report = { template: string; readId: string };
 function ReportLink({ note, report }: { note: Note; report?: Report }) {
   if (!report) return null;
   return (
-    <a href={reportUrl(report.template, { readId: report.readId, noteId: note.id, file: note.file })} rel="nofollow noopener" className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-carbon">
+    <a href={reportUrl(report.template, { readId: report.readId, noteId: note.id, file: note.file })} rel="nofollow noopener" className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-carbon">
       <Flag aria-hidden className="h-3.5 w-3.5" />
       Report
     </a>
-  );
-}
-
-// The head of a note's card: who posted it (the sender's initial; a note icon when the feed doesn't show senders) and when.
-function Byline({ note, when }: { note: Note; when: string }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span aria-hidden className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-carbon-soft text-[13px] font-bold uppercase text-carbon">
-        {note.sender ? note.sender[0] : <NotebookText className="h-4 w-4" />}
-      </span>
-      <div className="min-w-0 flex-1 text-[13px] leading-tight">
-        {note.sender && <p className="truncate font-bold">{note.sender}</p>}
-        <time dateTime={note.createdAt.toISOString()} className="tabular-nums text-muted">
-          {when}
-        </time>
-      </div>
-    </div>
   );
 }
 
@@ -98,20 +92,19 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
       <ol className="mt-2 space-y-3">
         {items.map((n) => (
           <li key={n.id} className={`${card} p-4 ${n.id === posted ? "arrived" : ""}`}>
-            <Byline note={n} when={time(n.createdAt)} />
             {n.type.startsWith("image/") ? (
               <>
                 {n.title && (
-                  <Link href={`${base}/${n.id}`} className="mt-3 block text-[17px] font-bold tracking-tight hover:text-carbon">
+                  <Link href={`${base}/${n.id}`} className="mb-3 block text-[17px] font-bold tracking-tight hover:text-carbon">
                     {n.title}
                   </Link>
                 )}
-                <Link href={`${base}/${n.id}`} className="mt-3 block">
+                <Link href={`${base}/${n.id}`} className="block">
                   <Picture note={n} imageBase={imageBase} className="max-h-96 w-full rounded-xl object-cover" />
                 </Link>
               </>
             ) : (
-              <Link href={`${base}/${n.id}`} className="mt-3 block text-[17px] font-bold tracking-tight hover:text-carbon">
+              <Link href={`${base}/${n.id}`} className="block text-[17px] font-bold tracking-tight hover:text-carbon">
                 {n.title || n.id}
               </Link>
             )}
@@ -120,7 +113,7 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
                 <NoteView markdown={bodyAfterTitle(n.content ?? "")} imageBase={imageBase} />
               </div>
             )}
-            <Foot note={n} base={base} report={report} />
+            <Foot note={n} base={base} when={time(n.createdAt)} report={report} />
           </li>
         ))}
       </ol>
@@ -133,8 +126,7 @@ export function NoteArticle({ note, back, imageBase, report }: { note: Note; bac
   return (
     <>
       <article className={`${card} p-4 sm:p-5`}>
-        <Byline note={note} when={note.createdAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} />
-        <div className="mt-3">
+        <div>
           {note.type.startsWith("image/") ? (
             <>
               {note.title && <h1 className="mb-2 text-xl font-bold tracking-tight">{note.title}</h1>}
@@ -144,7 +136,7 @@ export function NoteArticle({ note, back, imageBase, report }: { note: Note; bac
             <NoteView markdown={(note.content ?? "")} imageBase={imageBase} />
           )}
         </div>
-        <Foot note={note} base={back} report={report} />
+        <Foot note={note} base={back} when={note.createdAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} report={report} />
       </article>
       <p className="mt-6 text-center text-sm">
         <Link href={back} className="text-carbon hover:underline">
