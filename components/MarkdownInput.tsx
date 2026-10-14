@@ -41,6 +41,7 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
   const picker = useRef<HTMLInputElement>(null);
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
   const [tab, setTab] = useState<"write" | "preview">("write");
+  const [height, setHeight] = useState<number>(); // the text box's height when the preview opened: the preview keeps it, so nothing jumps
   const previewing = hydrated && tab === "preview";
   // A waiting picture, by the name the text calls it (its token): shown from its file, before anything is uploaded.
   const resolve = (src: string) => pending.find((p) => p.token === src)?.preview;
@@ -120,7 +121,7 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
       </label>
       {above}
       {previewing && (
-        <div id={`${id}-preview`} role="region" aria-label="Preview" className={`min-h-32 ${bare ? "py-1" : "rounded-xl border border-rule p-3"}`}>
+        <div id={`${id}-preview`} role="region" aria-label="Preview" style={{ minHeight: height }} className={`box-border ${bare ? "py-1" : "rounded-xl border border-rule p-3"}`}>
           {value.trim() ? <NoteView markdown={value} imageBase={imageBase} resolve={resolve} /> : <p className="text-muted">Nothing to preview.</p>}
         </div>
       )}
@@ -166,7 +167,10 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
             aria-controls={`${id}-preview`}
             aria-label="Preview"
             title={previewing ? "Back to writing" : "Preview"}
-            onClick={() => setTab(previewing ? "write" : "preview")}
+            onClick={() => {
+              if (!previewing) setHeight(area.current?.offsetHeight);
+              setTab(previewing ? "write" : "preview");
+            }}
             className={`inline-flex h-9 w-9 items-center justify-center rounded-full ${previewing ? "bg-carbon-soft text-carbon" : "text-muted hover:bg-surface-2 hover:text-ink"}`}
           >
             {previewing ? <PenLine aria-hidden className="h-[18px] w-[18px]" /> : <Eye aria-hidden className="h-[18px] w-[18px]" />}
