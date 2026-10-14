@@ -116,23 +116,23 @@ test("saving an edit sends only what changed: nothing, the title, or the text", 
   expect(writes).toEqual(["PATCH", "PUT"]);
 });
 
-test("Preview renders the markdown as the note will show; Write brings the text back unchanged", async ({ page }) => {
+test("Preview renders the markdown as the note will show; pressing it again brings the text back unchanged", async ({ page }) => {
   const name = feedName();
   await page.goto(`/${name}`);
   await page.getByLabel("Note in markdown").fill("# Seen first\n\n- one\n- **two**\n\n<b>raw</b>");
-  await page.getByRole("tab", { name: "Preview" }).click();
-  await expect(page.getByRole("tabpanel")).toBeVisible();
-  await expect(page.getByRole("tabpanel").getByRole("heading", { name: "Seen first" })).toBeVisible();
-  await expect(page.getByRole("tabpanel").locator("strong")).toHaveText("two");
-  await expect(page.getByRole("tabpanel")).toContainText("<b>raw</b>"); // raw HTML stays text
+  await page.getByRole("button", { name: "Preview" }).click();
+  await expect(page.getByRole("region", { name: "Preview" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Preview" }).getByRole("heading", { name: "Seen first" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Preview" }).locator("strong")).toHaveText("two");
+  await expect(page.getByRole("region", { name: "Preview" })).toContainText("<b>raw</b>"); // raw HTML stays text
   await expect(page.getByLabel("Note in markdown")).toBeHidden();
-  await page.getByRole("tab", { name: "Write" }).click();
+  await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.getByLabel("Note in markdown")).toHaveValue("# Seen first\n\n- one\n- **two**\n\n<b>raw</b>");
   await page.getByRole("button", { name: "Post note" }).click();
   await page.getByRole("link", { name: "Seen first" }).click();
-  // The editor has the same tabs, and an empty box says so.
+  // The editor has the same toggle, and an empty box says so.
   await page.getByText("Edit", { exact: true }).click();
   await page.getByLabel("Note in markdown").fill("");
-  await page.getByRole("tab", { name: "Preview" }).click();
-  await expect(page.getByRole("tabpanel")).toHaveText("Nothing to preview.");
+  await page.getByRole("button", { name: "Preview" }).click();
+  await expect(page.getByRole("region", { name: "Preview" })).toHaveText("Nothing to preview.");
 });

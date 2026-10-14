@@ -364,8 +364,8 @@ test("the preview shows a dropped picture from its file, before it is uploaded",
   await page.goto(`/${feedName()}`);
   await note(page).fill("# With a picture");
   await drop(page, "cat.png");
-  await page.getByRole("tab", { name: "Preview" }).click();
-  const img = page.getByRole("tabpanel").locator("img");
+  await page.getByRole("button", { name: "Preview" }).click();
+  const img = page.getByRole("region", { name: "Preview" }).locator("img");
   await expect(img).toHaveAttribute("src", /^blob:/);
   await loaded(img).toBeGreaterThan(0);
 });

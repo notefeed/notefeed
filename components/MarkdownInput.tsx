@@ -13,7 +13,7 @@ const ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
 // name made from the file's (uniqueToken: safe to write in a link, and unlike the others'). Nothing is uploaded here, so leaving the page uploads nothing. The button and the list only exist once hydrated,
 // so without JavaScript only the textarea renders. A note takes a limited number of pictures (MAX_ATTACHMENTS): of more,
 // the ones that fit are added and `onMessage` sets the reason, for the parent to show where it shows its errors; removing a picture clears it.
-// Two tabs in the toolbar, Write and Preview (issue #146): the preview renders the text with the components the note pages use, so it
+// A Preview toggle in the toolbar (issue #146; tabs Write and Preview before #185): the preview renders the text with the components the note pages use, so it
 // cannot differ from the posted note, with the waiting pictures shown from their files and the stored ones from `imageBase` (the feed's
 // read link). The textarea is hidden, not unmounted, while previewing, so the text, the cursor and the form's submit stay as they are.
 // `images` false (NOTEFEED_IMAGE_UPLOADS=0, issue #152): no button, and a dropped or pasted file is refused with the reason in its place.
@@ -111,7 +111,6 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
     add(files);
   };
 
-  const tabClass = (own: "write" | "preview") => `inline-flex h-9 w-9 items-center justify-center rounded-full ${tab === own ? "bg-carbon-soft text-carbon" : "text-muted hover:bg-surface-2 hover:text-ink"}`;
   const plain = bare ? "border-0 bg-transparent px-0 py-1 focus-visible:outline-none" : "rounded-xl border border-rule bg-surface-2/60 p-3 focus:border-carbon";
 
   return (
@@ -121,7 +120,7 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
       </label>
       {above}
       {previewing && (
-        <div id={`${id}-preview`} role="tabpanel" aria-labelledby={`${id}-tab-preview`} className={`min-h-32 ${bare ? "py-1" : "rounded-xl border border-rule p-3"}`}>
+        <div id={`${id}-preview`} role="region" aria-label="Preview" className={`min-h-32 ${bare ? "py-1" : "rounded-xl border border-rule p-3"}`}>
           {value.trim() ? <NoteView markdown={value} imageBase={imageBase} resolve={resolve} /> : <p className="text-muted">Nothing to preview.</p>}
         </div>
       )}
@@ -160,14 +159,18 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
       {below}
       <div className={`mt-2 flex flex-wrap items-center gap-1 text-sm ${bare ? "-mx-4 border-t border-rule px-3 pt-2" : ""}`}>
         {hydrated && (
-          <div role="tablist" aria-label="Write or preview" className="flex items-center gap-1">
-            <button type="button" role="tab" id={`${id}-tab-write`} aria-selected={tab === "write"} aria-controls={`${id}-write`} aria-label="Write" title="Write" onClick={() => setTab("write")} className={tabClass("write")}>
-              <PenLine aria-hidden className="h-[18px] w-[18px]" />
-            </button>
-            <button type="button" role="tab" id={`${id}-tab-preview`} aria-selected={tab === "preview"} aria-controls={`${id}-preview`} aria-label="Preview" title="Preview" onClick={() => setTab("preview")} className={tabClass("preview")}>
-              <Eye aria-hidden className="h-[18px] w-[18px]" />
-            </button>
-          </div>
+          // One toggle: the eye shows the preview, the pencil goes back to the text. Its name stays "Preview"; aria-pressed says which.
+          <button
+            type="button"
+            aria-pressed={previewing}
+            aria-controls={`${id}-preview`}
+            aria-label="Preview"
+            title={previewing ? "Back to writing" : "Preview"}
+            onClick={() => setTab(previewing ? "write" : "preview")}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-full ${previewing ? "bg-carbon-soft text-carbon" : "text-muted hover:bg-surface-2 hover:text-ink"}`}
+          >
+            {previewing ? <PenLine aria-hidden className="h-[18px] w-[18px]" /> : <Eye aria-hidden className="h-[18px] w-[18px]" />}
+          </button>
         )}
         {!images && <span className="text-muted">{IMAGES_OFF}</span>}
         {hydrated && images && (
