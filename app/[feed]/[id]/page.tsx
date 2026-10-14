@@ -44,7 +44,7 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[fe
           Saved.
         </p>
       )}
-      <NoteArticle note={note} back={feedPath(feed)} imageBase={imageBase} />
+      <NoteArticle note={note} back={feedPath(feed)} imageBase={imageBase} backInBar />
       <NoteActionsPanel />
     </AppShell>
     </NoteActions>

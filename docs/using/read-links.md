@@ -28,7 +28,7 @@ That makes it the link to give to feed readers, dashboards and other people. Kee
 
 ## The read-only view
 
-`/r/<read id>` shows the same notes without the compose box, under the feed's title and description when it has them, and never shows the feed's name (a reserved feed's read id is its name, by design). A trailing slash is fine: `/r/<read id>/` answers `200` with the same page, without a redirect. Each note opens at `/r/<read id>/<id>`, which is also the note's link in the RSS feed. It needs no login, even on a locked instance. When [sign-in](../self-hosting/sign-in/index.md) is on, it shows who posted each note, unless the feed's **Show who posted** setting is off.
+`/r/<read id>` shows the same notes without the compose box, under the feed's title, description and title image, with a **Subscribe** button for its RSS feed, and never shows the feed's name (a reserved feed's read id is its name, by design). A trailing slash is fine: `/r/<read id>/` answers `200` with the same page, without a redirect. Each note opens at `/r/<read id>/<id>`, which is also the note's link in the RSS feed. It needs no login, even on a locked instance. When [sign-in](../self-hosting/sign-in/index.md) is on, it shows who posted each note, unless the feed's **Show who posted** setting is off.
 
 ## Choosing a feed's read id
 

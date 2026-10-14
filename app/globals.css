@@ -87,7 +87,7 @@ body {
    details on the right. One element per area, so nothing is rendered twice. */
 .shell { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; grid-template-areas: "top" "about" "main"; }
 @media (min-width: 64rem) {
-  .shell { grid-template-columns: 15rem minmax(0, 40rem); grid-template-rows: auto 1fr; grid-template-areas: "nav about" "nav main"; column-gap: 2rem; }
+  .shell { grid-template-columns: 15rem minmax(0, 40rem); grid-template-rows: auto 1fr; grid-template-areas: "nav about" "nav main"; column-gap: 2rem; justify-content: center; }
 }
 @media (min-width: 80rem) {
   .shell { grid-template-columns: 15rem 40rem 18.75rem; grid-template-rows: 1fr; grid-template-areas: "nav main about"; }

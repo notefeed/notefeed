@@ -122,11 +122,12 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
 }
 
 // One note on its own page, as a card, under the way back to the list. `report` false: the page shows the Report link elsewhere (the note's action bar).
-export function NoteArticle({ note, back, imageBase, report }: { note: Note; back: string; imageBase?: string; report?: Report }) {
+// `backInBar`: between lg and xl the way back is in the note's action bar (components/NoteActions.tsx), not above the note.
+export function NoteArticle({ note, back, imageBase, report, backInBar = false }: { note: Note; back: string; imageBase?: string; report?: Report; backInBar?: boolean }) {
   return (
     <>
       {/* 2.5rem with its margin: the note's actions in the right column start that much lower, level with the note (NoteActionsBar). */}
-      <Link href={back} aria-label="Back to all notes" className="-ml-2 mb-3 inline-flex h-7 items-center gap-1 rounded-full px-2 text-sm text-carbon hover:bg-surface-2">
+      <Link href={back} aria-label="Back to all notes" className={`-ml-2 mb-3 h-7 items-center gap-1 rounded-full px-2 text-sm text-carbon hover:bg-surface-2 ${backInBar ? "inline-flex lg:hidden xl:inline-flex" : "inline-flex"}`}>
         <ChevronLeft aria-hidden className="h-4 w-4" />
         All notes
       </Link>

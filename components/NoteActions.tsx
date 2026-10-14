@@ -197,9 +197,10 @@ export function NoteActionsBar() {
         <Trash2 aria-hidden className="h-5 w-5" />
         Delete
       </button>
-      {/* In the right column only: elsewhere the "All notes" link above the note is at hand. */}
-      <div className="hidden xl:flex xl:flex-col">
-        <div className="mx-2 my-1 border-t border-rule" />
+      {/* Not on a phone, where the "All notes" link above the note is at hand: first in the row from lg (the note's own link
+          is hidden there), last in the right column from xl. */}
+      <div className="hidden lg:order-first lg:mr-auto lg:flex xl:order-none xl:mr-0 xl:flex-col">
+        <div className="mx-2 my-1 hidden border-t border-rule xl:block" />
         <Link href={back} className={`${button} text-carbon`}>
           <ChevronLeft aria-hidden className="h-5 w-5" />
           All notes

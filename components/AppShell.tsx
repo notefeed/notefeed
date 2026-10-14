@@ -12,7 +12,8 @@ import { card, iconButton, sectionLabel } from "@/components/styles";
 // The frame of a feed's pages (issue #185, .superdesign/design-system.md). On a phone: a top bar (logo, the feed
 // switcher, the ⓘ menu), then the feed's details (`about`) and the page. From lg the feeds this browser remembers sit
 // in a left column with the ⓘ menu at its foot; from xl `about` moves to a right column. The grid in globals.css (.shell) places
-// one element per area, so nothing is rendered twice.
+// one element per area, so nothing is rendered twice. Between lg and xl `about` sits on top of the page inside the same
+// bordered middle column, so the two read as one.
 // `feed`: the feed's name, on its writable pages only; the read-only pages must never show it, so they pass none and
 // get no switcher.
 // `docked`: `about` is fixed to the bottom of a phone's screen (the note's actions), so its area takes no room there.
@@ -46,7 +47,7 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
         </div>
       </aside>
 
-      {about && <div className={`${docked ? "" : "px-4 pt-4"} [grid-area:about] lg:px-0 lg:pt-6 xl:sticky xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:py-6`}>{about}</div>}
+      {about && <div className={`${docked ? "" : "px-4 pt-4"} [grid-area:about] lg:border-x lg:border-rule/70 lg:px-6 lg:pt-6 xl:sticky xl:border-x-0 xl:px-0 xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:py-6`}>{about}</div>}
 
       <main className="min-w-0 px-4 pt-4 pb-28 [grid-area:main] lg:border-x lg:border-rule/70 lg:px-6 lg:pt-6 lg:pb-10 xl:row-span-1">{children}</main>
     </div>
