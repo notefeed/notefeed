@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { X } from "lucide-react";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 // The feeds this browser has opened (issue #185): notefeed has no accounts, so "your feeds" is a list in localStorage,
 // newest first. It never leaves the browser. Storage can be unavailable (a private window, blocked site data): then the
@@ -68,11 +68,12 @@ export function RememberFeed({ feed }: { feed: RememberedFeed }) {
   return null;
 }
 
-// A remembered feed's avatar: its title image, else the initial of its title or name.
+// A remembered feed's avatar: its title image, else (also when the image is gone since) the initial of its title or name.
 export function FeedAvatar({ feed, size = "h-9 w-9" }: { feed: RememberedFeed; size?: string }) {
-  return feed.image ? (
+  const [broken, setBroken] = useState(false);
+  return feed.image && !broken ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={feed.image} alt="" className={`${size} shrink-0 rounded-full border border-rule bg-surface object-cover`} />
+    <img src={feed.image} alt="" onError={() => setBroken(true)} className={`${size} shrink-0 rounded-full border border-rule bg-surface object-cover`} />
   ) : (
     <span aria-hidden className={`${size} inline-flex shrink-0 items-center justify-center rounded-full bg-carbon-soft text-[13px] font-bold uppercase text-carbon`}>
       {(feed.title || feed.name)[0]}

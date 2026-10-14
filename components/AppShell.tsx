@@ -5,13 +5,13 @@ import { ArrowUpRight, ChevronDown, Info, LogOut, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { IDENTITY_COOKIE, SESSION_COOKIE, locked, sessionOk } from "@/backend";
 import { Disclosure } from "@/components/Disclosure";
-import { Footer, footerLinks, type FooterLink } from "@/components/LegalLinks";
+import { footerLinks, type FooterLink } from "@/components/LegalLinks";
 import { RememberedFeedLinks } from "@/components/RememberedFeeds";
 import { card, iconButton, sectionLabel } from "@/components/styles";
 
 // The frame of a feed's pages (issue #185, .superdesign/design-system.md). On a phone: a top bar (logo, the feed
 // switcher, the ⓘ menu), then the feed's details (`about`) and the page. From lg the feeds this browser remembers sit
-// in a left column with the footer; from xl `about` moves to a right column. The grid in globals.css (.shell) places
+// in a left column with the ⓘ menu at its foot; from xl `about` moves to a right column. The grid in globals.css (.shell) places
 // one element per area, so nothing is rendered twice.
 // `feed`: the feed's name, on its writable pages only; the read-only pages must never show it, so they pass none and
 // get no switcher.
@@ -39,9 +39,9 @@ export async function AppShell({ feed, about, children }: { feed?: string; about
           </span>
           Open or create a feed
         </Link>
-        <div className="mt-auto border-t border-rule px-2 pt-4">
-          {loggedIn && <LogOutButton className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink" />}
-          <Footer />
+        <div className="mt-auto flex items-center gap-1 border-t border-rule pt-3">
+          <InfoMenu links={links} loggedIn={false} up />
+          {loggedIn && <LogOutButton className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-ink" />}
         </div>
       </aside>
 
@@ -129,8 +129,8 @@ function FeedSwitcher({ feed }: { feed: string }) {
 }
 
 // ⓘ: the product links and the operator's legal pages, and "Log out" on a locked instance. On the phone's top bar of a
-// feed's pages, and on every plain page (app/(site)/layout.tsx).
-export function InfoMenu({ links, loggedIn }: { links: { product: FooterLink[]; legal: FooterLink[] }; loggedIn: boolean }) {
+// feed's pages, and on every plain page (app/(site)/layout.tsx). `up`: at the foot of the left column, labelled, opening upwards.
+export function InfoMenu({ links, loggedIn, up = false }: { links: { product: FooterLink[]; legal: FooterLink[] }; loggedIn: boolean; up?: boolean }) {
   const row = "flex items-center gap-3 px-3 py-2.5 text-[15px] text-ink hover:bg-surface-2";
   const item = (l: FooterLink) =>
     l.external ? (
@@ -144,8 +144,22 @@ export function InfoMenu({ links, loggedIn }: { links: { product: FooterLink[]; 
       </Link>
     );
   return (
-    <Disclosure label="About and legal" className="relative" summaryClassName={`${iconButton} text-muted`} summary={<Info aria-hidden className="h-5 w-5" />}>
-      <div className={`${card} absolute right-0 top-12 z-40 w-56 py-1.5 shadow-sheet`}>
+    <Disclosure
+      label="About and legal"
+      className="relative"
+      summaryClassName={up ? "inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-ink" : `${iconButton} text-muted`}
+      summary={
+        up ? (
+          <>
+            <Info aria-hidden className="h-5 w-5" />
+            About &amp; legal
+          </>
+        ) : (
+          <Info aria-hidden className="h-5 w-5" />
+        )
+      }
+    >
+      <div className={`${card} absolute z-40 w-56 py-1.5 shadow-sheet ${up ? "bottom-11 left-0" : "right-0 top-12"}`}>
         {links.product.map(item)}
         {links.legal.length > 0 && <div className="my-1.5 border-t border-rule" />}
         {links.legal.map(item)}
