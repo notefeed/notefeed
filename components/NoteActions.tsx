@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Flag, Link2, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronLeft, Flag, Link2, Pencil, Trash2 } from "lucide-react";
 import { createContext, useContext, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { copyText } from "@/components/copy";
 import { card, field, primary, secondary, sectionLabel } from "@/components/styles";
@@ -59,11 +60,12 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
   const copyLink = () => copyText(window.location.href).then(() => setCopied(true), () => {});
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
 
-  const value = { mode, setMode, text, setText, title, setTitle, alt, setAlt, image, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
+  const value = { back: page, mode, setMode, text, setText, title, setTitle, alt, setAlt, image, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
   return <Actions.Provider value={value}>{children}</Actions.Provider>;
 }
 
 type ActionsState = {
+  back: string;
   mode: "edit" | "delete" | null;
   setMode: (m: "edit" | "delete" | null) => void;
   text: string;
@@ -169,7 +171,7 @@ export function NoteActionsPanel() {
 // above the note from lg; a card in the right column from xl, which stays put while the note scrolls, level with the note:
 // it starts below the height of the "All notes" link above the note (NoteArticle).
 export function NoteActionsBar() {
-  const { mode, setMode, copied, copyLink, reportHref } = useActions();
+  const { back, mode, setMode, copied, copyLink, reportHref } = useActions();
   const button = "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2 xl:min-w-0 xl:flex-row xl:gap-3 xl:px-3 xl:py-2 xl:text-[14px]";
   return (
     <nav
@@ -195,6 +197,14 @@ export function NoteActionsBar() {
         <Trash2 aria-hidden className="h-5 w-5" />
         Delete
       </button>
+      {/* In the right column only: elsewhere the "All notes" link above the note is at hand. */}
+      <div className="hidden xl:flex xl:flex-col">
+        <div className="mx-2 my-1 border-t border-rule" />
+        <Link href={back} className={`${button} text-carbon`}>
+          <ChevronLeft aria-hidden className="h-5 w-5" />
+          All notes
+        </Link>
+      </div>
     </nav>
   );
 }
