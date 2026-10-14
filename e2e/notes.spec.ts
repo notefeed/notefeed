@@ -136,3 +136,16 @@ test("Preview renders the markdown as the note will show; pressing it again brin
   await page.getByRole("button", { name: "Preview" }).click();
   await expect(page.getByRole("region", { name: "Preview" })).toHaveText("Nothing to preview.");
 });
+
+test("on a phone, the bar at the bottom takes the note: Send posts it, + opens the full box with the text in it", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const name = feedName();
+  await page.goto(`/${name}`);
+  await page.getByLabel("Quick note in markdown").fill("# From the bar");
+  await page.getByRole("button", { name: "Title, tags and pictures" }).click();
+  await expect(page.getByLabel("Note in markdown")).toHaveValue("# From the bar");
+  await page.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Send note" }).click();
+  await expect(page.getByRole("link", { name: "From the bar" })).toBeVisible();
+  await expect(page.getByLabel("Quick note in markdown")).toHaveValue("");
+});

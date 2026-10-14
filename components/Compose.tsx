@@ -1,7 +1,7 @@
 "use client";
 
-import { Hash, PenSquare, Send, X } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { Hash, Plus, Send, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, field, primary } from "@/components/styles";
 import { postNote } from "@/app/_lib/api";
 import { encodeHeaderValue } from "@/shared/headers";
@@ -18,6 +18,14 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // `isNew`: a feed that doesn't exist yet, so the box offers to protect it with a password. `images` false: the instance takes no pictures.
 // `imageBase`: the feed's read link, for the preview's stored pictures. `initialTitle` and `initialText`: what was shared to
 // notefeed from another app (app/share), so the box opens with it.
+// Below lg: the phone layout of components/AppShell.tsx.
+const NARROW = "(max-width: 63.98rem)";
+const subscribeNarrow = (onChange: () => void) => {
+  const q = window.matchMedia(NARROW);
+  q.addEventListener("change", onChange);
+  return () => q.removeEventListener("change", onChange);
+};
+
 export function Compose({ feed, action, error: initialError, isNew, sender, images: imagesOn = true, imageBase, initialTitle = "", initialText = "" }: { feed: string; action: string; error?: string; isNew?: boolean; sender?: boolean; images?: boolean; imageBase?: string; initialTitle?: string; initialText?: string }) {
   const images = usePendingImages();
   const { run, error, setError, pending, router } = useApiForm(action, initialError, withPictures(errorMessage, images.pending.length > 0));
@@ -49,46 +57,88 @@ export function Compose({ feed, action, error: initialError, isNew, sender, imag
       ({ data }) => router.push(`${action}?posted=${data?.id}`),
     );
 
-  // On a phone, once hydrated: the box waits as a bar docked at the bottom and opens as a sheet (issue #185). Without
-  // JavaScript, and from lg, it is a card at the top of the feed.
+  // On a phone, once hydrated: a chat-style bar docked at the bottom (issue #185). Its field is the note's text (the same
+  // state as the full box's), Send posts it, ＋ opens the full box as a sheet for the title, tags, pictures and the preview.
+  // Without JavaScript, and from lg, the box is a card at the top of the feed. The bar is only rendered on a narrow
+  // screen, so the page never holds two note fields where both could show.
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const narrow = useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
   const [open, setOpen] = useState(!!initialError || !!initialText);
-  const docked = hydrated && !open;
-  const sheet = hydrated && open;
+  const form = useRef<HTMLFormElement>(null);
+  const quick = useRef<HTMLTextAreaElement>(null);
+  // The bar's field grows with its text, up to about five lines.
+  useLayoutEffect(() => {
+    const q = quick.current;
+    if (!q) return;
+    q.style.height = "auto";
+    q.style.height = `${Math.min(q.scrollHeight, 132)}px`;
+  });
+  // A refusal shows in the full box, so on a phone the box is open while there is one; closing it clears the refusal.
+  const opened = open || (narrow && !!error);
+  const close = () => {
+    setOpen(false);
+    setError(undefined);
+  };
+  const docked = hydrated && !opened;
+  const sheet = hydrated && opened;
   const openSheet = () => {
     setOpen(true);
     requestAnimationFrame(() => document.getElementById("markdown")?.focus());
   };
   useEffect(() => {
-    if (!open) return;
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    if (!opened) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      setError(undefined);
+    };
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
-  }, [open]);
+  }, [opened, setError]);
 
   return (
     <>
-      {docked && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 lg:hidden">
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={openSheet} className="flex h-10 min-w-0 flex-1 items-center rounded-full border border-rule bg-surface-2 px-4 text-left text-[15px] text-muted">
-              Write a note…
+      {docked && narrow && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-surface px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 lg:hidden">
+          <div className="flex items-end gap-1.5">
+            <button type="button" onClick={openSheet} aria-label="Title, tags and pictures" title="Title, tags and pictures" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
+              <Plus aria-hidden className="h-[22px] w-[22px]" />
             </button>
-            <button type="button" onClick={openSheet} aria-label="New note" title="New note" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon">
-              <PenSquare aria-hidden className="h-[18px] w-[18px]" />
+            <textarea
+              ref={quick}
+              rows={1}
+              aria-label="Quick note in markdown"
+              placeholder="Write a note…"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) form.current?.requestSubmit();
+              }}
+              className="block max-h-[8.25rem] min-h-10 min-w-0 flex-1 resize-none rounded-[1.25rem] border border-rule bg-surface-2 px-4 py-2 text-[15px] leading-normal placeholder:text-muted focus:border-carbon/60 focus-visible:outline-none"
+            />
+            <button
+              type="button"
+              disabled={pending || (!text.trim() && images.pending.length === 0)}
+              onClick={() => form.current?.requestSubmit()}
+              aria-label="Send note"
+              title="Send note"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon disabled:opacity-40"
+            >
+              <Send aria-hidden className="h-[18px] w-[18px]" />
             </button>
           </div>
         </div>
       )}
-      {sheet && <div aria-hidden className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={() => setOpen(false)} />}
+      {sheet && <div aria-hidden className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={close} />}
       <form
+        ref={form}
         onSubmit={submit}
         aria-label="New note"
         className={`${card} mb-6 px-4 pt-3 pb-2 focus-within:border-carbon/60 ${docked ? "max-lg:hidden" : ""} ${sheet ? "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:mb-0 max-lg:max-h-[90dvh] max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:shadow-sheet max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))]" : ""}`}
       >
         {sheet && (
           <div className="-mx-4 mb-2 flex items-center justify-between border-b border-rule px-2 pb-2 lg:hidden">
-            <button type="button" onClick={() => setOpen(false)} aria-label="Close" title="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-2">
+            <button type="button" onClick={close} aria-label="Close" title="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-2">
               <X aria-hidden className="h-5 w-5" />
             </button>
             <span className="truncate rounded-full border border-rule bg-surface-2 px-3 py-1 text-[13px] font-bold text-carbon">{feed}</span>
