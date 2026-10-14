@@ -103,6 +103,45 @@ describe("Creem", () => {
     expect(await parse(event("checkout.completed", checkout))).toEqual([{ type: "started", providerRef: "sub_5SxQIJ0iU1PcTJxAEHhoPL", keyHash: "4cef140c", validUntil: end }]);
   });
 
+  // The deliveries after a purchase in the sandbox (2026-10-14), cut the same way: a cancel in the customer portal (`canceled` at once,
+  // the period still paid), a cancel at the period's end, and a refund, whose subscription is still `active` at Creem.
+  test("real cancels and a real refund", async () => {
+    const c = creem();
+    const parse = (raw: string) => c.parseWebhook(raw, sign(raw));
+    const subscription = (status: string, end: string, canceledAt: string | null) => ({
+      id: "sub_6I28jztOO823nH6JIoMh1S",
+      object: "subscription",
+      collection_method: "charge_automatically",
+      status,
+      last_transaction: { id: "tran_1", object: "transaction", amount: 150, status: "paid", subscription: "sub_6I28jztOO823nH6JIoMh1S", period_end: Date.parse(end) },
+      current_period_start_date: "2026-10-14T07:44:09.127Z",
+      current_period_end_date: end,
+      canceled_at: canceledAt,
+      metadata: { key_hash: "b75ed477" },
+      mode: "test",
+    });
+    const end = "2026-11-14T07:44:09.127Z";
+    expect(await parse(event("subscription.canceled", subscription("canceled", end, "2026-10-14T07:46:47.886Z")))).toEqual([
+      { type: "cancelled", providerRef: "sub_6I28jztOO823nH6JIoMh1S", validUntil: Date.parse(end) },
+    ]);
+    expect(await parse(event("subscription.scheduled_cancel", { ...subscription("scheduled_cancel", end, null), next_transaction_date: end }))).toEqual([
+      { type: "cancelled", providerRef: "sub_6I28jztOO823nH6JIoMh1S", validUntil: Date.parse(end) },
+    ]);
+    const refund = {
+      id: "ref_3SwiGjVEwHQkm65VLFzMUa",
+      object: "refund",
+      status: "succeeded",
+      refund_amount: 150,
+      refund_currency: "EUR",
+      reason: "requested_by_customer",
+      transaction: { id: "tran_1", object: "transaction", amount: 150, status: "paid", order: "ord_1", subscription: "sub_6I28jztOO823nH6JIoMh1S" },
+      subscription: { ...subscription("active", end, null), product: "prod_1", customer: "cust_1" },
+      checkout: { id: "ch_1", object: "checkout", request_id: "b75ed477" },
+      mode: "test",
+    };
+    expect(await parse(event("refund.created", refund))).toEqual([{ type: "refunded", providerRef: "sub_6I28jztOO823nH6JIoMh1S" }]);
+  });
+
   test("a completed checkout without a key hash is rejected", async () => {
     const raw = event("checkout.completed", { subscription: { id: "sub_1" } });
     await expect(creem().parseWebhook(raw, sign(raw))).rejects.toBeInstanceOf(WebhookRejectedError);

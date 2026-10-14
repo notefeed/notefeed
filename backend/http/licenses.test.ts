@@ -119,6 +119,16 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect(cancelled).toEqual(["sub_1"]);
   });
 
+  // The provider answers that cancel with a cancel event carrying the period's end (seen in the sandbox): the license stays lapsed.
+  test("the cancel that follows a refund does not bring the license back for the rest of the period", async () => {
+    await createNote("f", "hi");
+    const key = await buy("sub_1");
+    await attachRoute(post("/api/licenses/attach", { feed: "f", key }));
+    await webhookRoute(webhook([{ type: "refunded", providerRef: "sub_1" }]));
+    await webhookRoute(webhook([{ type: "cancelled", providerRef: "sub_1", validUntil: Date.now() + 60_000 }]));
+    expect(await isLicensed("f")).toBe(false);
+  });
+
   test("the key opens the provider's page for its subscription; anything else is refused", async () => {
     const key = await buy("sub_1");
     const res = await portalRoute(post("/api/licenses/portal", { key: ` ${key} ` }));
