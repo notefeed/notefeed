@@ -31,23 +31,14 @@ function FooterAnchor({ link }: { link: FooterLink }) {
   );
 }
 
-// The footer: the product links on one line, the legal ones on the next.
+// The footer: the product links, then the legal ones, on one line that wraps where it has to.
 export async function Footer({ className = "" }: { className?: string }) {
   const { product, legal } = await footerLinks();
   return (
-    <footer className={`text-[13px] text-muted ${className}`}>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        {product.map((l) => (
-          <FooterAnchor key={l.href} link={l} />
-        ))}
-      </div>
-      {legal.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-          {legal.map((l) => (
-            <FooterAnchor key={l.href} link={l} />
-          ))}
-        </div>
-      )}
+    <footer className={`flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted ${className}`}>
+      {[...product, ...legal].map((l) => (
+        <FooterAnchor key={l.href} link={l} />
+      ))}
     </footer>
   );
 }
