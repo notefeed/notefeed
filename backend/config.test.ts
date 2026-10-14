@@ -11,6 +11,8 @@ afterEach(() => {
   delete process.env.NOTEFEED_METRICS;
   delete process.env.NOTEFEED_REPORT_ENDPOINT;
   delete process.env.NOTEFEED_METRICS_TOKEN;
+  delete process.env.NOTEFEED_SHRINK_IMAGE_BYTES;
+  delete process.env.NOTEFEED_MAX_IMAGE_BYTES;
   for (const k of ["NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", ...S3_VARS]) delete process.env[k];
 });
 
@@ -34,6 +36,17 @@ test("image uploads are on unless NOTEFEED_IMAGE_UPLOADS is 0", () => {
     process.env.NOTEFEED_IMAGE_UPLOADS = v;
     expect(config.imageUploads()).toBe(false);
   }
+});
+
+test("pictures are shrunk to 1 MiB unless NOTEFEED_SHRINK_IMAGE_BYTES says otherwise; 0 is off; never over the image limit", () => {
+  expect(config.shrinkImageBytes()).toBe(1048576);
+  for (const [v, want] of [["", 1048576], ["-5", 1048576], ["x", 1048576], ["0", 0], ["2097152", 2097152], ["99999999", 5242880]] as const) {
+    process.env.NOTEFEED_SHRINK_IMAGE_BYTES = v;
+    expect(config.shrinkImageBytes()).toBe(want);
+  }
+  process.env.NOTEFEED_MAX_IMAGE_BYTES = "524288";
+  process.env.NOTEFEED_SHRINK_IMAGE_BYTES = "";
+  expect(config.shrinkImageBytes()).toBe(524288);
 });
 
 test("metrics are on only for NOTEFEED_METRICS=1; the token is empty when unset", () => {

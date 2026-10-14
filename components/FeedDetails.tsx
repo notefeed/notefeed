@@ -35,13 +35,19 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
       router.replace(`${page}?saved=1`);
       router.refresh();
     });
-  // The title image saves on its own, with the title and description as they stand in the form.
+  // The title image saves on its own, with the title and description as they stand in the form. A refusal shows in the row, not
+  // at the foot of the page, where a phone's screen doesn't reach.
+  const [uploading, setUploading] = useState(false);
+  const [imageError, setImageError] = useState<string>();
   async function choose(file: File) {
     setError(undefined);
+    setImageError(undefined);
     setPending(true);
+    setUploading(true);
     const up = await postFile(feed, file);
+    setUploading(false);
     if ("error" in up) {
-      setError(up.error);
+      setImageError(up.error);
       setPending(false);
     } else save(undefined, { title, description, image: up.file, ...(identity ? { show_sender: showSender } : {}) });
   }
@@ -104,7 +110,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={pending} onClick={() => picker.current?.click()} className={secondary}>
                 <ImagePlus aria-hidden className="h-4 w-4" />
-                Choose image
+                {uploading ? "Uploading…" : "Choose image"}
               </button>
               {image && (
                 <button type="button" disabled={pending} onClick={() => save(undefined, { title, description, image: "", ...withSender })} className={`${secondary} bg-transparent font-normal text-muted`}>
@@ -113,6 +119,10 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
                 </button>
               )}
             </div>
+            <p role="alert" className="mt-2 text-error empty:hidden">
+              {imageError}
+            </p>
+            {images.length === 0 && <p className="mt-2 text-muted">Pictures posted to this feed can be picked here too.</p>}
             {images.length > 0 && (
               <>
                 <p className="mb-2 mt-4 text-muted">Or use one of this feed&apos;s images</p>
