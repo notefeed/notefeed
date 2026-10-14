@@ -14,12 +14,15 @@ export function LicenseSection({ feed, licensed }: { feed: string; licensed: boo
   const router = useRouter();
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
+  const [done, setDone] = useState("");
 
   async function send(method: "POST" | "DELETE") {
     setError("");
+    setDone("");
     const res = await fetch("/api/licenses/attach", { method, headers: { "content-type": "application/json" }, body: JSON.stringify({ feed, key }) });
     if (res.ok) {
       setKey("");
+      setDone(method === "POST" ? "The license is on this feed now." : "The license is off this feed. Its key can be entered on another feed.");
       router.refresh();
       return;
     }
@@ -35,7 +38,13 @@ export function LicenseSection({ feed, licensed }: { feed: string; licensed: boo
       </h2>
       {licensed ? (
         <>
-          <p className="text-muted">This feed has a license: no cap on stored notes, a feed password and images.</p>
+          <p className="text-muted">
+            This feed has a license: no cap on stored notes, a feed password and images. To cancel the subscription, change how you pay or get an invoice, go to the{" "}
+            <Link href="/license" className="underline">
+              license page
+            </Link>{" "}
+            with your key.
+          </p>
           <button type="button" onClick={() => send("DELETE")} className="mt-3 rounded-sm border border-rule px-3 py-1.5 text-muted hover:border-carbon hover:text-ink">
             Take the license off this feed
           </button>
@@ -64,7 +73,10 @@ export function LicenseSection({ feed, licensed }: { feed: string; licensed: boo
           </form>
         </>
       )}
-      <p id="license-error" role="alert" className="mt-2 text-error">
+      <p role="status" className="mt-2 font-bold text-ink">
+        {done}
+      </p>
+      <p id="license-error" role="alert" className="text-error">
         {error}
       </p>
     </section>

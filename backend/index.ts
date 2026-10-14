@@ -22,7 +22,7 @@ export { noteOutcome } from "./requestscope";
 export { hasLegalPage, readLegalPage, readNotice, type LegalPage } from "./legal";
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
-export { attachRoute, checkoutRoute, webhookRoute } from "./http/licenses";
+export { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./http/licenses";
 export { moveImagesRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
 export { feedCookieName, feedUnlocked } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
@@ -34,7 +34,7 @@ export { mcpRoute } from "./mcp";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, authorizeRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 
-export { isLicensed, licensingOn } from "./licensing";
+export { freeNoteCap, isLicensed, licensePrice, licensingOn } from "./licensing";
 
 export const instanceTitle = config.title;
 

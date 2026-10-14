@@ -124,6 +124,8 @@ export const config = {
   // The fake provider's webhook secret (tests, development).
   fakeWebhookSecret: () => env("NOTEFEED_FAKE_WEBHOOK_SECRET"),
   freeNoteCap: () => Math.max(1, int("NOTEFEED_FREE_NOTE_CAP", 1000)),
+  // The price in the operator's words ("EUR 1.50 per month"), shown where a license is offered. The amount itself is set at the provider.
+  licensePrice: () => env("NOTEFEED_LICENSE_PRICE").trim(),
   trustProxy: () => env("NOTEFEED_TRUST_PROXY") === "1",
   // Per minute and IP; 0 or below turns it off.
   rateLimit: () => int("NOTEFEED_RATE_LIMIT", 60),

@@ -13,6 +13,8 @@ import { createLicenseDb, type LicenseDb } from "./storage/licensedb";
 const log = logger("licensing");
 
 export const licensingOn = (): boolean => config.paymentProvider() !== "";
+export const licensePrice = config.licensePrice;
+export const freeNoteCap = config.freeNoteCap;
 
 const state = processState("licenses", () => ({}) as { file?: string; db?: LicenseDb });
 

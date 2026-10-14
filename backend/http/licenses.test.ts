@@ -7,8 +7,8 @@ import { isLicensed, resetLicensesForTests } from "../licensing";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { createNote } from "../notes";
-import { fakeSignature } from "../payments/fake";
-import { attachRoute, checkoutRoute, webhookRoute } from "./licenses";
+import { cancelled, fakeSignature } from "../payments/fake";
+import { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./licenses";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -53,6 +53,7 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect((await checkoutRoute(post("/api/licenses/checkout", {}))).status).toBe(404);
     expect((await webhookRoute(webhook([]))).status).toBe(404);
     expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key: "k" }))).status).toBe(404);
+    expect((await portalRoute(post("/api/licenses/portal", { key: "k" }))).status).toBe(404);
   });
 
   test("the checkout sends the buyer to a success page whose fragment holds the key", async () => {
@@ -107,5 +108,24 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect(await isLicensed("f")).toBe(true);
     await webhookRoute(webhook([{ type: "refunded", providerRef: "sub_1" }]));
     expect(await isLicensed("f")).toBe(false);
+  });
+
+  test("a refund ends the subscription at the provider too, so it is not charged again", async () => {
+    cancelled.length = 0;
+    await buy("sub_1");
+    await webhookRoute(webhook([{ type: "renewed", providerRef: "sub_1", validUntil: null }]));
+    expect(cancelled).toEqual([]);
+    expect((await webhookRoute(webhook([{ type: "refunded", providerRef: "sub_1" }]))).status).toBe(200);
+    expect(cancelled).toEqual(["sub_1"]);
+  });
+
+  test("the key opens the provider's page for its subscription; anything else is refused", async () => {
+    const key = await buy("sub_1");
+    const res = await portalRoute(post("/api/licenses/portal", { key: ` ${key} ` }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).url).toBe("https://fake.invalid/portal/sub_1");
+    expect((await portalRoute(post("/api/licenses/portal", { key: "x".repeat(22) }))).status).toBe(400);
+    expect((await portalRoute(post("/api/licenses/portal", { key: "f" }))).status).toBe(400);
+    expect((await portalRoute(post("/api/licenses/portal", {}))).status).toBe(400);
   });
 });

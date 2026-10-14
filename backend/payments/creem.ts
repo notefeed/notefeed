@@ -1,5 +1,6 @@
 // Creem (a merchant of record; https://docs.creem.io), ADR 0029. A key starting `creem_test_` talks to the sandbox. The webhook is
-// signed with HMAC-SHA256 over the raw body, hex, in `creem-signature`; the same event can arrive more than once.
+// signed with HMAC-SHA256 over the raw body, hex, in `creem-signature`; the same event can arrive more than once. A refund leaves
+// the subscription running at Creem (seen in the sandbox), which is why licenseflow cancels it.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { WebhookRejectedError, type LicenseEvent, type PaymentProvider } from "./types";
 
@@ -15,15 +16,19 @@ const time = (v: unknown): number | null => {
 
 export function createCreem({ apiKey, productId, webhookSecret, fetch: doFetch = fetch }: CreemOptions): PaymentProvider {
   const base = apiKey.startsWith("creem_test_") ? "https://test-api.creem.io/v1" : "https://api.creem.io/v1";
+  const call = async (what: string, path: string, body?: unknown): Promise<Obj | undefined> => {
+    const res = await doFetch(`${base}${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "x-api-key": apiKey, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`creem: ${what} failed (${res.status})`);
+    return obj(await res.json());
+  };
   return {
     async createCheckout({ keyHash, successUrl }) {
-      const res = await doFetch(`${base}/checkouts`, {
-        method: "POST",
-        headers: { "x-api-key": apiKey, "content-type": "application/json" },
-        body: JSON.stringify({ product_id: productId, success_url: successUrl, request_id: keyHash, metadata: { key_hash: keyHash } }),
-      });
-      if (!res.ok) throw new Error(`creem: creating a checkout failed (${res.status})`);
-      const url = str(obj(await res.json())?.checkout_url);
+      const checkout = await call("creating a checkout", "/checkouts", { product_id: productId, success_url: successUrl, request_id: keyHash, metadata: { key_hash: keyHash } });
+      const url = str(checkout?.checkout_url);
       if (!url) throw new Error("creem: the checkout has no checkout_url");
       return { url };
     },
@@ -73,6 +78,21 @@ export function createCreem({ apiKey, productId, webhookSecret, fetch: doFetch =
         default:
           return [];
       }
+    },
+
+    // The portal is the customer's, so the subscription is looked up first: its `customer` is the id, or the customer itself.
+    async portalUrl(providerRef) {
+      const subscription = await call("reading a subscription", `/subscriptions?subscription_id=${encodeURIComponent(providerRef)}`);
+      const customer = str(subscription?.customer) ?? str(obj(subscription?.customer)?.id);
+      if (!customer) throw new Error("creem: the subscription has no customer");
+      const url = str((await call("creating a portal link", "/customers/billing", { customer_id: customer }))?.customer_portal_link);
+      if (!url) throw new Error("creem: the portal has no customer_portal_link");
+      return { url };
+    },
+
+    async cancel(providerRef) {
+      if (!providerRef.startsWith("sub_")) return; // an order of a one-off product: nothing recurs
+      await call("cancelling a subscription", `/subscriptions/${encodeURIComponent(providerRef)}/cancel`, { mode: "immediate" });
     },
   };
 }
