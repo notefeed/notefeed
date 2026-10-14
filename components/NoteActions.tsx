@@ -2,6 +2,7 @@
 
 import { Check, Flag, Link2, Pencil, Trash2 } from "lucide-react";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { copyText } from "@/components/copy";
 import { card, field, primary, secondary } from "@/components/styles";
 import { deleteNote, editNote, patchNote } from "@/app/_lib/api";
 import { MarkdownInput } from "@/components/MarkdownInput";
@@ -54,7 +55,7 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
   const remove = (e: FormEvent) => run(e, () => deleteNote(opts()), () => router.replace(`${page}?deleted=${id}`), 404); // already gone: the goal is met
 
   const [copied, setCopied] = useState(false);
-  const copyLink = () => navigator.clipboard?.writeText(window.location.href).then(() => setCopied(true), () => {});
+  const copyLink = () => copyText(window.location.href).then(() => setCopied(true), () => {});
   const barButton = "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2";
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
 

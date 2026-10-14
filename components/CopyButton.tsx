@@ -2,13 +2,13 @@
 
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
+import { copyText } from "@/components/copy";
 
 // `compact`: the icon alone, named by `label` for screen readers.
 export function CopyButton({ text, compact = false, label = "Copy" }: { text: string; compact?: boolean; label?: string }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const copy = () =>
-    // navigator.clipboard only exists in secure contexts (https or localhost).
-    (navigator.clipboard?.writeText(text) ?? Promise.reject()).then(
+    copyText(text).then(
       () => setState("copied"),
       () => setState("failed"),
     );

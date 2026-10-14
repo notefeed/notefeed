@@ -52,8 +52,8 @@ export function FieldRow({ icon, label, htmlFor, children }: { icon: ReactNode; 
 // A row that opens to show its form. `value`: the current state, shown on the right while closed.
 export function DisclosureRow({ icon, label, value, danger, open, children }: { icon: ReactNode; label: string; value?: ReactNode; danger?: boolean; open?: boolean; children: ReactNode }) {
   return (
-    <details open={open}>
-      <summary className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-surface-2/60">
+    <details open={open} className="group/row">
+      <summary className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-surface-2/60 group-open/row:hover:bg-transparent">
         <Tile icon={icon} danger={danger} />
         <span className={`min-w-0 flex-1 text-[15px] ${danger ? "text-error" : ""}`}>{label}</span>
         {value !== undefined && <span className="min-w-0 truncate text-[13px] text-muted">{value}</span>}
