@@ -23,10 +23,10 @@ test("title and description show on the feed page, the read-only view and in the
   await post(page, name);
   await setDetails(page, "My ideas", "Things I think about");
   await expect(page).toHaveURL(/\/settings\?saved=1$/);
-  await page.getByRole("link", { name }).click();
+  await page.getByRole("link", { name: "Back to the feed" }).click();
   await expect(page.getByRole("heading", { name: "My ideas" })).toBeVisible();
   await expect(page.getByText("Things I think about")).toBeVisible();
-  await expect(page.getByRole("link", { name })).toBeVisible(); // the name stays visible
+  await expect(page.getByRole("banner").getByText(name)).toBeVisible(); // the name stays visible
   await expect(page).toHaveTitle(/My ideas/);
 
   await page.getByRole("link", { name: "Open read-only view" }).click();
@@ -62,6 +62,7 @@ test("delete by typing the name lands on the home page; the feed and its read li
   await post(page, name);
   const readHref = await page.getByRole("link", { name: "Open read-only view" }).getAttribute("href");
   await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Delete this feed" }).click();
   const button = page.getByRole("button", { name: "Delete feed" });
   await expect(button).toBeDisabled();
   await page.getByLabel("Feed name").fill(name.slice(0, -1));
@@ -93,6 +94,7 @@ test("deleting a protected feed works for the unlocked browser", async ({ page }
   const name = feedName();
   await post(page, name, "# Secret note", "hunter2");
   await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Delete this feed" }).click();
   await page.getByLabel("Feed name").fill(name);
   await page.getByRole("button", { name: "Delete feed" }).click();
   await expect(page.getByRole("status")).toHaveText("Feed deleted.");
@@ -120,10 +122,11 @@ test("without JavaScript, the settings and delete forms still work", async ({ br
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page).toHaveURL(/\/settings\?saved=1$/);
   await expect(page.getByRole("status")).toHaveText("Saved.");
-  await page.getByRole("link", { name }).click();
+  await page.getByRole("link", { name: "Back to the feed" }).click();
   await expect(page.getByRole("heading", { name: "Plain title" })).toBeVisible();
   await page.getByRole("link", { name: "Settings" }).click();
 
+  await page.locator("summary", { hasText: "Delete this feed" }).click(); // a <details>: opens without JavaScript
   await page.getByLabel("Feed name").fill(name);
   await page.getByRole("button", { name: "Delete feed" }).click();
   await expect(page).toHaveURL(/\/\?deleted=/);
@@ -135,12 +138,14 @@ test("the read id can be chosen on the settings page, and generated again", asyn
   await post(page, name);
   const id = `rid-${Math.random().toString(36).slice(2, 10)}`;
   await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Read id" }).click();
   await page.getByLabel("Read id").fill(id);
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await expect(page.getByText(`/r/${id}/feed.xml`)).toBeVisible();
   expect((await request.get(`/r/${id}/feed.xml`)).status()).toBe(200);
   await expect(page.getByLabel("Read id")).toHaveValue(id);
+  await page.locator("summary", { hasText: "Read id" }).click(); // saving shows the page closed again
   await page.getByRole("button", { name: "Generate a random one" }).click();
   await expect(page.getByLabel("Read id")).not.toHaveValue(id);
   await expect(page.getByLabel("Read id")).toHaveValue(/^[A-Za-z0-9_-]{22}$/);

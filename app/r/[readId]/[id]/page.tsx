@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Header } from "@/components/Header";
+import { AppShell } from "@/components/AppShell";
 import { NoteArticle } from "@/components/NoteList";
 import { Removed } from "@/components/Removed";
-import { getReadNote, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
+import { getReadNote, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -15,18 +15,16 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
   const note = await getReadNote(readId, id);
   if (!note && (await isRemovedReadId(readId))) {
     return (
-      <>
-        <Header rss={rssPath(readId)} />
+      <AppShell>
         <Removed />
-      </>
+      </AppShell>
     );
   }
   if (!note) notFound();
 
   return (
-    <>
-      <Header rss={rssPath(readId)} />
+    <AppShell>
       <NoteArticle note={note} back={readPath(readId)} imageBase={`${readPath(readId)}/`} report={reportTemplate() ? { template: reportTemplate(), readId } : undefined} />
-    </>
+    </AppShell>
   );
 }

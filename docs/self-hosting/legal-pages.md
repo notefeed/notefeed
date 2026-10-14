@@ -14,12 +14,12 @@ services:
 
 | Setting | Page |
 |---|---|
-| `NOTEFEED_IMPRINT_FILE` | `/imprint`, linked as **Imprint** in the footer |
-| `NOTEFEED_PRIVACY_FILE` | `/privacy`, linked as **Data privacy** in the footer |
-| `NOTEFEED_TERMS_FILE` | `/terms`, linked as **Terms** in the footer: the terms of service |
+| `NOTEFEED_IMPRINT_FILE` | `/imprint`, linked as **Imprint** in the footer and the **About & legal** menu |
+| `NOTEFEED_PRIVACY_FILE` | `/privacy`, linked as **Data privacy** in the footer and the **About & legal** menu |
+| `NOTEFEED_TERMS_FILE` | `/terms`, linked as **Terms** in the footer and the **About & legal** menu: the terms of service |
 
 - **The files are Markdown**, shown the way a note is: headings, lists, tables and links work, and raw HTML is shown as text.
-- **Each is optional.** Without a setting, or with one that names no readable file, the page answers `404` and the footer has no link to it. The [start-up log](logs.md#logs) says when a setting is there but its file cannot be read.
+- **Each is optional.** Without a setting, or with one that names no readable file, the page answers `404` and neither the footer nor the menu links to it. The [start-up log](logs.md#logs) says when a setting is there but its file cannot be read.
 - **All three pages are public,** also on an instance with a [password](access.md#the-password): an imprint has to be reachable without logging in.
 - **A change shows at once.** The file is read on every request; nothing needs restarting. Keep it small: a file over 256 KiB is not shown.
 - **Keep the files in version control** with the rest of your deployment. For a privacy page it matters what it said on which day.

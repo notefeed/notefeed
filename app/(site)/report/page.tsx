@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { reportEndpoint } from "@/backend";
-import { Header } from "@/components/Header";
 import { ReportForm, Sent, type ReportValues } from "@/components/ReportForm";
 
 export const metadata: Metadata = { title: "Report a note", robots: { index: false, follow: false } };
@@ -29,9 +28,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
   const errors = all(q.error).slice(0, 10).map((e) => e.slice(0, 200));
   const sent = one(q.sent) === "1";
   return (
-    <>
-      <Header />
-      <main>
+    <main>
         <h1 className="text-2xl font-bold tracking-tight">{sent ? "Report sent" : "Report a note"}</h1>
         {sent ? (
           <div className="mt-4">
@@ -45,7 +42,6 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
             <ReportForm endpoint={endpoint} values={values} errors={errors} />
           </>
         )}
-      </main>
-    </>
+    </main>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type ReactNode } from "react";
-import { ImagePlus, X } from "lucide-react";
+import { Eye, ImagePlus, PenLine, X } from "lucide-react";
 import { NoteView } from "@/components/NoteView";
 import { type Pending, fitPending, newPending, removeReference, uniqueToken } from "@/components/pendingFiles";
 import { IMAGES_OFF, TOO_MANY_PICTURES } from "@/app/_lib/messages";
@@ -13,11 +13,11 @@ const ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
 // name made from the file's (uniqueToken: safe to write in a link, and unlike the others'). Nothing is uploaded here, so leaving the page uploads nothing. The button and the list only exist once hydrated,
 // so without JavaScript only the textarea renders. A note takes a limited number of pictures (MAX_ATTACHMENTS): of more,
 // the ones that fit are added and `onMessage` sets the reason, for the parent to show where it shows its errors; removing a picture clears it.
-// Two tabs above the box, Write and Preview (issue #146): the preview renders the text with the components the note pages use, so it
+// A Preview toggle in the toolbar (issue #146; tabs Write and Preview before #185): the preview renders the text with the components the note pages use, so it
 // cannot differ from the posted note, with the waiting pictures shown from their files and the stored ones from `imageBase` (the feed's
 // read link). The textarea is hidden, not unmounted, while previewing, so the text, the cursor and the form's submit stay as they are.
 // `images` false (NOTEFEED_IMAGE_UPLOADS=0, issue #152): no button, and a dropped or pasted file is refused with the reason in its place.
-export function MarkdownInput({ id, name, label, value, onChange, rows, placeholder, describedBy, className = "", pending, onPendingChange, onMessage, images = true, imageBase, children }: {
+export function MarkdownInput({ id, name, label, value, onChange, rows, placeholder, describedBy, className = "", pending, onPendingChange, onMessage, images = true, imageBase, bare = false, above, below, children }: {
   id: string;
   name: string;
   label: string;
@@ -32,16 +32,19 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
   onMessage: (update: (shown: string | undefined) => string | undefined) => void; // a state setter: the message the parent shows
   images?: boolean;
   imageBase?: string; // where the text's relative image links point, for the preview
-  children?: ReactNode; // more controls, rendered on the same row as the "Add image" button
+  bare?: boolean; // the text is the card's content: no border of its own, the toolbar spans the card
+  above?: ReactNode; // fields above the text (the title)
+  below?: ReactNode; // fields below the text and the waiting pictures (the tags)
+  children?: ReactNode; // more controls at the end of the toolbar (the post button)
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
   const [tab, setTab] = useState<"write" | "preview">("write");
+  const [height, setHeight] = useState<number>(); // the text box's height when the preview opened: the preview keeps it, so nothing jumps
   const previewing = hydrated && tab === "preview";
   // A waiting picture, by the name the text calls it (its token): shown from its file, before anything is uploaded.
   const resolve = (src: string) => pending.find((p) => p.token === src)?.preview;
-  const tabClass = (own: "write" | "preview") => `-mb-px border-b-2 px-3 py-1.5 ${tab === own ? "border-carbon font-bold text-ink" : "border-transparent text-muted hover:text-ink"}`;
   const cursor = useRef<number | null>(null); // where the cursor goes once the text `insert` made is rendered
 
   // The textarea is controlled, so the cursor can only be placed once React has rendered the text with the reference in it: in the
@@ -109,23 +112,16 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
     add(files);
   };
 
+  const plain = bare ? "border-0 bg-transparent px-0 py-1 focus-visible:outline-none" : "rounded-xl border border-rule bg-surface-2/60 p-3 focus:border-carbon";
+
   return (
     <>
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
-      {hydrated && (
-        <div role="tablist" aria-label="Write or preview" className="mb-2 flex border-b border-rule text-sm">
-          <button type="button" role="tab" id={`${id}-tab-write`} aria-selected={tab === "write"} aria-controls={`${id}-write`} onClick={() => setTab("write")} className={tabClass("write")}>
-            Write
-          </button>
-          <button type="button" role="tab" id={`${id}-tab-preview`} aria-selected={tab === "preview"} aria-controls={`${id}-preview`} onClick={() => setTab("preview")} className={tabClass("preview")}>
-            Preview
-          </button>
-        </div>
-      )}
+      {above}
       {previewing && (
-        <div id={`${id}-preview`} role="tabpanel" aria-labelledby={`${id}-tab-preview`} className="min-h-32 rounded-sm border border-rule p-3">
+        <div id={`${id}-preview`} role="region" aria-label="Preview" style={{ minHeight: height }} className={`box-border ${bare ? "py-1" : "rounded-xl border border-rule p-3"}`}>
           {value.trim() ? <NoteView markdown={value} imageBase={imageBase} resolve={resolve} /> : <p className="text-muted">Nothing to preview.</p>}
         </div>
       )}
@@ -145,53 +141,64 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
         rows={rows}
         placeholder={placeholder}
         aria-describedby={describedBy}
-        className={`block w-full resize-y rounded-sm border border-rule bg-transparent p-3 text-ink focus:border-carbon focus:outline-none ${className}`}
+        className={`block w-full resize-y text-[15px] leading-relaxed text-ink placeholder:text-muted focus:outline-none ${plain} ${className}`}
       />
       {hydrated && pending.length > 0 && (
         <ul aria-label="Images to post" className="mt-2 flex flex-wrap gap-2 text-sm">
           {pending.map((p) => (
-            <li key={p.key} className="flex items-center gap-2 rounded-sm border border-rule py-1 pl-1 pr-2">
+            <li key={p.key} className="relative" title={p.token}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.preview} alt="" className="h-10 w-10 rounded-sm object-cover" />
-              <span className="max-w-40 truncate">{p.token}</span>
-              <button type="button" onClick={() => remove(p)} aria-label={`Remove ${p.token}`} className="text-muted hover:text-ink">
-                <X aria-hidden className="h-4 w-4" />
+              <img src={p.preview} alt="" className="h-16 w-16 rounded-xl border border-rule object-cover" />
+              <span className="sr-only">{p.token}</span>
+              <button type="button" onClick={() => remove(p)} aria-label={`Remove ${p.token}`} className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper">
+                <X aria-hidden className="h-3.5 w-3.5" />
               </button>
             </li>
           ))}
         </ul>
       )}
-      {(hydrated || children || !images) && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-          {!images && <span className="text-muted">{IMAGES_OFF}</span>}
-          {hydrated && images && (
-            <>
-              <input
-                ref={picker}
-                type="file"
-                accept={ACCEPT}
-                multiple
-                hidden
-                aria-label="Image file"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  e.target.value = ""; // the same file can be chosen again
-                  if (files.length) add(files);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => picker.current?.click()}
-                className="inline-flex items-center gap-1.5 rounded-sm border border-rule px-2.5 py-1 font-bold text-carbon hover:border-carbon"
-              >
-                <ImagePlus aria-hidden className="h-4 w-4" />
-                Add image
-              </button>
-            </>
-          )}
-          {children}
-        </div>
-      )}
+      {below}
+      <div className={`mt-2 flex flex-wrap items-center gap-1 text-sm ${bare ? "-mx-4 border-t border-rule px-3 pt-2" : ""}`}>
+        {hydrated && (
+          // One toggle: the eye shows the preview, the pencil goes back to the text. Its name stays "Preview"; aria-pressed says which.
+          <button
+            type="button"
+            aria-pressed={previewing}
+            aria-controls={`${id}-preview`}
+            aria-label="Preview"
+            title={previewing ? "Back to writing" : "Preview"}
+            onClick={() => {
+              if (!previewing) setHeight(area.current?.offsetHeight);
+              setTab(previewing ? "write" : "preview");
+            }}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-full ${previewing ? "bg-carbon-soft text-carbon" : "text-muted hover:bg-surface-2 hover:text-ink"}`}
+          >
+            {previewing ? <PenLine aria-hidden className="h-[18px] w-[18px]" /> : <Eye aria-hidden className="h-[18px] w-[18px]" />}
+          </button>
+        )}
+        {!images && <span className="text-muted">{IMAGES_OFF}</span>}
+        {hydrated && images && (
+          <>
+            <input
+              ref={picker}
+              type="file"
+              accept={ACCEPT}
+              multiple
+              hidden
+              aria-label="Image file"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = ""; // the same file can be chosen again
+                if (files.length) add(files);
+              }}
+            />
+            <button type="button" onClick={() => picker.current?.click()} aria-label="Add image" title="Add image" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
+              <ImagePlus aria-hidden className="h-[18px] w-[18px]" />
+            </button>
+          </>
+        )}
+        {children}
+      </div>
     </>
   );
 }

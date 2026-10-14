@@ -1,9 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { connection } from "next/server";
-import Link from "next/link";
 import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next } from "next/font/google";
-import { hasLegalPage, licensingOn, publicUrl } from "@/backend";
+import { publicUrl } from "@/backend";
 import "./globals.css";
 
 const sans = Atkinson_Hyperlegible_Next({ variable: "--font-atkinson", subsets: ["latin"] });
@@ -22,45 +20,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const viewport: Viewport = { themeColor: [{ color: "#f2f3f0", media: "(prefers-color-scheme: light)" }, { color: "#15161b", media: "(prefers-color-scheme: dark)" }] };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // The imprint and the privacy page are the operator's own files (backend/legal.ts), looked for on every request:
-  // a link only where there is a page.
-  await connection();
-  const [imprint, privacy, terms] = await Promise.all([hasLegalPage("imprint"), hasLegalPage("privacy"), hasLegalPage("terms")]);
+// The document only: the plain pages (app/(site)/layout.tsx) and a feed's pages (components/AppShell.tsx) bring their own frame.
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable} antialiased`}>
-      <body className="font-sans text-base leading-relaxed">
-        <div className="mx-auto max-w-[68ch] px-4 py-8 sm:py-12">{children}
-          <footer className="mt-12 flex gap-5 border-t border-rule pt-4 text-sm text-muted">
-            <a href="https://docs.notefeed.me/" className="hover:text-ink hover:underline">
-              Docs
-            </a>
-            <a href="https://github.com/notefeed/notefeed" className="hover:text-ink hover:underline">
-              GitHub
-            </a>
-            {imprint && (
-              <Link href="/imprint" className="hover:text-ink hover:underline">
-                Imprint
-              </Link>
-            )}
-            {privacy && (
-              <Link href="/privacy" className="hover:text-ink hover:underline">
-                Data privacy
-              </Link>
-            )}
-            {terms && (
-              <Link href="/terms" className="hover:text-ink hover:underline">
-                Terms
-              </Link>
-            )}
-            {licensingOn() && (
-              <Link href="/license" className="hover:text-ink hover:underline">
-                License
-              </Link>
-            )}
-          </footer>
-        </div>
-      </body>
+      <body className="font-sans text-base leading-relaxed">{children}</body>
     </html>
   );
 }

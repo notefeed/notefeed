@@ -17,7 +17,7 @@ notefeed is private by default and stores nothing about a person; [sign-in with 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshot-dark.png">
-  <img alt="A notefeed feed page: a header with read-only, RSS and settings buttons, a compose box, and notes grouped by day" src="docs/assets/screenshot-light.png">
+  <img alt="A notefeed feed page: the feeds in a left column, the compose box above the notes as cards, and the feed's details, read link and tags on the right" src="docs/assets/screenshot-light.png">
 </picture>
 
 ## Quick start

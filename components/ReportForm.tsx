@@ -7,7 +7,7 @@ export const REASONS = ["Illegal content", "Personal data", "Copyright", "Spam",
 
 export type ReportValues = { read_id: string; note_id: string; file: string; reason: string; text: string; email: string };
 
-const field = "w-full rounded-sm border border-rule bg-transparent px-3 py-1.5 focus:border-carbon focus:outline-none";
+const field = "w-full rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none";
 
 // The report form (issue #156): it posts straight to the operator's inbox, never to notefeed. With JavaScript the
 // post is JSON and the answer is shown here; without, the browser posts the form and the inbox sends it back, to
@@ -71,7 +71,7 @@ export function ReportForm({ endpoint, values, errors: initialErrors }: { endpoi
           Leave this field empty <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" />
         </label>
       </div>
-      <button type="submit" disabled={sending} className="mt-6 rounded-sm bg-carbon px-4 py-1.5 font-bold text-on-carbon disabled:opacity-60">
+      <button type="submit" disabled={sending} className="mt-6 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon disabled:opacity-60">
         Send report
       </button>
     </form>

@@ -17,7 +17,8 @@ afterEach(() => {
 // Every page.tsx and route.ts under app/, as the route Next serves it at.
 function appRoutes(dir = "app", at = ""): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    if (e.isDirectory()) return appRoutes(join(dir, e.name), `${at}/${e.name}`);
+    // A route group, "(site)", is no part of the URL.
+    if (e.isDirectory()) return appRoutes(join(dir, e.name), /^\(.+\)$/.test(e.name) ? at : `${at}/${e.name}`);
     return e.name === "page.tsx" || e.name === "route.ts" ? [at || "/"] : [];
   });
 }
