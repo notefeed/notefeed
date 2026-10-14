@@ -15,7 +15,7 @@ environment:
   NOTEFEED_MAX_NOTES_PER_FEED: 1000
 ```
 
-Two settings limit images. `NOTEFEED_MAX_IMAGE_BYTES` is the size of one image (5242880, 5 MiB, by default; at most 10 MiB, 10485760, because the request body passes through Next's proxy, which buffers at most 10 MiB and would cut a larger image short); over it, the post answers `413`. `NOTEFEED_MAX_IMAGES_PER_FEED` is how many image notes one feed may hold (`0`, the default, means no limit); over it, posting another image answers `507`. Deleting an image note frees a place. Image posts also count toward `NOTEFEED_RATE_LIMIT`.
+Two settings limit images. `NOTEFEED_MAX_IMAGE_BYTES` is the size of one image (5242880, 5 MiB, by default; at most 10 MiB, 10485760, because the request body passes through Next's proxy, which buffers at most 10 MiB and would cut a larger image short); over it, the post answers `413`. `NOTEFEED_MAX_IMAGES_PER_FEED` is how many image notes one feed may hold (`0`, the default, means no limit); over it, posting another image answers `507`. Deleting an image note frees a place. The web pages shrink a picture to `NOTEFEED_SHRINK_IMAGE_BYTES` (1 MiB by default, `0` for off, never more than `NOTEFEED_MAX_IMAGE_BYTES`) before uploading it, so a photo from a phone's camera fits. Image posts also count toward `NOTEFEED_RATE_LIMIT`.
 
 ```yaml
 environment:
