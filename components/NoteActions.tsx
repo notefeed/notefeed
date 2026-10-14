@@ -166,14 +166,15 @@ export function NoteActionsPanel() {
 }
 
 // The note's actions (issue #185): docked at the bottom of a phone's screen, so they stay in reach on a long note; a row
-// above the note from lg; a card in the right column from xl, which stays put while the note scrolls.
+// above the note from lg; a card in the right column from xl, which stays put while the note scrolls, level with the note:
+// it starts below the height of the "All notes" link above the note (NoteArticle).
 export function NoteActionsBar() {
   const { mode, setMode, copied, copyLink, reportHref } = useActions();
   const button = "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2 xl:min-w-0 xl:flex-row xl:gap-3 xl:px-3 xl:py-2 xl:text-[14px]";
   return (
     <nav
       aria-label="Note actions"
-      className="flex items-center justify-around bg-surface max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-t max-lg:border-rule max-lg:px-2 max-lg:pt-1.5 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:justify-start lg:gap-2 lg:rounded-2xl lg:border lg:border-rule lg:p-1.5 lg:shadow-card xl:flex-col xl:items-stretch xl:gap-0.5 xl:p-2"
+      className="flex items-center justify-around bg-surface max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-t max-lg:border-rule max-lg:px-2 max-lg:pt-1.5 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:justify-start lg:gap-2 lg:rounded-2xl lg:border lg:border-rule lg:p-1.5 lg:shadow-card xl:mt-10 xl:flex-col xl:items-stretch xl:gap-0.5 xl:p-2"
     >
       <p className={`${sectionLabel} hidden px-3 pb-1 pt-1.5 xl:block`}>This note</p>
       <button type="button" aria-pressed={mode === "edit"} onClick={() => setMode(mode === "edit" ? null : "edit")} className={`${button} ${mode === "edit" ? "text-carbon" : ""}`}>

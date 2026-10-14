@@ -125,7 +125,8 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
 export function NoteArticle({ note, back, imageBase, report }: { note: Note; back: string; imageBase?: string; report?: Report }) {
   return (
     <>
-      <Link href={back} aria-label="Back to all notes" className="-ml-2 mb-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm text-carbon hover:bg-surface-2">
+      {/* 2.5rem with its margin: the note's actions in the right column start that much lower, level with the note (NoteActionsBar). */}
+      <Link href={back} aria-label="Back to all notes" className="-ml-2 mb-3 inline-flex h-7 items-center gap-1 rounded-full px-2 text-sm text-carbon hover:bg-surface-2">
         <ChevronLeft aria-hidden className="h-4 w-4" />
         All notes
       </Link>
