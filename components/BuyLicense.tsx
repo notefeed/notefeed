@@ -6,7 +6,7 @@ import { errorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
 
 const KEY = /^[A-Za-z0-9_-]{22,64}$/;
-const input = "min-w-0 flex-1 rounded-sm border border-rule bg-transparent px-3 py-1.5 font-mono focus:border-carbon focus:outline-none";
+const input = "min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 font-mono focus:border-carbon focus:outline-none";
 
 async function urlFrom(path: string, body?: unknown): Promise<string> {
   const res = await fetch(path, { method: "POST", ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) });
@@ -100,7 +100,7 @@ export function BuyLicense({ price, cap }: { price: string; cap: number }) {
               )}
             </tbody>
           </table>
-          <button type="button" disabled={busy} onClick={buy} className="rounded-sm bg-carbon px-4 py-1.5 font-bold text-on-carbon disabled:opacity-60">
+          <button type="button" disabled={busy} onClick={buy} className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon disabled:opacity-60">
             Buy a license
           </button>
           <p id="buy-error" role="alert" className="mt-2 text-error">
@@ -156,7 +156,7 @@ function ManageLicense({ bought }: { bought: string }) {
             <input id="manage-key" value={typed} onChange={(e) => setTyped(e.target.value)} required maxLength={64} autoComplete="off" spellCheck={false} aria-describedby="manage-error" className={input} />
           </>
         )}
-        <button type="submit" disabled={busy} className="rounded-sm border border-rule px-4 py-1.5 hover:border-carbon disabled:opacity-60">
+        <button type="submit" disabled={busy} className="rounded-full border border-rule px-4 py-1.5 hover:border-carbon disabled:opacity-60">
           Manage subscription
         </button>
       </form>

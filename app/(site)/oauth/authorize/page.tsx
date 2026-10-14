@@ -16,7 +16,7 @@ export default async function AuthorizePage({ searchParams }: PageProps<"/oauth/
   if (checked.kind === "redirect") redirect(checked.location);
   if (checked.kind === "error")
     return (
-      <main className="mt-[18vh]">
+      <main className="mt-[6vh]">
         <h1 className="mb-6 text-xl font-bold tracking-tight">notefeed</h1>
         <p role="alert" className="text-error">
           {checked.message}
@@ -24,7 +24,7 @@ export default async function AuthorizePage({ searchParams }: PageProps<"/oauth/
       </main>
     );
   return (
-    <main className="mt-[18vh]">
+    <main className="mt-[6vh]">
       <h1 className="mb-2 text-xl font-bold tracking-tight">Connect {checked.clientName}</h1>
       <p className="mb-6 text-muted">After login you&apos;ll be sent to {checked.redirectHost}.</p>
       {identityOn() && (
@@ -37,7 +37,7 @@ export default async function AuthorizePage({ searchParams }: PageProps<"/oauth/
                   <input key={name} type="hidden" name={name} value={value} />
                 ))}
                 <input type="hidden" name="provider" value={id} />
-                <button type="submit" className="rounded-sm bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+                <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
                   {label ? `Sign in with ${label}` : "Sign in"}
                 </button>
               </form>
@@ -64,9 +64,9 @@ export default async function AuthorizePage({ searchParams }: PageProps<"/oauth/
               autoFocus
               aria-describedby="login-error"
               aria-invalid={error ? true : undefined}
-              className="min-w-0 flex-1 rounded-sm border border-rule bg-transparent px-3 py-1.5 focus:border-carbon focus:outline-none"
+              className="min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none"
             />
-            <button type="submit" className="rounded-sm bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+            <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
               Allow
             </button>
           </div>

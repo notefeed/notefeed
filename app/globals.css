@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
-/* Carbon-copy palette: see spec "UI design". */
+/* Carbon-copy palette: see spec "UI design" and .superdesign/design-system.md. Paper is the page, surface the cards and
+   sheets on it, surface-2 the fields and chips; carbon is the one accent. */
 :root {
   --paper: #f2f3f0;
+  --surface: #ffffff;
+  --surface-2: #e9eae6;
   --ink: #1e2130;
   --carbon: #7a5a1a;
   --rule: #d6d9df;
@@ -15,6 +18,8 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --paper: #15161b;
+    --surface: #1d1f26;
+    --surface-2: #262832;
     --ink: #e4e5eb;
     --carbon: #e3cb94;
     --rule: #2a2c35;
@@ -27,6 +32,9 @@
 
 @theme inline {
   --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-carbon-soft: color-mix(in srgb, var(--carbon) 14%, transparent);
   --color-ink: var(--ink);
   --color-carbon: var(--carbon);
   --color-rule: var(--rule);
@@ -35,6 +43,8 @@
   --color-on-carbon: var(--on-carbon);
   --font-sans: var(--font-atkinson);
   --font-mono: var(--font-atkinson-mono);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 8px rgb(0 0 0 / 0.04);
+  --shadow-sheet: 0 8px 24px rgb(0 0 0 / 0.12);
 }
 
 body {
@@ -42,9 +52,12 @@ body {
   color: var(--ink);
 }
 
-:focus-visible {
-  outline: 2px solid var(--carbon);
-  outline-offset: 2px;
+/* In the base layer, so a utility can take it off where the card shows the focus instead (the composer's fields). */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--carbon);
+    outline-offset: 2px;
+  }
 }
 
 /* Rendered markdown. Kept quiet so the notes, not the chrome, carry the page. */
@@ -57,16 +70,31 @@ body {
 .md ol { list-style: decimal; padding-left: 1.25em; }
 .md blockquote { border-left: 2px solid var(--rule); padding-left: 0.75em; color: var(--muted); }
 .md code { font-family: var(--font-mono); font-size: 0.9em; }
-.md pre { font-family: var(--font-mono); font-size: 0.875rem; overflow-x: auto; padding: 0.75em 0; border-block: 1px solid var(--rule); }
+.md pre { font-family: var(--font-mono); font-size: 0.875rem; overflow-x: auto; padding: 0.75em 0.9em; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); }
 .md table { border-collapse: collapse; }
 .md th, .md td { border: 1px solid var(--rule); padding: 0.25em 0.5em; text-align: left; }
 .md img { max-width: 100%; height: auto; }
 .md hr { border: 0; border-top: 1px solid var(--rule); }
 
+/* A feed's pages (components/AppShell.tsx): one column on a phone; from lg the feeds on the left; from xl the feed's
+   details on the right. One element per area, so nothing is rendered twice. */
+.shell { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; grid-template-areas: "top" "about" "main"; }
+@media (min-width: 64rem) {
+  .shell { grid-template-columns: 15rem minmax(0, 40rem); grid-template-rows: auto 1fr; grid-template-areas: "nav about" "nav main"; column-gap: 2rem; }
+}
+@media (min-width: 80rem) {
+  .shell { grid-template-columns: 15rem 40rem 18.75rem; grid-template-rows: 1fr; grid-template-areas: "nav main about"; }
+}
+
+/* A disclosure's marker: the summary carries its own chevron (settings rows, menus). */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] > summary .chevron { transform: rotate(90deg); }
+
 /* The one motion: a just-posted note arrives with a carbon tint that fades. */
 @keyframes arrive {
-  from { background: color-mix(in srgb, var(--carbon) 16%, transparent); }
-  to { background: transparent; }
+  from { background: color-mix(in srgb, var(--carbon) 16%, var(--surface)); }
+  to { background: var(--surface); }
 }
 .arrived { animation: arrive 1.5s ease-out; }
 @media (prefers-reduced-motion: reduce) {

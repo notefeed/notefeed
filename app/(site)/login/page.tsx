@@ -9,7 +9,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { next, error, retry } = await searchParams;
   if (!locked()) redirect(safeNext(next)); // an open instance has no password
   return (
-    <main className="mt-[18vh]">
+    <main className="mt-[6vh]">
       <h1 className="mb-6 text-xl font-bold tracking-tight">notefeed</h1>
       {identityOn() && (
         <div className="mb-6 max-w-sm">
@@ -18,7 +18,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               <a
                 key={id}
                 href={`/api/oidc/start?provider=${encodeURIComponent(id)}&next=${encodeURIComponent(safeNext(next))}`}
-                className="inline-block rounded-sm bg-carbon px-4 py-1.5 font-bold text-on-carbon"
+                className="inline-block rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon"
               >
                 {label ? `Sign in with ${label}` : "Sign in"}
               </a>
@@ -43,9 +43,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               autoFocus
               aria-describedby="login-error"
               aria-invalid={error ? true : undefined}
-              className="min-w-0 flex-1 rounded-sm border border-rule bg-transparent px-3 py-1.5 focus:border-carbon focus:outline-none"
+              className="min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none"
             />
-            <button type="submit" className="rounded-sm bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+            <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
               Log in
             </button>
           </div>

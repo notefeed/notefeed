@@ -62,6 +62,7 @@ test("change the password, then remove it", async ({ page, browser, baseURL }) =
   await create(page, name, "old-pw");
 
   await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Feed password" }).click();
   await page.getByLabel("Current password").fill("nope");
   await page.getByLabel("New password").fill("new-pw");
   await page.getByRole("button", { name: "Change", exact: true }).click();
@@ -71,7 +72,7 @@ test("change the password, then remove it", async ({ page, browser, baseURL }) =
   await page.getByLabel("New password").fill("new-pw");
   await page.getByRole("button", { name: "Change", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Saved."); // this browser stays unlocked
-  await page.getByRole("link", { name }).click();
+  await page.getByRole("link", { name: "Back to the feed" }).click();
   await expect(page.getByRole("link", { name: "Secret note" })).toBeVisible();
 
   const other = await fresh(browser, baseURL);
@@ -81,6 +82,7 @@ test("change the password, then remove it", async ({ page, browser, baseURL }) =
   await expect(other.getByRole("link", { name: "Secret note" })).toBeVisible();
 
   await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Feed password" }).click();
   await page.getByLabel("Current password").fill("new-pw");
   await page.getByRole("button", { name: "Remove password" }).click();
   await expect(page.getByRole("link", { name: "Secret note" })).toBeVisible();

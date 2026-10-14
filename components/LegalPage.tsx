@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { Header } from "@/components/Header";
 import { NoteView } from "@/components/NoteView";
 import { readLegalPage, type LegalPage as Which } from "@/backend";
 
@@ -9,11 +8,8 @@ export async function LegalPage({ which }: { which: Which }) {
   const markdown = await readLegalPage(which);
   if (markdown === null) notFound();
   return (
-    <>
-      <Header />
-      <main>
-        <NoteView markdown={markdown} />
-      </main>
-    </>
+    <main>
+      <NoteView markdown={markdown} />
+    </main>
   );
 }

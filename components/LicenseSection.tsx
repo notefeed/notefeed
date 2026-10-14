@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { errorMessage } from "@/app/_lib/messages";
-import { heading } from "@/components/styles";
-
-const input = "min-w-0 flex-1 rounded-sm border border-rule bg-transparent px-3 py-1.5 focus:border-carbon focus:outline-none";
+import { DisclosureRow, Group } from "@/components/SettingsRows";
+import { field, primary, secondary } from "@/components/styles";
 
 // On a feed's settings page while the instance sells licenses (ADR 0029): the feed's tier, a field for a key, and a way to take it off.
 export function LicenseSection({ feed, licensed }: { feed: string; licensed: boolean }) {
@@ -31,54 +30,58 @@ export function LicenseSection({ feed, licensed }: { feed: string; licensed: boo
   }
 
   return (
-    <section aria-labelledby="license" className="text-sm">
-      <h2 id="license" className={heading}>
-        <BadgeCheck aria-hidden className="h-4 w-4" />
-        License
-      </h2>
-      {licensed ? (
-        <>
-          <p className="text-muted">
-            This feed has a license: no cap on stored notes, a feed password and images. To cancel the subscription, change how you pay or get an invoice, go to the{" "}
-            <Link href="/license" className="underline">
-              license page
-            </Link>{" "}
-            with your key.
-          </p>
-          <button type="button" onClick={() => send("DELETE")} className="mt-3 rounded-sm border border-rule px-3 py-1.5 text-muted hover:border-carbon hover:text-ink">
-            Take the license off this feed
-          </button>
-        </>
-      ) : (
-        <>
-          <p className="text-muted">
-            This feed is on the free tier: it keeps its newest notes, and has no images and no feed password. <Link href="/license" className="underline">
-              Buy a license
-            </Link>, then enter its key.
-          </p>
-          <form
-            className="mt-3 flex max-w-xl gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send("POST");
-            }}
-          >
-            <label htmlFor="license-key" className="sr-only">
-              License key
-            </label>
-            <input id="license-key" value={key} onChange={(e) => setKey(e.target.value)} required maxLength={64} autoComplete="off" spellCheck={false} aria-describedby="license-error" className={`${input} font-mono`} />
-            <button type="submit" className="rounded-sm bg-carbon px-4 py-1.5 font-bold text-on-carbon">
-              Use key
+    <Group id="license" label="License">
+      <DisclosureRow
+        icon={<BadgeCheck />}
+        label="License"
+        value={licensed ? <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[12px] font-bold text-carbon">Licensed</span> : "Free tier"}
+      >
+        {licensed ? (
+          <>
+            <p className="text-muted">
+              This feed has a license: no cap on stored notes, a feed password and images. To cancel the subscription, change how you pay or get an invoice, go to the{" "}
+              <Link href="/license" className="text-carbon underline">
+                license page
+              </Link>{" "}
+              with your key.
+            </p>
+            <button type="button" onClick={() => send("DELETE")} className={`${secondary} mt-3`}>
+              Take the license off this feed
             </button>
-          </form>
-        </>
-      )}
-      <p role="status" className="mt-2 font-bold text-ink">
-        {done}
-      </p>
-      <p id="license-error" role="alert" className="text-error">
-        {error}
-      </p>
-    </section>
+          </>
+        ) : (
+          <>
+            <p className="text-muted">
+              This feed is on the free tier: it keeps its newest notes, and has no images and no feed password.{" "}
+              <Link href="/license" className="text-carbon underline">
+                Buy a license
+              </Link>
+              , then enter its key.
+            </p>
+            <form
+              className="mt-3 flex max-w-xl gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void send("POST");
+              }}
+            >
+              <label htmlFor="license-key" className="sr-only">
+                License key
+              </label>
+              <input id="license-key" value={key} onChange={(e) => setKey(e.target.value)} required maxLength={64} autoComplete="off" spellCheck={false} aria-describedby="license-error" placeholder="License key" className={`${field} font-mono`} />
+              <button type="submit" className={primary}>
+                Use key
+              </button>
+            </form>
+          </>
+        )}
+        <p role="status" className="mt-2 font-bold text-ink empty:hidden">
+          {done}
+        </p>
+        <p id="license-error" role="alert" className="text-error empty:hidden">
+          {error}
+        </p>
+      </DisclosureRow>
+    </Group>
   );
 }

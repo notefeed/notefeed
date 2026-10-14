@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { Header } from "@/components/Header";
+import { AppShell } from "@/components/AppShell";
+import { FeedAbout } from "@/components/FeedAbout";
 import { NoteList, TagFilter } from "@/components/NoteList";
 import { Removed } from "@/components/Removed";
 import { getReadFeed, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
@@ -28,29 +29,23 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/r/[
   if (!data) notFound();
   if (data.notes.length === 0 && (await isRemovedReadId(readId))) {
     return (
-      <>
-        <Header rss={rssPath(readId)} />
+      <AppShell>
         <Removed />
-      </>
+      </AppShell>
     );
   }
   const { notes, title, description } = data;
+  const all = tag ? await readFeed(readId) : data;
+  const tags = [...new Set((all ?? data).notes.flatMap((n) => n.tags))];
 
   return (
-    <>
-      <Header rss={rssPath(readId)} image={data.imageUrl} />
-      {(title || description) && (
-        <div className="mb-8">
-          {title && <h1 className="text-2xl font-bold tracking-tight">{title}</h1>}
-          {description && <p className="mt-1 text-muted">{description}</p>}
-        </div>
-      )}
+    <AppShell about={<FeedAbout title={title || instanceTitle()} description={description} imageUrl={data.imageUrl} rssUrl={rssPath(readId)} tags={tags} tag={tag} base={readPath(readId)} />}>
       {tag && <TagFilter tag={tag} base={readPath(readId)} />}
       {notes.length === 0 ? (
         <p className="text-muted">{tag ? "No notes with this tag." : "No notes yet."}</p>
       ) : (
         <NoteList notes={notes} base={readPath(readId)} imageBase={`${readPath(readId)}/`} report={reportTemplate() ? { template: reportTemplate(), readId } : undefined} />
       )}
-    </>
+    </AppShell>
   );
 }

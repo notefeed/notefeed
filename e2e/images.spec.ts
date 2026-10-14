@@ -263,6 +263,7 @@ test("a title image shows in the header and the read-only view, and can be remov
   await post(page, name, "# Titled");
   await page.getByRole("link", { name: "Settings" }).click();
   await page.getByLabel("Title", { exact: true }).fill("Typed, not saved"); // choosing an image keeps what is typed
+  await page.locator("summary", { hasText: "Title image" }).click();
   await choose(page, "Choose image", PNG);
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue("Typed, not saved");
@@ -273,6 +274,7 @@ test("a title image shows in the header and the read-only view, and can be remov
   await expect(page).toHaveURL(/\/r\/[^/]+$/);
   await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toBeVisible();
   await page.goto(`/${name}/settings`); // not goBack: where it lands depends on timing
+  await page.locator("summary", { hasText: "Title image" }).click();
   await page.getByRole("button", { name: "Remove image" }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toHaveCount(0);
@@ -316,6 +318,7 @@ test("the title image can be picked from the feed's images, and goes when its no
   await expect(page.locator("ol > li")).toHaveCount(2); // the picture is a note; its lone reference is no text note
   await expect(page.locator("ol > li img")).toHaveCount(1);
   await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Title image" }).click();
   await page.getByRole("button", { name: /^Use .* as the title image$/ }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toBeVisible();
@@ -352,8 +355,8 @@ test("a title and tags typed with only pictures go on the pictures, accents incl
   await page.getByLabel("Tags (optional, separated by commas)").fill("pets, cats");
   await page.getByRole("button", { name: "Post note" }).click();
   await expect(page.getByRole("link", { name: "Café 日本語" }).first()).toBeVisible(); // the title, and the picture named by it
-  await expect(page.getByRole("link", { name: "pets" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "cats" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "pets", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "cats", exact: true })).toBeVisible();
   await expect(page.locator("ol > li")).toHaveCount(1); // no text note
 });
 
