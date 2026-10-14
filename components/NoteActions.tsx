@@ -1,9 +1,9 @@
 "use client";
 
 import { Check, Flag, Link2, Pencil, Trash2 } from "lucide-react";
-import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { createContext, useContext, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { copyText } from "@/components/copy";
-import { card, field, primary, secondary } from "@/components/styles";
+import { card, field, primary, secondary, sectionLabel } from "@/components/styles";
 import { deleteNote, editNote, patchNote } from "@/app/_lib/api";
 import { MarkdownInput } from "@/components/MarkdownInput";
 import { usePendingImages } from "@/components/usePendingImages";
@@ -11,8 +11,9 @@ import { multipart, multipartBody, useApiForm } from "@/app/_lib/useApiForm";
 import { noteErrorMessage, withPictures } from "@/app/_lib/messages";
 
 // Edit and delete for a note, through the generated API client, with refusals shown inline (`error` is a first message to show).
-// `reportHref`: the note's Report link, shown in the bar (the note itself then shows none).
-export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, error: initialError, images: imagesOn = true, imageBase, reportHref }: { feed: string; id: string; kind: string; markdown: string; title: string; alt: string; error?: string; images?: boolean; imageBase?: string; reportHref?: string }) {
+// The state of the note page's actions, for the two places they show: the bar (NoteActionsBar, in the shell's right column)
+// and the forms (NoteActionsPanel, under the note). `reportHref`: the note's Report link, in the bar (the note shows none).
+export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, error: initialError, images: imagesOn = true, imageBase, reportHref, children }: { feed: string; id: string; kind: string; markdown: string; title: string; alt: string; error?: string; images?: boolean; imageBase?: string; reportHref?: string; children: ReactNode }) {
   const page = `/${feed}`;
   const images = usePendingImages();
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, withPictures(noteErrorMessage, images.pending.length > 0));
@@ -56,17 +57,47 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
 
   const [copied, setCopied] = useState(false);
   const copyLink = () => copyText(window.location.href).then(() => setCopied(true), () => {});
-  const barButton = "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2";
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
 
-  // The actions sit in a bar: docked at the bottom on a phone, so they stay in reach on a long note (issue #185), under the
-  // note from lg. Edit and Delete open their form above the bar: a sheet on a phone, a card from lg.
+  const value = { mode, setMode, text, setText, title, setTitle, alt, setAlt, image, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
+  return <Actions.Provider value={value}>{children}</Actions.Provider>;
+}
+
+type ActionsState = {
+  mode: "edit" | "delete" | null;
+  setMode: (m: "edit" | "delete" | null) => void;
+  text: string;
+  setText: (t: string) => void;
+  title: string;
+  setTitle: (t: string) => void;
+  alt: string;
+  setAlt: (t: string) => void;
+  image: boolean;
+  images: ReturnType<typeof usePendingImages>;
+  imagesOn: boolean;
+  imageBase?: string;
+  save: (e: FormEvent) => void;
+  remove: (e: FormEvent) => void;
+  pending: boolean;
+  error?: string;
+  setError: Parameters<typeof MarkdownInput>[0]["onMessage"];
+  hydrated: boolean;
+  copied: boolean;
+  copyLink: () => void;
+  reportHref?: string;
+};
+const Actions = createContext<ActionsState | null>(null);
+const useActions = () => useContext(Actions)!;
+
+// Edit and Delete open their form under the note: a sheet on a phone, a card from lg.
+export function NoteActionsPanel() {
+  const { mode, setMode, text, setText, title, setTitle, alt, setAlt, image, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
   return (
-    <section aria-label="Edit or delete this note" className="mt-6 text-sm">
+    <section aria-label="Edit or delete this note" className="mt-4 text-sm">
       {mode && (
         <>
           {hydrated && <div aria-hidden className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={() => setMode(null)} />}
-          <div className={`${card} mb-3 p-4 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:mb-0 max-lg:max-h-[90dvh] max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:shadow-sheet max-lg:pb-8`}>
+          <div className={`${card} p-4 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[90dvh] max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:shadow-sheet max-lg:pb-8`}>
             {mode === "edit" ? (
               <form onSubmit={save}>
                 {!image && (
@@ -127,29 +158,42 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
           </div>
         </>
       )}
-      <p id="note-actions-error" role="alert" className="mb-2 text-error empty:hidden">
+      <p id="note-actions-error" role="alert" className="mt-2 text-error empty:hidden">
         {error}
       </p>
-      <div className="flex items-center justify-around border-rule bg-surface max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-t max-lg:px-2 max-lg:pt-1.5 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:justify-start lg:gap-2 lg:rounded-2xl lg:border lg:p-1.5 lg:shadow-card">
-        <button type="button" aria-pressed={mode === "edit"} onClick={() => setMode(mode === "edit" ? null : "edit")} className={`${barButton} ${mode === "edit" ? "text-carbon" : ""}`}>
-          <Pencil aria-hidden className="h-5 w-5" />
-          Edit
-        </button>
-        <button type="button" onClick={copyLink} className={barButton}>
-          {copied ? <Check aria-hidden className="h-5 w-5" /> : <Link2 aria-hidden className="h-5 w-5" />}
-          <span aria-live="polite">{copied ? "Copied" : "Copy link"}</span>
-        </button>
-        {reportHref && (
-          <a href={reportHref} rel="nofollow noopener" className={barButton}>
-            <Flag aria-hidden className="h-5 w-5" />
-            Report
-          </a>
-        )}
-        <button type="button" aria-pressed={mode === "delete"} onClick={() => setMode(mode === "delete" ? null : "delete")} className={`${barButton} text-error`}>
-          <Trash2 aria-hidden className="h-5 w-5" />
-          Delete
-        </button>
-      </div>
     </section>
+  );
+}
+
+// The note's actions (issue #185): docked at the bottom of a phone's screen, so they stay in reach on a long note; a row
+// above the note from lg; a card in the right column from xl, which stays put while the note scrolls.
+export function NoteActionsBar() {
+  const { mode, setMode, copied, copyLink, reportHref } = useActions();
+  const button = "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2 xl:min-w-0 xl:flex-row xl:gap-3 xl:px-3 xl:py-2 xl:text-[14px]";
+  return (
+    <nav
+      aria-label="Note actions"
+      className="flex items-center justify-around bg-surface max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-t max-lg:border-rule max-lg:px-2 max-lg:pt-1.5 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:justify-start lg:gap-2 lg:rounded-2xl lg:border lg:border-rule lg:p-1.5 lg:shadow-card xl:flex-col xl:items-stretch xl:gap-0.5 xl:p-2"
+    >
+      <p className={`${sectionLabel} hidden px-3 pb-1 pt-1.5 xl:block`}>This note</p>
+      <button type="button" aria-pressed={mode === "edit"} onClick={() => setMode(mode === "edit" ? null : "edit")} className={`${button} ${mode === "edit" ? "text-carbon" : ""}`}>
+        <Pencil aria-hidden className="h-5 w-5" />
+        Edit
+      </button>
+      <button type="button" onClick={copyLink} className={button}>
+        {copied ? <Check aria-hidden className="h-5 w-5" /> : <Link2 aria-hidden className="h-5 w-5" />}
+        <span aria-live="polite">{copied ? "Copied" : "Copy link"}</span>
+      </button>
+      {reportHref && (
+        <a href={reportHref} rel="nofollow noopener" className={button}>
+          <Flag aria-hidden className="h-5 w-5" />
+          Report
+        </a>
+      )}
+      <button type="button" aria-pressed={mode === "delete"} onClick={() => setMode(mode === "delete" ? null : "delete")} className={`${button} text-error`}>
+        <Trash2 aria-hidden className="h-5 w-5" />
+        Delete
+      </button>
+    </nav>
   );
 }

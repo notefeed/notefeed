@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { NoteArticle } from "@/components/NoteList";
-import { NoteActions } from "@/components/NoteActions";
+import { NoteActions, NoteActionsBar, NoteActionsPanel } from "@/components/NoteActions";
 import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { noteErrorMessage } from "@/app/_lib/messages";
@@ -32,18 +32,21 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[fe
   if (!note) notFound();
   const readId = await readIdOf(feed);
   const imageBase = readId ? `${readPath(readId)}/` : undefined;
-  // The Report link goes in the note's action bar, not on the note.
+  // The Report link goes in the note's action bar, not on the note. The bar sits in the shell's right column, the forms under
+  // the note; NoteActions holds what both share.
   const reportHref = readId && reportTemplate() ? reportUrl(reportTemplate(), { readId, noteId: note.id, file: note.file }) : undefined;
 
   return (
-    <AppShell feed={feed}>
+    <NoteActions key={`${note.content}\n${note.meta.title}\n${note.alt}`} feed={feed} id={id} kind={note.type.startsWith("image/") ? "image" : "markdown"} markdown={note.content ?? ""} title={note.meta.title ?? ""} alt={note.alt ?? ""} error={noteErrorMessage(error, retry)} images={imageUploadsOn()} imageBase={imageBase} reportHref={reportHref}>
+    <AppShell feed={feed} about={<NoteActionsBar />} docked>
       {edited === "1" && (
         <p role="status" className="mb-4 text-sm text-carbon">
           Saved.
         </p>
       )}
       <NoteArticle note={note} back={feedPath(feed)} imageBase={imageBase} />
-      <NoteActions key={`${note.content}\n${note.meta.title}\n${note.alt}`} feed={feed} id={id} kind={note.type.startsWith("image/") ? "image" : "markdown"} markdown={note.content ?? ""} title={note.meta.title ?? ""} alt={note.alt ?? ""} error={noteErrorMessage(error, retry)} images={imageUploadsOn()} imageBase={imageBase} reportHref={reportHref} />
+      <NoteActionsPanel />
     </AppShell>
+    </NoteActions>
   );
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Flag, Hash } from "lucide-react";
+import { ChevronLeft, Flag, Hash } from "lucide-react";
 import { card, chip, sectionLabel } from "@/components/styles";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
@@ -121,10 +121,14 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
   ));
 }
 
-// One note on its own page, as a card. `report` false: the page shows the Report link elsewhere (the note's action bar).
+// One note on its own page, as a card, under the way back to the list. `report` false: the page shows the Report link elsewhere (the note's action bar).
 export function NoteArticle({ note, back, imageBase, report }: { note: Note; back: string; imageBase?: string; report?: Report }) {
   return (
     <>
+      <Link href={back} aria-label="Back to all notes" className="-ml-2 mb-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm text-carbon hover:bg-surface-2">
+        <ChevronLeft aria-hidden className="h-4 w-4" />
+        All notes
+      </Link>
       <article className={`${card} p-4 sm:p-5`}>
         <div>
           {note.type.startsWith("image/") ? (
@@ -138,11 +142,6 @@ export function NoteArticle({ note, back, imageBase, report }: { note: Note; bac
         </div>
         <Foot note={note} base={back} when={note.createdAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} report={report} />
       </article>
-      <p className="mt-6 text-center text-sm">
-        <Link href={back} className="text-carbon hover:underline">
-          Back to all notes
-        </Link>
-      </p>
     </>
   );
 }
