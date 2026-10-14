@@ -17,9 +17,7 @@ import { card, iconButton, sectionLabel } from "@/components/styles";
 // get no switcher.
 export async function AppShell({ feed, about, children }: { feed?: string; about?: ReactNode; children: ReactNode }) {
   await connection(); // the footer looks for the operator's files on every request
-  // Readers of /r/** on a locked instance have no session: no "Log out" for them.
-  const jar = await cookies();
-  const loggedIn = locked() && sessionOk(jar.get(SESSION_COOKIE)?.value, jar.get(IDENTITY_COOKIE)?.value);
+  const loggedIn = await hasSession();
   const links = await footerLinks();
   return (
     <div className="shell mx-auto min-h-dvh max-w-[80rem] lg:px-6">
@@ -52,6 +50,12 @@ export async function AppShell({ feed, about, children }: { feed?: string; about
       <main className="min-w-0 px-4 pt-4 pb-28 [grid-area:main] lg:border-x lg:border-rule/70 lg:px-6 lg:pt-6 lg:pb-10 xl:row-span-1">{children}</main>
     </div>
   );
+}
+
+// Whether "Log out" is offered: readers of /r/** on a locked instance have no session, and an open instance has none at all.
+export async function hasSession() {
+  const jar = await cookies();
+  return locked() && sessionOk(jar.get(SESSION_COOKIE)?.value, jar.get(IDENTITY_COOKIE)?.value);
 }
 
 function Logo({ wordmark = false }: { wordmark?: boolean }) {
@@ -124,8 +128,9 @@ function FeedSwitcher({ feed }: { feed: string }) {
   );
 }
 
-// ⓘ: the product links and the operator's legal pages, and "Log out" on a locked instance.
-function InfoMenu({ links, loggedIn }: { links: { product: FooterLink[]; legal: FooterLink[] }; loggedIn: boolean }) {
+// ⓘ: the product links and the operator's legal pages, and "Log out" on a locked instance. On the phone's top bar of a
+// feed's pages, and on every plain page (app/(site)/layout.tsx).
+export function InfoMenu({ links, loggedIn }: { links: { product: FooterLink[]; legal: FooterLink[] }; loggedIn: boolean }) {
   const row = "flex items-center gap-3 px-3 py-2.5 text-[15px] text-ink hover:bg-surface-2";
   const item = (l: FooterLink) =>
     l.external ? (
