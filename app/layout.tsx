@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { connection } from "next/server";
 import Link from "next/link";
 import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next } from "next/font/google";
-import { hasLegalPage, publicUrl } from "@/backend";
+import { hasLegalPage, licensingOn, publicUrl } from "@/backend";
 import "./globals.css";
 
 const sans = Atkinson_Hyperlegible_Next({ variable: "--font-atkinson", subsets: ["latin"] });
@@ -51,6 +51,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             {terms && (
               <Link href="/terms" className="hover:text-ink hover:underline">
                 Terms
+              </Link>
+            )}
+            {licensingOn() && (
+              <Link href="/license" className="hover:text-ink hover:underline">
+                License
               </Link>
             )}
           </footer>

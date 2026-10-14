@@ -6,6 +6,9 @@ import { WebhookRejectedError, type LicenseEvent, type PaymentProvider } from ".
 
 export const fakeSignature = (secret: string, body: string) => createHmac("sha256", secret).update(body).digest("hex");
 
+/** What `cancel` was called with, for the tests. */
+export const cancelled: string[] = [];
+
 export function createFake(webhookSecret: string): PaymentProvider {
   return {
     async createCheckout({ successUrl }) {
@@ -20,6 +23,12 @@ export function createFake(webhookSecret: string): PaymentProvider {
         if (Array.isArray(events)) return events;
       } catch {}
       throw new WebhookRejectedError("not a list of events");
+    },
+    async portalUrl(providerRef) {
+      return { url: `https://fake.invalid/portal/${encodeURIComponent(providerRef)}` };
+    },
+    async cancel(providerRef) {
+      cancelled.push(providerRef);
     },
   };
 }

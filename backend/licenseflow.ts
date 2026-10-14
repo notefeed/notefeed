@@ -1,6 +1,7 @@
 // Buying and holding a license (ADR 0029): the checkout, the provider's webhook, and entering or detaching a key. The key is 128
 // random bits made here; the provider carries only its hash through the checkout, so the buyer sees the key on the success page
-// (in the URL fragment, which no server receives) and notefeed stores the hash alone.
+// (in the URL fragment, which the browser does not send to notefeed) and notefeed stores the hash alone. The provider does hold the
+// key: the success URL is given to it whole, and Creem returns it in `checkout.completed`.
 import { createHash, randomBytes } from "node:crypto";
 import { config } from "./config";
 import { InvalidBodyError, NotFoundError } from "./errors";
@@ -28,8 +29,22 @@ export async function receiveWebhook(rawBody: string, headers: Headers): Promise
   const provider = paymentProvider();
   if (!provider) throw new NotFoundError("licenses are not sold on this instance");
   const events = await provider.parseWebhook(rawBody, headers);
-  for (const e of events) await apply(e);
+  for (const e of events) {
+    await apply(e);
+    // The provider keeps charging a refunded subscription unless it is ended there too. The license has lapsed either way, so a
+    // failure here (ended already, by the same event delivered before) is logged and not answered with an error.
+    if (e.type === "refunded") await provider.cancel(e.providerRef).catch((err) => log.warn({ err }, "a refunded subscription was not cancelled at the provider"));
+  }
   return events.length;
+}
+
+/** The provider's page for whoever holds the key: cancelling, the payment method, the invoices. The key is the proof; a feed's name is not. */
+export async function portalFor(key: string): Promise<{ url: string }> {
+  const provider = paymentProvider();
+  if (!provider) throw new NotFoundError("licenses are not sold on this instance");
+  const license = KEY_RE.test(key) ? await licenses().byKeyHash(hashKey(key)) : null;
+  if (!license?.providerRef) throw new InvalidBodyError("that is not a license key");
+  return provider.portalUrl(license.providerRef);
 }
 
 async function apply(e: LicenseEvent): Promise<void> {

@@ -4,11 +4,12 @@
 //   POST   /api/licenses/webhook   the provider's events; signed, answered 200 once applied, 400 for a bad signature
 //   POST   /api/licenses/attach    {"feed", "key"} puts the license on the feed; needs write access to the feed
 //   DELETE /api/licenses/attach    {"feed"} takes the license off; needs write access to the feed
+//   POST   /api/licenses/portal    {"key"} the provider's page for the holder of the key: cancelling, payment method, invoices
 // All of them are 404 while no payment provider is configured.
 import { NotefeedError, NotFoundError, RateLimitedError } from "../errors";
 import { checkFeedAccess } from "../feedlock";
 import { checkFeed } from "../feednames";
-import { attachLicense, detachLicense, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
+import { attachLicense, detachLicense, portalFor, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
 import { licensingOn } from "../licensing";
 import { clientIp, rateLimit } from "../limits";
 import { logger } from "../log";
@@ -75,6 +76,18 @@ export async function attachRoute(req: Request): Promise<Response> {
     }
     await attachLicense(feed, typeof b.key === "string" ? b.key.trim() : "");
     return json({ ok: true });
+  } catch (e) {
+    return failed(e);
+  }
+}
+
+export async function portalRoute(req: Request): Promise<Response> {
+  if (!licensingOn()) return off();
+  try {
+    const wait = rateLimit(clientIp(req.headers));
+    if (wait !== null) throw new RateLimitedError(wait);
+    const b = await body(req, 4096);
+    return json(await portalFor(typeof b.key === "string" ? b.key.trim() : ""));
   } catch (e) {
     return failed(e);
   }
