@@ -60,3 +60,6 @@ __pycache__/
 *.egg-info/
 /packages/js/dist/
 /packages/js/node_modules/
+
+# superdesign scratch
+/.superdesign/tmp/

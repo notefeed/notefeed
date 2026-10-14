@@ -1,0 +1,389 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/[feed]": {
+      "targetKind": "existing-ui",
+      "projectId": "524e6c1a-5d89-46f8-9d25-581bd4e583b1",
+      "baselineDraftId": "e54e9106-5a46-44a7-8cc7-fe2d357ebaf2",
+      "activeDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "app-icon.svg"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "app-icon.svg",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/524e6c1a-5d89-46f8-9d25-581bd4e583b1/brand-assets/app-icon.svg/icon.svg",
+          "sourcePath": "app/icon.svg"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/globals.css",
+        "app/layout.tsx",
+        "components/Header.tsx",
+        "app/[feed]/page.tsx:62",
+        "components/Compose.tsx",
+        "components/MarkdownInput.tsx:112",
+        "components/NoteList.tsx",
+        "components/NoteView.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9815de4ee7cb98fed00a5b4ef9e998564c6ec7a3e1284840a6d01f1d1f8d6c37",
+        "app/globals.css": "d46d82a5a4df4a2357e87b9b221565cc6618a7198e67f24f385d2b4a0896a43f",
+        "app/layout.tsx": "89c62e9f157cd3a0e4d2b8263cafbdd2ee981fe6865227da64a015cfd1fa3168",
+        "components/Header.tsx": "37c2bbbe4d45785379da9021df092d6355d857a92a0ba54b37b3eaf7ba5c620c",
+        "app/[feed]/page.tsx": "f99eea6b374725a9ffe9e804be6eaf03b988439e465281d1c3820a7359f7c5cf",
+        "components/Compose.tsx": "0d5f86afa6bee1acdbf933b0441722deca221e8f7b22f41c80d9c981e688a1ea",
+        "components/MarkdownInput.tsx": "fa46f7a9ced3a635049bfd347229bed04dbdcb6e1d80f3a9c195a6e4db333faa",
+        "components/NoteList.tsx": "40317880ab0052da630f5cf4775ad12162b4854825d83f96cf7d097c41511f68",
+        "components/NoteView.tsx": "303952f7fd433101531f2d6bd2187ec9fcbf97010f31d4e1fe63212f530ee4bc"
+      },
+      "components": [],
+      "drafts": {
+        "e54e9106-5a46-44a7-8cc7-fe2d357ebaf2": {
+          "title": "Current feed page (reproduction)",
+          "visualDirection": "current carbon-copy UI, mobile",
+          "currentVersion": 1
+        },
+        "e01c6705-3b50-4ba8-af2b-316d358b2db8": {
+          "title": "Direction A: Timeline cards + docked composer (selected)",
+          "visualDirection": "card timeline, profile header, tag bar, chat-style docked composer that pulls up into the composer sheet (from C)",
+          "parentDraftId": "e54e9106-5a46-44a7-8cc7-fe2d357ebaf2",
+          "currentVersion": 6
+        },
+        "b37f22df-fc94-4906-956a-3473057ce9fd": {
+          "title": "Direction B: Threads-minimal",
+          "visualDirection": "hairline rows with thread line, airy, menu in overflow",
+          "parentDraftId": "e54e9106-5a46-44a7-8cc7-fe2d357ebaf2",
+          "currentVersion": 1
+        },
+        "cbacd07a-3d7f-4491-a593-d71b6c86b8c6": {
+          "title": "Direction C: Log & chat",
+          "visualDirection": "dense rows with time column, tag bar, chat-style docked composer",
+          "parentDraftId": "e54e9106-5a46-44a7-8cc7-fe2d357ebaf2",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-10-14T13:22:47.197942+00:00"
+    },
+    "/[feed]/settings": {
+      "targetKind": "flow-page",
+      "sourceTarget": "/[feed]",
+      "sourceDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+      "projectId": "524e6c1a-5d89-46f8-9d25-581bd4e583b1",
+      "activeDraftId": "b2975f92-7b99-4c67-ab3b-e83897cd673a",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "app-icon.svg"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "app-icon.svg",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/524e6c1a-5d89-46f8-9d25-581bd4e583b1/brand-assets/app-icon.svg/icon.svg",
+          "sourcePath": "app/icon.svg"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/globals.css",
+        "app/[feed]/settings/page.tsx",
+        "components/FeedDetails.tsx",
+        "components/FeedSettings.tsx",
+        "components/LicenseSection.tsx",
+        "components/NoteList.tsx",
+        "components/NoteActions.tsx",
+        "app/page.tsx",
+        "components/OpenFeed.tsx",
+        "app/r/[readId]/page.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9815de4ee7cb98fed00a5b4ef9e998564c6ec7a3e1284840a6d01f1d1f8d6c37",
+        "app/globals.css": "d46d82a5a4df4a2357e87b9b221565cc6618a7198e67f24f385d2b4a0896a43f",
+        "app/[feed]/settings/page.tsx": "d17b154c137c64bc2f5708a3fd58865eea2ae8cfd9a9400483996ab74aa20821",
+        "components/FeedDetails.tsx": "62ce31bc1f6fcff7cea07b1ae0ac056af0f92a5df21afb134e81bd73daf8dd0f",
+        "components/FeedSettings.tsx": "cf8901c3c42fd662d99ef266ddf84daae96f35de5043a1afba7afdf49971693e",
+        "components/LicenseSection.tsx": "5709f9cc75cfb02c7496c60d96a0844a712612b01588e4ea6c4cb51fcf99d576",
+        "components/NoteList.tsx": "40317880ab0052da630f5cf4775ad12162b4854825d83f96cf7d097c41511f68",
+        "components/NoteActions.tsx": "b77f55aa3bce5340e0875847df6156843f94699cc19be5da74f1ceee13400ef6",
+        "app/page.tsx": "164b39b828d29dc802bb055f821df936565e3ea22c535afeb3ee01b6cefb3f28",
+        "components/OpenFeed.tsx": "09917144d8cf0d782ff42057086529db14c9f46bbf45c15b440301ef84806d3a",
+        "app/r/[readId]/page.tsx": "cac5ff7c9c1b4d7042855a2ddf297d89c1e67dbec7a735974c7c518e6d4df5ad"
+      },
+      "components": [],
+      "drafts": {
+        "b2975f92-7b99-4c67-ab3b-e83897cd673a": {
+          "title": "Feed settings",
+          "visualDirection": "Timeline cards + docked composer",
+          "parentDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-10-14T09:28:50.130473+00:00"
+    },
+    "/[feed]/[id]": {
+      "targetKind": "flow-page",
+      "sourceTarget": "/[feed]",
+      "sourceDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+      "projectId": "524e6c1a-5d89-46f8-9d25-581bd4e583b1",
+      "activeDraftId": "7669531e-0959-4dd7-929a-a89f2fe875df",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "app-icon.svg"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "app-icon.svg",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/524e6c1a-5d89-46f8-9d25-581bd4e583b1/brand-assets/app-icon.svg/icon.svg",
+          "sourcePath": "app/icon.svg"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/globals.css",
+        "app/[feed]/settings/page.tsx",
+        "components/FeedDetails.tsx",
+        "components/FeedSettings.tsx",
+        "components/LicenseSection.tsx",
+        "components/NoteList.tsx",
+        "components/NoteActions.tsx",
+        "app/page.tsx",
+        "components/OpenFeed.tsx",
+        "app/r/[readId]/page.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9815de4ee7cb98fed00a5b4ef9e998564c6ec7a3e1284840a6d01f1d1f8d6c37",
+        "app/globals.css": "d46d82a5a4df4a2357e87b9b221565cc6618a7198e67f24f385d2b4a0896a43f",
+        "app/[feed]/settings/page.tsx": "d17b154c137c64bc2f5708a3fd58865eea2ae8cfd9a9400483996ab74aa20821",
+        "components/FeedDetails.tsx": "62ce31bc1f6fcff7cea07b1ae0ac056af0f92a5df21afb134e81bd73daf8dd0f",
+        "components/FeedSettings.tsx": "cf8901c3c42fd662d99ef266ddf84daae96f35de5043a1afba7afdf49971693e",
+        "components/LicenseSection.tsx": "5709f9cc75cfb02c7496c60d96a0844a712612b01588e4ea6c4cb51fcf99d576",
+        "components/NoteList.tsx": "40317880ab0052da630f5cf4775ad12162b4854825d83f96cf7d097c41511f68",
+        "components/NoteActions.tsx": "b77f55aa3bce5340e0875847df6156843f94699cc19be5da74f1ceee13400ef6",
+        "app/page.tsx": "164b39b828d29dc802bb055f821df936565e3ea22c535afeb3ee01b6cefb3f28",
+        "components/OpenFeed.tsx": "09917144d8cf0d782ff42057086529db14c9f46bbf45c15b440301ef84806d3a",
+        "app/r/[readId]/page.tsx": "cac5ff7c9c1b4d7042855a2ddf297d89c1e67dbec7a735974c7c518e6d4df5ad"
+      },
+      "components": [],
+      "drafts": {
+        "7669531e-0959-4dd7-929a-a89f2fe875df": {
+          "title": "Single note",
+          "visualDirection": "note card; actions docked in bottom bar; info menu in top bar",
+          "parentDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+          "currentVersion": 3
+        }
+      },
+      "updatedAt": "2026-10-14T13:22:47.197942+00:00"
+    },
+    "/r/[readId]": {
+      "targetKind": "flow-page",
+      "sourceTarget": "/[feed]",
+      "sourceDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+      "projectId": "524e6c1a-5d89-46f8-9d25-581bd4e583b1",
+      "activeDraftId": "fda739de-107e-4ef7-9580-ba03993012a1",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "app-icon.svg"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "app-icon.svg",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/524e6c1a-5d89-46f8-9d25-581bd4e583b1/brand-assets/app-icon.svg/icon.svg",
+          "sourcePath": "app/icon.svg"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/globals.css",
+        "app/[feed]/settings/page.tsx",
+        "components/FeedDetails.tsx",
+        "components/FeedSettings.tsx",
+        "components/LicenseSection.tsx",
+        "components/NoteList.tsx",
+        "components/NoteActions.tsx",
+        "app/page.tsx",
+        "components/OpenFeed.tsx",
+        "app/r/[readId]/page.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9815de4ee7cb98fed00a5b4ef9e998564c6ec7a3e1284840a6d01f1d1f8d6c37",
+        "app/globals.css": "d46d82a5a4df4a2357e87b9b221565cc6618a7198e67f24f385d2b4a0896a43f",
+        "app/[feed]/settings/page.tsx": "d17b154c137c64bc2f5708a3fd58865eea2ae8cfd9a9400483996ab74aa20821",
+        "components/FeedDetails.tsx": "62ce31bc1f6fcff7cea07b1ae0ac056af0f92a5df21afb134e81bd73daf8dd0f",
+        "components/FeedSettings.tsx": "cf8901c3c42fd662d99ef266ddf84daae96f35de5043a1afba7afdf49971693e",
+        "components/LicenseSection.tsx": "5709f9cc75cfb02c7496c60d96a0844a712612b01588e4ea6c4cb51fcf99d576",
+        "components/NoteList.tsx": "40317880ab0052da630f5cf4775ad12162b4854825d83f96cf7d097c41511f68",
+        "components/NoteActions.tsx": "b77f55aa3bce5340e0875847df6156843f94699cc19be5da74f1ceee13400ef6",
+        "app/page.tsx": "164b39b828d29dc802bb055f821df936565e3ea22c535afeb3ee01b6cefb3f28",
+        "components/OpenFeed.tsx": "09917144d8cf0d782ff42057086529db14c9f46bbf45c15b440301ef84806d3a",
+        "app/r/[readId]/page.tsx": "cac5ff7c9c1b4d7042855a2ddf297d89c1e67dbec7a735974c7c518e6d4df5ad"
+      },
+      "components": [],
+      "drafts": {
+        "fda739de-107e-4ef7-9580-ba03993012a1": {
+          "title": "Read-only feed",
+          "visualDirection": "Timeline cards + docked composer",
+          "parentDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+          "currentVersion": 3
+        }
+      },
+      "updatedAt": "2026-10-14T13:22:47.197942+00:00"
+    },
+    "feed-switcher": {
+      "targetKind": "flow-page",
+      "sourceTarget": "/[feed]",
+      "sourceDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+      "projectId": "524e6c1a-5d89-46f8-9d25-581bd4e583b1",
+      "activeDraftId": "ff8ad1b8-5ef7-47ad-957f-41010bcf3b40",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "app-icon.svg"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "app-icon.svg",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/524e6c1a-5d89-46f8-9d25-581bd4e583b1/brand-assets/app-icon.svg/icon.svg",
+          "sourcePath": "app/icon.svg"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/globals.css",
+        "app/[feed]/settings/page.tsx",
+        "components/FeedDetails.tsx",
+        "components/FeedSettings.tsx",
+        "components/LicenseSection.tsx",
+        "components/NoteList.tsx",
+        "components/NoteActions.tsx",
+        "app/page.tsx",
+        "components/OpenFeed.tsx",
+        "app/r/[readId]/page.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9815de4ee7cb98fed00a5b4ef9e998564c6ec7a3e1284840a6d01f1d1f8d6c37",
+        "app/globals.css": "d46d82a5a4df4a2357e87b9b221565cc6618a7198e67f24f385d2b4a0896a43f",
+        "app/[feed]/settings/page.tsx": "d17b154c137c64bc2f5708a3fd58865eea2ae8cfd9a9400483996ab74aa20821",
+        "components/FeedDetails.tsx": "62ce31bc1f6fcff7cea07b1ae0ac056af0f92a5df21afb134e81bd73daf8dd0f",
+        "components/FeedSettings.tsx": "cf8901c3c42fd662d99ef266ddf84daae96f35de5043a1afba7afdf49971693e",
+        "components/LicenseSection.tsx": "5709f9cc75cfb02c7496c60d96a0844a712612b01588e4ea6c4cb51fcf99d576",
+        "components/NoteList.tsx": "40317880ab0052da630f5cf4775ad12162b4854825d83f96cf7d097c41511f68",
+        "components/NoteActions.tsx": "b77f55aa3bce5340e0875847df6156843f94699cc19be5da74f1ceee13400ef6",
+        "app/page.tsx": "164b39b828d29dc802bb055f821df936565e3ea22c535afeb3ee01b6cefb3f28",
+        "components/OpenFeed.tsx": "09917144d8cf0d782ff42057086529db14c9f46bbf45c15b440301ef84806d3a",
+        "app/r/[readId]/page.tsx": "cac5ff7c9c1b4d7042855a2ddf297d89c1e67dbec7a735974c7c518e6d4df5ad"
+      },
+      "components": [],
+      "drafts": {
+        "ff8ad1b8-5ef7-47ad-957f-41010bcf3b40": {
+          "title": "Feed switcher",
+          "visualDirection": "Timeline cards + docked composer",
+          "parentDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-10-14T09:28:50.130473+00:00"
+    },
+    "/": {
+      "targetKind": "flow-page",
+      "sourceTarget": "/[feed]",
+      "sourceDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+      "projectId": "524e6c1a-5d89-46f8-9d25-581bd4e583b1",
+      "activeDraftId": "1a1de0ee-5827-4e94-851d-1995ac67cb6e",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "app-icon.svg"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "app-icon.svg",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/524e6c1a-5d89-46f8-9d25-581bd4e583b1/brand-assets/app-icon.svg/icon.svg",
+          "sourcePath": "app/icon.svg"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/globals.css",
+        "app/[feed]/settings/page.tsx",
+        "components/FeedDetails.tsx",
+        "components/FeedSettings.tsx",
+        "components/LicenseSection.tsx",
+        "components/NoteList.tsx",
+        "components/NoteActions.tsx",
+        "app/page.tsx",
+        "components/OpenFeed.tsx",
+        "app/r/[readId]/page.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9815de4ee7cb98fed00a5b4ef9e998564c6ec7a3e1284840a6d01f1d1f8d6c37",
+        "app/globals.css": "d46d82a5a4df4a2357e87b9b221565cc6618a7198e67f24f385d2b4a0896a43f",
+        "app/[feed]/settings/page.tsx": "d17b154c137c64bc2f5708a3fd58865eea2ae8cfd9a9400483996ab74aa20821",
+        "components/FeedDetails.tsx": "62ce31bc1f6fcff7cea07b1ae0ac056af0f92a5df21afb134e81bd73daf8dd0f",
+        "components/FeedSettings.tsx": "cf8901c3c42fd662d99ef266ddf84daae96f35de5043a1afba7afdf49971693e",
+        "components/LicenseSection.tsx": "5709f9cc75cfb02c7496c60d96a0844a712612b01588e4ea6c4cb51fcf99d576",
+        "components/NoteList.tsx": "40317880ab0052da630f5cf4775ad12162b4854825d83f96cf7d097c41511f68",
+        "components/NoteActions.tsx": "b77f55aa3bce5340e0875847df6156843f94699cc19be5da74f1ceee13400ef6",
+        "app/page.tsx": "164b39b828d29dc802bb055f821df936565e3ea22c535afeb3ee01b6cefb3f28",
+        "components/OpenFeed.tsx": "09917144d8cf0d782ff42057086529db14c9f46bbf45c15b440301ef84806d3a",
+        "app/r/[readId]/page.tsx": "cac5ff7c9c1b4d7042855a2ddf297d89c1e67dbec7a735974c7c518e6d4df5ad"
+      },
+      "components": [],
+      "drafts": {
+        "1a1de0ee-5827-4e94-851d-1995ac67cb6e": {
+          "title": "Home",
+          "visualDirection": "Timeline cards + docked composer",
+          "parentDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-10-14T13:22:47.197942+00:00"
+    },
+    "/[feed]#desktop": {
+      "targetKind": "hand-authored",
+      "projectId": "524e6c1a-5d89-46f8-9d25-581bd4e583b1",
+      "activeDraftId": "afc5736e-8183-4f15-9bf7-6e83e259c769",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "app-icon.svg"
+      ],
+      "brandAssets": {
+        "logo": {
+          "assetKey": "app-icon.svg",
+          "url": "https://vgbujcuwptvheqijyjbe.supabase.co/storage/v1/object/public/hmac-uploads/projects/524e6c1a-5d89-46f8-9d25-581bd4e583b1/brand-assets/app-icon.svg/icon.svg",
+          "sourcePath": "app/icon.svg"
+        }
+      },
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "app/globals.css",
+        "app/layout.tsx",
+        "components/Header.tsx",
+        "app/[feed]/page.tsx:62",
+        "components/Compose.tsx",
+        "components/MarkdownInput.tsx:112",
+        "components/NoteList.tsx",
+        "components/NoteView.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "9815de4ee7cb98fed00a5b4ef9e998564c6ec7a3e1284840a6d01f1d1f8d6c37",
+        "app/globals.css": "d46d82a5a4df4a2357e87b9b221565cc6618a7198e67f24f385d2b4a0896a43f",
+        "app/layout.tsx": "89c62e9f157cd3a0e4d2b8263cafbdd2ee981fe6865227da64a015cfd1fa3168",
+        "components/Header.tsx": "37c2bbbe4d45785379da9021df092d6355d857a92a0ba54b37b3eaf7ba5c620c",
+        "app/[feed]/page.tsx": "f99eea6b374725a9ffe9e804be6eaf03b988439e465281d1c3820a7359f7c5cf",
+        "components/Compose.tsx": "0d5f86afa6bee1acdbf933b0441722deca221e8f7b22f41c80d9c981e688a1ea",
+        "components/MarkdownInput.tsx": "fa46f7a9ced3a635049bfd347229bed04dbdcb6e1d80f3a9c195a6e4db333faa",
+        "components/NoteList.tsx": "40317880ab0052da630f5cf4775ad12162b4854825d83f96cf7d097c41511f68",
+        "components/NoteView.tsx": "303952f7fd433101531f2d6bd2187ec9fcbf97010f31d4e1fe63212f530ee4bc"
+      },
+      "components": [],
+      "drafts": {
+        "afc5736e-8183-4f15-9bf7-6e83e259c769": {
+          "title": "Feed page desktop",
+          "visualDirection": "3 columns: feeds nav + footer links | composer at top + card timeline | feed about, read link, tags",
+          "parentDraftId": "e01c6705-3b50-4ba8-af2b-316d358b2db8",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-10-14T13:36:34.535609+00:00"
+    }
+  }
+}
