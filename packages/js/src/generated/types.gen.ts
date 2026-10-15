@@ -247,6 +247,17 @@ export type FeedSettings = {
     read_id?: string;
 };
 
+export type FreeTier = {
+    /**
+     * The feed's text notes now
+     */
+    notes: number;
+    /**
+     * How many text notes a free feed keeps; past it, each new note drops the oldest one
+     */
+    cap: number;
+};
+
 export type Feed = {
     /**
      * The feed's name
@@ -276,6 +287,10 @@ export type Feed = {
      * Whether readers see who posted each note
      */
     show_sender: boolean;
+    /**
+     * A feed without a license on an instance that sells them: its notes against the free tier's cap. null when no cap applies (a licensed feed, or an instance that sells no licenses)
+     */
+    free_tier: FreeTier | null;
 };
 
 export type ReadFeed = {

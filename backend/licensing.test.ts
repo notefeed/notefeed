@@ -7,7 +7,7 @@ import { LicenseRequiredError } from "./errors";
 import { changePassword, createProtected, protectedFeed } from "./feedlock";
 import { resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
-import { isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
+import { freeTier, isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
 import { countNotes, createNote } from "./notes";
 import { deleteFeed, postNote, postWithPictures } from "./posting";
 
@@ -44,6 +44,7 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
     await image("f");
     expect(await countNotes("f", "markdown")).toBe(4);
     expect(await countNotes("f", "image")).toBe(1);
+    expect(await freeTier("f")).toBeNull();
   });
 
   describe("with a payment provider", () => {
@@ -61,6 +62,14 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       for (let i = 0; i < 5; i++) await createNote("f", `n${i}`, new Date(2026, 0, 1, 0, i));
       await text("f", "n5");
       expect(await countNotes("f", "markdown")).toBe(3);
+    });
+
+    test("a free feed's usage counts its text notes against the cap; a licensed feed has none", async () => {
+      await text("f", "first");
+      await text("f", "second");
+      expect(await freeTier("f")).toEqual({ notes: 2, cap: 3 });
+      await license("f");
+      expect(await freeTier("f")).toBeNull();
     });
 
     test("a licensed feed keeps every note", async () => {

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Self, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Self, TypeVar, cast
 
 from attrs import define as _attrs_define
+
+if TYPE_CHECKING:
+    from ..models.free_tier import FreeTier
+
 
 T = TypeVar("T", bound="Feed")
 
@@ -22,6 +26,8 @@ class Feed:
             read the feed's stored read id
         image_url (None | str): The feed's title image (absolute URL, served under the read id), or null
         show_sender (bool): Whether readers see who posted each note
+        free_tier (FreeTier | None): A feed without a license on an instance that sells them: its notes against the free
+            tier's cap. null when no cap applies (a licensed feed, or an instance that sells no licenses)
     """
 
     name: str
@@ -31,8 +37,11 @@ class Feed:
     read_url: None | str
     image_url: None | str
     show_sender: bool
+    free_tier: FreeTier | None
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.free_tier import FreeTier
+
         name = self.name
 
         title = self.title
@@ -49,6 +58,12 @@ class Feed:
 
         show_sender = self.show_sender
 
+        free_tier: dict[str, Any] | None
+        if isinstance(self.free_tier, FreeTier):
+            free_tier = self.free_tier.to_dict()
+        else:
+            free_tier = self.free_tier
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -60,6 +75,7 @@ class Feed:
                 "read_url": read_url,
                 "image_url": image_url,
                 "show_sender": show_sender,
+                "free_tier": free_tier,
             }
         )
 
@@ -67,6 +83,8 @@ class Feed:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
+        from ..models.free_tier import FreeTier
+
         d = dict(src_dict)
         name = d.pop("name")
 
@@ -92,6 +110,21 @@ class Feed:
 
         show_sender = d.pop("show_sender")
 
+        def _parse_free_tier(data: object) -> FreeTier | None:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                free_tier_type_0 = FreeTier.from_dict(data)
+
+                return free_tier_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(FreeTier | None, data)
+
+        free_tier = _parse_free_tier(d.pop("free_tier"))
+
         feed = cls(
             name=name,
             title=title,
@@ -100,6 +133,7 @@ class Feed:
             read_url=read_url,
             image_url=image_url,
             show_sender=show_sender,
+            free_tier=free_tier,
         )
 
         return feed

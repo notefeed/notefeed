@@ -33,6 +33,7 @@ export default defineConfig({
     { name: "images-off", testMatch: "images-off.spec.ts", use: { baseURL: "http://localhost:3101" } },
     // The operator's imprint and privacy page: set on the locked server, unset on the open one. Their notice: on the SQLite one.
     { name: "legal", testMatch: "legal.spec.ts" },
+    { name: "licenses", testMatch: "licenses.spec.ts", use: { baseURL: "http://localhost:3104" } },
     // The same notes and pictures specs on the SQLite backend with its images in a folder (needs Node 22, like the app itself).
     { name: "sqlite", testMatch: ["notes.spec.ts", "images.spec.ts"], use: { baseURL: "http://localhost:3102" } },
     // The pictures spec with the images in an S3-compatible store (a stand-in started by e2e/s3-setup.ts). The built app's fetch is
@@ -55,5 +56,6 @@ export default defineConfig({
       NOTEFEED_OPERATOR_TOKEN: "e2e-operator-token-".padEnd(32, "x"),
     }),
     server(3102, { NOTEFEED_NOTICE_FILE: "e2e/fixtures/notice.md", NOTEFEED_STORAGE: "sqlite", NOTEFEED_DATABASE_URL: "file:test-results/e2e-3102.db", NOTEFEED_IMAGES: "fs", NOTEFEED_IMAGES_DIR: "test-results/e2e-3102-images", NOTEFEED_SECRET: "e2e-sqlite-secret-".padEnd(32, "x") }),
+    server(3104, { NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "e2e-webhook", NOTEFEED_FREE_NOTE_CAP: "10" }),
   ],
 });

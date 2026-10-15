@@ -5,6 +5,7 @@ from .error import Error
 from .error_code import ErrorCode
 from .feed import Feed
 from .feed_settings import FeedSettings
+from .free_tier import FreeTier
 from .get_open_api_response_200 import GetOpenApiResponse200
 from .multipart_note import MultipartNote
 from .note import Note
@@ -21,6 +22,7 @@ __all__ = (
     "ErrorCode",
     "Feed",
     "FeedSettings",
+    "FreeTier",
     "GetOpenApiResponse200",
     "MultipartNote",
     "Note",

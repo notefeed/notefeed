@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Compose } from "@/components/Compose";
 import { AppShell } from "@/components/AppShell";
 import { FeedAbout } from "@/components/FeedAbout";
+import { FreeTierNotice } from "@/components/FreeTier";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { card } from "@/components/styles";
 import { NoteList, TagFilter } from "@/components/NoteList";
@@ -12,7 +13,7 @@ import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
 import { errorMessage, feedErrorMessage } from "@/app/_lib/messages";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -91,6 +92,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
       }
     >
       {exists && <RememberFeed feed={{ name: feed, title, image: data.imageUrl }} />}
+      {exists && <FreeTierNotice usage={await freeTier(feed)} />}
       {deleted && (
         <p role="status" className="mb-4 text-sm text-carbon">
           Note deleted.

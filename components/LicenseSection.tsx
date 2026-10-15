@@ -5,11 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { errorMessage } from "@/app/_lib/messages";
+import { FreeTierBar, type FreeTierUsage } from "@/components/FreeTier";
 import { DisclosureRow, Group } from "@/components/SettingsRows";
 import { field, primary, secondary } from "@/components/styles";
 
-// On a feed's settings page while the instance sells licenses (ADR 0029): the feed's tier, a field for a key, and a way to take it off.
-export function LicenseSection({ feed, licensed }: { feed: string; licensed: boolean }) {
+// On a feed's settings page while the instance sells licenses (ADR 0029): the feed's tier (a free one with its notes against the cap,
+// issue #183), a field for a key, and a way to take it off. `freeTier` is null for a licensed feed.
+export function LicenseSection({ feed, freeTier }: { feed: string; freeTier: FreeTierUsage | null }) {
+  const licensed = freeTier === null;
   const router = useRouter();
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
@@ -34,7 +37,7 @@ export function LicenseSection({ feed, licensed }: { feed: string; licensed: boo
       <DisclosureRow
         icon={<BadgeCheck />}
         label="License"
-        value={licensed ? <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[12px] font-bold text-carbon">Licensed</span> : "Free tier"}
+        value={licensed ? <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[12px] font-bold text-carbon">Licensed</span> : `Free tier · ${Math.min(freeTier.notes, freeTier.cap)} of ${freeTier.cap} notes`}
       >
         {licensed ? (
           <>
@@ -51,8 +54,9 @@ export function LicenseSection({ feed, licensed }: { feed: string; licensed: boo
           </>
         ) : (
           <>
-            <p className="text-muted">
-              This feed is on the free tier: it keeps its newest notes, and has no images and no feed password.{" "}
+            <FreeTierBar usage={freeTier} />
+            <p className="mt-3 text-muted">
+              This feed is on the free tier: it keeps its newest {freeTier.cap} notes, and has no images and no feed password.{" "}
               <Link href="/license" className="text-carbon underline">
                 Buy a license
               </Link>
