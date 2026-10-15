@@ -9,6 +9,7 @@ import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
 import { MAX_BYTES, countNotes, getNote, listNotes, type Note } from "../notes";
+import { freeTier } from "../licensing";
 import { PASSWORD_RULE } from "../../shared/password";
 import { TAG_RULE } from "../tags";
 import { API_PREFIX, feedPath, imagePath, publicUrl, readPath, rssPath } from "../urls";
@@ -128,6 +129,7 @@ export async function feedJson(feed: string, headers: Headers): Promise<z.infer<
     read_url: readId && publicUrl(headers) + rssPath(readId),
     image_url: readId && image ? publicUrl(headers) + imagePath(readId, image) : null,
     show_sender: showSender,
+    free_tier: await freeTier(feed),
   };
 }
 

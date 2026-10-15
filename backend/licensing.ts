@@ -5,7 +5,7 @@
 import { config } from "./config";
 import { LicenseRequiredError } from "./errors";
 import { logger } from "./log";
-import { idsBeyond, removeNote } from "./notes";
+import { countNotes, idsBeyond, removeNote } from "./notes";
 import { processState } from "./state";
 import type { LicenseStore } from "./storage/licenses";
 import { createLicenseDb, type LicenseDb } from "./storage/licensedb";
@@ -49,6 +49,12 @@ export async function isLicensed(feed: string): Promise<boolean> {
 /** For images and for setting or changing a feed password. Throws LicenseRequiredError. */
 export async function requireLicense(feed: string): Promise<void> {
   if (!(await isLicensed(feed))) throw new LicenseRequiredError();
+}
+
+/** A free feed's notes against the cap (issue #183), for its owner; null when no cap applies: licensed, or no payment provider. */
+export async function freeTier(feed: string): Promise<{ notes: number; cap: number } | null> {
+  if (await isLicensed(feed)) return null;
+  return { notes: await countNotes(feed, "markdown"), cap: config.freeNoteCap() };
 }
 
 /** After a note is stored: a free feed drops its oldest notes past the cap, so a write is never refused. Images are not counted: a free feed has none. */

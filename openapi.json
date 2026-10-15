@@ -2138,6 +2138,28 @@
         ],
         "additionalProperties": false
       },
+      "FreeTier": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "The feed's text notes now"
+          },
+          "cap": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "How many text notes a free feed keeps; past it, each new note drops the oldest one"
+          }
+        },
+        "required": [
+          "notes",
+          "cap"
+        ],
+        "additionalProperties": false
+      },
       "Feed": {
         "type": "object",
         "properties": {
@@ -2184,6 +2206,17 @@
           "show_sender": {
             "type": "boolean",
             "description": "Whether readers see who posted each note"
+          },
+          "free_tier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreeTier"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A feed without a license on an instance that sells them: its notes against the free tier's cap. null when no cap applies (a licensed feed, or an instance that sells no licenses)"
           }
         },
         "required": [
@@ -2193,7 +2226,8 @@
           "protected",
           "read_url",
           "image_url",
-          "show_sender"
+          "show_sender",
+          "free_tier"
         ],
         "additionalProperties": false
       },
