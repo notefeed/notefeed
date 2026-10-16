@@ -20,7 +20,7 @@ The other tools are described as of October 2026 and from their own documentatio
 | How long it stays | Until deleted | A cache of hours by default, for phones that were offline | Until deleted | The service's history | Until deleted |
 | Content | Markdown and pictures | Text, optional markdown, attachments, action buttons | Text, optional markdown | The service's own format | Markdown and attachments |
 | Where it is stored | `.md` files, SQLite or PostgreSQL | The server's cache | The server's database | The service | The server's database |
-| Self-hosted | Yes, or [notefeed.me](../hosted.md) | Yes, or ntfy.sh | Yes, only | No | Yes |
+| Self-hosted | Yes, or [notefeed.me](../hosted/index.md) | Yes, or ntfy.sh | Yes, only | No | Yes |
 
 ## ntfy
 
