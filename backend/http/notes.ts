@@ -22,8 +22,8 @@ type PostReply = { status: 201; body: Posted; headers?: HeadersInit };
 const headerOf = (req: Request) => (name: string) => decodeHeaderValue(req.headers.get(name) ?? "").trim() || undefined; // an empty header is none
 
 // What a post carries: the body is the file, `Content-Type` says which type (exactly one the registry accepts: no guessing, no lenient
-// defaults), and everything else is a header: X-Note-Title, -Tags, -Alt, -Name; X-Feed-Password and X-Read-Id for the post that creates
-// the feed. The type decides the size limit (100 KB of markdown, NOTEFEED_MAX_IMAGE_BYTES for an image) before the body is read.
+// defaults), and everything else is a header: X-Note-Title, -Tags, -Alt, -Name; X-Feed-Password, X-Read-Id and X-License-Key for the post
+// that creates the feed. The type decides the size limit (100 KB of markdown, NOTEFEED_MAX_IMAGE_BYTES for an image) before the body is read.
 export async function readPost(req: Request): Promise<PostInput> {
   const parsed = parseMediaType(req.headers.get("content-type"));
   if (!parsed) throw new UnsupportedTypeError();
@@ -39,6 +39,7 @@ export async function readPost(req: Request): Promise<PostInput> {
     name: header("x-note-name"), // cleaned where the note is made (cleanName)
     tags: tagsFromHeader(req.headers.get("x-note-tags")),
     readId: header("x-read-id"),
+    licenseKey: header("x-license-key"),
   };
 }
 
@@ -83,7 +84,7 @@ export async function readMultipart(req: Request, kind: "post" | "edit"): Promis
   for (const name of alts.keys()) if (!pictures.some((p) => p.name === name)) throw new InvalidBodyError(`alt.${safeName(name)}: no file of that name`);
   for (const p of pictures) p.alt = alts.get(p.name) || undefined;
   if (kind === "edit" && text === undefined) throw new InvalidBodyError("send the note's new text as a text field");
-  return { text, pictures, title: header("x-note-title"), tags: tagsFromHeader(req.headers.get("x-note-tags")), readId: header("x-read-id") };
+  return { text, pictures, title: header("x-note-title"), tags: tagsFromHeader(req.headers.get("x-note-tags")), readId: header("x-read-id"), licenseKey: header("x-license-key") };
 }
 
 // The answer for one stored note; `readId` is its feed's.

@@ -87,6 +87,10 @@ function lineRefusal(code: unknown, detail: string | undefined): string | undefi
   return field && `The ${field === "alt" ? "alt text" : "title"} must be one line, without control or text-direction override characters.`;
 }
 
+// The post that creates a protected feed brought a license key the server does not know (backend/licenseflow.ts checkLicenseKey).
+const KEY_REFUSED = "that is not a license key";
+const keyRefusal = (code: unknown, detail: string | undefined) => (code === "invalid_body" && detail === KEY_REFUSED ? "That is not a license key. Check it against the key from your purchase." : undefined);
+
 // The same, for a note sent with its pictures: a refusal that names a picture (`attachment "a.png": …`) is worded as an image
 // refusal, after the picture's name; any other goes to `message`, except a "too_large" that names no picture when the request had
 // pictures (`pictures`). That has two causes: the text is over 100 KB, or one picture is so far over its limit that the server stopped
@@ -96,7 +100,7 @@ export const withPictures =
   (code: unknown, retry?: unknown, detail?: string): string | undefined => {
     const named = /^attachment "(.*)": (.*)$/s.exec(detail ?? "");
     if (named) return `${named[1]}: ${lineRefusal(code, named[2]) ?? imageErrorMessage(code, retry)}`;
-    const line = lineRefusal(code, detail);
+    const line = lineRefusal(code, detail) ?? keyRefusal(code, detail);
     if (line) return line;
     return pictures && code === "too_large" ? "The note is too large: its text is over 100 KB, or a picture is too large." : message(code, retry);
   };

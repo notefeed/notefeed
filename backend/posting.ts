@@ -8,7 +8,8 @@ import { BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, Im
 import { type FeedAccess, checkFeedAccess, createProtected } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
 import { assertFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
-import { releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
+import { attachLicense, checkLicenseKey } from "./licenseflow";
+import { licensingOn, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
 import { isBlockedImage } from "./takedown";
 import { capReached, rateLimit } from "./limits";
 import { logger } from "./log";
@@ -48,13 +49,20 @@ async function feedCapped(feed: string): Promise<boolean> {
 
 // After every check, before the first write: the post that creates the feed with a password creates it protected
 // (true: this post did). A password (the feed's `X-Feed-Password`) is set only by the post that creates the feed.
-async function protect(feed: string, ip: string, access: FeedAccess, proved: boolean, exists: boolean, given: string | undefined, wantedReadId: string | undefined): Promise<boolean> {
+// On an instance that sells licenses, a password at creation is for licensed feeds (ADR 0029), and a new feed has no license yet:
+// the post brings the key (`X-License-Key`, issue #193), which is checked before the feed is made and put on it right after.
+async function protect(feed: string, ip: string, access: FeedAccess, proved: boolean, exists: boolean, given: string | undefined, wantedReadId: string | undefined, licenseKey: string | undefined): Promise<boolean> {
   const password = (access.password ?? given) || undefined; // empty means none
   // A protected feed was already unlocked above; an open existing one can't be claimed.
   if (!proved && password !== undefined) {
     if (exists) throw new FeedExistsError();
-    await requireLicense(feed); // a new feed has no license yet: a password at creation is for licensed feeds (ADR 0029)
+    const key = newFeedKey(access, proved, exists, given, licenseKey);
+    if (key) await checkLicenseKey(key);
+    else await requireLicense(feed);
     await createProtected(feed, password, wantedReadId);
+    // The feed exists now, protected by a password only its creator knows, so nobody else can take the license meanwhile.
+    // ponytail: should the store fail here, the feed stays protected and unlicensed; its owner enters the key in the settings.
+    if (key) await attachLicense(feed, key);
     return true;
   }
   // The sender decides how long read() takes, and the feed may have been created protected meanwhile:
@@ -76,9 +84,21 @@ function refuseImages(images: boolean): void {
   if (images && !config.imageUploads()) throw new ImagesOffError();
 }
 
+// The license key this post brings for the feed it creates protected (issue #193): none when it creates no protected feed, or the
+// instance sells no licenses (then every feature is open and a key means nothing).
+function newFeedKey(access: FeedAccess, proved: boolean, exists: boolean, given: string | undefined, licenseKey: string | undefined): string | undefined {
+  const password = (access.password ?? given) || undefined;
+  if (proved || password === undefined || exists || !licensingOn()) return undefined;
+  return licenseKey?.trim() || undefined;
+}
+
 // On an instance with a payment provider, an image needs a licensed feed (ADR 0029); after refuseImages, so "off" is said first.
-async function licenseForImages(feed: string, images: boolean): Promise<void> {
-  if (images) await requireLicense(feed);
+// The post that creates the feed protected with a license key is judged by the key: protect() puts the license on the feed before
+// the pictures are stored.
+async function licenseForImages(feed: string, images: boolean, key: string | undefined): Promise<void> {
+  if (!images) return;
+  if (key) await checkLicenseKey(key);
+  else await requireLicense(feed);
 }
 
 // The caps are per type: images have their own, the notes limit counts the markdown ones. `adding` notes of that type; a feed that does not exist yet counts as empty.
@@ -89,13 +109,15 @@ async function checkCap(feed: string, typeName: string, adding: number): Promise
 }
 
 // What a post carries: the file (`body`) and the type the poster declared for it (`mediaType`, a Content-Type), with the optional
-// metadata (`name` is the file name it came with) and, for the post that creates the feed, a password and a read id.
-export type PostInput = { body: Uint8Array; mediaType: string; title?: string; tags?: string[]; alt?: string; name?: string; password?: string; readId?: string };
+// metadata (`name` is the file name it came with) and, for the post that creates the feed, a password, a read id and the key of the
+// license the password needs (`licenseKey`).
+export type PostInput = { body: Uint8Array; mediaType: string; title?: string; tags?: string[]; alt?: string; name?: string; password?: string; readId?: string; licenseKey?: string };
 
 // `read` runs only once the post is admitted, so a refused request never has its body read.
 // A password (the feed's `X-Feed-Password`) is set only by the post that creates the feed.
 // `created`: this post created the feed protected, so its sender is the one who chose the password.
 // `readId` (in what `read` gives): the read id the new feed should get; ignored when the feed exists, random when empty or left out.
+// `licenseKey`: put on the feed this post creates protected; ignored otherwise.
 // `readId` (in the result): the read id of the feed the note went into; null when that feed has no read link.
 export async function postNote(
   feed: string,
@@ -111,7 +133,7 @@ export async function postNote(
   if (!parsed) throw new UnsupportedTypeError();
   const { type, ext } = parsed;
   refuseImages(type.name === "image");
-  await licenseForImages(feed, type.name === "image");
+  await licenseForImages(feed, type.name === "image", newFeedKey(access, proved, exists, input.password, input.licenseKey));
   if (exists) await checkCap(feed, type.name, 1);
   // Before createProtected: a refused note must not leave a protected, empty feed.
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
@@ -121,7 +143,7 @@ export async function postNote(
   if (checkLine("alt", input.alt, MAX_ALT) && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
   const tags = checkTags(input.tags);
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
-  const created = await protect(feed, ip, access, proved, exists, input.password, wantedReadId);
+  const created = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
   // ponytail: checked, not locked. A protected creation can still complete in the few microseconds between
   // this check and createNoteOf's ensureFeed, which then finds the feed and writes into it: this one note is
   // then in the protected feed. A lock around creation, per feed, would close it.
@@ -137,7 +159,7 @@ export async function editContent(feed: string, id: string, ip: string, read: ()
   const current = await getNote(feed, id);
   if (!current) throw new NotFoundError("no such note"); // before the body is read: a missing note is 404 whatever the body
   refuseImages(current.type.startsWith("image/")); // replacing a picture's bytes is an upload too
-  await licenseForImages(feed, current.type.startsWith("image/"));
+  await licenseForImages(feed, current.type.startsWith("image/"), undefined);
   const { body, mediaType } = await read();
   if (parseMediaType(mediaType)?.type.name === "image") await refuseBlocked(body);
   const note = await replaceContent(feed, id, body, mediaType);
@@ -186,8 +208,8 @@ export { MAX_ATTACHMENTS }; // defined in shared/links.ts: the web box holds to 
 
 // A picture sent with a markdown text: `name` is the file name the text refers to it by (`![](name)`), kept with the stored note.
 export type Picture = { name: string; body: Uint8Array; mediaType: string; alt?: string };
-// A post of a text and its pictures. No `text`: just the pictures, each with the title. `password` and `readId` as in PostInput.
-export type PostBundle = { text?: string; pictures: Picture[]; title?: string; tags?: string[]; password?: string; readId?: string };
+// A post of a text and its pictures. No `text`: just the pictures, each with the title. `password`, `readId` and `licenseKey` as in PostInput.
+export type PostBundle = { text?: string; pictures: Picture[]; title?: string; tags?: string[]; password?: string; readId?: string; licenseKey?: string };
 
 const MARKDOWN_TYPE = "text/markdown";
 const IMAGE_TYPES = MEDIA_TYPES.filter((m) => m.mediaType.startsWith("image/")).map((m) => m.mediaType).join(", ");
@@ -265,7 +287,7 @@ export async function postWithPictures(
   const exists = await feedCapped(feed);
   const { text, title, ...input } = await read();
   const pictures = checkPictures(input.pictures);
-  await licenseForImages(feed, pictures.length > 0);
+  await licenseForImages(feed, pictures.length > 0, newFeedKey(access, proved, exists, input.password, input.licenseKey));
   for (const p of pictures) await refuseBlocked(p.body);
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
@@ -275,7 +297,7 @@ export async function postWithPictures(
   await checkCap(feed, "markdown", text === undefined ? 0 : 1);
   await checkCap(feed, "image", pictures.length);
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
-  const created = await protect(feed, ip, access, proved, exists, input.password, wantedReadId);
+  const created = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
   const opts = { sender, tags, wantedReadId };
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined }, async (stored, sent, readId) => {
     if (text === undefined) return { note: stored[0], created, readId, pictures: stored };
@@ -302,7 +324,7 @@ export async function editWithPictures(
   if (note.type !== MARKDOWN_TYPE) throw new UnsupportedTypeError(`this note is ${note.type}: send that Content-Type`);
   const input = await read();
   const pictures = checkPictures(input.pictures);
-  await licenseForImages(feed, pictures.length > 0);
+  await licenseForImages(feed, pictures.length > 0, undefined); // an edit's feed exists
   for (const p of pictures) await refuseBlocked(p.body);
   const plan = await checkText(input.text, pictures);
   const tags = checkTags(input.tags);
