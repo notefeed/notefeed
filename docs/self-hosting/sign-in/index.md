@@ -7,7 +7,7 @@ With sign-in on, people log in through your own OpenID Connect provider (Authent
 
 ## The sender
 
-The sender is one line in the note's `---` header, the first non-empty claim of `NOTEFEED_OIDC_SENDER_CLAIM` (by default the `name`, else the `email`), and nothing else is stored about the person: no user table, no session list. The sign-in itself is a signed cookie in their browser, valid for 7 days.
+The sender is one field in the note's metadata (the `.json` file next to the note, or its database row), the first non-empty claim of `NOTEFEED_OIDC_SENDER_CLAIM` (by default the `name`, else the `email`), and nothing else is stored about the person: no user table, no session list. The sign-in itself is a signed cookie in their browser, valid for 7 days.
 
 The sender shows on the feed page, in the read-only view, in RSS as `<dc:creator>` and in the API as `sender`. A feed's **Show who posted** setting (`show_sender` in the [settings API](../../using/feeds.md#feed-settings-in-the-api)) hides it from readers; the feed page behind your password still shows it.
 
