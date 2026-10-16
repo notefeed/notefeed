@@ -83,11 +83,11 @@ def test_bytes_are_a_file_of_the_given_type_and_need_one(server):
         Client(server.url, "inbox").post(png)
 
 def test_title_tags_alt_name_and_read_id_go_as_headers_and_nothing_is_sent_for_what_is_left_out(server):
-    Client(server.url, "inbox").post("x", title="T", tags=["ci", "deploy"], read_id="my-feed")
+    Client(server.url, "inbox").post("x", title="T", tags=["ci", "deploy"], read_id="my-feed", license_key="k" * 22)
     Client(server.url, "inbox").post("x", tags=[])
     h = server.requests[0]["headers"]
-    assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Read-Id"]) == ("T", "ci,deploy", "my-feed")
-    for k in ("X-Note-Title", "X-Note-Tags", "X-Note-Alt", "X-Note-Name", "X-Read-Id"):
+    assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Read-Id"], h["X-License-Key"]) == ("T", "ci,deploy", "my-feed", "k" * 22)
+    for k in ("X-Note-Title", "X-Note-Tags", "X-Note-Alt", "X-Note-Name", "X-Read-Id", "X-License-Key"):
         assert k not in server.requests[1]["headers"]
 
 def test_update_patches_title_and_alt_as_json_and_leaves_out_what_is_none(server):
@@ -491,14 +491,14 @@ def answer(*ns):
 def test_attachments_go_in_one_multipart_request(server):
     server.reply(201, answer(1, 2))
     r = Client(server.url, "inbox", feed_password="pw").post(
-        "hi ![](a.png)\nline\n", title="T", tags=["x"], read_id="my-read",
+        "hi ![](a.png)\nline\n", title="T", tags=["x"], read_id="my-read", license_key="k" * 22,
         attachments=[Attachment("a.png", PNG, "image/png", alt="A"), Attachment("b.png", PNG, "image/png")],
     )
     assert len(server.requests) == 1
     q = server.requests[0]
     h = q["headers"]
     assert h["Content-Type"].startswith("multipart/form-data; boundary=")
-    assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Feed-Password"], h["X-Read-Id"]) == ("T", "x", "pw", "my-read")
+    assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Feed-Password"], h["X-Read-Id"], h["X-License-Key"]) == ("T", "x", "pw", "my-read", "k" * 22)
     assert "X-Note-Alt" not in h and "X-Note-Name" not in h
     assert parts(q) == [
         ("alt.a.png", None, None, b"A"),  # httpx writes the fields first

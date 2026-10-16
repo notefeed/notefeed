@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { hasFeed, readIdOf, resetFeedsForTests } from "./feeds";
+import { hashKey } from "./licenseflow";
+import { isLicensed, licenses, resetLicensesForTests } from "./licensing";
 import { resetRateLimitsForTests } from "./limits";
 import { logTo } from "./log";
 import { createNote, getNote, listNotes } from "./notes";
@@ -29,9 +31,10 @@ beforeEach(async () => {
   resetRateLimitsForTests();
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL"]) delete process.env[k];
 });
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+  await resetLicensesForTests();
 });
 
 async function rpc(method: string, params: Record<string, unknown> = {}, headers: Record<string, string> = {}, version = V, withMeta = true) {
@@ -184,6 +187,22 @@ describe("tools", () => {
     expect((await call("list_notes", { feed: "p", password: "pw" })).structuredContent.notes).toHaveLength(1);
     expect((await call("get_note", { feed: "p", id, password: "pw" })).structuredContent.id).toBe(id);
     expect((await call("post_note", { feed: "p", markdown: "y", password: "pw" })).isError).toBeUndefined();
+  });
+
+  // The license store is SQLite, which needs Node 22.
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("where licenses are sold, a password on a new feed needs license_key (issue #193)", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    const refused = await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0].text).toBe("a license is needed for this feed");
+    expect((await call("post_note", { feed: "p", markdown: "# Hi", password: "pw", license_key: "x".repeat(22) })).content[0].text).toBe("that is not a license key");
+    expect(await hasFeed("p")).toBe(false);
+    expect((await call("post_note", { feed: "p", markdown: "# Hi", password: "pw", license_key: key })).isError).toBeUndefined();
+    expect(await isLicensed("p")).toBe(true);
+    expect((await call("list_notes", { feed: "p", password: "pw" })).structuredContent.notes).toHaveLength(1);
   });
 
   test("calls without a password are refused but never counted as failed attempts", async () => {

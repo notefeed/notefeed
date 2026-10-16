@@ -131,6 +131,8 @@ export class Client {
    * letters, digits, `-`, `_`, `.`, `:`; not verified). `title` is its title (at most 100 characters, one line); left out, it is taken from the
    * text. `alt` is a picture's alternative text, `name` the file's original name. `readId` is the read id the feed gets when this post creates it
    * (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; random when left out; ignored for a feed that exists; a `taken` error when another feed has it).
+   * `licenseKey` goes with `feedPassword` on the post that creates the feed, on an instance that sells licenses: a feed password is for
+   * licensed feeds, and the new feed gets the license (a `license_required` error without the key; ignored on an existing feed).
    *
    * `attachments` are pictures posted with the note in one request: `![](name)` in the markdown shows one (a picture the text never refers to is
    * added at the end), and `Created.attachments` lists them in order. `tags` label the pictures too. `content` may be `null` when there are
@@ -141,7 +143,7 @@ export class Client {
    */
   async post(
     content: string | Uint8Array | Blob | null,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; readId?: string; attachments?: Attachment[] } = {},
+    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; readId?: string; licenseKey?: string; attachments?: Attachment[] } = {},
   ): Promise<Created & { attachments: Created[] }> {
     const { attachments = [], ...own } = options;
     if (content === null && attachments.length === 0) throw new ConfigError("no content and no attachments");
@@ -164,6 +166,7 @@ export class Client {
       ...(own.title && { "X-Note-Title": headerValue(own.title) }),
       ...(own.tags?.length && { "X-Note-Tags": own.tags.join(",") }),
       ...(own.readId && { "X-Read-Id": own.readId }),
+      ...(own.licenseKey && { "X-License-Key": own.licenseKey }),
     };
     const created = await this.call(postNote({ client: this.api, path: { feed }, body: form as never, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
     return { ...created, attachments: created.attachments ?? [] };
@@ -171,7 +174,7 @@ export class Client {
 
   private async postOne(
     content: string | Uint8Array | Blob,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; readId?: string },
+    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; readId?: string; licenseKey?: string },
   ): Promise<Created> {
     const feed = this.feedFor(options.feed);
     const { body, type } = asFile(content, options.type);
@@ -183,6 +186,7 @@ export class Client {
       ...(options.alt && { "X-Note-Alt": headerValue(options.alt) }),
       ...(options.name && { "X-Note-Name": headerValue(options.name) }),
       ...(options.readId && { "X-Read-Id": options.readId }),
+      ...(options.licenseKey && { "X-License-Key": options.licenseKey }),
     };
     return this.call(postNote({ client: this.api, path: { feed }, body, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
