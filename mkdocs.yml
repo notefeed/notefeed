@@ -42,6 +42,9 @@ theme:
 plugins:
   - search
   - swagger-ui-tag
+  - redirects:
+      redirect_maps:
+        get-started/quick-start.md: get-started/own-server.md
 
 extra_css:
   - stylesheets/extra.css
@@ -63,11 +66,9 @@ validation:
 
 nav:
   - Home: index.md
-  - Hosted service:
-      - hosted/index.md
-      - Free tier and licenses: hosted/licenses.md
   - Get started:
-      - Quick start: get-started/quick-start.md
+      - On notefeed.me: get-started/notefeed-me.md
+      - On your own server: get-started/own-server.md
       - Concepts: get-started/concepts.md
       - Compared to other tools: get-started/comparison.md
   - Using notefeed:
@@ -86,6 +87,9 @@ nav:
       - Command line: integrations/cli.md
       - REST API: integrations/api.md
       - MCP: integrations/mcp.md
+  - notefeed.me:
+      - hosted/index.md
+      - Free tier and licenses: hosted/licenses.md
   - Self-hosting:
       - Configuration: self-hosting/configuration.md
       - Passwords and access: self-hosting/access.md

@@ -9,14 +9,17 @@ It exists because dashboards like [Glance](https://github.com/glanceapp/glance) 
 
 notefeed is private by default and stores nothing about a person. [Sign-in with a verified sender](self-hosting/sign-in/index.md) is opt-in.
 
-## Hosted or self-hosted
+## Two ways to use it
 
-The [hosted service](hosted/index.md) runs at [notefeed.me](https://notefeed.me): nothing to install, open it and post. To run your own, follow the [Quick start](get-started/quick-start.md).
+- **Use notefeed.me.** Nothing to install: open [notefeed.me](https://notefeed.me), pick a feed name and post. Every feed starts on the free tier; a license lifts it. Start with [On notefeed.me](get-started/notefeed-me.md), then read [what notefeed.me is](hosted/index.md) and the [free tier and licenses](hosted/licenses.md).
+- **Run your own.** One container with Docker Compose, the notes as plain files on your disk, every feature on, no free tier. Start with [On your own server](get-started/own-server.md), then [Self-hosting](self-hosting/configuration.md).
+
+Both run the same software, and everything under [Using notefeed](using/web-ui.md) and [Integrations](integrations/clients.md) applies to both. Where a page differs on notefeed.me, a box titled *On notefeed.me* says so.
 
 ## Where to go next
 
-- **Hosted service:** [what notefeed.me is](hosted/index.md), who runs it and where your data is; the [free tier and licenses](hosted/licenses.md).
-- **Get started:** [Quick start](get-started/quick-start.md) runs notefeed with Docker Compose; [Concepts](get-started/concepts.md) explains feeds, names and read links; [Compared to other tools](get-started/comparison.md) says when to use notefeed, ntfy or both.
+- **Get started:** [On notefeed.me](get-started/notefeed-me.md) and [On your own server](get-started/own-server.md) post a first note; [Concepts](get-started/concepts.md) explains feeds, names and read links; [Compared to other tools](get-started/comparison.md) says when to use notefeed, ntfy or both.
 - **Using notefeed:** the [web UI](using/web-ui.md), [posting notes](using/posting.md), [pictures](using/pictures.md), [feeds](using/feeds.md) and how to [read them back](using/read-links.md) in Glance, Dynacat and other readers.
 - **Integrations:** [client libraries](integrations/clients.md) and the [command line](integrations/cli.md), the [REST API](integrations/api.md) and [MCP](integrations/mcp.md) for AI assistants.
+- **notefeed.me:** [what it is](hosted/index.md), who runs it and where your data is; the [free tier and licenses](hosted/licenses.md).
 - **Self-hosting:** [configuration](self-hosting/configuration.md), [passwords and access](self-hosting/access.md), a [reverse proxy](self-hosting/reverse-proxy.md), [storage](self-hosting/storage.md), [backups](self-hosting/backups.md), [metrics](self-hosting/metrics.md), the [health check](self-hosting/health.md) and [logs](self-hosting/logs.md).

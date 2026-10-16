@@ -9,8 +9,8 @@
 
 Post short markdown notes to a named feed — from a script over HTTP, or by hand in a small web UI — and read them back as RSS. Like [ntfy](https://ntfy.sh), but for notes: there are no accounts, a feed is just a name, and each note is a plain `.md` file on disk. Built as an inbox for dashboards like Glance and Dynacat, which can read RSS but have nowhere to post to.
 
-- **Self-host: [Check releases](https://github.com/notefeed/notefeed/releases)** or **[GHCR](https://github.com/notefeed/notefeed/pkgs/container/notefeed)**   
-- **Hosted version: https://notefeed.me**  
+- **Use notefeed.me:** nothing to install, open **https://notefeed.me** and post. Every feed starts on a free tier; see [the docs on notefeed.me](https://docs.notefeed.me/hosted/).
+- **Run your own:** the [quick start](#quick-start) below, the [releases](https://github.com/notefeed/notefeed/releases) and the [container image](https://github.com/notefeed/notefeed/pkgs/container/notefeed); see [Self-hosting](https://docs.notefeed.me/self-hosting/configuration/).
 - **Documentation: https://docs.notefeed.me/**
 
 notefeed is private by default and stores nothing about a person; [sign-in with a verified sender](https://docs.notefeed.me/self-hosting/sign-in/) is opt-in.
@@ -22,7 +22,7 @@ notefeed is private by default and stores nothing about a person; [sign-in with 
 
 ## Quick start
 
-Save this as `compose.yaml`, create the data folder, and start it:
+This runs your own instance; on [notefeed.me](https://notefeed.me) there is nothing to install. Save this as `compose.yaml`, create the data folder, and start it:
 
 ```yaml
 services:

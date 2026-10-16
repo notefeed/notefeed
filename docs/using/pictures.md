@@ -8,6 +8,9 @@ curl -H "Content-Type: image/png" --data-binary @photo.png https://notes.example
 
 The answer is the same as for any note, with the picture's `file` and `file_url` (see [Posting notes](posting.md)). `X-Note-Alt` sets its alternative text (one line, at most 500 characters, with no control or text-direction override characters, like a [title](titles-and-tags.md#titles)), `X-Note-Name` keeps the original file name (without `/`, `\`, control characters, line separators and text-direction override characters, trimmed, at most 200 characters), and `X-Note-Title` and `X-Note-Tags` work as for markdown. Non-ASCII text in these headers is sent as its UTF-8 bytes, which curl and the client packages do.
 
+!!! note "On notefeed.me"
+    Pictures need a license: on the free tier every picture is refused with `402` (`license_required`), on its own or with a note. See [Free tier and licenses](../hosted/licenses.md).
+
 What to know:
 
 - **Types:** `image/png`, `image/jpeg`, `image/gif` and `image/webp`. notefeed does not trust the declaration: the body must carry the signature of the declared format, so a JPEG sent as `image/png` is `415`. SVG is not accepted, because it can carry script.

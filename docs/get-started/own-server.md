@@ -1,4 +1,6 @@
-# Quick start
+# On your own server
+
+Your own instance keeps the notes on your disk and has no free tier: every feature is on, and the limits are [yours to set](../self-hosting/configuration.md). To post without installing anything, use [notefeed.me](notefeed-me.md) instead.
 
 You need Docker with Compose. No checkout, no build: the image is published at `ghcr.io/notefeed/notefeed`.
 
@@ -35,3 +37,5 @@ curl -H "Content-Type: text/markdown" --data-binary $'# Hello\nMy first note.' h
 ```
 
 The answer holds the feed's `read_url`. Add it to any feed reader.
+
+**Next:** [Concepts](concepts.md) explains feeds, names and read links. For a public instance, see [Configuration](../self-hosting/configuration.md), a [reverse proxy](../self-hosting/reverse-proxy.md) and [Passwords and access](../self-hosting/access.md); the rest of [Self-hosting](../self-hosting/configuration.md) covers storage, backups, metrics and upgrading.
