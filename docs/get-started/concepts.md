@@ -4,7 +4,7 @@
 
 notefeed works like [ntfy](https://ntfy.sh): there are no accounts and nothing to set up. (What differs is in [notefeed and other tools](comparison.md).) A feed is a name, such as `homelab-7f3k2q9x4m8wz`. Posting to `/<name>` creates the feed on its first note, and `/<name>` in a browser shows it.
 
-Every feed also has a **read link**, `/r/<read id>/feed.xml`. It serves the feed as RSS, shows none of the feed's name (a [reserved feed](../self-hosting/reserved-feeds.md#reserved-feeds) such as `news` is the exception: its read id is its name), and can't post. That's the link to give to feed readers, dashboards and other people.
+Every feed also has a **read link**, `/r/<read id>/feed.xml`. It serves the feed as RSS, shows none of the feed's name (a [reserved feed](../self-hosting/access.md#reserved-feeds) such as `news` is the exception: its read id is its name), and can't post. That's the link to give to feed readers, dashboards and other people.
 
 !!! warning "Pick a hard-to-guess name"
     The feed name is the key: anyone who knows it can read the feed and post to it. Use something like `homelab-7f3k2q9x4m8wz`, not `homelab`. Share read access with the [read link](../using/read-links.md), never the name.

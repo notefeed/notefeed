@@ -1,6 +1,6 @@
 # notefeed
 
-notefeed is a small inbox for short markdown notes. You post notes to a named feed from scripts over HTTP, or by hand in a web UI, and read them back as RSS. Each note is a plain `.md` file on disk, starting with a small `---` header block.
+notefeed is a small inbox for short markdown notes. You post notes to a named feed from scripts over HTTP, or by hand in a web UI, and read them back as RSS. Each note is a plain file on disk, `.md` or an image, exactly as posted, with its metadata in a small `.json` file next to it; or a row in SQLite or PostgreSQL if you prefer a database.
 
 It exists because dashboards like [Glance](https://github.com/glanceapp/glance) and Dynacat can *read* RSS but have nowhere to *post* to. A backup job, a deploy script or a cron check can drop a note into notefeed, and it shows up on the dashboard a few minutes later.
 
@@ -22,4 +22,4 @@ Both run the same software, and everything under [Using notefeed](using/web-ui.m
 - **Using notefeed:** the [web UI](using/web-ui.md), [posting notes](using/posting.md), [pictures](using/pictures.md), [feeds](using/feeds.md) and how to [read them back](using/read-links.md) in Glance, Dynacat and other readers.
 - **Integrations:** [client libraries](integrations/clients.md) and the [command line](integrations/cli.md), the [REST API](integrations/api.md) and [MCP](integrations/mcp.md) for AI assistants.
 - **notefeed.me:** [what it is](hosted/index.md), who runs it and where your data is; the [free tier and licenses](hosted/licenses.md).
-- **Self-hosting:** [configuration](self-hosting/configuration.md), [passwords and access](self-hosting/access.md), a [reverse proxy](self-hosting/reverse-proxy.md), [storage](self-hosting/storage.md), [backups](self-hosting/backups.md), [metrics](self-hosting/metrics.md), the [health check](self-hosting/health.md) and [logs](self-hosting/logs.md).
+- **Self-hosting:** [configuration](self-hosting/configuration.md), [passwords and access](self-hosting/access.md), a [reverse proxy](self-hosting/reverse-proxy.md), [storage](self-hosting/storage.md), [backups](self-hosting/backups.md), [health, logs and metrics](self-hosting/operating.md) and [upgrading](self-hosting/upgrading.md).
