@@ -63,7 +63,9 @@ validation:
 
 nav:
   - Home: index.md
-  - Hosted service: hosted.md
+  - Hosted service:
+      - hosted/index.md
+      - Free tier and licenses: hosted/licenses.md
   - Get started:
       - Quick start: get-started/quick-start.md
       - Concepts: get-started/concepts.md

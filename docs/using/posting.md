@@ -60,6 +60,7 @@ Without a password set, the header isn't needed and is ignored.
 | Status | When |
 |---|---|
 | `400` | The feed name is invalid or reserved; the note is empty; a title, alt text or tag is invalid; the password for a new feed is not valid (see [A feed with its own password](feed-passwords.md#in-the-api)); a `read_id` that is not 3 to 64 characters of `a-z`, `0-9`, `-`, `_`, or when chosen read ids are turned off |
+| `402` | On [notefeed.me](../hosted/licenses.md) only: the feed has no license, and the post needs one (`license_required`): a picture, or a password for a new feed without `X-License-Key` |
 | `401` | The instance has a password and the `Authorization` header is missing or wrong, or the feed has its own password and `X-Feed-Password` is missing or wrong |
 | `409` | A password was sent for a feed that already exists without one (`feed_exists`); the `read_id` for a new feed belongs to another feed (`taken`) |
 | `404` | No feed in the URL: `POST /`, for example from an empty variable in `$NOTEFEED_URL/$FEED`. For [editing and deleting](editing.md#editing-and-deleting-notes): no such note |

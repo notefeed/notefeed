@@ -68,7 +68,7 @@ Anyone who can open the feed can edit and delete its notes. On a feed with [its 
 
 ## About and legal pages
 
-The links to the documentation, the source code, the license page and the operator's [imprint, privacy and terms pages](../self-hosting/legal-pages.md) are in the footer of the start page and the other plain pages, and on a feed's pages behind **About & legal** (the ⓘ button): at the foot of the left column on a wide screen, at the top right on a phone.
+The links to the documentation, the source code and the operator's [imprint, privacy and terms pages](../self-hosting/legal-pages.md) (on notefeed.me also the [license page](../hosted/licenses.md)) are in the footer of the start page and the other plain pages, and on a feed's pages behind **About & legal** (the ⓘ button): at the foot of the left column on a wide screen, at the top right on a phone.
 
 ## With an instance password
 
