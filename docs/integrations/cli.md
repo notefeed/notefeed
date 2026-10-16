@@ -39,3 +39,25 @@ Text that starts with `-`, like a list item, works as-is: `notefeed post "- buy 
 | `0` | Done |
 | `1` | The server refused (including a wrong password, a rate limit or a full cap), or couldn't be reached |
 | `2` | Usage or configuration problem: no text, image path or `--attach`, an unreadable image file or `--attach` picture (or one that is not a picture), an unreadable or non-UTF-8 file or stdin, no URL or feed, an invalid feed name or `--limit`, a password with control characters |
+
+## From a script
+
+A backup job that reports how it went. `NOTEFEED_URL` and `NOTEFEED_FEED` come from the environment:
+
+```sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+if output=$(restic backup /srv 2>&1); then status="finished"; else status="FAILED"; fi
+
+printf '# Backup %s on %s\n\n```\n%s\n```\n' "$status" "$(hostname)" "$(tail -n 5 <<<"$output")" |
+  notefeed post - > /dev/null
+```
+
+With plain curl, replace the last line with:
+
+```sh
+  curl -fsS -H "Content-Type: text/markdown" --data-binary @- "$NOTEFEED_URL/$NOTEFEED_FEED" > /dev/null
+```
+
+From a program, the [client libraries](clients.md) do the same.

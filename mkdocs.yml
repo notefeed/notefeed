@@ -45,6 +45,9 @@ plugins:
   - redirects:
       redirect_maps:
         get-started/quick-start.md: get-started/own-server.md
+        using/titles-and-tags.md: using/posting.md
+        using/editing.md: using/posting.md
+        using/scripts.md: integrations/cli.md
 
 extra_css:
   - stylesheets/extra.css
@@ -74,10 +77,7 @@ nav:
   - Using notefeed:
       - Web UI: using/web-ui.md
       - Posting notes: using/posting.md
-      - Posting from scripts: using/scripts.md
       - Pictures: using/pictures.md
-      - Titles and tags: using/titles-and-tags.md
-      - Editing and deleting notes: using/editing.md
       - Feeds: using/feeds.md
       - Feed passwords: using/feed-passwords.md
       - Read links: using/read-links.md
