@@ -65,6 +65,7 @@ function validatePayments(): void {
   if (provider !== "creem") throw new Error(`NOTEFEED_PAYMENT_PROVIDER=${provider} is not a payment provider; use creem`);
   const missing = Object.entries({ NOTEFEED_CREEM_API_KEY: env("NOTEFEED_CREEM_API_KEY"), NOTEFEED_CREEM_PRODUCT_ID: env("NOTEFEED_CREEM_PRODUCT_ID"), NOTEFEED_CREEM_WEBHOOK_SECRET: env("NOTEFEED_CREEM_WEBHOOK_SECRET"), PUBLIC_URL: env("PUBLIC_URL") }).flatMap(([k, v]) => (v === "" ? [k] : []));
   if (missing.length) throw new Error(`NOTEFEED_PAYMENT_PROVIDER=creem needs ${missing.join(", ")}`);
+  if (env("NOTEFEED_LICENSE_PRICE_YEARLY").trim() !== "" && env("NOTEFEED_CREEM_PRODUCT_ID_YEARLY") === "") throw new Error("NOTEFEED_LICENSE_PRICE_YEARLY needs NOTEFEED_CREEM_PRODUCT_ID_YEARLY");
 }
 
 function validateStorage(): void {
@@ -119,13 +120,16 @@ export const config = {
   // The SQLite file of the licenses (ADR 0029), apart from the feeds' storage: a path, or `file:<path>`.
   licenseDb: () => (env("NOTEFEED_LICENSE_DB").trim() || `${dataDir().replace(/\/+$/, "")}/licenses.db`).replace(/^file:/, ""),
   // Notes a free feed keeps while a payment provider is set: the oldest is dropped past it.
-  // Creem (NOTEFEED_PAYMENT_PROVIDER=creem): the API key (`creem_test_…` for the sandbox), the product of the paid license and the webhook secret.
-  creem: () => ({ apiKey: env("NOTEFEED_CREEM_API_KEY"), productId: env("NOTEFEED_CREEM_PRODUCT_ID"), webhookSecret: env("NOTEFEED_CREEM_WEBHOOK_SECRET") }),
+  // Creem (NOTEFEED_PAYMENT_PROVIDER=creem): the API key (`creem_test_…` for the sandbox), the product of the monthly license, that of
+  // the yearly one if sold, and the webhook secret.
+  creem: () => ({ apiKey: env("NOTEFEED_CREEM_API_KEY"), productId: env("NOTEFEED_CREEM_PRODUCT_ID"), yearlyProductId: env("NOTEFEED_CREEM_PRODUCT_ID_YEARLY"), webhookSecret: env("NOTEFEED_CREEM_WEBHOOK_SECRET") }),
   // The fake provider's webhook secret (tests, development).
   fakeWebhookSecret: () => env("NOTEFEED_FAKE_WEBHOOK_SECRET"),
   freeNoteCap: () => Math.max(1, int("NOTEFEED_FREE_NOTE_CAP", 1000)),
-  // The price in the operator's words ("EUR 1.50 per month"), shown where a license is offered. The amount itself is set at the provider.
+  // The price in the operator's words ("EUR 1.99 per month"), shown where a license is offered. The amount itself is set at the provider.
   licensePrice: () => env("NOTEFEED_LICENSE_PRICE").trim(),
+  // The yearly license's price, the same way; empty when none is sold (then the page offers the monthly one alone).
+  licensePriceYearly: () => env("NOTEFEED_LICENSE_PRICE_YEARLY").trim(),
   trustProxy: () => env("NOTEFEED_TRUST_PROXY") === "1",
   // Per minute and IP; 0 or below turns it off.
   rateLimit: () => int("NOTEFEED_RATE_LIMIT", 60),

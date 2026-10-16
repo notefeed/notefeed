@@ -47,3 +47,14 @@ test("a free feed shows its notes against the cap, warns near it, and a license 
   await expect(page.getByText(/free notes/)).toHaveCount(0);
   expect((await (await request.get(`/api/v1/feeds/${feed}`)).json()).free_tier).toBeNull();
 });
+
+// The license page offers both periods when a yearly price is set; the fake provider's checkout is the success page itself.
+test("the license page sells a month or a year, and the yearly checkout comes back with a key", async ({ page }) => {
+  await page.goto("/license");
+  await expect(page.getByText("EUR 1.99 per month")).toBeVisible();
+  await expect(page.getByText(/or EUR 19.90 per year/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pay monthly" })).toBeVisible();
+  await page.getByRole("button", { name: "Pay yearly" }).click();
+  await expect(page.getByRole("heading", { name: "Your license key" })).toBeVisible();
+  expect(new URL(page.url()).hash).toMatch(/^#[A-Za-z0-9_-]{22}$/);
+});

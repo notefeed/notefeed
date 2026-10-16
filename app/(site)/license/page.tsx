@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BuyLicense } from "@/components/BuyLicense";
-import { freeNoteCap, licensePrice, licensingOn } from "@/backend";
+import { freeNoteCap, licensePrice, licensePriceYearly, licensingOn } from "@/backend";
 
 export const metadata: Metadata = { title: "License" };
 
@@ -12,7 +12,7 @@ export default function LicensePage() {
   return (
     <main>
       <h1 className="mb-2 text-3xl font-bold tracking-tight">License</h1>
-      <BuyLicense price={licensePrice()} cap={freeNoteCap()} />
+      <BuyLicense price={licensePrice()} yearlyPrice={licensePriceYearly()} cap={freeNoteCap()} />
     </main>
   );
 }

@@ -14,6 +14,9 @@ export type LicenseEvent =
   /** Refunded or disputed: lapses at once. */
   | { type: "refunded"; providerRef: string };
 
+/** How long a license is bought for at a time: the two products the operator may offer (a yearly one only if configured). */
+export type LicensePeriod = "month" | "year";
+
 export class WebhookRejectedError extends Error {
   constructor(message: string) {
     super(message);
@@ -22,8 +25,9 @@ export class WebhookRejectedError extends Error {
 }
 
 export interface PaymentProvider {
-  /** The URL to send the buyer to. `keyHash` is carried through the provider and comes back in the `started` event. */
-  createCheckout(o: { keyHash: string; successUrl: string }): Promise<{ url: string }>;
+  /** The URL to send the buyer to. `keyHash` is carried through the provider and comes back in the `started` event. `period` picks
+   *  the product; throws when the provider has none for it. */
+  createCheckout(o: { keyHash: string; successUrl: string; period: LicensePeriod }): Promise<{ url: string }>;
   /** Verifies the signature over the raw body and returns the events it holds (none for an event kind notefeed does not use).
    *  Throws WebhookRejectedError for a bad signature or a body that is not the provider's. */
   parseWebhook(rawBody: string, headers: Headers): Promise<LicenseEvent[]>;

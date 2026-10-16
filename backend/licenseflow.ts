@@ -5,9 +5,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { config } from "./config";
 import { InvalidBodyError, NotFoundError } from "./errors";
-import { licenses } from "./licensing";
+import { licenses, yearlyLicenseOn } from "./licensing";
 import { logger } from "./log";
-import { paymentProvider, WebhookRejectedError, type LicenseEvent } from "./payments";
+import { paymentProvider, WebhookRejectedError, type LicenseEvent, type LicensePeriod } from "./payments";
 import { checkFeed } from "./feednames";
 import { hasFeed } from "./feeds";
 
@@ -16,12 +16,14 @@ const log = logger("licenses");
 export const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
 const KEY_RE = /^[A-Za-z0-9_-]{22,64}$/;
 
-/** The URL to send a buyer to. The success page gets the key in its fragment. Throws when no provider is configured. */
-export async function startCheckout(): Promise<{ url: string }> {
+/** The URL to send a buyer to, for a license per month or, where one is offered, per year. The success page gets the key in its
+ *  fragment. Throws when no provider is configured, or InvalidBodyError for a period that is not sold. */
+export async function startCheckout(period: LicensePeriod = "month"): Promise<{ url: string }> {
   const provider = paymentProvider();
   if (!provider) throw new NotFoundError("licenses are not sold on this instance");
+  if (period === "year" && !yearlyLicenseOn()) throw new InvalidBodyError("no yearly license is sold here");
   const key = randomBytes(16).toString("base64url");
-  return provider.createCheckout({ keyHash: hashKey(key), successUrl: `${config.publicUrl()}/license#${key}` });
+  return provider.createCheckout({ keyHash: hashKey(key), successUrl: `${config.publicUrl()}/license#${key}`, period });
 }
 
 /** Applies one webhook delivery; the same event twice does no harm. Returns how many events it held. */

@@ -14,6 +14,9 @@ const log = logger("licensing");
 
 export const licensingOn = (): boolean => config.paymentProvider() !== "";
 export const licensePrice = config.licensePrice;
+export const licensePriceYearly = config.licensePriceYearly;
+/** Whether a yearly license is offered next to the monthly one. */
+export const yearlyLicenseOn = (): boolean => config.licensePriceYearly() !== "";
 export const freeNoteCap = config.freeNoteCap;
 
 const state = processState("licenses", () => ({}) as { file?: string; db?: LicenseDb });
