@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import { postNote } from "@/app/_lib/api";
 import { encodeHeaderValue } from "@/shared/headers";
 import { contentTypeOf, sniffImage } from "@/shared/images";
@@ -13,10 +13,14 @@ type Result = { data?: unknown; error?: { code?: string; error?: string }; respo
 // The enhanced-form logic shared by the compose box and the edit and delete forms: `run` submits through a
 // generated client call, `done` runs on success (or on status `doneOn`); a 401 goes to the feed page, which shows
 // its unlock form (or proxy.ts sends a missing instance login on to /login); other refusals become `error`,
-// worded by `message` (given the code, the Retry-After and the server's own message).
-export function useApiForm(page: string, initialError?: string, message: (code: unknown, retry?: unknown, detail?: string) => string | undefined = errorMessage) {
+// worded by `message` (given the code, the Retry-After and the server's own message), with the server's `code` next to
+// it for a form that shows some refusals differently (the compose box's license banner). `initialCode` is the code
+// behind `initialError`, when the page knows it. `setError` is a message of the form's own (or an update of the one
+// shown, as a state setter takes), with no code.
+export function useApiForm(page: string, initialError?: string, message: (code: unknown, retry?: unknown, detail?: string) => string | undefined = errorMessage, initialCode?: string) {
   const router = useRouter();
-  const [error, setError] = useState(initialError);
+  const [refusal, setRefusal] = useState<{ error?: string; code?: string }>({ error: initialError, code: initialError ? initialCode : undefined });
+  const setError = useCallback((next?: string | ((shown: string | undefined) => string | undefined)) => setRefusal((r) => ({ error: typeof next === "function" ? next(r.error) : next })), []);
   const [pending, setPending] = useState(false);
 
   async function run<T extends Result>(e: FormEvent | undefined, call: () => Promise<T>, done: (result: T) => void, doneOn?: number) {
@@ -28,14 +32,15 @@ export function useApiForm(page: string, initialError?: string, message: (code: 
       if (!response) throw new Error("no response"); // the client returns a network failure instead of throwing it
       if (response.ok || response.status === doneOn) return done(result);
       if (response.status === 401) return router.push(page);
-      setError(message(error?.code ?? "unknown", response.headers.get("retry-after"), error?.error));
+      const code = error?.code ?? "unknown";
+      setRefusal({ error: message(code, response.headers.get("retry-after"), error?.error), code });
     } catch {
       setError("Could not reach notefeed. Check your connection and try again.");
     }
     setPending(false);
   }
 
-  return { run, error, setError, pending, setPending, router };
+  return { run, error: refusal.error, code: refusal.code, setError, pending, setPending, router };
 }
 
 // The type the bytes say, not the one the browser guessed from the name: a PNG named .jpg is a PNG. Anything unknown keeps the browser's type, and the server refuses it.

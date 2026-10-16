@@ -1,6 +1,7 @@
 "use client";
 
 import { Hash, Plus, Send, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, field, primary } from "@/components/styles";
 import { postNote } from "@/app/_lib/api";
@@ -15,7 +16,11 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // The compose box posts through the API client generated from openapi.json (the session cookie rides along same-origin) and
 // shows refusals inline: the text as a raw markdown post, or, with pictures dropped, pasted or picked (they wait in the box,
 // usePendingImages), the text and the pictures in one multipart request, so nothing is half-posted.
-// `isNew`: a feed that doesn't exist yet, so the box offers to protect it with a password. `images` false: the instance takes no pictures.
+// `isNew`: a feed that doesn't exist yet, so the box offers to protect it with a password. `licensing`: the instance sells licenses
+// (ADR 0029), so a password needs one: the box takes the license key next to the password and the post creates the feed protected
+// and licensed in one go (issue #193); a post refused for the lack of a license (402) gets a banner that says what to do, with the
+// feed's settings (`settingsHref`, an existing feed) as the place to enter a key. `errorCode` is the code behind `error`.
+// `images` false: the instance takes no pictures.
 // `imageBase`: the feed's read link, for the preview's stored pictures. `initialTitle` and `initialText`: what was shared to
 // notefeed from another app (app/share), so the box opens with it.
 // Below lg: the phone layout of components/AppShell.tsx.
@@ -26,11 +31,39 @@ const subscribeNarrow = (onChange: () => void) => {
   return () => q.removeEventListener("change", onChange);
 };
 
-export function Compose({ feed, action, error: initialError, isNew, sender, images: imagesOn = true, imageBase, initialTitle = "", initialText = "" }: { feed: string; action: string; error?: string; isNew?: boolean; sender?: boolean; images?: boolean; imageBase?: string; initialTitle?: string; initialText?: string }) {
+export function Compose({
+  feed,
+  action,
+  error: initialError,
+  errorCode,
+  isNew,
+  licensing,
+  settingsHref,
+  sender,
+  images: imagesOn = true,
+  imageBase,
+  initialTitle = "",
+  initialText = "",
+}: {
+  feed: string;
+  action: string;
+  error?: string;
+  errorCode?: string;
+  isNew?: boolean;
+  licensing?: boolean;
+  settingsHref?: string;
+  sender?: boolean;
+  images?: boolean;
+  imageBase?: string;
+  initialTitle?: string;
+  initialText?: string;
+}) {
   const images = usePendingImages();
-  const { run, error, setError, pending, router } = useApiForm(action, initialError, withPictures(errorMessage, images.pending.length > 0));
+  const { run, error, code, setError, pending, router } = useApiForm(action, initialError, withPictures(errorMessage, images.pending.length > 0), errorCode);
   const [text, setText] = useState(initialText);
   const [password, setPassword] = useState("");
+  const [licenseKey, setLicenseKey] = useState("");
+  const licenseRefused = code === "license_required";
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState(initialTitle);
 
@@ -38,6 +71,7 @@ export function Compose({ feed, action, error: initialError, isNew, sender, imag
   const headers = {
     ...(title.trim() && { "X-Note-Title": encodeHeaderValue(title.trim()) }),
     ...(password && { "X-Feed-Password": password }),
+    ...(password && licenseKey.trim() && { "X-License-Key": licenseKey.trim() }),
     ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
   };
   // The page remounts this box empty. With pictures only, the answer is the first picture's.
@@ -207,13 +241,71 @@ export function Compose({ feed, action, error: initialError, isNew, sender, imag
             <p id="new-feed-password-hint" className="mt-1 text-muted">
               {PASSWORD_HINT}
             </p>
+            {licensing && (
+              <>
+                <label htmlFor="new-feed-license-key" className="mb-1 mt-3 block text-muted">
+                  License key (needed with a password)
+                </label>
+                <input
+                  id="new-feed-license-key"
+                  name="license_key"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  maxLength={64}
+                  aria-describedby="new-feed-license-key-hint"
+                  value={licenseKey}
+                  onChange={(e) => setLicenseKey(e.target.value)}
+                  className={`${field} max-w-sm font-mono`}
+                />
+                <p id="new-feed-license-key-hint" className="mt-1 text-muted">
+                  A feed password is for licensed feeds, and a feed can only get a password when it is created.{" "}
+                  <Link href="/license" className="text-carbon underline">
+                    Buy a license
+                  </Link>{" "}
+                  and enter its key here: the first note then creates the feed protected and licensed.
+                </p>
+              </>
+            )}
           </div>
         )}
         {sender && <p className="mt-2 text-sm text-muted">{SENDER_NOTICE}</p>}
+        {licenseRefused && <LicenseNeeded isNew={!!isNew} password={password !== ""} keyGiven={licenseKey.trim() !== ""} settingsHref={settingsHref} />}
         <p id="compose-error" role="alert" className="text-sm text-error empty:hidden">
-          {error}
+          {licenseRefused ? "" : error}
         </p>
       </form>
     </>
+  );
+}
+
+// The post was refused with 402 (`license_required`): a banner instead of the one red line, with what needs the license, what to
+// do and where (issue #193). `password`: the box holds a password, so that is what was refused (else it was the pictures);
+// `keyGiven`: a key was sent with it, so the key's license is not active.
+function LicenseNeeded({ isNew, password, keyGiven, settingsHref }: { isNew: boolean; password: boolean; keyGiven: boolean; settingsHref?: string }) {
+  const what = password ? "A feed password needs a license." : "Pictures need a license.";
+  const next =
+    isNew && password
+      ? keyGiven
+        ? "The license of the key you entered is not active any more: it has lapsed or was refunded. Buy a license and enter its key below the password."
+        : "Buy a license and enter its key below the password: the first note then creates the feed protected and licensed. A feed can only get a password when it is created."
+      : "This feed is on the free tier. Buy a license and enter its key under License in the feed's settings.";
+  return (
+    <section role="alert" aria-labelledby="license-needed" className="mt-3 rounded-xl border border-error/40 bg-error/5 p-4 text-sm">
+      <p id="license-needed" className="font-bold text-ink">
+        {what}
+      </p>
+      <p className="mt-1 text-muted">{next}</p>
+      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-bold">
+        <Link href="/license" className="text-carbon underline">
+          Buy a license
+        </Link>
+        {settingsHref && (
+          <Link href={`${settingsHref}#license`} className="text-carbon underline">
+            Feed settings
+          </Link>
+        )}
+      </p>
+    </section>
   );
 }

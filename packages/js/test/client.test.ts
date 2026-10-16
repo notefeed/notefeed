@@ -82,10 +82,10 @@ describe("post", () => {
   test("title, tags, alt, name and read id go as headers, and nothing is sent for what is left out", async () => {
     server.reply(201, CREATED);
     const c = new Client({ url: server.url, feed: "inbox" });
-    await c.post("x", { title: "T", tags: ["ci", "deploy"], readId: "my-feed" });
+    await c.post("x", { title: "T", tags: ["ci", "deploy"], readId: "my-feed", licenseKey: "k".repeat(22) });
     await c.post("x", { tags: [] });
-    expect(server.requests[0].headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "ci,deploy", "x-read-id": "my-feed" });
-    for (const h of ["x-note-title", "x-note-tags", "x-note-alt", "x-note-name", "x-read-id"]) expect(server.requests[1].headers[h]).toBeUndefined();
+    expect(server.requests[0].headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "ci,deploy", "x-read-id": "my-feed", "x-license-key": "k".repeat(22) });
+    for (const h of ["x-note-title", "x-note-tags", "x-note-alt", "x-note-name", "x-read-id", "x-license-key"]) expect(server.requests[1].headers[h]).toBeUndefined();
   });
   test("a title, alt text or name that is not ASCII goes as its UTF-8 bytes, which fetch can send", async () => {
     server.reply(201, CREATED);
@@ -427,11 +427,12 @@ describe("post with attachments", () => {
       tags: ["x"],
       feedPassword: "pw",
       readId: "my-read",
+      licenseKey: "k".repeat(22),
     });
     expect(server.requests).toHaveLength(1);
     const q = server.requests[0];
     expect(q.headers["content-type"]).toMatch(/^multipart\/form-data; boundary=/);
-    expect(q.headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "x", "x-feed-password": "pw", "x-read-id": "my-read" });
+    expect(q.headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "x", "x-feed-password": "pw", "x-read-id": "my-read", "x-license-key": "k".repeat(22) });
     expect(q.headers["x-note-alt"]).toBeUndefined();
     expect(q.headers["x-note-name"]).toBeUndefined();
     const form = await parse(q);

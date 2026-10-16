@@ -61,7 +61,7 @@ export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; ye
           </div>
           <p className="mt-4 text-muted">
             Keep this key. notefeed stores no information about you, so it cannot show the key again or recover a lost one. Enter it under <em>License</em> in a
-            feed&apos;s settings. It works for one feed at a time and can be moved to another.
+            feed&apos;s settings, or next to the password when you create a protected feed. It works for one feed at a time and can be moved to another.
           </p>
           <p className="mt-2 text-muted">The payment provider&apos;s receipt is the record of your purchase.</p>
         </section>

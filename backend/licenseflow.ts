@@ -4,7 +4,7 @@
 // key: the success URL is given to it whole, and Creem returns it in `checkout.completed`.
 import { createHash, randomBytes } from "node:crypto";
 import { config } from "./config";
-import { InvalidBodyError, NotFoundError } from "./errors";
+import { InvalidBodyError, LicenseRequiredError, NotFoundError } from "./errors";
 import { licenses, yearlyLicenseOn } from "./licensing";
 import { logger } from "./log";
 import { paymentProvider, WebhookRejectedError, type LicenseEvent, type LicensePeriod } from "./payments";
@@ -68,6 +68,14 @@ async function apply(e: LicenseEvent): Promise<void> {
       await store.update(e.providerRef, { status: "lapsed" });
       return void log.info({ why: e.type }, "license lapsed");
   }
+}
+
+/** Before a feed is created protected with this key (issue #193): the key must be one, and its license active, or the feed would
+ *  be created with a password it may not have. InvalidBodyError for a key that is none, LicenseRequiredError for a lapsed one. */
+export async function checkLicenseKey(key: string): Promise<void> {
+  const license = KEY_RE.test(key) ? await licenses().byKeyHash(hashKey(key)) : null;
+  if (!license) throw new InvalidBodyError("that is not a license key");
+  if (license.status !== "active" || (license.validUntil !== null && license.validUntil <= Date.now())) throw new LicenseRequiredError();
 }
 
 /** Enters a key for a feed. The caller has proved write access to the feed. */

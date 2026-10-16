@@ -8,6 +8,7 @@ import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { createNote } from "../notes";
 import { cancelled, fakeSignature } from "../payments/fake";
+import { API_PREFIX, dispatch } from "./api";
 import { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./licenses";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
@@ -88,6 +89,26 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect((await attachRoute(post("/api/licenses/attach", { feed: "missing", key }))).status).toBe(404);
     expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key }))).status).toBe(200);
     expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key: other }))).status).toBe(400);
+  });
+
+  test("X-License-Key on the post that creates a protected feed puts the license on it (issue #193)", async () => {
+    const { protectedFeed } = await import("../feedlock");
+    const key = await buy();
+    const create = (feed: string, headers: Record<string, string>, body: BodyInit = "# Hi", type: string | null = "text/markdown") =>
+      dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/notes`, { method: "POST", headers: { host: "notefeed.test", ...(type && { "content-type": type }), ...headers }, body }), ["feeds", feed, "notes"]);
+    const protect = { "x-feed-password": "Passw0rd!x" };
+    expect((await create("p", protect)).status).toBe(402);
+    expect((await create("p", { ...protect, "x-license-key": "x".repeat(22) })).status).toBe(400);
+    expect(await isLicensed("p")).toBe(false);
+    expect((await create("p", { ...protect, "x-license-key": key })).status).toBe(201);
+    expect(await protectedFeed("p")).toBe(true);
+    expect(await isLicensed("p")).toBe(true);
+    // The same with a text and its pictures in one multipart body.
+    const form = new FormData();
+    form.append("text", new Blob(["hi"], { type: "text/markdown" }), "text.md");
+    expect((await create("q", { ...protect, "x-license-key": key }, form, null)).status).toBe(201);
+    expect(await isLicensed("q")).toBe(true);
+    expect(await isLicensed("p")).toBe(false); // moved, as from the settings
   });
 
   test("attaching to a protected feed needs its password", async () => {

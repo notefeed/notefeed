@@ -13,7 +13,7 @@ import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
 import { errorMessage, feedErrorMessage } from "@/app/_lib/messages";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -98,8 +98,9 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           Note deleted.
         </p>
       )}
-      <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={errorMessage(error, retry)}
-        isNew={access === "open" && !exists} sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
+      <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={errorMessage(error, retry)} errorCode={one(error)}
+        isNew={access === "open" && !exists} licensing={licensingOn()} settingsHref={exists ? settingsPath(feed) : undefined}
+        sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
         initialTitle={one(share_title)} initialText={shared}
       />
       {tag && <TagFilter tag={tag} base={feedPath(feed)} />}

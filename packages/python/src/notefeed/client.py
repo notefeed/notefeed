@@ -208,6 +208,7 @@ class Client:
         name: str | None = None,
         read_id: str | None = None,
         attachments: list[Attachment] | None = None,
+        license_key: str | None = None,
     ) -> Posted:
         """Post a note: a `str` is markdown, `bytes` are a file whose media type is `type` (`text/markdown`, `image/png`,
         `image/jpeg`, `image/gif` or `image/webp`; the server accepts nothing else and checks that the body is what the type
@@ -219,6 +220,9 @@ class Client:
         characters, one line); left out, it is taken from the text. `alt` is a picture's alternative text, `name` the
         file's original name. `read_id` is the read id the feed gets when this post creates it (3 to 64 characters of
         `a-z`, `0-9`, `-`, `_`; random when left out; ignored for a feed that exists; a `taken` error when another feed has it).
+        `license_key` goes with `feed_password` on the post that creates the feed, on an instance that sells licenses: a feed
+        password is for licensed feeds, and the new feed gets the license (a `license_required` error without the key; ignored
+        on an existing feed).
 
         `attachments` (pictures, at most 10 by the server) go in the same request as the markdown, one note each: `![](name)` in the
         markdown shows one by its `name`, and `.attachments` of the result lists them. `content` may then be None: there is no text
@@ -230,7 +234,7 @@ class Client:
         if not attachments:
             if content is None:
                 raise ConfigError("no content given")
-            return Posted(**attrs.asdict(self._post_one(content, feed, feed_password, type, title, tags, alt, name, read_id), recurse=False))
+            return Posted(**attrs.asdict(self._post_one(content, feed, feed_password, type, title, tags, alt, name, read_id, license_key), recurse=False))
         if (content is not None and not isinstance(content, str)) or (type or "text/markdown") != "text/markdown":
             raise ConfigError("attachments go with a markdown string")
         if alt or name:
@@ -255,6 +259,7 @@ class Client:
             body=File(payload=b""),
             x_feed_password=self._fp(feed_password),
             x_read_id=read_id or UNSET,
+            x_license_key=license_key or UNSET,
             x_note_title=_header_value(title) if title else UNSET,
             x_note_tags=",".join(tags) if tags else UNSET,
         )
@@ -268,13 +273,14 @@ class Client:
             raise NotefeedError(f"unexpected response from {self.url} (not a notefeed server?)") from None
         return Posted(**attrs.asdict(done, recurse=False), attachments=extra)
 
-    def _post_one(self, content, feed, feed_password, type, title, tags, alt, name, read_id) -> Created:
+    def _post_one(self, content, feed, feed_password, type, title, tags, alt, name, read_id, license_key) -> Created:
         payload, media = _as_file(content, type)
         kwargs = post_note._get_kwargs(
             feed=self._feed_for(feed),
             body=File(payload=payload),
             x_feed_password=self._fp(feed_password),
             x_read_id=read_id or UNSET,
+            x_license_key=license_key or UNSET,
             x_note_title=_header_value(title) if title else UNSET,
             x_note_tags=",".join(tags) if tags else UNSET,
             x_note_alt=_header_value(alt) if alt else UNSET,

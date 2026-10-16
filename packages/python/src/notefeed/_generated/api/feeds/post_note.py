@@ -17,6 +17,7 @@ def _get_kwargs(
     body: File,
     x_feed_password: str | Unset = UNSET,
     x_read_id: str | Unset = UNSET,
+    x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
@@ -28,6 +29,9 @@ def _get_kwargs(
 
     if not isinstance(x_read_id, Unset):
         headers["X-Read-Id"] = x_read_id
+
+    if not isinstance(x_license_key, Unset):
+        headers["X-License-Key"] = x_license_key
 
     if not isinstance(x_note_title, Unset):
         headers["X-Note-Title"] = x_note_title
@@ -142,6 +146,7 @@ def sync_detailed(
     body: File,
     x_feed_password: str | Unset = UNSET,
     x_read_id: str | Unset = UNSET,
+    x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
@@ -156,29 +161,31 @@ def sync_detailed(
     refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS
     position stays in an image). Creates the feed with its first note, optionally protected by its own
     password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end)
-    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Posting
-    to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-
-    liners use. The response names the note's `file` and where it is served, `file_url`, under the
-    feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags`
-    (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded
-    to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file
-    name). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the
-    markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF),
-    `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file
-    name>` fields. The pictures are stored first, each as its own note named by its file name, then the
-    text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded)
-    swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is
-    checked before the first write, and a failed write removes what the request stored: all or nothing.
-    `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the
-    order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note and
-    `X-Note-Tags` on every note; with no `text` part only the pictures are stored, each with the title,
-    and the answer's top level is the first picture. A refused multipart post that would have created a
-    protected feed creates nothing.
+    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where
+    licenses are sold, a feed password needs one: the post that creates the feed protected brings the
+    license key in `X-License-Key`, or is refused with `402`. Posting to a protected feed needs its
+    password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the
+    note's `file` and where it is served, `file_url`, under the feed's read id (public like the read
+    link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32
+    characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are
+    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name). A markdown note with its
+    pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part;
+    a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures,
+    each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are
+    stored first, each as its own note named by its file name, then the text with its references to them
+    (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a
+    picture it never refers to is appended as `![](file)`. Everything is checked before the first write,
+    and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name`
+    are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The
+    `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with
+    no `text` part only the pictures are stored, each with the title, and the answer's top level is the
+    first picture. A refused multipart post that would have created a protected feed creates nothing.
 
     Args:
         feed (str):
         x_feed_password (str | Unset):
         x_read_id (str | Unset):
+        x_license_key (str | Unset):
         x_note_title (str | Unset):
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
@@ -198,6 +205,7 @@ def sync_detailed(
         body=body,
         x_feed_password=x_feed_password,
         x_read_id=x_read_id,
+        x_license_key=x_license_key,
         x_note_title=x_note_title,
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
@@ -218,6 +226,7 @@ def sync(
     body: File,
     x_feed_password: str | Unset = UNSET,
     x_read_id: str | Unset = UNSET,
+    x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
@@ -232,29 +241,31 @@ def sync(
     refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS
     position stays in an image). Creates the feed with its first note, optionally protected by its own
     password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end)
-    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Posting
-    to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-
-    liners use. The response names the note's `file` and where it is served, `file_url`, under the
-    feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags`
-    (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded
-    to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file
-    name). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the
-    markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF),
-    `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file
-    name>` fields. The pictures are stored first, each as its own note named by its file name, then the
-    text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded)
-    swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is
-    checked before the first write, and a failed write removes what the request stored: all or nothing.
-    `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the
-    order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note and
-    `X-Note-Tags` on every note; with no `text` part only the pictures are stored, each with the title,
-    and the answer's top level is the first picture. A refused multipart post that would have created a
-    protected feed creates nothing.
+    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where
+    licenses are sold, a feed password needs one: the post that creates the feed protected brings the
+    license key in `X-License-Key`, or is refused with `402`. Posting to a protected feed needs its
+    password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the
+    note's `file` and where it is served, `file_url`, under the feed's read id (public like the read
+    link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32
+    characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are
+    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name). A markdown note with its
+    pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part;
+    a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures,
+    each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are
+    stored first, each as its own note named by its file name, then the text with its references to them
+    (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a
+    picture it never refers to is appended as `![](file)`. Everything is checked before the first write,
+    and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name`
+    are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The
+    `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with
+    no `text` part only the pictures are stored, each with the title, and the answer's top level is the
+    first picture. A refused multipart post that would have created a protected feed creates nothing.
 
     Args:
         feed (str):
         x_feed_password (str | Unset):
         x_read_id (str | Unset):
+        x_license_key (str | Unset):
         x_note_title (str | Unset):
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
@@ -275,6 +286,7 @@ def sync(
         body=body,
         x_feed_password=x_feed_password,
         x_read_id=x_read_id,
+        x_license_key=x_license_key,
         x_note_title=x_note_title,
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
@@ -289,6 +301,7 @@ async def asyncio_detailed(
     body: File,
     x_feed_password: str | Unset = UNSET,
     x_read_id: str | Unset = UNSET,
+    x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
@@ -303,29 +316,31 @@ async def asyncio_detailed(
     refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS
     position stays in an image). Creates the feed with its first note, optionally protected by its own
     password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end)
-    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Posting
-    to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-
-    liners use. The response names the note's `file` and where it is served, `file_url`, under the
-    feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags`
-    (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded
-    to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file
-    name). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the
-    markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF),
-    `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file
-    name>` fields. The pictures are stored first, each as its own note named by its file name, then the
-    text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded)
-    swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is
-    checked before the first write, and a failed write removes what the request stored: all or nothing.
-    `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the
-    order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note and
-    `X-Note-Tags` on every note; with no `text` part only the pictures are stored, each with the title,
-    and the answer's top level is the first picture. A refused multipart post that would have created a
-    protected feed creates nothing.
+    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where
+    licenses are sold, a feed password needs one: the post that creates the feed protected brings the
+    license key in `X-License-Key`, or is refused with `402`. Posting to a protected feed needs its
+    password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the
+    note's `file` and where it is served, `file_url`, under the feed's read id (public like the read
+    link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32
+    characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are
+    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name). A markdown note with its
+    pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part;
+    a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures,
+    each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are
+    stored first, each as its own note named by its file name, then the text with its references to them
+    (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a
+    picture it never refers to is appended as `![](file)`. Everything is checked before the first write,
+    and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name`
+    are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The
+    `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with
+    no `text` part only the pictures are stored, each with the title, and the answer's top level is the
+    first picture. A refused multipart post that would have created a protected feed creates nothing.
 
     Args:
         feed (str):
         x_feed_password (str | Unset):
         x_read_id (str | Unset):
+        x_license_key (str | Unset):
         x_note_title (str | Unset):
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
@@ -345,6 +360,7 @@ async def asyncio_detailed(
         body=body,
         x_feed_password=x_feed_password,
         x_read_id=x_read_id,
+        x_license_key=x_license_key,
         x_note_title=x_note_title,
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
@@ -363,6 +379,7 @@ async def asyncio(
     body: File,
     x_feed_password: str | Unset = UNSET,
     x_read_id: str | Unset = UNSET,
+    x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
@@ -377,29 +394,31 @@ async def asyncio(
     refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS
     position stays in an image). Creates the feed with its first note, optionally protected by its own
     password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end)
-    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Posting
-    to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-
-    liners use. The response names the note's `file` and where it is served, `file_url`, under the
-    feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags`
-    (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded
-    to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file
-    name). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the
-    markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF),
-    `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file
-    name>` fields. The pictures are stored first, each as its own note named by its file name, then the
-    text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded)
-    swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is
-    checked before the first write, and a failed write removes what the request stored: all or nothing.
-    `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the
-    order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note and
-    `X-Note-Tags` on every note; with no `text` part only the pictures are stored, each with the title,
-    and the answer's top level is the first picture. A refused multipart post that would have created a
-    protected feed creates nothing.
+    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where
+    licenses are sold, a feed password needs one: the post that creates the feed protected brings the
+    license key in `X-License-Key`, or is refused with `402`. Posting to a protected feed needs its
+    password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the
+    note's `file` and where it is served, `file_url`, under the feed's read id (public like the read
+    link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32
+    characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are
+    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name). A markdown note with its
+    pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part;
+    a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures,
+    each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are
+    stored first, each as its own note named by its file name, then the text with its references to them
+    (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a
+    picture it never refers to is appended as `![](file)`. Everything is checked before the first write,
+    and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name`
+    are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The
+    `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with
+    no `text` part only the pictures are stored, each with the title, and the answer's top level is the
+    first picture. A refused multipart post that would have created a protected feed creates nothing.
 
     Args:
         feed (str):
         x_feed_password (str | Unset):
         x_read_id (str | Unset):
+        x_license_key (str | Unset):
         x_note_title (str | Unset):
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
@@ -421,6 +440,7 @@ async def asyncio(
             body=body,
             x_feed_password=x_feed_password,
             x_read_id=x_read_id,
+            x_license_key=x_license_key,
             x_note_title=x_note_title,
             x_note_tags=x_note_tags,
             x_note_alt=x_note_alt,
