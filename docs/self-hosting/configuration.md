@@ -1,55 +1,86 @@
 # Configuration
 
-notefeed is configured with environment variables. With Compose, set them under `environment:` in `compose.yaml`, or in `.env` next to it and reference them there. None is required: with none set, notefeed runs as an open instance.
+notefeed is configured with environment variables, under `environment:` in `compose.yaml` or in a `.env` file next to it. None is required: with none set, notefeed runs as an open instance. An empty value counts as unset.
+
+## The instance
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PUBLIC_URL` | derived from the request | Absolute base URL used for links in the feed and API responses, e.g. `https://notes.example.com`. Set it on a public instance, see [below](#public_url). |
-| `NOTEFEED_PASSWORD` | none: open instance | Instance password. When set, posting needs it as a bearer token and the web UI needs a login. Read links stay open. See [The password](access.md#the-password). |
-| `NOTEFEED_REPORT_URL` | the built-in page when `NOTEFEED_REPORT_ENDPOINT` is set, else none: no link | A URL template for a **Report** link on every note, on the feed page, the note page and the read-only view: `{read_id}`, `{note_id}` and `{file}` are filled in, percent-encoded. A form (`https://report.example.com/?r={read_id}&n={note_id}`) or a `mailto:` (`mailto:abuse@example.com?subject=Report%20{read_id}/{note_id}`). The link names the feed by its read id, never by its name. See [A report link on every note](legal-pages.md#a-report-link-on-every-note). |
-| `NOTEFEED_REPORT_ENDPOINT` | none: no page | Where the built-in report page `/report` sends a report: the endpoint of a form in an inbox you run, such as [noticebox](https://github.com/noticebox/noticebox)'s `https://inbox.example.com/f/notefeed-report`. The page carries the note's ids in hidden fields and posts `reason`, `text` and `email` with them; notefeed stores nothing. See [The built-in report page](legal-pages.md#the-built-in-report-page). |
-| `NOTEFEED_TRUST_PROXY` | off | Set to `1` behind a reverse proxy, so rate limits apply per client IP from `X-Forwarded-For`, and links without `PUBLIC_URL` follow `X-Forwarded-Proto` and `X-Forwarded-Host`. See [Rate limits and caps](limits.md#rate-limits-and-caps). |
-| `NOTEFEED_RATE_LIMIT` | `60` | Posts, edits and deletes per client per minute, and separately wrong passwords per client per minute. `0` or less turns the limit off. |
-| `NOTEFEED_MAX_FEEDS` | `0`: no limit (so is any value below 1) | Most feeds on the instance. Posting to a new feed beyond it answers `507`. |
-| `NOTEFEED_RESERVED_FEEDS` | empty | Comma-separated feed names that can't be created, e.g. `news,announcements,updates`, in addition to notefeed's own route names. Posting to one answers `400` (`reserved_feed`). A feed that already has such a name keeps working. |
-| `NOTEFEED_RESERVED_PASSWORD` | none | Password of the reserved feeds. When set, each reserved name (from `NOTEFEED_RESERVED_FEEDS`) exists from start-up as a [protected feed](../using/feed-passwords.md#in-the-api) with this password and its own name as read id (`/r/news`, `/r/news/feed.xml`), so only the operator can post to `news` while anyone can subscribe at a link that never changes. Without it, reserved names don't exist. It is only applied when a feed is created: change it later in the feed's settings. |
-| `NOTEFEED_MAX_NOTES_PER_FEED` | `0`: no limit (so is any value below 1) | Most notes in one feed. Posting beyond it answers `507`. |
-| `NOTEFEED_PARSE_TIMEOUT_MS` | `10000` (10 s) | How long reading a markdown text may take when it is posted with pictures (to find the `![](name)` references). It runs in a worker thread, so a text built to be slow costs only its sender that time and never stalls the server; past the limit the request is refused with `400`. |
-| `NOTEFEED_METRICS` | off | `1` turns on `GET /metrics`, the [metrics](metrics.md#metrics) in the Prometheus text format. Off, `/metrics` answers `404`. Any other value is off. |
-| `NOTEFEED_METRICS_TOKEN` | none | With metrics on, `/metrics` needs `Authorization: Bearer <token>` (otherwise `401`). Without a token it is open to everyone who can reach the app, and the start-up log warns about it: set one unless your reverse proxy keeps `/metrics` private. |
-| `NOTEFEED_MAX_IMAGE_BYTES` | `5242880` (5 MiB) | Largest image, in bytes, at most 10 MiB (`10485760`; a larger value counts as that). Beyond it, the upload answers `413`. |
-| `NOTEFEED_SHRINK_IMAGE_BYTES` | `1048576` (1 MiB) | The size, in bytes, the web pages shrink a picture to before uploading it (smaller, and as JPEG if need be; a GIF is sent as it is). `0` sends pictures as they are; never more than `NOTEFEED_MAX_IMAGE_BYTES`. The API takes what it is sent. |
-| `NOTEFEED_ALLOW_CUSTOM_IDS` | on | Whether a feed's read id can be [chosen](../using/read-links.md#choosing-a-feeds-read-id). `0` leaves only random ones: a chosen `read_id` is refused with `400`, and the settings page offers only **Generate a random one**. |
-| `NOTEFEED_IMAGE_UPLOADS` | on | `0` refuses every picture: an image note, a picture replaced with `PUT`, and a note posted with pictures, from the API, MCP and the web UI alike, with `403` (`images_off`); the note boxes show no **Add image** button and say why. Pictures already stored keep being served, and the operator's clean-up keeps working. See [No pictures at all](limits.md#no-pictures-at-all). |
-| `NOTEFEED_MAX_IMAGES_PER_FEED` | `0`: no limit (so is any value below 1) | Most image notes in one feed (markdown notes have their own limit). A new image beyond it answers `507`. |
-| `NOTEFEED_SECRET` | random, kept in `DATA_DIR/.secret` (required with `NOTEFEED_STORAGE=sqlite` or `postgres`) | The server secret, at least 32 characters (`openssl rand -hex 32`); notefeed refuses a shorter one, or a `.secret` file shorter than 32 bytes. It signs the unlock cookies of [protected feeds](../using/feed-passwords.md#in-the-api) and the [OAuth](oauth.md#oauth) tokens of MCP clients, and the [read links](../using/read-links.md) of feeds created before feed deletion was added are derived from it. Changing it locks unlocked browsers again, signs MCP clients out and changes the read link of each of those older feeds; feeds created since have a stored read id and keep theirs. With a [database](storage.md#databases) there is no data folder to keep a generated secret in, so notefeed refuses to start without this one, and the older-feed read links above do not exist there. |
-| `NOTEFEED_TITLE` | `notefeed` | Title of the RSS feed and of the read-only view, for a feed that has no title of its own. |
-| `NOTEFEED_IMPRINT_FILE`, `NOTEFEED_PRIVACY_FILE`, `NOTEFEED_TERMS_FILE` | none: no such page | The path of a Markdown file each, shown at `/imprint`, `/privacy` and `/terms` and linked from the footer. notefeed ships no such text. See [Imprint and privacy page](legal-pages.md). |
-| `NOTEFEED_NOTICE_FILE` | none: no notice | The path of a Markdown file shown as a red warning banner on the start page, above the introduction: your own words to everyone who opens the instance. See [A notice on the start page](legal-pages.md#a-notice-on-the-start-page). |
-| `NOTEFEED_OIDC_ISSUER`, `NOTEFEED_OIDC_CLIENT_ID`, `NOTEFEED_OIDC_CLIENT_SECRET`, `NOTEFEED_OIDC_ALLOW` | none: sign-in off | Optional sign-in through your OpenID Connect provider, so notes carry a verified sender. On only when all four are set; needs `PUBLIC_URL` and `NOTEFEED_SECRET`. See [Sign-in and sender](sign-in/index.md). |
-| `NOTEFEED_OIDC_LABEL` | the issuer's host | Optional. The text after **Sign in with** on the button for this provider. |
-| `NOTEFEED_OIDC_<NAME>_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET`, `_ALLOW`, `_SENDER_CLAIM`, `_LABEL` | none | Optional further providers, each with a name of your choosing in `<NAME>` (capitals, digits, underscores). Nothing is predefined. See [Several providers](sign-in/providers.md#several-providers). |
-| `NOTEFEED_OIDC_SENDER_CLAIM` | `name,email` | Optional. Comma-separated id_token claims tried in order for the sender shown on notes and stored in the note file, so pick one that is fine to publish (`sub` is opaque, `email` exposes an address). Not needed to turn sign-in on. See [Sign-in and sender](sign-in/index.md). |
-| `NOTEFEED_LOG_LEVEL` | `info` | How much notefeed logs: `error`, `warn`, `info`, `debug` or `silent`. Any other value counts as `info`. See [Logs](logs.md#logs). |
-| `NOTEFEED_LOG_REQUESTS` | on | `0` turns off the line notefeed logs for every request (method, route pattern, status, time, bytes; never the path or the feed name). See [The request line](logs.md#the-request-line). |
-| `NOTEFEED_STORAGE` | `fs` | Where feeds and notes are kept: `fs` (files in `DATA_DIR`), `sqlite` or `postgres`. See [Storage](storage.md#databases). Any other value stops notefeed from starting. |
-| `NOTEFEED_DATABASE_URL` | SQLite: `file:` + `DATA_DIR`/`notefeed.db`; PostgreSQL: none | The database for `sqlite` (`file:/data/notefeed.db`) or `postgres` (`postgres://user:password@host:5432/dbname`). Required for `postgres`. It holds a password: keep it out of logs and screenshots; notefeed never logs it. |
-| `NOTEFEED_IMAGES` | `db` | Where a database backend keeps the bytes of image notes: `db` (in the database), `fs` (a folder) or `s3` (an S3-compatible object store). See [Image bytes outside the database](storage.md#image-bytes-outside-the-database). Needs `NOTEFEED_STORAGE=sqlite` or `postgres` for `fs` and `s3`. Any other value stops notefeed from starting. |
-| `NOTEFEED_IMAGES_DIR` | `DATA_DIR`/`images` | The folder for `NOTEFEED_IMAGES=fs`. |
-| `NOTEFEED_S3_ENDPOINT`, `NOTEFEED_S3_BUCKET`, `NOTEFEED_S3_ACCESS_KEY`, `NOTEFEED_S3_SECRET_KEY` | none | The object store for `NOTEFEED_IMAGES=s3`, all four required: the store's URL (`https://s3.example.com`, no bucket in it), the bucket, and a key that may read, write and delete its objects. Any S3-compatible store works; there is no default provider. The keys are secrets: notefeed never logs them or the endpoint. |
-| `NOTEFEED_S3_REGION` | `us-east-1` | The region the object store expects in a request's signature. Stores without regions usually accept the default. |
-| `NOTEFEED_OPERATOR_TOKEN` | none: the operator endpoint is off | At least 32 characters (`openssl rand -hex 32`); a shorter one is ignored, with a warning in the log. Turns on the operator's endpoints and is the `Bearer` token they ask for: `/api/operator/images/unreferenced` reports and removes image files or objects that no note refers to, `/api/operator/images/move` moves image bytes into the configured store, `/api/operator/takedown` removes a feed for good. See [Cleaning up the image store](storage.md#cleaning-up-the-image-store), [Moving images between stores](storage.md#moving-images-between-stores) and [Removing a feed as the operator](deleting.md#removing-a-feed-as-the-operator). |
-| `DATA_DIR` | `/data` | Folder holding the feeds, one subfolder each (`NOTEFEED_STORAGE=fs`), or the default place of the SQLite file. |
-| `TZ` | `UTC` | Time zone for the times shown in the web UI, e.g. `Europe/Berlin`. |
-| `PUID`, `PGID` | owner of `DATA_DIR` | User and group notefeed runs as, and so the owner of new note files. By default the owner of the data folder; uid/gid 1000 if that is root. Docker image only. |
+| `PUBLIC_URL` | from the request | The base URL used in links, e.g. `https://notes.example.com`. Set it on a public instance, see [below](#public_url). |
+| `NOTEFEED_PASSWORD` | none: open | The instance password: posting needs it as a bearer token, the web UI needs a login. Read links stay open. See [Passwords and access](access.md#the-password). |
+| `NOTEFEED_SECRET` | random, kept in `DATA_DIR/.secret` | The server secret, at least 32 characters (`openssl rand -hex 32`). Required with a database backend. It signs unlock cookies and MCP tokens, and older feeds' read links derive from it, so changing it changes those. |
+| `NOTEFEED_TRUST_PROXY` | off | `1` behind a reverse proxy: rate limits per client from `X-Forwarded-For`, and links follow `X-Forwarded-Proto` and `X-Forwarded-Host`. See [Reverse proxy](reverse-proxy.md). |
+| `NOTEFEED_TITLE` | `notefeed` | Title of the RSS feed and the read-only view for a feed without a title of its own. |
+| `TZ` | `UTC` | Time zone of the times shown in the web UI, e.g. `Europe/Berlin`. |
+| `DATA_DIR` | `/data` | The folder holding the feeds (file storage), or the default place of the SQLite file. |
+| `PUID`, `PGID` | owner of `DATA_DIR` | The user notefeed runs as, and so the owner of new note files. Docker image only. |
 
-An empty value counts as unset.
+## Limits and caps
+
+See [Rate limits and caps](limits.md).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NOTEFEED_RATE_LIMIT` | `60` | Posts, edits and deletes per client per minute, and separately wrong passwords. `0` turns it off. |
+| `NOTEFEED_MAX_FEEDS` | `0`: no limit | Most feeds on the instance; beyond it a new feed answers `507`. |
+| `NOTEFEED_MAX_NOTES_PER_FEED` | `0`: no limit | Most notes in one feed. |
+| `NOTEFEED_MAX_IMAGE_BYTES` | `5242880` (5 MiB) | Largest picture, at most 10 MiB. |
+| `NOTEFEED_MAX_IMAGES_PER_FEED` | `0`: no limit | Most image notes in one feed. |
+| `NOTEFEED_SHRINK_IMAGE_BYTES` | `1048576` (1 MiB) | The size the web pages shrink a picture to before uploading it; `0` sends pictures as they are. |
+| `NOTEFEED_IMAGE_UPLOADS` | on | `0` refuses every picture with `403` (`images_off`); stored ones keep being served. |
+| `NOTEFEED_ALLOW_CUSTOM_IDS` | on | `0` leaves only random [read ids](../using/read-links.md#choosing-a-feeds-read-id). |
+| `NOTEFEED_PARSE_TIMEOUT_MS` | `10000` | How long reading a text posted with pictures may take; past it the post is `400`. |
+
+## Feeds and pages
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NOTEFEED_RESERVED_FEEDS` | empty | Comma-separated names nobody can create, e.g. `news,announcements`. See [Reserved feeds](access.md#reserved-feeds). |
+| `NOTEFEED_RESERVED_PASSWORD` | none | With it, each reserved name exists from start-up as a protected feed with its name as read id. |
+| `NOTEFEED_IMPRINT_FILE`, `NOTEFEED_PRIVACY_FILE`, `NOTEFEED_TERMS_FILE` | none | A Markdown file each, shown at `/imprint`, `/privacy` and `/terms`. See [Imprint, privacy page and terms](legal-pages.md). |
+| `NOTEFEED_NOTICE_FILE` | none | A Markdown file shown as a red banner on the start page. |
+| `NOTEFEED_REPORT_URL` | none | A URL template for a **Report** link on every note, with `{read_id}`, `{note_id}` and `{file}` filled in. See [A report link on every note](legal-pages.md#a-report-link-on-every-note). |
+| `NOTEFEED_REPORT_ENDPOINT` | none | Where the built-in report page `/report` sends a report. |
+| `NOTEFEED_OPERATOR_TOKEN` | none | At least 32 characters. Turns on the operator's endpoints: the [image store clean-up](storage.md#cleaning-up-the-image-store) and [removing a feed](deleting.md#removing-a-feed-as-the-operator). |
+
+## Sign-in
+
+See [Sign-in and sender](sign-in/index.md). Sign-in is on only when all four of the first row are set.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NOTEFEED_OIDC_ISSUER`, `NOTEFEED_OIDC_CLIENT_ID`, `NOTEFEED_OIDC_CLIENT_SECRET`, `NOTEFEED_OIDC_ALLOW` | none: off | Your OpenID Connect provider and who may sign in. Needs `PUBLIC_URL` and `NOTEFEED_SECRET`. |
+| `NOTEFEED_OIDC_LABEL` | the issuer's host | The text after **Sign in with** on the button. |
+| `NOTEFEED_OIDC_SENDER_CLAIM` | `name,email` | The id_token claims tried in order for the sender shown on notes. |
+| `NOTEFEED_OIDC_<NAME>_…` | none | [Further providers](sign-in/setup.md#several-providers), with a name of your choosing. |
+
+## Storage
+
+See [Storage](storage.md).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NOTEFEED_STORAGE` | `fs` | `fs` (files in `DATA_DIR`), `sqlite` or `postgres`. |
+| `NOTEFEED_DATABASE_URL` | SQLite: `DATA_DIR/notefeed.db` | The database: `file:/data/notefeed.db` or `postgres://user:password@host:5432/dbname`. Required for `postgres`. |
+| `NOTEFEED_IMAGES` | `db` | Where a database backend keeps image bytes: `db`, `fs` or `s3`. |
+| `NOTEFEED_IMAGES_DIR` | `DATA_DIR/images` | The folder for `NOTEFEED_IMAGES=fs`. |
+| `NOTEFEED_S3_ENDPOINT`, `NOTEFEED_S3_BUCKET`, `NOTEFEED_S3_ACCESS_KEY`, `NOTEFEED_S3_SECRET_KEY` | none | The object store for `NOTEFEED_IMAGES=s3`, all four required. |
+| `NOTEFEED_S3_REGION` | `us-east-1` | The region the store expects in a request's signature. |
+
+## Operating
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NOTEFEED_LOG_LEVEL` | `info` | `error`, `warn`, `info`, `debug` or `silent`. See [Logs](operating.md#logs). |
+| `NOTEFEED_LOG_REQUESTS` | on | `0` turns off the line logged for every request. |
+| `NOTEFEED_METRICS` | off | `1` turns on `GET /metrics`. See [Metrics](operating.md#metrics). |
+| `NOTEFEED_METRICS_TOKEN` | none | With metrics on, `/metrics` needs `Authorization: Bearer <token>`. Set one unless the proxy keeps `/metrics` private. |
 
 ## `PUBLIC_URL`
 
-When `PUBLIC_URL` is unset, notefeed builds links from the `Host` header over `http`. With `NOTEFEED_TRUST_PROXY=1` it uses `X-Forwarded-Proto` and `X-Forwarded-Host` from the reverse proxy first; without it, it ignores them, since any client can send them.
+When `PUBLIC_URL` is unset, notefeed builds links from the `Host` header over `http`; with `NOTEFEED_TRUST_PROXY=1` it uses the proxy's `X-Forwarded-Proto` and `X-Forwarded-Host` first.
 
 !!! warning "Set `PUBLIC_URL` on a public instance"
-    Otherwise the links in the RSS feed, in API responses and in redirects follow whatever `Host` header the client sent. A cache in front could then hand those links to everyone.
+    Otherwise the links in the RSS feed, in API responses and in redirects follow whatever `Host` header the client sent, and a cache in front could hand those links to everyone.
 
 Also set it when feed readers reach notefeed by a different address than people do, for example over the LAN.

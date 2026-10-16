@@ -1,86 +1,42 @@
 # Imprint, privacy page and terms
 
-notefeed ships no imprint and no privacy page: who runs an instance, and what it does with data, is different for each one. If yours needs them, which a public instance in the EU does, you write them and point notefeed at the files:
+notefeed ships no imprint, privacy page or terms: who runs an instance, and what it does with data, is different for each one. A public instance in the EU needs them. Write them as Markdown files and point notefeed at them:
 
 ```yaml
 services:
   notefeed:
     environment:
-      NOTEFEED_IMPRINT_FILE: /legal/imprint.md
-      NOTEFEED_PRIVACY_FILE: /legal/privacy.md
+      NOTEFEED_IMPRINT_FILE: /legal/imprint.md    # /imprint, "Imprint" in the footer
+      NOTEFEED_PRIVACY_FILE: /legal/privacy.md    # /privacy, "Data privacy"
+      NOTEFEED_TERMS_FILE: /legal/terms.md        # /terms, "Terms"
     volumes:
       - ./legal:/legal:ro
 ```
 
-| Setting | Page |
-|---|---|
-| `NOTEFEED_IMPRINT_FILE` | `/imprint`, linked as **Imprint** in the footer and the **About & legal** menu |
-| `NOTEFEED_PRIVACY_FILE` | `/privacy`, linked as **Data privacy** in the footer and the **About & legal** menu |
-| `NOTEFEED_TERMS_FILE` | `/terms`, linked as **Terms** in the footer and the **About & legal** menu: the terms of service |
-
-- **The files are Markdown**, shown the way a note is: headings, lists, tables and links work, and raw HTML is shown as text.
-- **Each is optional.** Without a setting, or with one that names no readable file, the page answers `404` and neither the footer nor the menu links to it. The [start-up log](logs.md#logs) says when a setting is there but its file cannot be read.
-- **All three pages are public,** also on an instance with a [password](access.md#the-password): an imprint has to be reachable without logging in.
-- **A change shows at once.** The file is read on every request; nothing needs restarting. Keep it small: a file over 256 KiB is not shown.
-- **Keep the files in version control** with the rest of your deployment. For a privacy page it matters what it said on which day.
-
-`imprint`, `privacy` and `terms` are [reserved feed names](../using/feeds.md), with or without the files.
+- Each is optional; without a file the page is `404` and nothing links to it.
+- All three are public, also on a locked instance.
+- The file is read on every request, so a change shows at once. Keep the files in version control: for a privacy page it matters what it said on which day.
 
 ## A notice on the start page
 
-`NOTEFEED_NOTICE_FILE` names a third Markdown file. Its text is shown as a red warning banner on the start page, above the introduction: the place to say that the service is still being built, that a maintenance window is coming, or what you do not promise.
-
-```yaml
-services:
-  notefeed:
-    environment:
-      NOTEFEED_NOTICE_FILE: /legal/notice.md
-```
-
-- **The same rules as for the two pages:** Markdown shown the way a note is, read on every request, at most 256 KiB, and the start-up log says when the setting is there but its file cannot be read.
-- **Only the start page shows it.** Feed pages, read links, RSS and the API do not, and on an instance with a [password](access.md#the-password) it is seen after logging in.
-- **To take it down,** remove the setting or empty the file.
-- **It is not a contract.** What you promise, or do not, belongs on a page people can link to; the notice can point there.
+`NOTEFEED_NOTICE_FILE` names a Markdown file shown as a red warning banner on the start page: that the service is still being built, that a maintenance window is coming, or what you do not promise. Only the start page shows it; remove the setting to take it down.
 
 ## What to write
 
-That is yours to decide, and for a public service worth a lawyer's look. As a start, a privacy page usually says who is responsible and how to reach them, where the instance is hosted and by whom, what is stored (notes, feeds, images; [what the logs hold](logs.md#logs)), for how long, [how long backups keep what was deleted](backups.md#how-long-a-backup-keeps-what-was-deleted), and which rights a person has. If you switch on [sign-in](sign-in/sender.md#privacy-page-and-imprint), say what is stored about the people who sign in.
+That is yours to decide, and for a public service worth a lawyer's look. A privacy page usually says who is responsible and how to reach them, where the instance is hosted, what is stored (notes, feeds, images, [what the logs hold](operating.md#logs)), for how long, [how long backups keep what was deleted](backups.md#how-long-a-backup-keeps-what-was-deleted), and which rights a person has. With [sign-in](sign-in/index.md#privacy-page-and-imprint) on, say what is stored about the people who sign in.
 
 ## A report link on every note
 
-A public instance has to give readers a way to report content that should not be there, and the report has to say which note is meant without guessing. `NOTEFEED_REPORT_URL` puts a **Report** link on every note, on the feed page, the note page and the read-only view. It is a URL template; three placeholders are filled in, percent-encoded:
-
-| Placeholder | Value |
-|---|---|
-| `{read_id}` | The feed's read id: what the read link and the image URLs carry. Never the feed name, which is the key to posting |
-| `{note_id}` | The note's id |
-| `{file}` | The note's file name, `<id>.md` or the picture's `<id>.png` and so on: what an image URL ends in |
+A public instance has to give readers a way to report content, and the report has to say which note is meant. `NOTEFEED_REPORT_URL` puts a **Report** link on every note, on the feed page, the note page and the read-only view. It is a URL template with `{read_id}`, `{note_id}` and `{file}` filled in, percent-encoded; the feed's name is never in it:
 
 ```yaml
-services:
-  notefeed:
-    environment:
-      # A form the operator runs:
-      NOTEFEED_REPORT_URL: "https://report.example.com/?read_id={read_id}&note_id={note_id}"
-      # or plain e-mail:
-      # NOTEFEED_REPORT_URL: "mailto:abuse@example.com?subject=Report%20{read_id}/{note_id}"
+NOTEFEED_REPORT_URL: "https://report.example.com/?read_id={read_id}&note_id={note_id}"
+# or plain e-mail:
+NOTEFEED_REPORT_URL: "mailto:abuse@example.com?subject=Report%20{read_id}/{note_id}"
 ```
 
-- **Unset, nothing changes:** no link anywhere.
-- **notefeed stores no reports.** The link only leads away: to a form you run, or to a mailbox. What you do with a report, and how fast, is yours.
-- **The RSS feed carries no report link:** a feed reader shows the item's link, which opens the note in the read-only view, and the link is there.
-- **Say so on the privacy page** when the form or the mailbox keeps a reporter's address or message: what is stored, for how long, and why (handling the report), the same way the page explains e-mail. A report is the one thing an anonymous instance may hold that names a person.
-- **The feed's read link is the link to the content.** `{read_id}` and `{note_id}` are enough to open `/r/<read id>/<note id>` and to find the feed in the data; an operator's takedown takes a read link or an image URL.
+notefeed stores no reports: the link leads to a form you run, or to a mailbox. Say on the privacy page what that form or mailbox keeps of a reporter. A read id and a note id are enough to open the note at `/r/<read id>/<note id>` and to [remove the feed](deleting.md#removing-a-feed-as-the-operator).
 
 ### The built-in report page
 
-notefeed can show the form itself, at `/report`, and still store nothing: set `NOTEFEED_REPORT_ENDPOINT` to the endpoint of a form in an inbox you run, and the page posts there, with the note's ids in hidden fields and a reason, a text and an optional email address. With the endpoint set and no `NOTEFEED_REPORT_URL`, the **Report** link opens this page. The page is public on a locked instance too, like the read-only views it is linked from.
-
-```yaml
-services:
-  notefeed:
-    environment:
-      NOTEFEED_REPORT_ENDPOINT: "https://inbox.example.com/f/notefeed-report"
-```
-
-The inbox has to take posts from this instance's origin and send the browser back to `https://notes.example.com/report?sent=1` afterwards; a refused post comes back to `/report` with the errors. [noticebox](https://github.com/noticebox/noticebox) is such an inbox: its `notefeed-report` form has the fields the page sends, states for each report, and a record of every decision.
+notefeed can show the form itself, at `/report`, and still store nothing. Set `NOTEFEED_REPORT_ENDPOINT` to the endpoint of a form in an inbox you run, such as [noticebox](https://github.com/noticebox/noticebox); the page posts the note's ids, a reason, a text and an optional e-mail address there. With the endpoint set and no `NOTEFEED_REPORT_URL`, the **Report** link opens this page. The inbox has to accept posts from this instance and send the browser back to `/report?sent=1`.

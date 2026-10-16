@@ -48,6 +48,17 @@ plugins:
         using/titles-and-tags.md: using/posting.md
         using/editing.md: using/posting.md
         using/scripts.md: integrations/cli.md
+        self-hosting/reserved-feeds.md: self-hosting/access.md
+        self-hosting/oauth.md: self-hosting/access.md
+        self-hosting/postgres.md: self-hosting/storage.md
+        self-hosting/logs.md: self-hosting/operating.md
+        self-hosting/metrics.md: self-hosting/operating.md
+        self-hosting/health.md: self-hosting/operating.md
+        self-hosting/security.md: self-hosting/upgrading.md
+        self-hosting/running-from-source.md: self-hosting/upgrading.md
+        self-hosting/sign-in/providers.md: self-hosting/sign-in/setup.md
+        self-hosting/sign-in/sender.md: self-hosting/sign-in/index.md
+        self-hosting/sign-in/troubleshooting.md: self-hosting/sign-in/setup.md
 
 extra_css:
   - stylesheets/extra.css
@@ -93,24 +104,14 @@ nav:
   - Self-hosting:
       - Configuration: self-hosting/configuration.md
       - Passwords and access: self-hosting/access.md
-      - Imprint, privacy page and terms: self-hosting/legal-pages.md
-      - Reserved feeds: self-hosting/reserved-feeds.md
-      - OAuth for MCP: self-hosting/oauth.md
-      - Rate limits and caps: self-hosting/limits.md
       - Reverse proxy: self-hosting/reverse-proxy.md
+      - Rate limits and caps: self-hosting/limits.md
+      - Imprint, privacy page and terms: self-hosting/legal-pages.md
       - Sign-in and sender:
           - self-hosting/sign-in/index.md
           - Setup: self-hosting/sign-in/setup.md
-          - Providers: self-hosting/sign-in/providers.md
-          - The sender: self-hosting/sign-in/sender.md
-          - Troubleshooting: self-hosting/sign-in/troubleshooting.md
       - Storage: self-hosting/storage.md
-      - PostgreSQL: self-hosting/postgres.md
       - Backups: self-hosting/backups.md
       - Deleting notes and feeds: self-hosting/deleting.md
-      - Metrics: self-hosting/metrics.md
-      - Health check: self-hosting/health.md
-      - Logs: self-hosting/logs.md
+      - Health, logs and metrics: self-hosting/operating.md
       - Upgrading: self-hosting/upgrading.md
-      - Security fixes and SBOM: self-hosting/security.md
-      - Running from source: self-hosting/running-from-source.md

@@ -2,7 +2,7 @@
 
 ## Feed names
 
-A feed name is 1 to 64 characters of `a`–`z`, `0`–`9`, `-` and `_`. Names notefeed uses for its own routes (`r`, `api`, `login`, `health` and so on) and the operator's [reserved feeds](../self-hosting/reserved-feeds.md) are refused with `400`.
+A feed name is 1 to 64 characters of `a`–`z`, `0`–`9`, `-` and `_`. Names notefeed uses for its own routes (`r`, `api`, `login`, `health` and so on) and the operator's [reserved feeds](../self-hosting/access.md#reserved-feeds) are refused with `400`.
 
 !!! warning "The name is the key"
     Anyone who knows a feed's name can read it, post to it, edit and delete its notes, and delete the feed. Pick one that's hard to guess, like `homelab-7f3k2q9x4m8wz`, and share the [read link](read-links.md) instead of the name.
