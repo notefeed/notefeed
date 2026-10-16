@@ -45,7 +45,7 @@ The whole setup is public as a worked example: [notefeed/stacks](https://github.
 
 | | notefeed.me | Your own instance |
 |---|---|---|
-| Set-up | None | [Docker Compose](../get-started/quick-start.md), a few minutes |
+| Set-up | None | [Docker Compose](../get-started/own-server.md), a few minutes |
 | Who can reach it | Anyone who knows a feed's name or read link | Whoever you let: your LAN, or behind an [instance password](../self-hosting/access.md) |
 | Where the notes are | On the service's server in Germany | On your disk, as plain `.md` files or in your database |
 | Limits and settings | Fixed: the [free tier](licenses.md) per feed, a license to lift it | [Yours to set](../self-hosting/configuration.md); no free tier, no licenses |

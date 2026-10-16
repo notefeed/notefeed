@@ -86,6 +86,10 @@ _Avoid_: Admin, owner
 The instance run for the public at notefeed.me.
 _Avoid_: SaaS, cloud version
 
+**Own instance**:
+A notefeed someone runs themselves, on their own server; the counterpart of the hosted service. Self-hosting is the activity of running one.
+_Avoid_: Self-hosted instance, private instance, local instance
+
 **Locked instance**:
 An instance with an instance password, needed to post to any feed and to use the web UI. Read links stay open.
 _Avoid_: Private instance, protected instance

@@ -22,7 +22,8 @@ curl -H "X-Feed-Password: ${FEED_PASSWORD:?}" -H "Content-Type: text/markdown" \
 
 The password is 1 to 256 printable ASCII characters: unaccented letters, digits, symbols and spaces, with no space at the start or end. That way the same password arrives unchanged in a header and in the password forms. Anything else (`ä`, an emoji, a tab) is refused with `400`. An empty `X-Feed-Password` is the same as none. A password sent to a feed that already exists and has none is refused with `409` and `feed_exists`: an open feed can't be claimed afterwards. The first post to a name that doesn't exist yet creates a protected feed only if the note itself is valid.
 
-On notefeed.me a feed password needs a license: send its key as `X-License-Key` next to the password, or the post is `402`. See [Free tier and licenses](../hosted/licenses.md#entering-the-key).
+!!! note "On notefeed.me"
+    A feed password needs a license. Send its key as `X-License-Key` next to the password on the post that creates the feed, or fill in the **License key** field next to the password in the web UI; without it the post is `402` (`license_required`). See [Free tier and licenses](../hosted/licenses.md#entering-the-key).
 
 After that, posting to the feed, reading its notes (`GET /api/v1/feeds/<feed>/notes`, and one note by id) and opening `/<feed>` in a browser all need the password. Scripts send it on every request:
 
