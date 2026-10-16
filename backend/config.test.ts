@@ -13,7 +13,7 @@ afterEach(() => {
   delete process.env.NOTEFEED_METRICS_TOKEN;
   delete process.env.NOTEFEED_SHRINK_IMAGE_BYTES;
   delete process.env.NOTEFEED_MAX_IMAGE_BYTES;
-  for (const k of ["NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", ...S3_VARS]) delete process.env[k];
+  for (const k of ["NOTEFEED_PAYMENT_PROVIDER", "NOTEFEED_CREEM_API_KEY", "NOTEFEED_CREEM_PRODUCT_ID", "NOTEFEED_CREEM_PRODUCT_ID_YEARLY", "NOTEFEED_CREEM_WEBHOOK_SECRET", "NOTEFEED_LICENSE_PRICE_YEARLY", "PUBLIC_URL", "NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", ...S3_VARS]) delete process.env[k];
 });
 
 test("the report URL template is empty unless set, and trimmed; with an endpoint and no template, the link opens the built-in page", () => {
@@ -107,6 +107,21 @@ test("validateStorage: sqlite and postgres need a 32-byte NOTEFEED_SECRET", () =
     process.env.NOTEFEED_SECRET = "x".repeat(32);
     expect(() => config.validateStorage()).not.toThrow();
   }
+});
+
+test("validateStorage: a yearly license price under Creem needs the yearly product", () => {
+  process.env.NOTEFEED_PAYMENT_PROVIDER = "creem";
+  process.env.NOTEFEED_CREEM_API_KEY = "creem_test_x";
+  process.env.NOTEFEED_CREEM_PRODUCT_ID = "prod_month";
+  process.env.NOTEFEED_CREEM_WEBHOOK_SECRET = "whsec";
+  process.env.PUBLIC_URL = "https://notefeed.test";
+  expect(() => config.validateStorage()).not.toThrow();
+  process.env.NOTEFEED_LICENSE_PRICE_YEARLY = "EUR 19.90 per year";
+  expect(() => config.validateStorage()).toThrow(/NOTEFEED_CREEM_PRODUCT_ID_YEARLY/);
+  process.env.NOTEFEED_CREEM_PRODUCT_ID_YEARLY = "prod_year";
+  expect(() => config.validateStorage()).not.toThrow();
+  expect(config.creem().yearlyProductId).toBe("prod_year");
+  expect(config.licensePriceYearly()).toBe("EUR 19.90 per year");
 });
 
 test("validateStorage: fs needs no secret and no URL", () => {

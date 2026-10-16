@@ -1,12 +1,12 @@
 // The license endpoints of the SaaS (ADR 0029). Under /api, which proxy.ts leaves to its handlers, and not in the public API
 // description (as the operator's are): they are for notefeed.me's own pages and for the payment provider.
-//   POST   /api/licenses/checkout  the URL to send a buyer to (the key comes back in the fragment of the success page)
+//   POST   /api/licenses/checkout  {"period"?: "month" | "year"} the URL to send a buyer to (the key comes back in the fragment of the success page)
 //   POST   /api/licenses/webhook   the provider's events; signed, answered 200 once applied, 400 for a bad signature
 //   POST   /api/licenses/attach    {"feed", "key"} puts the license on the feed; needs write access to the feed
 //   DELETE /api/licenses/attach    {"feed"} takes the license off; needs write access to the feed
 //   POST   /api/licenses/portal    {"key"} the provider's page for the holder of the key: cancelling, payment method, invoices
 // All of them are 404 while no payment provider is configured.
-import { NotefeedError, NotFoundError, RateLimitedError } from "../errors";
+import { InvalidBodyError, NotefeedError, NotFoundError, RateLimitedError } from "../errors";
 import { checkFeedAccess } from "../feedlock";
 import { checkFeed } from "../feednames";
 import { attachLicense, detachLicense, portalFor, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
@@ -41,7 +41,9 @@ export async function checkoutRoute(req: Request): Promise<Response> {
   try {
     const wait = rateLimit(clientIp(req.headers));
     if (wait !== null) throw new RateLimitedError(wait);
-    return json(await startCheckout());
+    const period = (await body(req, 4096)).period ?? "month";
+    if (period !== "month" && period !== "year") throw new InvalidBodyError("period must be month or year");
+    return json(await startCheckout(period));
   } catch (e) {
     return failed(e);
   }

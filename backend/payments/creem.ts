@@ -4,7 +4,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { WebhookRejectedError, type LicenseEvent, type PaymentProvider } from "./types";
 
-export type CreemOptions = { apiKey: string; productId: string; webhookSecret: string; fetch?: typeof fetch };
+/** `productId` is the monthly license; `yearlyProductId` the yearly one, if sold. */
+export type CreemOptions = { apiKey: string; productId: string; yearlyProductId?: string; webhookSecret: string; fetch?: typeof fetch };
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj | undefined => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : undefined);
@@ -14,7 +15,7 @@ const time = (v: unknown): number | null => {
   return Number.isFinite(t) ? t : null;
 };
 
-export function createCreem({ apiKey, productId, webhookSecret, fetch: doFetch = fetch }: CreemOptions): PaymentProvider {
+export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSecret, fetch: doFetch = fetch }: CreemOptions): PaymentProvider {
   const base = apiKey.startsWith("creem_test_") ? "https://test-api.creem.io/v1" : "https://api.creem.io/v1";
   const call = async (what: string, path: string, body?: unknown): Promise<Obj | undefined> => {
     const res = await doFetch(`${base}${path}`, {
@@ -26,8 +27,10 @@ export function createCreem({ apiKey, productId, webhookSecret, fetch: doFetch =
     return obj(await res.json());
   };
   return {
-    async createCheckout({ keyHash, successUrl }) {
-      const checkout = await call("creating a checkout", "/checkouts", { product_id: productId, success_url: successUrl, request_id: keyHash, metadata: { key_hash: keyHash } });
+    async createCheckout({ keyHash, successUrl, period }) {
+      const product = period === "year" ? yearlyProductId : productId;
+      if (!product) throw new Error(`creem: no product for a license per ${period}`);
+      const checkout = await call("creating a checkout", "/checkouts", { product_id: product, success_url: successUrl, request_id: keyHash, metadata: { key_hash: keyHash } });
       const url = str(checkout?.checkout_url);
       if (!url) throw new Error("creem: the checkout has no checkout_url");
       return { url };

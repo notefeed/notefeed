@@ -5,13 +5,13 @@ import { WebhookRejectedError } from "./types";
 
 const SECRET = "whsec";
 const sign = (raw: string) => new Headers({ "creem-signature": createHmac("sha256", SECRET).update(raw).digest("hex") });
-const creem = (fetch?: typeof globalThis.fetch) => createCreem({ apiKey: "creem_test_abc", productId: "prod_1", webhookSecret: SECRET, fetch });
+const creem = (fetch?: typeof globalThis.fetch, yearlyProductId?: string) => createCreem({ apiKey: "creem_test_abc", productId: "prod_1", yearlyProductId, webhookSecret: SECRET, fetch });
 const event = (eventType: string, object: unknown) => JSON.stringify({ id: "evt_1", eventType, created_at: 1, object });
 
 describe("Creem", () => {
   test("a checkout is created in the sandbox for a test key, with the key hash carried as metadata", async () => {
     const fetch = vi.fn(async () => Response.json({ id: "ch_1", checkout_url: "https://creem.io/pay/ch_1" }));
-    const { url } = await creem(fetch as never).createCheckout({ keyHash: "h", successUrl: "https://n.test/license#k" });
+    const { url } = await creem(fetch as never).createCheckout({ keyHash: "h", successUrl: "https://n.test/license#k", period: "month" });
     expect(url).toBe("https://creem.io/pay/ch_1");
     const [to, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(to).toBe("https://test-api.creem.io/v1/checkouts");
@@ -20,7 +20,15 @@ describe("Creem", () => {
   });
 
   test("a failed checkout throws", async () => {
-    await expect(creem((async () => new Response("no", { status: 401 })) as never).createCheckout({ keyHash: "h", successUrl: "u" })).rejects.toThrow(/401/);
+    await expect(creem((async () => new Response("no", { status: 401 })) as never).createCheckout({ keyHash: "h", successUrl: "u", period: "month" })).rejects.toThrow(/401/);
+  });
+
+  test("a yearly license is its own product, and none without one", async () => {
+    const fetch = vi.fn(async () => Response.json({ checkout_url: "https://creem.io/pay/ch_2" }));
+    await creem(fetch as never, "prod_year").createCheckout({ keyHash: "h", successUrl: "u", period: "year" });
+    expect(JSON.parse(String((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toMatchObject({ product_id: "prod_year" });
+    await expect(creem(fetch as never).createCheckout({ keyHash: "h", successUrl: "u", period: "year" })).rejects.toThrow(/no product/);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   test("the portal link is the customer's, found through the subscription", async () => {

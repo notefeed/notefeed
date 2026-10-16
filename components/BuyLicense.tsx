@@ -15,10 +15,11 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
   throw new Error(answer.error && answer.code === "invalid_body" ? `${answer.error[0].toUpperCase()}${answer.error.slice(1)}.` : (errorMessage(answer.code) ?? "Something went wrong."));
 }
 
-// The page a buyer lands on (ADR 0029). Before paying: what a license is, its price, and a button that opens the provider's checkout.
+// The page a buyer lands on (ADR 0029). Before paying: what a license is, its price per month and, where one is sold, per year, and
+// a button per period that opens the provider's checkout.
 // After: the key, which is in the fragment of this page's URL, so notefeed's server has not received it; it keeps only the hash and
 // cannot show it again. Below both: the way to the provider's page for a license one holds, by its key.
-export function BuyLicense({ price, cap }: { price: string; cap: number }) {
+export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; yearlyPrice?: string; cap: number }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,11 +34,11 @@ export function BuyLicense({ price, cap }: { price: string; cap: number }) {
     return () => window.removeEventListener("hashchange", read);
   }, []);
 
-  async function buy() {
+  async function buy(period: "month" | "year") {
     setBusy(true);
     setError("");
     try {
-      window.location.assign(await urlFrom("/api/licenses/checkout"));
+      window.location.assign(await urlFrom("/api/licenses/checkout", { period }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setBusy(false);
@@ -86,15 +87,26 @@ export function BuyLicense({ price, cap }: { price: string; cap: number }) {
                 <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">Per feed</span>
               </h2>
               <p className="mt-1 text-2xl font-bold tracking-tight">{price || "—"}</p>
-              <p className="text-[13px] text-muted">For one feed at a time; the key can move.</p>
+              <p className="text-[13px] text-muted">{yearlyPrice ? `or ${yearlyPrice}. ` : ""}For one feed at a time; the key can move.</p>
               <ul className="mt-4 space-y-2 text-[14px]">
                 <Feature>All notes are kept</Feature>
                 <Feature>Images</Feature>
                 <Feature>A feed password</Feature>
               </ul>
-              <button type="button" disabled={busy} onClick={buy} className={`${primary} mt-5 w-full py-2.5 text-[15px]`}>
-                Buy a license
-              </button>
+              {yearlyPrice ? (
+                <div className="mt-5 grid gap-2">
+                  <button type="button" disabled={busy} onClick={() => buy("month")} className={`${primary} w-full py-2.5 text-[15px]`}>
+                    Pay monthly
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => buy("year")} className={`${secondary} w-full py-2.5 text-[15px]`}>
+                    Pay yearly
+                  </button>
+                </div>
+              ) : (
+                <button type="button" disabled={busy} onClick={() => buy("month")} className={`${primary} mt-5 w-full py-2.5 text-[15px]`}>
+                  Buy a license
+                </button>
+              )}
               <p id="buy-error" role="alert" className="mt-2 text-error empty:hidden">
                 {error}
               </p>
