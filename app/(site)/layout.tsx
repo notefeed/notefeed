@@ -9,7 +9,7 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
   await connection(); // the footer looks for the operator's files on every request
   const [links, loggedIn] = await Promise.all([footerLinks(), hasSession()]);
   return (
-    <div className="mx-auto flex min-h-dvh max-w-[42rem] flex-col px-4 py-6 sm:py-10">
+    <div className="mx-auto flex min-h-dvh max-w-[42rem] flex-col px-[max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] py-6 sm:py-10">
       <div className="mb-8 flex items-center justify-between">
         <Link href="/" className="inline-flex items-center gap-2.5" aria-label="notefeed home">
           {/* eslint-disable-next-line @next/next/no-img-element */}

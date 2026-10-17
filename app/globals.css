@@ -47,9 +47,17 @@
   --shadow-sheet: 0 8px 24px rgb(0 0 0 / 0.12);
 }
 
+/* A long word, a feed's name or a link, wraps instead of widening the page (issue #202). */
 body {
   background: var(--paper);
   color: var(--ink);
+  overflow-wrap: break-word;
+}
+
+/* iOS Safari zooms into a text field under 16px when it gets the focus, and the zoomed page then scrolls sideways (issue
+   #202), so below lg no field is smaller. Unlayered, so it wins over the fields' text-size utilities. */
+@media (max-width: 63.98rem) {
+  input, textarea, select { font-size: max(1rem, 1em); }
 }
 
 /* In the base layer, so a utility can take it off where the card shows the focus instead (the composer's fields). */

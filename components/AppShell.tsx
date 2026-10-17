@@ -22,7 +22,7 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
   const loggedIn = await hasSession();
   const links = await footerLinks();
   return (
-    <div className="shell mx-auto min-h-dvh max-w-[80rem] lg:px-6">
+    <div className="shell mx-auto min-h-dvh max-w-[80rem] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:px-6">
       <TopBar feed={feed} links={links} loggedIn={loggedIn} />
 
       <aside aria-label="Feeds" className="sticky top-0 hidden h-dvh flex-col self-start py-6 [grid-area:nav] lg:flex">
@@ -86,7 +86,7 @@ function LogOutButton({ className }: { className: string }) {
 // composer bar (z-30), so the switcher's sheet covers it.
 function TopBar({ feed, links, loggedIn }: { feed?: string; links: { product: FooterLink[]; legal: FooterLink[] }; loggedIn: boolean }) {
   return (
-    <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-rule/70 bg-paper/95 px-2 py-2 [grid-area:top] lg:hidden">
+    <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-rule/70 bg-paper/95 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] [grid-area:top] lg:hidden">
       <Logo wordmark={feed === undefined} />
       <div className="flex min-w-0 flex-1 justify-center">{feed !== undefined && <FeedSwitcher feed={feed} />}</div>
       <InfoMenu links={links} loggedIn={loggedIn} />
@@ -109,7 +109,7 @@ function FeedSwitcher({ feed }: { feed: string }) {
         </>
       }
     >
-      <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-surface px-3 pb-8 pt-2 shadow-sheet">
+      <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-surface px-[max(0.75rem,env(safe-area-inset-left),env(safe-area-inset-right))] pb-[max(2rem,env(safe-area-inset-bottom))] pt-2 shadow-sheet">
         <div className="flex justify-center pb-2">
           <span className="h-1 w-10 rounded-full bg-rule" />
         </div>

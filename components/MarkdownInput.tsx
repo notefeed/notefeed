@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type ReactNode } from "react";
 import { Eye, ImagePlus, PenLine, X } from "lucide-react";
 import { NoteView } from "@/components/NoteView";
-import { type Pending, fitPending, newPending, removeReference, uniqueToken } from "@/components/pendingFiles";
+import { type Pending, addPending, removeReference } from "@/components/pendingFiles";
 import { IMAGES_OFF, TOO_MANY_PICTURES } from "@/app/_lib/messages";
 
 const ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
@@ -77,15 +77,9 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
 
   function add(files: File[]) {
     if (!images) return onMessage(() => IMAGES_OFF);
-    const { fit, leftOut } = fitPending(pending, files);
+    const { added, leftOut } = addPending(pending, files);
     if (leftOut) onMessage(() => TOO_MANY_PICTURES);
-    if (!fit.length) return;
-    const taken = new Set(pending.map((p) => p.token));
-    const added = fit.map((file) => {
-      const token = uniqueToken(file.name, taken);
-      taken.add(token);
-      return newPending(file, token);
-    });
+    if (!added.length) return;
     // By its token, a safe and unique form of its file name: posting sends the picture under that name, and the server swaps it for the stored file's.
     onChange(insert(added.map((p) => `![](${p.token})`).join("\n"), area.current?.value ?? value));
     onPendingChange([...pending, ...added]);
