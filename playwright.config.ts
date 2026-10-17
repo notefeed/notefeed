@@ -1,6 +1,6 @@
 // End-to-end tests against the production build (`npm run test:e2e` builds first).
 // The password is read at startup, so open and locked behaviour each get their own server.
-import { defineConfig } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 import { SERVER_LOG } from "./e2e/serverlog";
 
 // `logFile`: the server's log lines go there instead of to the terminal, for the spec that reads them (e2e/requestlog.spec.ts).
@@ -28,6 +28,9 @@ export default defineConfig({
     // The "Report" link (issue #154) and the report page (issue #156): the open server has NOTEFEED_REPORT_URL and an endpoint
     // for the page (a stand-in the spec starts), the locked one (3101) has neither.
     { name: "report", testMatch: "report.spec.ts", use: { baseURL: "http://localhost:3100" } },
+    // A feed's page and its note bar on a phone (issues #202 and #203): the other projects run at desktop size.
+    { name: "phone-webkit", testMatch: "phone.spec.ts", use: { ...devices["iPhone 13"], baseURL: "http://localhost:3100" } },
+    { name: "phone-chromium", testMatch: "phone.spec.ts", use: { ...devices["Pixel 7"], baseURL: "http://localhost:3100" } },
     { name: "locked", testMatch: "locked.spec.ts", use: { baseURL: "http://localhost:3101" } },
     // The locked server also runs with NOTEFEED_IMAGE_UPLOADS=0 (issue #152): the open one has to take pictures.
     { name: "images-off", testMatch: "images-off.spec.ts", use: { baseURL: "http://localhost:3101" } },

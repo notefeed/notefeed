@@ -18,7 +18,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const viewport: Viewport = { themeColor: [{ color: "#f2f3f0", media: "(prefers-color-scheme: light)" }, { color: "#15161b", media: "(prefers-color-scheme: dark)" }] };
+// `viewportFit: "cover"`: the page reaches into the screen's rounded corners and under the home indicator, and the bars
+// at a phone's edges keep clear of them with env(safe-area-inset-*) (issue #202).
+export const viewport: Viewport = { viewportFit: "cover", themeColor: [{ color: "#f2f3f0", media: "(prefers-color-scheme: light)" }, { color: "#15161b", media: "(prefers-color-scheme: dark)" }] };
 
 // The document only: the plain pages (app/(site)/layout.tsx) and a feed's pages (components/AppShell.tsx) bring their own frame.
 // `data-shrink-image-bytes`: NOTEFEED_SHRINK_IMAGE_BYTES, for the browser code that uploads pictures (app/_lib/shrinkImage.ts).

@@ -15,6 +15,18 @@ let counter = 0;
 /** In an event handler only (it makes the object URL); release it with `URL.revokeObjectURL(preview)` when the picture is taken out. */
 export const newPending = (file: File, token: string): Pending => ({ key: `${Date.now()}-${counter++}`, file, token, preview: URL.createObjectURL(file) });
 
+/** In an event handler only (newPending): the files that still fit, as pictures added to `pending` under tokens unlike the others', and whether some were left out. */
+export function addPending(pending: readonly Pending[], files: readonly File[]): { added: Pending[]; leftOut: boolean } {
+  const { fit, leftOut } = fitPending(pending, files);
+  const taken = new Set(pending.map((p) => p.token));
+  const added = fit.map((file) => {
+    const token = uniqueToken(file.name, taken);
+    taken.add(token);
+    return newPending(file, token);
+  });
+  return { added, leftOut };
+}
+
 /** A name for a file that is safe to write in `![](…)` and not among `taken`: `a.png`, then `a-2.png`, `a-3.png`. Never empty or only dots. */
 export function uniqueToken(name: string, taken: ReadonlySet<string>): string {
   const safe = name.replace(/^.*[\\/]/, "").replace(/[^A-Za-z0-9._-]+/g, "-");

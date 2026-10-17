@@ -1,6 +1,6 @@
 "use client";
 
-import { Hash, Plus, Send, X } from "lucide-react";
+import { Camera, Hash, Plus, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, field, primary } from "@/components/styles";
@@ -9,7 +9,8 @@ import { encodeHeaderValue } from "@/shared/headers";
 import { MarkdownInput } from "@/components/MarkdownInput";
 import { usePendingImages } from "@/components/usePendingImages";
 import { multipart, useApiForm } from "@/app/_lib/useApiForm";
-import { errorMessage, PASSWORD_HINT, SENDER_NOTICE, withPictures } from "@/app/_lib/messages";
+import { errorMessage, PASSWORD_HINT, SENDER_NOTICE, TOO_MANY_PICTURES, withPictures } from "@/app/_lib/messages";
+import { addPending, removeReference, type Pending } from "@/components/pendingFiles";
 import { PASSWORD_PATTERN } from "@/shared/password";
 import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 
@@ -93,6 +94,10 @@ export function Compose({
 
   // On a phone, once hydrated: a chat-style bar docked at the bottom (issue #185). Its field is the note's text (the same
   // state as the full box's), Send posts it, ＋ opens the full box as a sheet for the title, tags, pictures and the preview.
+  // Like a messenger's (issue #203): a camera button next to Send, so a photo is two taps (the camera, then Send), and each tap
+  // adds one more. The photos wait with the full box's pictures (shrunk on posting like them) and show above the field. On a
+  // computer `capture` is ignored and the button opens the file picker, where several can be picked at once. The bar keeps clear of the screen's rounded
+  // corners and the home indicator (issue #202).
   // Without JavaScript, and from lg, the box is a card at the top of the feed. The bar is only rendered on a narrow
   // screen, so the page never holds two note fields where both could show.
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
@@ -100,6 +105,20 @@ export function Compose({
   const [open, setOpen] = useState(!!initialError || !!initialText);
   const form = useRef<HTMLFormElement>(null);
   const quick = useRef<HTMLTextAreaElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const empty = !text.trim() && images.pending.length === 0;
+  const addPhotos = (files: File[]) => {
+    const { added, leftOut } = addPending(images.pending, files);
+    if (leftOut) setError(TOO_MANY_PICTURES);
+    if (!added.length) return;
+    setText((t) => [t.trimEnd(), ...added.map((p) => `![](${p.token})`)].filter(Boolean).join("\n"));
+    images.setPending([...images.pending, ...added]);
+  };
+  const removePhoto = (p: Pending) => {
+    URL.revokeObjectURL(p.preview);
+    setText((t) => removeReference(t, p.token));
+    images.setPending(images.pending.filter((q) => q.key !== p.key));
+  };
   // The bar's field grows with its text, up to about five lines.
   useLayoutEffect(() => {
     const q = quick.current;
@@ -133,7 +152,36 @@ export function Compose({
   return (
     <>
       {docked && narrow && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-surface px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5 lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-surface pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-2.5 lg:hidden">
+          {images.pending.length > 0 && (
+            <ul aria-label="Photos to send" className="mb-2 flex gap-2 overflow-x-auto pt-1.5 pr-1.5">
+              {images.pending.map((p) => (
+                <li key={p.key} className="relative shrink-0" title={p.token}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.preview} alt="" className="h-14 w-14 rounded-xl border border-rule object-cover" />
+                  <button type="button" onClick={() => removePhoto(p)} aria-label={`Remove ${p.token}`} className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper">
+                    <X aria-hidden className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {imagesOn && (
+            <input
+              ref={camera}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              hidden
+              aria-label="Photo from the camera"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = ""; // the same photo can be taken again
+                if (files.length) addPhotos(files);
+              }}
+            />
+          )}
           <div className="flex items-end gap-1.5">
             <button type="button" onClick={openSheet} aria-label="Title, tags and pictures" title="Title, tags and pictures" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
               <Plus aria-hidden className="h-[22px] w-[22px]" />
@@ -150,16 +198,21 @@ export function Compose({
               }}
               className="block max-h-[8.25rem] min-h-10 min-w-0 flex-1 resize-none rounded-[1.25rem] border border-rule bg-surface-2 px-4 py-2 text-[15px] leading-normal placeholder:text-muted focus:border-carbon/60 focus-visible:outline-none"
             />
+            {imagesOn && (
+              <button type="button" onClick={() => camera.current?.click()} aria-label="Take a photo" title="Take a photo" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
+                <Camera aria-hidden className="h-[22px] w-[22px]" />
+              </button>
+            )}
             <button
-              type="button"
-              disabled={pending || (!text.trim() && images.pending.length === 0)}
-              onClick={() => form.current?.requestSubmit()}
-              aria-label="Send note"
-              title="Send note"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon disabled:opacity-40"
-            >
-              <Send aria-hidden className="h-[18px] w-[18px]" />
-            </button>
+                type="button"
+                disabled={pending || empty}
+                onClick={() => form.current?.requestSubmit()}
+                aria-label="Send note"
+                title="Send note"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                <Send aria-hidden className="h-[22px] w-[22px]" />
+              </button>
           </div>
         </div>
       )}
