@@ -84,6 +84,10 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
             ) : (
               <Row icon={<Link2 />} label="Read link" hint="Appears after the first note." />
             )}
+          </>
+        }
+        posting={
+          <>
             <DisclosureRow icon={<Terminal />} label="Post from a script">
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{curlFor(base, feed, access === "unlocked")}</pre>
               <DocsLink href={`${DOCS}/using/posting/`}>Posting notes</DocsLink>

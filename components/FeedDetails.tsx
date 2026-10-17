@@ -9,11 +9,12 @@ import { feedDetailsErrorMessage } from "@/app/_lib/messages";
 import { postFile, useApiForm } from "@/app/_lib/useApiForm";
 
 // A feed's title image, title and description, and deleting it: plain forms to POST /<feed>/details and /delete.
-// After the profile, the Sharing group: the read id first, then `sharing` (the read link rows). `children` (the license and
+// After the profile, the Sharing group: the read id first, then `sharing` (the read link rows); then `posting` (from a script,
+// from an AI agent) in a group of its own. `children` (the license and
 // access groups) sit between it and deleting, so deleting stays last. With
 // JavaScript they go through the generated API client and show refusals inline; without, the browser follows
 // the 303 (the feed page says "Saved." or shows the refusal as `error`, or the home page says "Feed deleted.").
-export function FeedDetails({ feed, title: savedTitle, description: savedDescription, image, imageUrl, images, showSender: savedShowSender, readId, readIdChoice, identity, error: initialError, sharing, children }: { sharing?: ReactNode; children?: ReactNode; feed: string; title: string; description: string; image: string; imageUrl: string | null; images: { file: string; url: string; title: string }[]; showSender: boolean; readId: string | null; readIdChoice: "custom" | "random" | "fixed"; identity: boolean; error?: string }) {
+export function FeedDetails({ feed, title: savedTitle, description: savedDescription, image, imageUrl, images, showSender: savedShowSender, readId, readIdChoice, identity, error: initialError, sharing, posting, children }: { sharing?: ReactNode; posting?: ReactNode; children?: ReactNode; feed: string; title: string; description: string; image: string; imageUrl: string | null; images: { file: string; url: string; title: string }[]; showSender: boolean; readId: string | null; readIdChoice: "custom" | "random" | "fixed"; identity: boolean; error?: string }) {
   const page = `/${feed}/settings`;
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, feedDetailsErrorMessage);
   const [title, setTitle] = useState(savedTitle);
@@ -177,6 +178,12 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
         )}
         {sharing}
       </Group>
+
+      {posting && (
+        <Group id="posting" label="Posting">
+          {posting}
+        </Group>
+      )}
 
       {children}
 
