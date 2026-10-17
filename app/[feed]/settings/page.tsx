@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Link2, Rss, Terminal } from "lucide-react";
-import { curlFor } from "@/app/_lib/curl";
+import type { ReactNode } from "react";
+import { ArrowUpRight, Bot, ChevronLeft, Link2, Rss, Terminal } from "lucide-react";
+import { claudeMcpFor, curlFor } from "@/app/_lib/curl";
 import { feedDetailsErrorMessage, feedErrorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
 import { FeedDetails } from "@/components/FeedDetails";
@@ -85,6 +86,12 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
             )}
             <DisclosureRow icon={<Terminal />} label="Post from a script">
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{curlFor(base, feed, access === "unlocked")}</pre>
+              <DocsLink href={`${DOCS}/using/posting/`}>Posting notes</DocsLink>
+            </DisclosureRow>
+            <DisclosureRow icon={<Bot />} label="Post from an AI agent">
+              <p className="mb-2 text-muted">Add notefeed to Claude Code as an MCP server; the agent then posts to this feed by its name.</p>
+              <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{claudeMcpFor(base)}</pre>
+              <DocsLink href={`${DOCS}/integrations/mcp/`}>MCP, and other clients</DocsLink>
             </DisclosureRow>
           </>
         }
@@ -93,5 +100,16 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         {access === "unlocked" && <FeedSettings feed={feed} error={passwordError ? feedErrorMessage(error, retry) : undefined} />}
       </FeedDetails>
     </AppShell>
+  );
+}
+
+const DOCS = "https://docs.notefeed.me";
+
+function DocsLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a href={href} className="mt-2 inline-flex items-center gap-1 text-carbon underline">
+      {children} in the docs
+      <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
+    </a>
   );
 }
