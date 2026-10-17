@@ -10,7 +10,7 @@ curl -H "Content-Type: text/markdown" --data-binary $'# Hello\nMy first note.' h
 
 **2. Read it back.** The answer holds the feed's `read_url`, a read-only RSS link that never shows the feed's name. Add it to any feed reader or dashboard; see [Read links](../using/read-links.md).
 
-**3. Post from your scripts.** The [command line](../integrations/cli.md) and the [client libraries](../integrations/clients.md) take the server and the feed from the environment:
+**3. Post from your scripts.** The [command line](../integrations/cli.md) and the [client libraries](../integrations/clients.md) take the server and the feed from the environment (an AI assistant posts over [MCP](../integrations/mcp.md) instead):
 
 ```sh
 export NOTEFEED_URL=https://notefeed.me NOTEFEED_FEED=homelab-7f3k2q9x4m8wz
