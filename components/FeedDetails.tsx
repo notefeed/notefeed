@@ -124,10 +124,10 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
         )}
         <form id="feed-details-form" method="post" action={`/${feed}/details`} onSubmit={(e) => save(e)} className="divide-y divide-rule">
           <FieldRow icon={<Type />} label="Title" htmlFor="feed-title">
-            <input id="feed-title" name="title" maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
+            <input id="feed-title" name="title" maxLength={100} placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
           </FieldRow>
           <FieldRow icon={<AlignLeft />} label="Description" htmlFor="feed-description">
-            <input id="feed-description" name="description" maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
+            <input id="feed-description" name="description" maxLength={500} placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
           </FieldRow>
           {identity && (
             <label className="flex cursor-pointer items-center gap-3 px-4 py-3">

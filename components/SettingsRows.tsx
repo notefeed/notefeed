@@ -34,17 +34,15 @@ export function Row({ icon, label, hint, danger, children }: { icon: ReactNode; 
   );
 }
 
-// A row whose control sits under its label: a text field, with the icon tile next to the field.
+// A row with a text field next to its icon tile. The field's placeholder names it; the label is for screen readers.
 export function FieldRow({ icon, label, htmlFor, children }: { icon: ReactNode; label: string; htmlFor: string; children: ReactNode }) {
   return (
-    <div className="px-4 py-3">
-      <label htmlFor={htmlFor} className="mb-1 block pl-11 text-[13px] text-muted">
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Tile icon={icon} />
+      <label htmlFor={htmlFor} className="sr-only">
         {label}
       </label>
-      <div className="flex items-center gap-3">
-        <Tile icon={icon} />
-        <div className="min-w-0 flex-1">{children}</div>
-      </div>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
