@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { curlFor } from "./curl";
+import { claudeMcpFor, curlFor } from "./curl";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -12,4 +12,10 @@ test("with the instance password and the feed's password the headers come first"
   expect(curlFor("https://notes.example", "f", true)).toBe(
     `curl -H "Authorization: Bearer $NOTEFEED_PASSWORD" -H "X-Feed-Password: $NOTEFEED_FEED_PASSWORD" -H "Content-Type: text/markdown" -d "# Hello" https://notes.example/f`,
   );
+});
+
+test("the Claude Code command adds the instance's MCP endpoint, with the instance password where there is one", () => {
+  expect(claudeMcpFor("https://notes.example")).toBe("claude mcp add notefeed --transport http https://notes.example/mcp");
+  vi.stubEnv("NOTEFEED_PASSWORD", "pw");
+  expect(claudeMcpFor("https://notes.example")).toBe(`claude mcp add notefeed --transport http https://notes.example/mcp --header "Authorization: Bearer $NOTEFEED_PASSWORD"`);
 });
