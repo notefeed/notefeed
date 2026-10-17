@@ -15,8 +15,8 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
   throw new Error(answer.error && answer.code === "invalid_body" ? `${answer.error[0].toUpperCase()}${answer.error.slice(1)}.` : (errorMessage(answer.code) ?? "Something went wrong."));
 }
 
-// The page a buyer lands on (ADR 0029). Before paying: what a license is, its price per month and, where one is sold, per year, and
-// a button per period that opens the provider's checkout.
+// The page a buyer lands on (ADR 0029). Before paying: what a license is, and a tile per plan next to the free tier: per month and,
+// where one is sold, per year, each with a button that opens the provider's checkout.
 // After: the key, which is in the fragment of this page's URL, so notefeed's server has not received it; it keeps only the hash and
 // cannot show it again. Below both: the way to the provider's page for a license one holds, by its key.
 export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; yearlyPrice?: string; cap: number }) {
@@ -61,7 +61,7 @@ export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; ye
           </div>
           <p className="mt-4 text-muted">
             Keep this key. notefeed stores no information about you, so it cannot show the key again or recover a lost one. Enter it under <em>License</em> in a
-            feed&apos;s settings, or next to the password when you create a protected feed. It works for one feed at a time and can be moved to another.
+            feed&apos;s settings, or under <em>Protect this feed</em> when you create a protected feed. It works for one feed at a time and can be moved to another.
           </p>
           <p className="mt-2 text-muted">The payment provider&apos;s receipt is the record of your purchase.</p>
         </section>
@@ -70,10 +70,10 @@ export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; ye
           <p className="mb-5 text-[15px] text-muted">
             A license lifts the free tier&apos;s limits for one feed. Reading a feed is always free, and there are no accounts: the license is a key you keep.
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className={`grid gap-3 ${yearlyPrice ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
             <div className={`${card} flex flex-col p-5`}>
               <h2 className="text-[15px] font-bold">Free</h2>
-              <p className="mt-1 text-2xl font-bold tracking-tight">0</p>
+              <p className="mt-1 text-xl font-bold tracking-tight">0</p>
               <p className="text-[13px] text-muted">Every feed starts here.</p>
               <ul className="mt-4 space-y-2 text-[14px]">
                 <Feature>The newest {cap} notes are kept</Feature>
@@ -81,42 +81,52 @@ export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; ye
                 <Feature off>No feed password</Feature>
               </ul>
             </div>
-            <div className={`${card} flex flex-col border-carbon p-5`}>
-              <h2 className="flex items-center gap-2 text-[15px] font-bold">
-                With a license
-                <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">Per feed</span>
-              </h2>
-              <p className="mt-1 text-2xl font-bold tracking-tight">{price || "—"}</p>
-              <p className="text-[13px] text-muted">{yearlyPrice ? `or ${yearlyPrice}. ` : ""}For one feed at a time; the key can move.</p>
-              <ul className="mt-4 space-y-2 text-[14px]">
-                <Feature>All notes are kept</Feature>
-                <Feature>Images</Feature>
-                <Feature>A feed password</Feature>
-              </ul>
-              {yearlyPrice ? (
-                <div className="mt-5 grid gap-2">
-                  <button type="button" disabled={busy} onClick={() => buy("month")} className={`${primary} w-full py-2.5 text-[15px]`}>
-                    Pay monthly
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => buy("year")} className={`${secondary} w-full py-2.5 text-[15px]`}>
-                    Pay yearly
-                  </button>
-                </div>
-              ) : (
-                <button type="button" disabled={busy} onClick={() => buy("month")} className={`${primary} mt-5 w-full py-2.5 text-[15px]`}>
-                  Buy a license
-                </button>
-              )}
-              <p id="buy-error" role="alert" className="mt-2 text-error empty:hidden">
-                {error}
-              </p>
-            </div>
+            <Plan title={yearlyPrice ? "Monthly" : "With a license"} price={price} busy={busy} onBuy={() => buy("month")} buyLabel={yearlyPrice ? "Pay monthly" : "Buy a license"} primary={!yearlyPrice} />
+            {yearlyPrice && <Plan title="Yearly" price={yearlyPrice} badge={saving(price, yearlyPrice)} busy={busy} onBuy={() => buy("year")} buyLabel="Pay yearly" primary />}
           </div>
+          <p id="buy-error" role="alert" className="mt-2 text-error empty:hidden">
+            {error}
+          </p>
         </section>
       )}
       <ManageLicense bought={key} />
     </div>
   );
+}
+
+// A paid tile: the price for one period, what a license adds, and the button to the checkout. `primary`: the highlighted one
+// (the yearly plan where one is sold), `badge`: what it saves.
+function Plan({ title, price, badge, busy, onBuy, buyLabel, primary: highlighted = false }: { title: string; price: string; badge?: string; busy: boolean; onBuy: () => void; buyLabel: string; primary?: boolean }) {
+  return (
+    <div className={`${card} flex flex-col p-5 ${highlighted ? "border-carbon" : ""}`}>
+      <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-bold">
+        {title}
+        <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">{badge ?? "Per feed"}</span>
+      </h2>
+      <p className="mt-1 text-xl font-bold tracking-tight">{price || "—"}</p>
+      <p className="text-[13px] text-muted">For one feed at a time; the key can move.</p>
+      <ul className="mb-5 mt-4 space-y-2 text-[14px]">
+        <Feature>All notes are kept</Feature>
+        <Feature>Images</Feature>
+        <Feature>A feed password</Feature>
+      </ul>
+      <button type="button" disabled={busy} onClick={onBuy} className={`${highlighted ? primary : secondary} mt-auto w-full py-2.5 text-[15px]`}>
+        {buyLabel}
+      </button>
+    </div>
+  );
+}
+
+// "Save 17 %": what the yearly price saves against twelve months, when both are an amount in the same currency (the prices are the
+// operator's free text, NOTEFEED_LICENSE_PRICE and _YEARLY); otherwise nothing is claimed.
+export function saving(monthly: string, yearly: string): string | undefined {
+  const amount = (s: string) => s.match(/^\s*([A-Z]{3}|[€$£])\s*(\d+(?:[.,]\d{1,2})?)/);
+  const m = amount(monthly);
+  const y = amount(yearly);
+  if (!m || !y || m[1] !== y[1]) return undefined;
+  const perYear = Number(m[2].replace(",", ".")) * 12;
+  const percent = Math.floor((1 - Number(y[2].replace(",", ".")) / perYear) * 100);
+  return percent > 0 ? `Save ${percent} %` : undefined;
 }
 
 function Feature({ off = false, children }: { off?: boolean; children: ReactNode }) {
