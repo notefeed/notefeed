@@ -94,9 +94,9 @@ export function Compose({
 
   // On a phone, once hydrated: a chat-style bar docked at the bottom (issue #185). Its field is the note's text (the same
   // state as the full box's), Send posts it, ＋ opens the full box as a sheet for the title, tags, pictures and the preview.
-  // Like a messenger's (issue #203): while the bar is empty, a camera button stands where Send goes, so a photo is two taps
-  // (the camera, then Send). The photo waits with the full box's pictures (shrunk on posting like them) and shows above the
-  // field. On a computer `capture` is ignored and the button opens the file picker. The bar keeps clear of the screen's rounded
+  // Like a messenger's (issue #203): a camera button next to Send, so a photo is two taps (the camera, then Send), and each tap
+  // adds one more. The photos wait with the full box's pictures (shrunk on posting like them) and show above the field. On a
+  // computer `capture` is ignored and the button opens the file picker, where several can be picked at once. The bar keeps clear of the screen's rounded
   // corners and the home indicator (issue #202).
   // Without JavaScript, and from lg, the box is a card at the top of the feed. The bar is only rendered on a narrow
   // screen, so the page never holds two note fields where both could show.
@@ -172,6 +172,7 @@ export function Compose({
               type="file"
               accept="image/*"
               capture="environment"
+              multiple
               hidden
               aria-label="Photo from the camera"
               onChange={(e) => {
@@ -197,12 +198,12 @@ export function Compose({
               }}
               className="block max-h-[8.25rem] min-h-10 min-w-0 flex-1 resize-none rounded-[1.25rem] border border-rule bg-surface-2 px-4 py-2 text-[15px] leading-normal placeholder:text-muted focus:border-carbon/60 focus-visible:outline-none"
             />
-            {imagesOn && empty ? (
+            {imagesOn && (
               <button type="button" onClick={() => camera.current?.click()} aria-label="Take a photo" title="Take a photo" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
                 <Camera aria-hidden className="h-[22px] w-[22px]" />
               </button>
-            ) : (
-              <button
+            )}
+            <button
                 type="button"
                 disabled={pending || empty}
                 onClick={() => form.current?.requestSubmit()}
@@ -212,7 +213,6 @@ export function Compose({
               >
                 <Send aria-hidden className="h-[18px] w-[18px]" />
               </button>
-            )}
           </div>
         </div>
       )}

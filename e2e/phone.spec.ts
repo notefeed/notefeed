@@ -88,15 +88,29 @@ test("the text fields are at least 16px, so focusing one does not zoom the page"
   for (const [id, size] of sizes) expect(size, id).toBeGreaterThanOrEqual(16);
 });
 
-test("the camera button shows while the bar is empty, Send once there is text", async ({ page }) => {
+test("the camera button stays next to Send, which waits for text or a photo", async ({ page }) => {
   await page.goto(`/${feedName()}`);
-  await expect(page.getByRole("button", { name: "Take a photo" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Send note" })).toHaveCount(0);
+  const camera = page.getByRole("button", { name: "Take a photo" });
+  const send = page.getByRole("button", { name: "Send note" });
+  await expect(camera).toBeVisible();
+  await expect(send).toBeDisabled();
   await page.getByLabel("Quick note in markdown").fill("Hello");
-  await expect(page.getByRole("button", { name: "Send note" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Take a photo" })).toHaveCount(0);
-  await page.getByLabel("Quick note in markdown").fill("");
+  await expect(send).toBeEnabled();
+  await expect(camera).toBeVisible();
+});
+
+test("several photos can be added and are posted together", async ({ page }) => {
+  const feed = feedName();
+  await page.goto(`/${feed}`);
+  const input = page.getByLabel("Photo from the camera");
+  await expect(input).toHaveAttribute("multiple", "");
+  await input.setInputFiles(PNG);
+  await input.setInputFiles([PNG, PNG]);
+  await expect(page.getByRole("list", { name: "Photos to send" }).locator("img")).toHaveCount(3);
   await expect(page.getByRole("button", { name: "Take a photo" })).toBeVisible();
+  await page.getByRole("button", { name: "Send note" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${feed}\\?posted=`));
+  await expect(page.locator("main ol img")).toHaveCount(3);
 });
 
 test("a photo from the camera button posts like one from the full box", async ({ page }) => {
@@ -107,7 +121,6 @@ test("a photo from the camera button posts like one from the full box", async ({
   await expect(camera).toHaveAttribute("accept", /image\//);
   await camera.setInputFiles(PNG);
   await expect(page.getByRole("list", { name: "Photos to send" }).locator("img")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Take a photo" })).toHaveCount(0);
   await page.getByRole("button", { name: "Send note" }).click();
   await expect(page).toHaveURL(new RegExp(`/${feed}\\?posted=`));
   await expect(page.locator("main ol img")).toHaveCount(1);

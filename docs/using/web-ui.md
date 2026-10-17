@@ -16,7 +16,7 @@ Open notefeed in a browser. The start page asks for a feed name and suggests a r
 
 ### Writing a note
 
-Type markdown into the box and press **Post** or ++ctrl+enter++ (++cmd+enter++ on a Mac). The box has a **Title** field, a tags field (comma-separated, `ci, deploy`) and a preview (the eye button), rendered the way the feed will show the note. On a phone the box is a bar at the bottom, like a chat; **+** opens the whole box as a sheet. While the bar is empty, the camera button next to it takes a photo for the note, and **Send** then posts it. Posting goes through the same `POST /<feed>` as scripts, with the same [rate limit](../self-hosting/limits.md), and needs JavaScript; without it, use the [API](posting.md).
+Type markdown into the box and press **Post** or ++ctrl+enter++ (++cmd+enter++ on a Mac). The box has a **Title** field, a tags field (comma-separated, `ci, deploy`) and a preview (the eye button), rendered the way the feed will show the note. On a phone the box is a bar at the bottom, like a chat; **+** opens the whole box as a sheet. The camera button next to **Send** takes a photo for the note; tap it again for more. Posting goes through the same `POST /<feed>` as scripts, with the same [rate limit](../self-hosting/limits.md), and needs JavaScript; without it, use the [API](posting.md).
 
 ### Adding an image
 
