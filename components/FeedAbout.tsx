@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Eye, Hash, Rss, Settings } from "lucide-react";
+import type { ReactNode } from "react";
 import { CopyButton } from "@/components/CopyButton";
 import { ShareButton } from "@/components/ShareButton";
 import { card, sectionLabel } from "@/components/styles";
@@ -7,8 +8,9 @@ import { card, sectionLabel } from "@/components/styles";
 // A feed's details (issue #185): its image, title and description, the ways to share it and its tags as the
 // filter. The page's <header>: at the top of the page on a phone, the right column from xl (components/AppShell.tsx).
 // `name` only on the writable pages; the read-only pages never show it. `readUrl` and `rssUrl` exist once the feed has a
-// note. `tags` are the tags of the notes the page shows (the newest ones), `tag` the one the list is filtered by.
-export function FeedAbout({ name, title, description, imageUrl, readUrl, rssUrl, viewHref, settingsHref, tags = [], tag, base }: {
+// note. `tags` are the tags of the notes the page shows (the newest ones), `tag` the one the list is filtered by. `children`:
+// what goes right under the card (a new feed's protection, components/ProtectFeed.tsx).
+export function FeedAbout({ name, title, description, imageUrl, readUrl, rssUrl, viewHref, settingsHref, tags = [], tag, base, children }: {
   name?: string;
   title: string;
   description: string;
@@ -20,6 +22,7 @@ export function FeedAbout({ name, title, description, imageUrl, readUrl, rssUrl,
   tags?: string[];
   tag?: string;
   base: string;
+  children?: ReactNode;
 }) {
   const round = "inline-flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-ink hover:bg-rule/60";
   return (
@@ -62,6 +65,8 @@ export function FeedAbout({ name, title, description, imageUrl, readUrl, rssUrl,
           </div>
         )}
       </header>
+
+      {children}
 
       {name && readUrl && (
         <section aria-labelledby="about-read-link" className={`${card} hidden p-5 xl:block`}>

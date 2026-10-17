@@ -66,24 +66,29 @@ test("the license page sells a month or a year, and the yearly checkout comes ba
   expect(new URL(page.url()).hash).toMatch(/^#[A-Za-z0-9_-]{22}$/);
 });
 
-// A feed password needs a license, and a feed can only get a password when it is created: the box of a new feed takes the key
-// next to the password. Without it, the refusal is a banner that says what to do (issue #193).
+// A feed password needs a license, and a feed can only get a password when it is created: a new feed's "Protect this feed" section
+// in its details, not the compose box, takes the key next to the password (issue #205). Without it, the refusal is a banner that
+// says what to do (issue #193).
 test("a new feed gets its password and its license key in one post; without the key, the box says why", async ({ page, request }) => {
   const feed = feedName();
   const key = await buy(request, `sub_${feed}`);
   await page.goto(`/${feed}`);
+  const protect = page.getByRole("region", { name: "Protect this feed" });
+  await expect(page.getByRole("form", { name: "New note" }).getByLabel(/Password|License key/)).toHaveCount(0);
   await page.getByLabel("Note in markdown").fill("# Secret note");
-  await page.getByLabel("Password (optional, protects this feed)").fill("Passw0rd!x");
+  await protect.getByLabel("Password (optional, protects this feed)").fill("Passw0rd!x");
   await page.getByRole("button", { name: "Post note" }).click();
   const banner = page.getByRole("alert").filter({ hasText: "A feed password needs a license." });
   await expect(banner).toBeVisible();
   await expect(banner.getByRole("link", { name: "Buy a license" })).toHaveAttribute("href", "/license");
+  await expect(banner).toContainText("enter its key under Protect this feed");
   expect((await request.get(`/api/v1/feeds/${feed}`)).status()).toBe(404); // nothing was created
 
-  await page.getByLabel("License key (needed with a password)").fill(key);
+  await protect.getByLabel("License key (needed with a password)").fill(key);
   await page.getByRole("button", { name: "Post note" }).click();
   await expect(page.getByRole("link", { name: "Secret note" })).toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: /license/ })).toHaveCount(0);
+  await expect(protect).toHaveCount(0); // the feed exists now
   await page.goto(`/${feed}/settings`);
   await expect(page.getByText("Licensed", { exact: true })).toBeVisible();
   // Protected: a stranger is asked for the password.
