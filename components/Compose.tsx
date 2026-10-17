@@ -209,9 +209,9 @@ export function Compose({
                 onClick={() => form.current?.requestSubmit()}
                 aria-label="Send note"
                 title="Send note"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-carbon text-on-carbon disabled:opacity-40"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
               >
-                <Send aria-hidden className="h-[18px] w-[18px]" />
+                <Send aria-hidden className="h-[22px] w-[22px]" />
               </button>
           </div>
         </div>
