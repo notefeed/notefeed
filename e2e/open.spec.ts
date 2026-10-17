@@ -70,7 +70,7 @@ test("a note opens on its own page, with raw HTML shown as text", async ({ page 
   await expect(page).toHaveURL(new RegExp(`/${name}/\\d{8}T\\d{6}Z-[0-9a-f-]{36}$`));
   await expect(page.locator("article").getByText("<b id=injected>bold?</b>")).toBeVisible();
   await expect(page.locator("#injected")).toHaveCount(0);
-  await page.getByRole("link", { name: "Back to all notes" }).click();
+  await page.getByRole("navigation", { name: "Note actions" }).getByRole("link", { name: "All notes" }).click(); // from lg the way back is in the actions
   await expect(page).toHaveURL(`/${name}`);
 });
 

@@ -17,7 +17,7 @@ test("edit shows the new text on the note page and in the feed", async ({ page }
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await expect(page.getByRole("heading", { name: "Second draft" })).toBeVisible();
-  await page.getByRole("link", { name: "Back to all notes" }).click();
+  await page.getByRole("navigation", { name: "Note actions" }).getByRole("link", { name: "All notes" }).click(); // from lg the way back is in the actions
   await expect(page.getByRole("link", { name: "Second draft" })).toBeVisible();
   await expect(page.getByText("First draft")).toHaveCount(0);
 });
@@ -62,7 +62,7 @@ test("Ctrl+Enter saves an edit", async ({ page }) => {
 test("the read-only view has no edit or delete", async ({ page }) => {
   const name = feedName();
   await postAndOpen(page, name, "# Read me");
-  await page.getByRole("link", { name: "Back to all notes" }).click();
+  await page.getByRole("navigation", { name: "Note actions" }).getByRole("link", { name: "All notes" }).click(); // from lg the way back is in the actions
   await page.getByRole("link", { name: "Open read-only view" }).click();
   await expect(page).toHaveURL(/\/r\/[^/]+$/); // the feed page has a "Read me" link too: wait until it is the read-only one
   await page.getByRole("link", { name: "Read me" }).click();
