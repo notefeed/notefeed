@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Link2, Rss, Send } from "lucide-react";
+import { Link2, Rss, Send, TriangleAlert } from "lucide-react";
 import { HomeFeeds } from "@/components/HomeFeeds";
 import { card } from "@/components/styles";
 import { OpenFeed } from "@/components/OpenFeed";
@@ -51,9 +51,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <h2 id="open-feed" className="mb-1 text-[17px] font-bold">
           Open or create a feed
         </h2>
-        <p className="mb-4 text-sm text-muted">
-          <strong className="font-bold text-ink">Anyone who knows a feed&apos;s name can read and post to it — pick one that&apos;s hard to guess.</strong>
-        </p>
+        <div role="note" className="mb-4 mt-3 flex gap-3 rounded-xl border border-error/40 bg-error/5 p-3 text-sm">
+          <TriangleAlert aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-error" />
+          <p className="text-ink">
+            <strong className="font-bold">The name is the key.</strong> Anyone who knows a feed&apos;s name can read and post to it — pick one that&apos;s hard to guess,
+            like the one suggested below.
+          </p>
+        </div>
         <OpenFeed value={typeof feed === "string" ? feed : suggestFeedName()} error={error} carry={shared} />
       </section>
       {shared.length === 0 && <HomeFeeds />}

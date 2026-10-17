@@ -116,12 +116,12 @@ test("validateStorage: a yearly license price under Creem needs the yearly produ
   process.env.NOTEFEED_CREEM_WEBHOOK_SECRET = "whsec";
   process.env.PUBLIC_URL = "https://notefeed.test";
   expect(() => config.validateStorage()).not.toThrow();
-  process.env.NOTEFEED_LICENSE_PRICE_YEARLY = "EUR 19.90 per year";
+  process.env.NOTEFEED_LICENSE_PRICE_YEARLY = "19.90 € per year";
   expect(() => config.validateStorage()).toThrow(/NOTEFEED_CREEM_PRODUCT_ID_YEARLY/);
   process.env.NOTEFEED_CREEM_PRODUCT_ID_YEARLY = "prod_year";
   expect(() => config.validateStorage()).not.toThrow();
   expect(config.creem().yearlyProductId).toBe("prod_year");
-  expect(config.licensePriceYearly()).toBe("EUR 19.90 per year");
+  expect(config.licensePriceYearly()).toBe("19.90 € per year");
 });
 
 test("validateStorage: fs needs no secret and no URL", () => {
