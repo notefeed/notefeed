@@ -1,6 +1,6 @@
 # notefeed
 
-notefeed is a small inbox for short markdown notes. You post notes to a named feed from scripts over HTTP, or by hand in a web UI, and read them back as RSS. Each note is a plain file on disk, `.md` or an image, exactly as posted, with its metadata in a small `.json` file next to it; or a row in SQLite or PostgreSQL if you prefer a database.
+notefeed is a small inbox for short markdown notes. You post notes to a named feed from scripts over HTTP, from an AI assistant over [MCP](integrations/mcp.md), or by hand in a web UI, and read them back as RSS. Each note is a plain file on disk, `.md` or an image, exactly as posted, with its metadata in a small `.json` file next to it; or a row in SQLite or PostgreSQL if you prefer a database.
 
 It exists because dashboards like [Glance](https://github.com/glanceapp/glance) and Dynacat can *read* RSS but have nowhere to *post* to. A backup job, a deploy script or a cron check can drop a note into notefeed, and it shows up on the dashboard a few minutes later.
 

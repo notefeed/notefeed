@@ -44,8 +44,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {shared.length > 0 && <HomeFeeds query={shareQuery} label="Post what you shared to" />}
       <h1 className="text-3xl font-bold tracking-tight">Notes in, RSS out.</h1>
       <p className="mb-6 mt-2 text-muted">
-        A feed is a list of markdown notes with a name. Post to it from this page, your phone or one curl command, and
-        follow it in any RSS reader through its read link, which shows the notes but not the name.
+        A feed is a list of markdown notes with a name. Post to it from this page, your phone, one curl command or an AI
+        assistant over MCP, and follow it in any RSS reader through its read link, which shows the notes but not the name.
       </p>
       <section aria-labelledby="open-feed" className={`${card} mb-8 p-5`}>
         <h2 id="open-feed" className="mb-1 text-[17px] font-bold">
@@ -59,7 +59,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {shared.length === 0 && <HomeFeeds />}
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { icon: <Send />, title: "Post from anywhere", text: "This page, the share sheet of your phone, or one curl command." },
+          { icon: <Send />, title: "Post from anywhere", text: "This page, the share sheet of your phone, one curl command, or an AI assistant over MCP." },
           { icon: <Rss />, title: "Follow with RSS", text: "Any reader works. No account, no app." },
           { icon: <Link2 />, title: "Share without the name", text: "The read link shows the notes and can't post." },
         ].map((f) => (

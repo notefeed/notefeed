@@ -7,7 +7,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/notefeed?color=blue)](https://pypi.org/project/notefeed/)
 [![M8ven Score](https://m8ven.ai/badge/mcp/notefeed-notefeed-1y7zvn)](https://m8ven.ai/mcp/notefeed-notefeed-1y7zvn?s=readme)
 
-Post short markdown notes to a named feed — from a script over HTTP, or by hand in a small web UI — and read them back as RSS. Like [ntfy](https://ntfy.sh), but for notes: there are no accounts, a feed is just a name, and each note is a plain `.md` file on disk. Built as an inbox for dashboards like Glance and Dynacat, which can read RSS but have nowhere to post to.
+Post short markdown notes to a named feed — from a script over HTTP, an AI assistant over MCP, or by hand in a small web UI — and read them back as RSS. Like [ntfy](https://ntfy.sh), but for notes: there are no accounts, a feed is just a name, and each note is a plain `.md` file on disk. Built as an inbox for dashboards like Glance and Dynacat, which can read RSS but have nowhere to post to.
 
 - **Use notefeed.me:** nothing to install, open **https://notefeed.me** and post. Every feed starts on a free tier; see [the docs on notefeed.me](https://docs.notefeed.me/hosted/).
 - **Run your own:** the [quick start](#quick-start) below, the [releases](https://github.com/notefeed/notefeed/releases) and the [container image](https://github.com/notefeed/notefeed/pkgs/container/notefeed); see [Self-hosting](https://docs.notefeed.me/self-hosting/configuration/).
