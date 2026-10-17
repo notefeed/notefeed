@@ -59,6 +59,6 @@ export default defineConfig({
       NOTEFEED_OPERATOR_TOKEN: "e2e-operator-token-".padEnd(32, "x"),
     }),
     server(3102, { NOTEFEED_NOTICE_FILE: "e2e/fixtures/notice.md", NOTEFEED_STORAGE: "sqlite", NOTEFEED_DATABASE_URL: "file:test-results/e2e-3102.db", NOTEFEED_IMAGES: "fs", NOTEFEED_IMAGES_DIR: "test-results/e2e-3102-images", NOTEFEED_SECRET: "e2e-sqlite-secret-".padEnd(32, "x") }),
-    server(3104, { NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "e2e-webhook", NOTEFEED_FREE_NOTE_CAP: "10", NOTEFEED_LICENSE_PRICE: "EUR 1.99 per month", NOTEFEED_LICENSE_PRICE_YEARLY: "EUR 19.90 per year" }),
+    server(3104, { NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "e2e-webhook", NOTEFEED_FREE_NOTE_CAP: "10", NOTEFEED_LICENSE_PRICE: "1.99 € per month", NOTEFEED_LICENSE_PRICE_YEARLY: "19.90 € per year" }),
   ],
 });

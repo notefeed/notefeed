@@ -65,7 +65,7 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
   test("a yearly license can be bought once its price is set, and the period must be month or year", async () => {
     expect((await checkoutRoute(post("/api/licenses/checkout", { period: "year" }))).status).toBe(400);
     expect((await checkoutRoute(post("/api/licenses/checkout", { period: "week" }))).status).toBe(400);
-    vi.stubEnv("NOTEFEED_LICENSE_PRICE_YEARLY", "EUR 19.90 per year");
+    vi.stubEnv("NOTEFEED_LICENSE_PRICE_YEARLY", "19.90 € per year");
     const { url } = await (await checkoutRoute(post("/api/licenses/checkout", { period: "year" }))).json();
     expect(url).toMatch(/^https:\/\/notefeed\.test\/license#[A-Za-z0-9_-]{22}$/);
     expect((await checkoutRoute(post("/api/licenses/checkout", { period: "week" }))).status).toBe(400);

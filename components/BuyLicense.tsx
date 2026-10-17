@@ -120,12 +120,15 @@ function Plan({ title, price, badge, busy, onBuy, buyLabel, primary: highlighted
 // "Save 17 %": what the yearly price saves against twelve months, when both are an amount in the same currency (the prices are the
 // operator's free text, NOTEFEED_LICENSE_PRICE and _YEARLY); otherwise nothing is claimed.
 export function saving(monthly: string, yearly: string): string | undefined {
-  const amount = (s: string) => s.match(/^\s*([A-Z]{3}|[€$£])\s*(\d+(?:[.,]\d{1,2})?)/);
+  // The currency before the amount ("EUR 1.99", "€1.99") or after it ("1.99 €").
+  const amount = (s: string) => {
+    const m = s.match(/^\s*(?:([A-Z]{3}|[€$£])\s*(\d+(?:[.,]\d{1,2})?)|(\d+(?:[.,]\d{1,2})?)\s*([A-Z]{3}|[€$£]))/);
+    return m && { currency: m[1] ?? m[4], value: Number((m[2] ?? m[3]).replace(",", ".")) };
+  };
   const m = amount(monthly);
   const y = amount(yearly);
-  if (!m || !y || m[1] !== y[1]) return undefined;
-  const perYear = Number(m[2].replace(",", ".")) * 12;
-  const percent = Math.floor((1 - Number(y[2].replace(",", ".")) / perYear) * 100);
+  if (!m || !y || m.currency !== y.currency) return undefined;
+  const percent = Math.floor((1 - y.value / (m.value * 12)) * 100);
   return percent > 0 ? `Save ${percent} %` : undefined;
 }
 
