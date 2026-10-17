@@ -1,6 +1,6 @@
 // A feed on disk is a directory `<DATA_DIR>/<feed>/`.
 import { randomBytes } from "node:crypto";
-import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { logger } from "../../log";
 import { feedDir, isErrno, orMissing, root } from "./fs";
@@ -55,6 +55,9 @@ const readIdFile = (feed: string) => join(feedDir(feed), ".readid");
 
 export const readReadId = async (feed: string): Promise<string | null> =>
   (await orMissing(readFile(/*turbopackIgnore: true*/ readIdFile(feed), "utf8"), null))?.trim() ?? null;
+
+// Whether the feed's directory is there: a missing `.readid` alone is a legacy feed, not a gone one.
+export const feedDirExists = (feed: string): Promise<boolean> => stat(/*turbopackIgnore: true*/ feedDir(feed)).then(() => true, () => false);
 
 // The one way a feed directory is made: a temp directory under DATA_DIR holding `.readid` (and `.password`
 // for a protected feed) is renamed into place, so the feed appears complete or not at all and is never open

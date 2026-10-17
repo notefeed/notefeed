@@ -5,7 +5,7 @@
 import { NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
 import { logger } from "../../log";
 import type { Storage } from "../types";
-import { appendBlocklist, appendTombstone, createFeedDir, deleteFeedDir, listFeedDirs, readBlocklist, readReadId, readTombstones, removeLeftovers, writeReadId } from "./feeds";
+import { appendBlocklist, appendTombstone, createFeedDir, deleteFeedDir, feedDirExists, listFeedDirs, readBlocklist, readReadId, readTombstones, removeLeftovers, writeReadId } from "./feeds";
 import { isErrno } from "./fs";
 
 const log = logger("feeds");
@@ -122,9 +122,11 @@ export function createFeedMethods(deps: FeedDeps, dataDir: () => string): FeedMe
       if (made) register(idx, feed, readId);
       else {
         // Lost a race (or the feed exists): use the winner's id, unless the winner (or a later creation) is registered by now.
-        // What was read from disk may then be older than the entry.
+        // What was read from disk may then be older than the entry. A winner deleted meanwhile is not registered: its `.readid`
+        // reads as missing, which would list the name as a legacy feed with no directory.
         const theirs = await idOnDisk(feed, true);
-        if (!idx.byFeed.has(feed)) register(idx, feed, theirs);
+        const there = await feedDirExists(feed);
+        if (there && !idx.byFeed.has(feed)) register(idx, feed, theirs);
       }
       return { created: made };
     },
