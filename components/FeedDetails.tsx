@@ -8,9 +8,9 @@ import { DisclosureRow, FieldRow, Group } from "@/components/SettingsRows";
 import { feedDetailsErrorMessage } from "@/app/_lib/messages";
 import { postFile, useApiForm } from "@/app/_lib/useApiForm";
 
-// A feed's title, description and title image, and deleting it: plain forms to POST /<feed>/details and /delete.
-// `sharing` (the read link rows) opens the Sharing group, `children` (the license and access groups) sit between it and
-// deleting, so deleting stays last. With
+// A feed's title image, title and description, and deleting it: plain forms to POST /<feed>/details and /delete.
+// After the profile, the Sharing group: the read id first, then `sharing` (the read link rows). `children` (the license and
+// access groups) sit between it and deleting, so deleting stays last. With
 // JavaScript they go through the generated API client and show refusals inline; without, the browser follows
 // the 303 (the feed page says "Saved." or shows the refusal as `error`, or the home page says "Feed deleted.").
 export function FeedDetails({ feed, title: savedTitle, description: savedDescription, image, imageUrl, images, showSender: savedShowSender, readId, readIdChoice, identity, error: initialError, sharing, children }: { sharing?: ReactNode; children?: ReactNode; feed: string; title: string; description: string; image: string; imageUrl: string | null; images: { file: string; url: string; title: string }[]; showSender: boolean; readId: string | null; readIdChoice: "custom" | "random" | "fixed"; identity: boolean; error?: string }) {
@@ -58,30 +58,6 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
   return (
     <div className="space-y-6 text-sm">
       <Group id="profile" label="Profile">
-        <form id="feed-details-form" method="post" action={`/${feed}/details`} onSubmit={(e) => save(e)} className="divide-y divide-rule">
-          <FieldRow icon={<Type />} label="Title" htmlFor="feed-title">
-            <input id="feed-title" name="title" maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
-          </FieldRow>
-          <FieldRow icon={<AlignLeft />} label="Description" htmlFor="feed-description">
-            <input id="feed-description" name="description" maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
-          </FieldRow>
-          {identity && (
-            <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
-              <input type="hidden" name="show_sender_present" value="1" />
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-                <UserRound aria-hidden className="h-[18px] w-[18px]" />
-              </span>
-              <span className="min-w-0 flex-1 text-[15px]">Show who posted</span>
-              <input type="checkbox" name="show_sender" checked={showSender} onChange={(e) => setShowSender(e.target.checked)} className="peer sr-only" />
-              <span aria-hidden className="relative h-6 w-11 shrink-0 rounded-full bg-rule transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-surface after:shadow-card after:transition-transform peer-checked:bg-carbon peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-carbon" />
-            </label>
-          )}
-          <div className="flex justify-end px-4 py-3">
-            <button type="submit" disabled={pending} className={primary}>
-              Save changes
-            </button>
-          </div>
-        </form>
         {hydrated && (
           <DisclosureRow
             icon={<ImagePlus />}
@@ -146,10 +122,33 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
             )}
           </DisclosureRow>
         )}
+        <form id="feed-details-form" method="post" action={`/${feed}/details`} onSubmit={(e) => save(e)} className="divide-y divide-rule">
+          <FieldRow icon={<Type />} label="Title" htmlFor="feed-title">
+            <input id="feed-title" name="title" maxLength={100} value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
+          </FieldRow>
+          <FieldRow icon={<AlignLeft />} label="Description" htmlFor="feed-description">
+            <input id="feed-description" name="description" maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
+          </FieldRow>
+          {identity && (
+            <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
+              <input type="hidden" name="show_sender_present" value="1" />
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
+                <UserRound aria-hidden className="h-[18px] w-[18px]" />
+              </span>
+              <span className="min-w-0 flex-1 text-[15px]">Show who posted</span>
+              <input type="checkbox" name="show_sender" checked={showSender} onChange={(e) => setShowSender(e.target.checked)} className="peer sr-only" />
+              <span aria-hidden className="relative h-6 w-11 shrink-0 rounded-full bg-rule transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-surface after:shadow-card after:transition-transform peer-checked:bg-carbon peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-carbon" />
+            </label>
+          )}
+          <div className="flex justify-end px-4 py-3">
+            <button type="submit" disabled={pending} className={primary}>
+              Save changes
+            </button>
+          </div>
+        </form>
       </Group>
 
       <Group id="sharing" label="Sharing">
-        {sharing}
         {readIdChoice !== "fixed" && readId && (
           <DisclosureRow icon={<Fingerprint />} label="Read id" value={<code className="font-mono">{readId}</code>} open={!!initialError}>
             {readIdChoice === "custom" && (
@@ -176,6 +175,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
             </p>
           </DisclosureRow>
         )}
+        {sharing}
       </Group>
 
       {children}

@@ -168,15 +168,15 @@ export function NoteActionsPanel() {
 }
 
 // The note's actions (issue #185): docked at the bottom of a phone's screen, so they stay in reach on a long note; a row
-// above the note from lg; a card in the right column from xl, which stays put while the note scrolls, level with the note:
-// it starts below the height of the "All notes" link above the note (NoteArticle).
+// above the note from lg; a card in the right column from xl, which stays put while the note scrolls, level with the note
+// (the "All notes" link above the note is hidden from lg, NoteArticle).
 export function NoteActionsBar() {
   const { back, mode, setMode, copied, copyLink, reportHref } = useActions();
   const button = "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2 xl:min-w-0 xl:flex-row xl:gap-3 xl:px-3 xl:py-2 xl:text-[14px]";
   return (
     <nav
       aria-label="Note actions"
-      className="flex items-center justify-around bg-surface max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-t max-lg:border-rule max-lg:px-[max(0.75rem,env(safe-area-inset-left),env(safe-area-inset-right))] max-lg:pt-1.5 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:justify-start lg:gap-2 lg:rounded-2xl lg:border lg:border-rule lg:p-1.5 lg:shadow-card xl:mt-10 xl:flex-col xl:items-stretch xl:gap-0.5 xl:p-2"
+      className="flex items-center justify-around bg-surface max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-t max-lg:border-rule max-lg:px-[max(0.75rem,env(safe-area-inset-left),env(safe-area-inset-right))] max-lg:pt-1.5 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:justify-start lg:gap-2 lg:rounded-2xl lg:border lg:border-rule lg:p-1.5 lg:shadow-card xl:flex-col xl:items-stretch xl:gap-0.5 xl:p-2"
     >
       <p className={`${sectionLabel} hidden px-3 pb-1 pt-1.5 xl:block`}>This note</p>
       <button type="button" aria-pressed={mode === "edit"} onClick={() => setMode(mode === "edit" ? null : "edit")} className={`${button} ${mode === "edit" ? "text-carbon" : ""}`}>
@@ -197,8 +197,8 @@ export function NoteActionsBar() {
         <Trash2 aria-hidden className="h-5 w-5" />
         Delete
       </button>
-      {/* Not on a phone, where the "All notes" link above the note is at hand: first in the row from lg (the note's own link
-          is hidden there), last in the right column from xl. */}
+      {/* Not on a phone, where the "All notes" link above the note is at hand: first in the row from lg, last in the right
+          column from xl (the note's own link is hidden from lg). */}
       <div className="hidden lg:order-first lg:mr-auto lg:flex xl:order-none xl:mr-0 xl:flex-col">
         <div className="mx-2 my-1 hidden border-t border-rule xl:block" />
         <Link href={back} className={`${button} text-carbon`}>
