@@ -23,7 +23,7 @@ There are no accounts. A license is a **key** you keep: notefeed stores only a h
 A key works on one feed at a time, and can be moved:
 
 - **In the feed's settings:** open the **License** row and enter the key under *Use key*. Entering it on another feed later moves the license there. *Take the license off this feed* frees the key without moving it.
-- **When creating a protected feed:** the compose box of a new feed has a **License key** field next to the password, so the first note creates the feed protected and licensed in one go. A feed can only get a password when it is created, so this is the only way to a protected feed. Without the key, the box says so and links to the license page.
+- **When creating a protected feed:** a new feed's **Protect this feed** section has a **License key** field under the password, so the first note creates the feed protected and licensed in one go. A feed can only get a password when it is created, so this is the only way to a protected feed. Without the key, the compose box says so and links to the license page.
 - **From a script:** send `X-License-Key` next to `X-Feed-Password` on the post that creates the feed. The [client libraries](../integrations/clients.md) take it as `license_key` (Python) or `licenseKey` (Node), and the [MCP server](../integrations/mcp.md)'s `post_note` as `license_key`. Without it the post is `402` (`license_required`); a key notefeed does not know is `400`. On an existing feed the key goes in through the settings.
 
 ```sh

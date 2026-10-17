@@ -9,6 +9,7 @@ import { FreeTierNotice } from "@/components/FreeTier";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { card } from "@/components/styles";
 import { NoteList, TagFilter } from "@/components/NoteList";
+import { ProtectFeed } from "@/components/ProtectFeed";
 import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
@@ -71,6 +72,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
   const curlExample = curlFor(base, feed, access === "unlocked");
   // What another app shared to notefeed (app/share): the text and the link go into the note.
   const shared = [one(share_text), one(share_url)].filter(Boolean).join("\n\n");
+  const isNew = access === "open" && !exists;
 
   return (
     <AppShell
@@ -88,7 +90,9 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           tags={tagsOf(all.notes)}
           tag={tag}
           base={feedPath(feed)}
-        />
+        >
+          {isNew && <ProtectFeed licensing={licensingOn()} />}
+        </FeedAbout>
       }
     >
       {exists && <RememberFeed feed={{ name: feed, title, image: data.imageUrl }} />}
@@ -99,7 +103,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
         </p>
       )}
       <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={errorMessage(error, retry)} errorCode={one(error)}
-        isNew={access === "open" && !exists} licensing={licensingOn()} settingsHref={exists ? settingsPath(feed) : undefined}
+        isNew={isNew} settingsHref={exists ? settingsPath(feed) : undefined}
         sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
         initialTitle={one(share_title)} initialText={shared}
       />
