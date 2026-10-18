@@ -23,7 +23,7 @@ export { hasLegalPage, readLegalPage, readNotice, type LegalPage } from "./legal
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
 export { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./http/licenses";
-export { moveImagesRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
+export { moveImagesRoute, resealRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
 export { feedCookieName, feedUnlocked } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
 export { feedAccessRoute } from "./http/feedsession";

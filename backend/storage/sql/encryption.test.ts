@@ -42,11 +42,15 @@ async function raw(url: string): Promise<Kysely<Schema>> {
   return db;
 }
 // An image store in memory, to look inside.
-function memoryStore(): ImageStore & { objects: Map<string, Buffer> } {
+// `hooks.put` runs before a put, once per call, and may fail it.
+function memoryStore(hooks: { put?: (key: string) => Promise<void> } = {}): ImageStore & { objects: Map<string, Buffer> } {
   const objects = new Map<string, Buffer>();
   return {
     objects,
-    put: async (k, b) => void objects.set(k, Buffer.from(b)),
+    async put(k, b) {
+      await hooks.put?.(k);
+      objects.set(k, Buffer.from(b));
+    },
     get: async (k) => objects.get(k) ?? null,
     delete: async (k) => void objects.delete(k),
     async *list() {
@@ -283,6 +287,87 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       expect((await db.selectFrom("feeds").select("key_id").execute()).every((r) => r.key_id === aId)).toBe(true);
       expect((await db.selectFrom("keyring").select("key_id").executeTakeFirstOrThrow()).key_id).toBe(aId);
       expect(await storageOn(url, createLocalWrapper(b, [a])).listFeeds()).toEqual(["one", "two"]);
+    });
+  });
+
+  describe("reseal", () => {
+    async function plainNotes(url: string, store: ImageStore) {
+      const s = storageOn(url, null, { store, external });
+      await s.createFeed("f", "Rid-F");
+      for (const n of ["a", "b", "c"]) await s.writeNote("f", n, "md", `text ${n}`, { title: `Title ${n}` });
+      await s.writeNote("f", "p", "png", PNG, {});
+      await s.close();
+    }
+
+    test("reseal encrypts every note", async () => {
+      const url = await database();
+      const store = memoryStore();
+      await plainNotes(url, store);
+      const s = storageOn(url, createLocalWrapper(key()), { store, external });
+      let after: string | undefined;
+      let total = 0;
+      for (let i = 0; i < 10; i++) {
+        const r = await s.reseal({ limit: 2, after });
+        total += r.resealed;
+        expect(r.failed).toBe(0);
+        if (r.next === null) break;
+        after = r.next;
+      }
+      expect(total).toBe(4);
+      const db = await raw(url);
+      const rows = await db.selectFrom("notes").selectAll().execute();
+      expect(rows.every((r) => r.sealed === 1)).toBe(true);
+      expect(allText(rows)).not.toContain("text a");
+      expect(allText(rows)).not.toContain("Title b");
+      for (const b of store.objects.values()) expect(b.toString("latin1")).not.toContain("PNGMARK");
+      expect([...store.objects.keys()]).toEqual(rows.flatMap((r) => (r.blob_key ? [r.blob_key] : [])));
+      expect((await s.readNote("f", "c", ALL, () => true))?.content.toString()).toBe("text c");
+      expect((await s.readMeta("f", { id: "a", ext: "md" }))?.title).toBe("Title a");
+      expect((await s.readFile("f", "p.png"))?.equals(PNG)).toBe(true);
+      expect(await s.reseal({ limit: 10 })).toEqual({ resealed: 0, skipped: 0, failed: 0, left: 0, next: null });
+    });
+
+    test("reseal loses no edit made meanwhile", async () => {
+      const url = await database();
+      const live: { s?: SqlStorage } = {};
+      let edited = false;
+      const store = memoryStore({
+        put: async () => {
+          if (!live.s || edited) return;
+          edited = true; // the reseal's copy is about to be stored: the note is replaced first
+          await live.s.replaceNote("f", "p", ["png"], Buffer.concat([PNG, Buffer.from("edited")]));
+        },
+      });
+      const plain = storageOn(url, null, { store, external });
+      await plain.createFeed("f", "Rid-F");
+      await plain.writeNote("f", "p", "png", PNG, {});
+      await plain.close();
+      const s = (live.s = storageOn(url, createLocalWrapper(key()), { store, external }));
+      const r = await s.reseal({ limit: 10 });
+      expect(r).toMatchObject({ resealed: 0, skipped: 1, failed: 0 });
+      expect((await s.readFile("f", "p.png"))?.toString("latin1")).toContain("edited");
+      const rows = await (await raw(url)).selectFrom("notes").select("blob_key").execute();
+      expect([...store.objects.keys()]).toEqual(rows.map((x) => x.blob_key));
+      expect((await s.reseal({ limit: 10 })).resealed).toBe(1);
+      expect((await s.readFile("f", "p.png"))?.toString("latin1")).toContain("edited");
+    });
+
+    test("reseal is resumable", async () => {
+      const url = await database();
+      let fail = false;
+      const store = memoryStore({ put: async () => { if (fail) { fail = false; throw new Error("store down"); } } });
+      await plainNotes(url, store);
+      const s = storageOn(url, createLocalWrapper(key()), { store, external });
+      fail = true;
+      const first = await s.reseal({ limit: 10 });
+      expect(first).toMatchObject({ resealed: 3, failed: 1 });
+      expect(await s.reseal({ limit: 10 })).toMatchObject({ resealed: 1, failed: 0 });
+      expect((await s.readFile("f", "p.png"))?.equals(PNG)).toBe(true);
+    });
+
+    test("without a key there is nothing to reseal", async () => {
+      const s = storageOn(await database(), null);
+      await expect(s.reseal({ limit: 1 })).rejects.toThrow("nothing to reseal: NOTEFEED_ENCRYPTION_KEY is not set");
     });
   });
 });

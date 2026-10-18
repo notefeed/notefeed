@@ -32,7 +32,16 @@ export type SqlStorage = Storage & {
    * move would delete what it moved.
    */
   moveImages(o: { from: ImageStore | "db"; limit: number; after?: string }): Promise<Move>;
+  /**
+   * The operator's encryption of the notes stored before encryption was turned on (issue #212): at most `limit` plain notes per call,
+   * newest first, behind the cursor `after` (as moveImages). Each note is sealed whole and in a safe order (a sealed copy of an image
+   * first, the row next, the plain object last); a note that changed meanwhile is passed over (`skipped`) and found again by the
+   * next call. Throws when the database is not encrypted.
+   */
+  reseal(o: { limit: number; after?: string }): Promise<Reseal>;
 };
+
+export type Reseal = { resealed: number; skipped: number; failed: number; left: number; next: string | null };
 
 /** `skipped`: rows that changed meanwhile or were moved by an earlier run. `next`: the cursor for the next call, null when nothing is left. */
 export type Move = { moved: { count: number; bytes: number }; skipped: number; missing: number; failed: number; left: number; next: string | null };
@@ -536,6 +545,68 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       }
       log.info({ moved: move.moved.count, bytes: move.moved.bytes, skipped: move.skipped, missing: move.missing, failed: move.failed, left: move.left }, "images moved to the configured store");
       return move;
+    },
+
+    async reseal({ limit, after }) {
+      const db = await open();
+      if (!ring) throw new Error("nothing to reseal: NOTEFEED_ENCRYPTION_KEY is not set");
+      const out: Reseal = { resealed: 0, skipped: 0, failed: 0, left: 0, next: null };
+      const pending = (before: { at: number; id: string } | null) => {
+        let q = db.selectFrom("notes").where("sealed", "=", 0);
+        if (before) q = q.where((eb) => eb.or([eb("created_at", "<", before.at), eb.and([eb("created_at", "=", before.at), eb("id", "<", before.id)])]));
+        return q;
+      };
+      const rows = await pending(after ? parseCursor(after) : null)
+        .select(["feed", "id", "content", "blob_key", "metadata", "created_at", "updated_at"])
+        .orderBy("created_at", "desc")
+        .orderBy("id", "desc")
+        .limit(limit)
+        .execute();
+      for (const row of rows) {
+        let copy: string | null = null;
+        try {
+          // Since the start, every feed has its data key; notes are on the feed's fingerprint.
+          const feedRow = await db.selectFrom("feeds").select(["data_key", "key_id"]).where("name", "=", row.feed).executeTakeFirst();
+          const key = feedRow && (await keyOf(feedRow));
+          const plain = key && (await bytesOf(row));
+          if (!key || !plain) {
+            out.skipped++; // the feed went meanwhile, or the image is missing from the store (sweepImages counts those)
+            continue;
+          }
+          const sealedBytes = seal(key, plain, `note:${row.id}:content`);
+          if (row.blob_key !== null) await stored((copy = newKey()), sealedBytes);
+          const r = await db
+            .updateTable("notes")
+            .set({ content: copy ? EMPTY : sealedBytes, blob_key: copy, metadata: row.metadata === null ? null : sealText(key, row.metadata, `note:${row.id}:meta`), sealed: 1 })
+            .where("feed", "=", row.feed)
+            .where("id", "=", row.id)
+            .where("sealed", "=", 0)
+            .where("blob_key", row.blob_key === null ? "is" : "=", row.blob_key)
+            .where("metadata", row.metadata === null ? "is" : "=", row.metadata)
+            .where("updated_at", "=", Number(row.updated_at))
+            .executeTakeFirst();
+          if (!changed(r.numUpdatedRows)) {
+            await drop([copy]);
+            out.skipped++;
+            continue;
+          }
+          await drop([row.blob_key]);
+          out.resealed++;
+        } catch (err) {
+          await drop([copy]);
+          out.failed++;
+          log.warn({ err }, "a note could not be resealed");
+        }
+      }
+      if (rows.length === limit) {
+        const last = rows[rows.length - 1];
+        const at = { at: Number(last.created_at), id: last.id };
+        const r = await pending(at).select(sql<number | string>`count(*)`.as("n")).executeTakeFirstOrThrow();
+        out.left = Number(r.n);
+        out.next = out.left > 0 ? `${at.at}:${at.id}` : null;
+      }
+      log.info({ resealed: out.resealed, skipped: out.skipped, failed: out.failed, left: out.left }, "notes resealed");
+      return out;
     },
 
     async close() {
