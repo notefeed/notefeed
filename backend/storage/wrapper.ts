@@ -48,5 +48,5 @@ export function wrapperFromConfig(): KeyWrapper | null {
   return key ? createLocalWrapper(key, config.encryptionOldKeys()) : null;
 }
 
-/** Which main keys are configured, as a hash: for a cache of instances built with them, which must never hold the keys. */
-export const encryptionKeys = (): string => createHash("sha256").update(JSON.stringify([config.encryptionKey(), config.encryptionOldKeys()])).digest("hex");
+/** Which main keys (or key service) are configured, as a hash: for a cache of instances built with them, which must never hold the keys. */
+export const encryptionKeys = (): string => createHash("sha256").update(JSON.stringify([config.encryptionKey(), config.encryptionOldKeys(), config.kms(), config.openbao()])).digest("hex");

@@ -28,6 +28,26 @@ const dataDir = () => env("DATA_DIR") || "/data";
 // SQLite defaults to a file next to where `fs` keeps its data, so the same volume works.
 const databaseUrl = () => env("NOTEFEED_DATABASE_URL") || (storageKind() === "sqlite" ? `file:${dataDir().replace(/\/+$/, "")}/notefeed.db` : "");
 
+// Where the main key lives (issue #215): empty for the local NOTEFEED_ENCRYPTION_KEY, or a key service.
+export const KMS_KINDS = ["openbao"] as const;
+function kms(): "" | (typeof KMS_KINDS)[number] {
+  const v = env("NOTEFEED_KMS").trim().toLowerCase();
+  if (v === "" || (KMS_KINDS as readonly string[]).includes(v)) return v as "" | (typeof KMS_KINDS)[number];
+  throw new Error(`NOTEFEED_KMS must be ${KMS_KINDS.join(", ")} or empty, got "${v}"`);
+}
+
+// OpenBao's Transit engine (Vault-compatible), logged in to with an AppRole.
+const openbao = () => ({
+  addr: env("NOTEFEED_OPENBAO_ADDR").trim().replace(/\/+$/, ""),
+  mount: env("NOTEFEED_OPENBAO_MOUNT").trim() || "transit",
+  key: env("NOTEFEED_OPENBAO_KEY").trim() || "notefeed",
+  roleId: env("NOTEFEED_OPENBAO_ROLE_ID").trim(),
+  secretId: env("NOTEFEED_OPENBAO_SECRET_ID").trim(),
+});
+
+/** Encryption at rest is on: a local main key, or the key service. */
+export const encryptionOn = (): boolean => env("NOTEFEED_ENCRYPTION_KEY") !== "" || kms() !== "";
+
 // Where a database backend keeps image bytes: in the row, in a folder, or in an S3-compatible object store.
 export const IMAGE_STORES = ["db", "fs", "s3"] as const;
 export type ImageStoreKind = (typeof IMAGE_STORES)[number];
@@ -85,7 +105,15 @@ function validateStorage(): void {
   const short = (k: string) => Buffer.byteLength(k) < 32;
   if (key.includes(",")) throw new Error("NOTEFEED_ENCRYPTION_KEY must not contain a comma: after a key change it goes into the comma-separated NOTEFEED_ENCRYPTION_OLD_KEYS (openssl rand -hex 32 makes none)");
   if (key && short(key)) throw new Error("NOTEFEED_ENCRYPTION_KEY must be at least 32 bytes (e.g. openssl rand -hex 32)");
-  if (key && config.encryptionOldKeys().some(short)) throw new Error("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes (e.g. openssl rand -hex 32)");
+  if ((key || kms()) && config.encryptionOldKeys().some(short)) throw new Error("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes (e.g. openssl rand -hex 32)");
+  if (kms() === "openbao") {
+    if (kind === "fs") throw new Error("NOTEFEED_KMS needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend is not encrypted");
+    if (key) throw new Error("NOTEFEED_KMS=openbao replaces NOTEFEED_ENCRYPTION_KEY: to move to the key service, put the local key in NOTEFEED_ENCRYPTION_OLD_KEYS");
+    const { addr, roleId, secretId } = openbao();
+    const missing = Object.entries({ NOTEFEED_OPENBAO_ADDR: addr, NOTEFEED_OPENBAO_ROLE_ID: roleId, NOTEFEED_OPENBAO_SECRET_ID: secretId }).flatMap(([k, v]) => (v === "" ? [k] : []));
+    if (missing.length) throw new Error(`NOTEFEED_KMS=openbao needs ${missing.join(", ")}`);
+    if (!/^https?:\/\//i.test(addr) || !URL.canParse(addr)) throw new Error("NOTEFEED_OPENBAO_ADDR must be an http(s) URL");
+  }
   if (kind === "fs") return;
   if (kind === "postgres" && databaseUrl() === "") throw new Error("NOTEFEED_STORAGE=postgres needs NOTEFEED_DATABASE_URL");
   if (Buffer.byteLength(env("NOTEFEED_SECRET")) < 32) {
@@ -109,6 +137,8 @@ export const config = {
   secret: () => env("NOTEFEED_SECRET"),
   // Encryption at rest (issue #212): the main key, and old ones kept for the one start that wraps everything again under the new key.
   encryptionKey: () => env("NOTEFEED_ENCRYPTION_KEY"),
+  kms,
+  openbao,
   encryptionOldKeys: () => env("NOTEFEED_ENCRYPTION_OLD_KEYS").split(",").map((k) => k.trim()).filter(Boolean),
   publicUrl: () => env("PUBLIC_URL").replace(/\/+$/, ""),
   title: () => env("NOTEFEED_TITLE") || "notefeed",
