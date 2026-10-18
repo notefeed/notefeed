@@ -13,7 +13,7 @@ afterEach(() => {
   delete process.env.NOTEFEED_METRICS_TOKEN;
   delete process.env.NOTEFEED_SHRINK_IMAGE_BYTES;
   delete process.env.NOTEFEED_MAX_IMAGE_BYTES;
-  for (const k of ["NOTEFEED_PAYMENT_PROVIDER", "NOTEFEED_CREEM_API_KEY", "NOTEFEED_CREEM_PRODUCT_ID", "NOTEFEED_CREEM_PRODUCT_ID_YEARLY", "NOTEFEED_CREEM_WEBHOOK_SECRET", "NOTEFEED_LICENSE_PRICE_YEARLY", "PUBLIC_URL", "NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", ...S3_VARS]) delete process.env[k];
+  for (const k of ["NOTEFEED_PAYMENT_PROVIDER", "NOTEFEED_CREEM_API_KEY", "NOTEFEED_CREEM_PRODUCT_ID", "NOTEFEED_CREEM_PRODUCT_ID_YEARLY", "NOTEFEED_CREEM_WEBHOOK_SECRET", "NOTEFEED_LICENSE_PRICE_YEARLY", "PUBLIC_URL", "NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", "NOTEFEED_ENCRYPTION_KEY", "NOTEFEED_ENCRYPTION_OLD_KEYS", ...S3_VARS]) delete process.env[k];
 });
 
 test("the report URL template is empty unless set, and trimmed; with an endpoint and no template, the link opens the built-in page", () => {
@@ -107,6 +107,22 @@ test("validateStorage: sqlite and postgres need a 32-byte NOTEFEED_SECRET", () =
     process.env.NOTEFEED_SECRET = "x".repeat(32);
     expect(() => config.validateStorage()).not.toThrow();
   }
+});
+
+test("validateStorage: an encryption key needs a database backend", () => {
+  process.env.NOTEFEED_ENCRYPTION_KEY = "k".repeat(64);
+  expect(() => config.validateStorage()).toThrow("NOTEFEED_ENCRYPTION_KEY needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend is not encrypted");
+  process.env.NOTEFEED_STORAGE = "sqlite";
+  process.env.NOTEFEED_SECRET = "x".repeat(32);
+  expect(() => config.validateStorage()).not.toThrow();
+  process.env.NOTEFEED_SECRET = "k".repeat(64);
+  expect(() => config.validateStorage()).toThrow("NOTEFEED_ENCRYPTION_KEY must not be NOTEFEED_SECRET");
+});
+
+test("encryptionOldKeys: comma-separated, trimmed, empties dropped", () => {
+  expect(config.encryptionOldKeys()).toEqual([]);
+  process.env.NOTEFEED_ENCRYPTION_OLD_KEYS = " a , ,b,";
+  expect(config.encryptionOldKeys()).toEqual(["a", "b"]);
 });
 
 test("validateStorage: a yearly license price under Creem needs the yearly product", () => {
