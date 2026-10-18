@@ -1,4 +1,25 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 @AGENTS.md
+
+## Commands
+
+- `npm run dev` serves on http://localhost:3000.
+- `npm run generate` after changing the API in `backend/http/api.ts`: writes `openapi.json` and from it the JS clients (`packages/js/src/generated/`, `app/_lib/api/`) and the Python client. All generated code is committed; CI fails when it is stale. Needs Node ≥ 22.18 (`.nvmrc`) and uv.
+
+## Architecture
+
+- `app/` is the Next.js UI and routes; all server logic is in `backend/` (ADR 0003), code used by both in `shared/`. Every POST is a backend route handler (ADR 0005).
+- Storage is one interface, `backend/storage/types.ts`: file system (default), SQLite or PostgreSQL via Kysely, chosen by `NOTEFEED_STORAGE`. The contract suite `backend/storage/contract.ts` runs against every backend (ADR 0023); images go to the image store (ADR 0024).
+- Use the words in `CONTEXT.md`, not its _Avoid_ ones.
+
+## Production (notefeed.me)
+
+- `../notefeed-stacks` (public): the server's compose files (notefeed, PostgreSQL 17, the Versity S3 gateway for images, Caddy) and the backup scripts `dump.sh` and `copy-images.sh`.
+- `../notefeed-ansible` (private, secrets in an Ansible vault): provisions the Hetzner server, the dump timers and the restic copy to the Storage Box.
+- `../infra-stacks` and `../infra-ansible` (3D-Bruckner): the shared monitoring server (Prometheus, Loki, Grafana, Uptime Kuma, Authentik) and noticebox, which receives the notefeed.me report forms.
 
 ## Tests
 
