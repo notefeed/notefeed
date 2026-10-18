@@ -41,19 +41,24 @@ async function encrypted(db: Kysely<Schema>): Promise<boolean> {
   );
 }
 
-// The fingerprint key, made or wrapped again under the current main key.
-async function fingerprintKey(tx: Transaction<Schema>, wrapper: KeyWrapper): Promise<Buffer> {
-  const row = await tx.selectFrom("keyring").select(["key_id", "wrapped"]).where("name", "=", FINGERPRINT).executeTakeFirst();
+/**
+ * A key of the keyring table (`name`: "fingerprint", or "data" in the licenses database), made, or wrapped again under the current
+ * main key. Shared by both databases, whose schemas differ elsewhere; hence the untyped transaction.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function ringKey(tx: Transaction<any>, name: string, wrapper: KeyWrapper): Promise<Buffer> {
+  const read = (): Promise<{ key_id: string; wrapped: string } | undefined> => tx.selectFrom("keyring").select(["key_id", "wrapped"]).where("name", "=", name).executeTakeFirst();
+  const row = await read();
   if (!row) {
     const key = newDataKey();
     const wrapped = await wrapper.wrap(key);
-    await tx.insertInto("keyring").values({ name: FINGERPRINT, key_id: wrapper.keyId, wrapped }).onConflict((oc) => oc.column("name").doNothing()).execute();
+    await tx.insertInto("keyring").values({ name, key_id: wrapper.keyId, wrapped }).onConflict((oc) => oc.column("name").doNothing()).execute();
     // Another start may have made one first (SQLite has no lock to wait on): theirs wins.
-    const won = await tx.selectFrom("keyring").select(["key_id", "wrapped"]).where("name", "=", FINGERPRINT).executeTakeFirstOrThrow();
+    const won = (await read())!;
     return won.wrapped === wrapped ? key : wrapper.unwrap(won.wrapped, won.key_id);
   }
   const key = await wrapper.unwrap(row.wrapped, row.key_id);
-  if (row.key_id !== wrapper.keyId) await tx.updateTable("keyring").set({ key_id: wrapper.keyId, wrapped: await wrapper.wrap(key) }).where("name", "=", FINGERPRINT).execute();
+  if (row.key_id !== wrapper.keyId) await tx.updateTable("keyring").set({ key_id: wrapper.keyId, wrapped: await wrapper.wrap(key) }).where("name", "=", name).execute();
   return key;
 }
 
@@ -63,7 +68,7 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
   const feedIds = await tx.selectFrom("feeds").select("key_id").distinct().where("key_id", "is not", null).execute();
   for (const { key_id } of [...ring, ...feedIds]) if (!wrapper.knows(key_id!)) throw new KeyringError(unknownKey(key_id!));
 
-  const fpKey = await fingerprintKey(tx, wrapper);
+  const fpKey = await ringKey(tx, FINGERPRINT, wrapper);
 
   // Wrapped by an old main key: the same data key, wrapped again.
   const old = await tx.selectFrom("feeds").select(["name", "data_key", "key_id"]).where("key_id", "is not", null).where("key_id", "!=", wrapper.keyId).execute();

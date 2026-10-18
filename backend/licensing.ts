@@ -9,6 +9,7 @@ import { countNotes, idsBeyond, removeNote } from "./notes";
 import { processState } from "./state";
 import type { LicenseStore } from "./storage/licenses";
 import { createLicenseDb, type LicenseDb } from "./storage/licensedb";
+import { wrapperFromConfig } from "./storage/wrapper";
 
 const log = logger("licensing");
 
@@ -27,7 +28,7 @@ export function licenses(): LicenseStore {
   if (state.db && state.file === file) return state.db;
   void state.db?.close();
   state.file = file;
-  return (state.db = createLicenseDb(file));
+  return (state.db = createLicenseDb(file, wrapperFromConfig()));
 }
 
 export async function resetLicensesForTests(): Promise<void> {
