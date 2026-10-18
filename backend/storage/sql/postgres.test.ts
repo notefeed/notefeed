@@ -109,4 +109,27 @@ describe.skipIf(!base || !supported)("postgres", () => {
     expect(err.message).not.toMatch(/hunter2|127\.0\.0\.1/);
     expect(err.cause).toBeUndefined(); // the driver's error would carry the address
   });
+
+  test("two starts convert once", async () => {
+    await resetSchema();
+    const plain = fresh();
+    for (const n of ["a", "b", "c"]) await plain.createFeed(n, `rid-${n}`);
+    await plain.writeNote("a", "n", "md", "x", {});
+    await plain.close();
+    const w = createLocalWrapper(randomBytes(32).toString("hex"));
+    const [one, two] = [fresh(undefined, w), fresh(undefined, w)];
+    const [l1, l2] = await Promise.all([one.listFeeds(), two.listFeeds()]);
+    expect(l1).toEqual(["a", "b", "c"]);
+    expect(l2).toEqual(["a", "b", "c"]);
+    expect(await one.feedCount()).toBe(3);
+    expect((await two.readNote("a", "n", ["md"], () => true))?.content.toString()).toBe("x");
+    const { Client } = await import("pg");
+    const client = new Client({ connectionString: base });
+    await client.connect();
+    const ring = await client.query("select count(*)::int as n from nf_test.keyring");
+    const keyed = await client.query("select count(*)::int as n from nf_test.feeds where key_id is not null");
+    await client.end();
+    expect(ring.rows[0].n).toBe(1);
+    expect(keyed.rows[0].n).toBe(3);
+  });
 });

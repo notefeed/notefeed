@@ -12,6 +12,7 @@ import { isKey, type ImageStore } from "../images/types";
 import { createLocalWrapper, type KeyWrapper } from "../wrapper";
 import { connect } from "./connect";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
+import { ENCRYPTED_NO_KEY, unknownKey } from "./keyring";
 import type { Schema } from "./schema";
 
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -177,5 +178,111 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
     expect(await s.updateMeta("f", "n", ALL, { title: "Secret title", tags: ["b"] })).toBe(true);
     expect(await s.readMeta("f", { id: "n", ext: "md" })).toEqual({ title: "Secret title", tags: ["b"] });
     expect(allText(await (await raw(url)).selectFrom("notes").selectAll().execute())).not.toContain("Secret title");
+  });
+
+  describe("at start", () => {
+    // A plain database with two feeds, notes (one image in the store) and a tombstone.
+    async function plainFilled(url: string, store = memoryStore()) {
+      const s = storageOn(url, null, { store, external });
+      await s.createFeed("one", "Rid-One", "hash-one");
+      await s.writeSettings("one", { title: "Title One", description: "", image: "", showSender: false });
+      await s.createFeed("two", "Rid-Two");
+      await s.writeNote("one", "n", "md", "note text", { tags: ["t"] });
+      await s.writeNote("one", "p", "png", PNG, {});
+      await s.createFeed("gone", "Rid-Gone");
+      await s.takedownFeed("gone", null);
+      await s.close();
+      return store;
+    }
+    async function reads(s: SqlStorage) {
+      return {
+        feeds: await s.listFeeds(),
+        one: await s.feedForReadId("Rid-One"),
+        rid: await s.feedReadId("two"),
+        hash: await s.readHash("one"),
+        title: (await s.readSettings("one")).title,
+        note: (await s.readNote("one", "n", ALL, () => true))?.content.toString(),
+        meta: await s.readMeta("one", { id: "n", ext: "md" }),
+        png: (await s.readFile("one", "p.png"))?.equals(PNG),
+        gone: await s.isRemoved({ feed: "gone" }),
+        goneId: await s.isRemoved({ readId: "Rid-Gone" }),
+      };
+    }
+    const expected = { feeds: ["one", "two"], one: "one", rid: "Rid-Two", hash: "hash-one", title: "Title One", note: "note text", meta: { tags: ["t"] }, png: true, gone: true, goneId: true };
+
+    test("an existing plain database is converted at start", async () => {
+      const url = await database();
+      const store = await plainFilled(url);
+      const s = storageOn(url, createLocalWrapper(key()), { store, external });
+      expect(await reads(s)).toEqual(expected);
+      const db = await raw(url);
+      const text = allText([...(await db.selectFrom("feeds").selectAll().execute()), ...(await db.selectFrom("tombstones").selectAll().execute())]);
+      for (const secret of ["one", "two", "gone", "Rid-One", "Rid-Gone", "hash-one", "Title One"]) expect(text).not.toContain(`"${secret}"`);
+      expect(text).not.toContain("Title One");
+      // The notes stay plain until reseal, and still read.
+      expect((await db.selectFrom("notes").select("sealed").execute()).every((n) => n.sealed === 0)).toBe(true);
+      await s.writeNote("two", "new", "md", "after", {});
+      expect((await s.readNote("two", "new", ALL, () => true))?.content.toString()).toBe("after");
+    });
+
+    test("a key change re-wraps and touches no note", async () => {
+      const url = await database();
+      const [a, b] = [key(), key()];
+      const store = memoryStore();
+      const first = storageOn(url, createLocalWrapper(a), { store, external });
+      await first.createFeed("one", "Rid-One", "hash-one");
+      await first.writeNote("one", "n", "md", "note text", {});
+      await first.writeNote("one", "p", "png", PNG, {});
+      await first.close();
+      const db = await raw(url);
+      const notesBefore = allText(await db.selectFrom("notes").selectAll().orderBy("id").execute());
+      const objectsBefore = allText([...store.objects.entries()]);
+      const changedKey = storageOn(url, createLocalWrapper(b, [a]), { store, external });
+      expect((await changedKey.readNote("one", "n", ALL, () => true))?.content.toString()).toBe("note text");
+      await changedKey.close();
+      const bId = createLocalWrapper(b).keyId;
+      expect((await db.selectFrom("feeds").select("key_id").execute()).map((r) => r.key_id)).toEqual([bId]);
+      expect((await db.selectFrom("keyring").select("key_id").execute()).map((r) => r.key_id)).toEqual([bId]);
+      expect(allText(await db.selectFrom("notes").selectAll().orderBy("id").execute())).toBe(notesBefore);
+      expect(allText([...store.objects.entries()])).toBe(objectsBefore);
+      const onlyB = storageOn(url, createLocalWrapper(b), { store, external });
+      expect((await onlyB.readFile("one", "p.png"))?.equals(PNG)).toBe(true);
+      expect(await onlyB.readHash("one")).toBe("hash-one");
+    });
+
+    test("refuses without the key", async () => {
+      const url = await database();
+      const s = storageOn(url, createLocalWrapper(key()));
+      await s.createFeed("one", "Rid-One");
+      await s.close();
+      await expect(storageOn(url, null).listFeeds()).rejects.toThrow(ENCRYPTED_NO_KEY);
+    });
+
+    test("refuses an unknown key", async () => {
+      const url = await database();
+      const a = createLocalWrapper(key());
+      const s = storageOn(url, a);
+      await s.createFeed("one", "Rid-One");
+      await s.close();
+      await expect(storageOn(url, createLocalWrapper(key())).listFeeds()).rejects.toThrow(unknownKey(a.keyId));
+    });
+
+    test("a re-wrap stopped half way finishes on the next start", async () => {
+      const url = await database();
+      const [a, b] = [key(), key()];
+      const first = storageOn(url, createLocalWrapper(a));
+      await first.createFeed("one", "Rid-One");
+      await first.createFeed("two", "Rid-Two");
+      await first.close();
+      const real = createLocalWrapper(b, [a]);
+      let wraps = 0;
+      const failing: KeyWrapper = { keyId: real.keyId, knows: real.knows, unwrap: real.unwrap, wrap: async (k) => (++wraps === 2 ? Promise.reject(new Error("key service down")) : real.wrap(k)) };
+      await expect(storageOn(url, failing).listFeeds()).rejects.toThrow();
+      const aId = createLocalWrapper(a).keyId;
+      const db = await raw(url);
+      expect((await db.selectFrom("feeds").select("key_id").execute()).every((r) => r.key_id === aId)).toBe(true);
+      expect((await db.selectFrom("keyring").select("key_id").executeTakeFirstOrThrow()).key_id).toBe(aId);
+      expect(await storageOn(url, createLocalWrapper(b, [a])).listFeeds()).toEqual(["one", "two"]);
+    });
   });
 });

@@ -11,7 +11,7 @@ import { FeedGoneError, type Meta, type Storage } from "../types";
 import { IMAGE_EXTS } from "../../../shared/images";
 import { open as openBytes, openText, seal, sealText, type FingerprintKind } from "../cipher";
 import type { KeyWrapper } from "../wrapper";
-import { openKeyring, type Keyring } from "./keyring";
+import { KeyringError, openKeyring, type Keyring } from "./keyring";
 import { migrate, type Kind } from "./migrations";
 import type { Schema } from "./schema";
 
@@ -130,7 +130,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
         return db;
       } catch (e) {
         await db?.destroy().catch(() => {});
-        const known = e instanceof Error && e.message.startsWith("the database was made by a newer notefeed");
+        const known = e instanceof KeyringError || (e instanceof Error && e.message.startsWith("the database was made by a newer notefeed"));
         // No `cause`: the driver's error names the address or the file, and the log would carry it.
         throw known ? e : new Error(`cannot use the database named by NOTEFEED_DATABASE_URL (${code(e) || (e as Error)?.name || "error"})`);
       }
