@@ -281,7 +281,8 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       await first.close();
       const real = createLocalWrapper(b, [a]);
       let wraps = 0;
-      const failing: KeyWrapper = { keyId: real.keyId, knows: real.knows, unwrap: real.unwrap, wrap: async (k, c) => (++wraps === 2 ? Promise.reject(new Error("key service down")) : real.wrap(k, c)) };
+      const second = <T>(f: () => Promise<T>) => (++wraps === 2 ? Promise.reject(new Error("key service down")) : f());
+      const failing: KeyWrapper = { ...real, wrap: (k, c) => second(() => real.wrap(k, c)), rewrap: (w, id, c) => second(() => real.rewrap(w, id, c)) };
       await expect(storageOn(url, failing).listFeeds()).rejects.toThrow();
       const aId = createLocalWrapper(a).keyId;
       const db = await raw(url);

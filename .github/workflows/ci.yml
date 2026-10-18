@@ -35,12 +35,19 @@ jobs:
           docker run -d --name s3 -p 7070:7070 -e ROOT_ACCESS_KEY=notefeed -e ROOT_SECRET_KEY=notefeed-secret versity/versitygw:v1.8.0 posix /tmp
           for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:7070 && exit 0; sleep 1; done
           docker logs s3; exit 1
+      # A dev OpenBao for the key service's tests (backend/storage/openbao.test.ts and the encrypted storage tests), root token "root".
+      - run: |
+          docker run -d --name bao -p 8200:8200 -e BAO_DEV_ROOT_TOKEN_ID=root openbao/openbao:2.7.0 server -dev -dev-listen-address=0.0.0.0:8200
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://localhost:8200/v1/sys/health && exit 0; sleep 1; done
+          docker logs bao; exit 1
       - run: npm test
         env:
           NOTEFEED_TEST_POSTGRES_URL: postgres://postgres:pw@localhost:5432/postgres
           NOTEFEED_TEST_S3_ENDPOINT: http://localhost:7070
           NOTEFEED_TEST_S3_ACCESS_KEY: notefeed
           NOTEFEED_TEST_S3_SECRET_KEY: notefeed-secret
+          NOTEFEED_TEST_OPENBAO_ADDR: http://localhost:8200
+          NOTEFEED_TEST_OPENBAO_TOKEN: root
 
   # The committed openapi.json and the clients generated from it must match the route table.
   generate:
