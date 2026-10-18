@@ -9,6 +9,8 @@ import { newKey } from "../images/types";
 import { connect } from "./connect";
 import { MIGRATION_NAMES } from "./migrations";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
+import { randomBytes } from "node:crypto";
+import { createLocalWrapper, type KeyWrapper } from "../wrapper";
 
 const base = process.env.NOTEFEED_TEST_POSTGRES_URL ?? "";
 const supported = Number(process.versions.node.split(".")[0]) >= 22; // kysely needs Node 22
@@ -27,8 +29,8 @@ async function resetSchema() {
 }
 
 const open: SqlStorage[] = [];
-const fresh = (images?: Images) => {
-  const s = createSqlStorage(() => connect("postgres", url()), "postgres", images);
+const fresh = (images?: Images, wrapper?: KeyWrapper) => {
+  const s = createSqlStorage(() => connect("postgres", url()), "postgres", images, wrapper);
   open.push(s);
   return s;
 };
@@ -40,6 +42,10 @@ describe.skipIf(!base || !supported)("postgres", () => {
   describeStorage("postgres", async () => {
     await resetSchema();
     return { storage: fresh(), cleanup: async () => {} };
+  });
+  describeStorage("postgres, encrypted", async () => {
+    await resetSchema();
+    return { storage: fresh(undefined, createLocalWrapper(randomBytes(32).toString("hex"))), cleanup: async () => {} };
   });
 
   // The hosted service's shape: rows in PostgreSQL, image bytes in an S3-compatible store. Needs NOTEFEED_TEST_S3_ENDPOINT and its

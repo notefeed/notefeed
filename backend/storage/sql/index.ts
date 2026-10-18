@@ -9,6 +9,9 @@ import { applyPatch, hasMeta, parseMeta } from "../meta";
 import { parseSettings, serializeSettings } from "../settings";
 import { FeedGoneError, type Meta, type Storage } from "../types";
 import { IMAGE_EXTS } from "../../../shared/images";
+import { openText, sealText, type FingerprintKind } from "../cipher";
+import type { KeyWrapper } from "../wrapper";
+import { openKeyring, type Keyring } from "./keyring";
 import { migrate, type Kind } from "./migrations";
 import type { Schema } from "./schema";
 
@@ -55,15 +58,28 @@ const isUnique = (e: unknown) => code(e) === "23505" || code(e) === "SQLITE_CONS
 const changed = (n: bigint | number | undefined) => Number(n ?? 0) > 0;
 const bytes = (content: string | Uint8Array) => (typeof content === "string" ? Buffer.from(content) : Buffer.from(content));
 
-// A name or a read id of a removed feed may not come back (issue #155).
+// A name or a read id of a removed feed may not come back (issue #155). Both come as they are stored: fingerprints when encrypted.
 async function refuseRemoved(db: Kysely<Schema>, feed: string | undefined, readId: string): Promise<void> {
   if (feed !== undefined && (await db.selectFrom("tombstones").select("name").where("name", "=", feed).executeTakeFirst())) throw new RemovedFeedError();
   if (await db.selectFrom("tombstones").select("name").where("read_id", "=", readId).executeTakeFirst()) throw new ReadIdTakenError();
 }
 
-// `kind` picks the dialect-specific migration; `connect` is called once, on first use.
-export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: Kind = "sqlite", images?: Images): SqlStorage {
+// The parts of a feed's row that say how its values are stored.
+type FeedKeys = { data_key: string | null; key_id: string | null };
+
+// `kind` picks the dialect-specific migration; `connect` is called once, on first use. With a `wrapper` (the main key) the database
+// is encrypted (issue #212): names and read ids are stored as fingerprints, a feed's values sealed with its own data key.
+export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: Kind = "sqlite", images?: Images, wrapper: KeyWrapper | null = null): SqlStorage {
   let opened: Promise<Kysely<Schema>> | undefined;
+  let ring: Keyring | null = null; // set by open(), before any query
+  // What a name or a read id is stored as, and looked up by.
+  const ident = (k: FingerprintKind, v: string) => (ring ? ring.fingerprint(k, v) : v);
+  // A feed's data key; null for a plain feed. A row with a key_id is only read with a keyring (the keyring refuses to open otherwise).
+  const keyOf = async (row: FeedKeys): Promise<Buffer | null> => (row.key_id === null ? null : ring!.feedKey(row));
+  const sealIn = (key: Buffer | null, v: string, aad: string) => (key ? sealText(key, v, aad) : v);
+  const openIn = (key: Buffer | null, v: string, aad: string) => (key ? openText(key, v, aad) : v);
+  const nameOf = async (row: FeedKeys & { name: string; name_sealed: string | null }) => openIn(await keyOf(row), row.key_id === null ? row.name : row.name_sealed!, "feed:name");
+  const feedKeys = async (db: Kysely<Schema>, feed: string) => db.selectFrom("feeds").select(["data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
 
   // After the row is gone (or never came to be), its object is only storage: a failure to remove it is logged, never the caller's error.
   // No feed or key in the line: a feed's name is its secret.
@@ -100,6 +116,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       try {
         db = await connect();
         await migrate(db, kind);
+        ring = await openKeyring(db, kind, wrapper);
         return db;
       } catch (e) {
         await db?.destroy().catch(() => {});
@@ -122,6 +139,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     // does not come to be, the object is removed again.
     async writeNote(feed, base, ext, content, meta) {
       const db = await open();
+      const f = ident("feed", feed);
       const now = Date.now();
       const data = bytes(content);
       const key = images?.external(ext) ? newKey() : null;
@@ -131,7 +149,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
           const id = n === 1 ? base : `${base}-${n}`;
           const r = await db
             .insertInto("notes")
-            .values({ feed, id, ext, content: key ? EMPTY : data, blob_key: key, size: data.byteLength, metadata: hasMeta(meta) ? JSON.stringify(meta) : null, created_at: now, updated_at: now })
+            .values({ feed: f, id, ext, content: key ? EMPTY : data, blob_key: key, size: data.byteLength, metadata: hasMeta(meta) ? JSON.stringify(meta) : null, created_at: now, updated_at: now })
             .onConflict((oc) => oc.columns(["feed", "id"]).doNothing())
             .executeTakeFirst();
           if (changed(r.numInsertedOrUpdatedRows)) return id;
@@ -144,7 +162,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     },
 
     async listNoteRefs(feed) {
-      const rows = await (await open()).selectFrom("notes").select(["id", "ext"]).where("feed", "=", feed).orderBy("created_at").orderBy("id").execute();
+      const rows = await (await open()).selectFrom("notes").select(["id", "ext"]).where("feed", "=", ident("feed", feed)).orderBy("created_at").orderBy("id").execute();
       noteFeedSize(rows.length);
       return rows;
     },
@@ -155,14 +173,14 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       const row = await db
         .selectFrom("notes")
         .select(["ext", "metadata", "updated_at", "size"])
-        .where("feed", "=", feed)
+        .where("feed", "=", ident("feed", feed))
         .where("id", "=", id)
         .where("ext", "in", exts)
         .executeTakeFirst();
       if (!row) return null;
       let content: Buffer = EMPTY;
       if (withContent(row.ext)) {
-        const full = await db.selectFrom("notes").select(["content", "blob_key"]).where("feed", "=", feed).where("id", "=", id).executeTakeFirst();
+        const full = await db.selectFrom("notes").select(["content", "blob_key"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst();
         const found = full && (await bytesOf(full));
         if (!found) return null; // deleted since the first read, or its object is gone
         content = found;
@@ -171,7 +189,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     },
 
     async readMeta(feed, ref) {
-      const row = await (await open()).selectFrom("notes").select("metadata").where("feed", "=", feed).where("id", "=", ref.id).where("ext", "=", ref.ext).executeTakeFirst();
+      const row = await (await open()).selectFrom("notes").select("metadata").where("feed", "=", ident("feed", feed)).where("id", "=", ref.id).where("ext", "=", ref.ext).executeTakeFirst();
       return row ? metaOf(row.metadata) : null;
     },
 
@@ -185,13 +203,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       let key: string | null = null;
       try {
         for (;;) {
-          const row = await db.selectFrom("notes").select(["ext", "blob_key"]).where("feed", "=", feed).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
+          const row = await db.selectFrom("notes").select(["ext", "blob_key"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
           if (!row) break;
           if (!key && images?.external(row.ext)) await stored((key = newKey()), data);
           const r = await db
             .updateTable("notes")
             .set({ content: key ? EMPTY : data, blob_key: key, size: data.byteLength, updated_at: Date.now() })
-            .where("feed", "=", feed)
+            .where("feed", "=", ident("feed", feed))
             .where("id", "=", id)
             .where("ext", "=", row.ext)
             .where("blob_key", row.blob_key === null ? "is" : "=", row.blob_key)
@@ -211,17 +229,17 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     async updateMeta(feed, id, exts, patch) {
       if (exts.length === 0) return false;
       return (await open()).transaction().execute(async (tx) => {
-        const row = await tx.selectFrom("notes").select(["ext", "metadata"]).where("feed", "=", feed).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
+        const row = await tx.selectFrom("notes").select(["ext", "metadata"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
         if (!row) return false;
         const merged = applyPatch(metaOf(row.metadata), patch);
-        await tx.updateTable("notes").set({ metadata: hasMeta(merged) ? JSON.stringify(merged) : null }).where("feed", "=", feed).where("id", "=", id).execute();
+        await tx.updateTable("notes").set({ metadata: hasMeta(merged) ? JSON.stringify(merged) : null }).where("feed", "=", ident("feed", feed)).where("id", "=", id).execute();
         return true;
       });
     },
 
     async deleteNote(feed, id, exts) {
       if (exts.length === 0) return false;
-      const rows = await (await open()).deleteFrom("notes").where("feed", "=", feed).where("id", "=", id).where("ext", "in", exts).returning("blob_key").execute();
+      const rows = await (await open()).deleteFrom("notes").where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).returning("blob_key").execute();
       await drop(rows.map((r) => r.blob_key)); // the row first: a crash in between leaves an object, never a note without its image
       return rows.length > 0;
     },
@@ -229,35 +247,57 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     async readFile(feed, name) {
       const m = NAME_RE.exec(name);
       if (!m) return null;
-      const row = await (await open()).selectFrom("notes").select(["content", "blob_key"]).where("feed", "=", feed).where("id", "=", m[1]).where("ext", "=", m[2]).executeTakeFirst();
+      const row = await (await open()).selectFrom("notes").select(["content", "blob_key"]).where("feed", "=", ident("feed", feed)).where("id", "=", m[1]).where("ext", "=", m[2]).executeTakeFirst();
       return row ? bytesOf(row) : null;
     },
 
     async readSettings(feed) {
-      const row = await (await open()).selectFrom("feeds").select("settings").where("name", "=", feed).executeTakeFirst();
-      return parseSettings(row?.settings ?? null);
+      const row = await (await open()).selectFrom("feeds").select(["settings", "data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
+      if (!row?.settings) return parseSettings(null);
+      return parseSettings(openIn(await keyOf(row), row.settings, "feed:settings"));
     },
     async writeSettings(feed, s) {
-      const r = await (await open()).updateTable("feeds").set({ settings: serializeSettings(s) }).where("name", "=", feed).executeTakeFirst();
+      const db = await open();
+      const row = await feedKeys(db, feed);
+      if (!row) throw new FeedGoneError();
+      const r = await db.updateTable("feeds").set({ settings: sealIn(await keyOf(row), serializeSettings(s), "feed:settings") }).where("name", "=", ident("feed", feed)).where("data_key", row.data_key === null ? "is" : "=", row.data_key).executeTakeFirst();
       if (!changed(r.numUpdatedRows)) throw new FeedGoneError();
     },
     async readHash(feed) {
-      return (await (await open()).selectFrom("feeds").select("password_hash").where("name", "=", feed).executeTakeFirst())?.password_hash ?? null;
+      const row = await (await open()).selectFrom("feeds").select(["password_hash", "data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
+      if (!row?.password_hash) return null;
+      return openIn(await keyOf(row), row.password_hash, "feed:hash");
     },
     async writeHash(feed, hash) {
-      const r = await (await open()).updateTable("feeds").set({ password_hash: hash }).where("name", "=", feed).executeTakeFirst();
+      const db = await open();
+      const row = await feedKeys(db, feed);
+      if (!row) throw new FeedGoneError();
+      const r = await db.updateTable("feeds").set({ password_hash: sealIn(await keyOf(row), hash, "feed:hash") }).where("name", "=", ident("feed", feed)).where("data_key", row.data_key === null ? "is" : "=", row.data_key).executeTakeFirst();
       if (!changed(r.numUpdatedRows)) throw new FeedGoneError();
     },
     async removeHash(feed) {
-      await (await open()).updateTable("feeds").set({ password_hash: null }).where("name", "=", feed).execute();
+      await (await open()).updateTable("feeds").set({ password_hash: null }).where("name", "=", ident("feed", feed)).execute();
     },
 
     async createFeed(feed, readId, hash) {
-      await refuseRemoved(await open(), feed, readId);
+      const db = await open();
+      await refuseRemoved(db, ident("feed", feed), ident("read_id", readId));
+      // Encrypted: a new data key for the feed, the name and read id sealed with it next to their fingerprints.
+      const k = ring ? await ring.newFeedKey() : null;
       try {
-        const r = await (await open())
+        const r = await db
           .insertInto("feeds")
-          .values({ name: feed, read_id: readId, password_hash: hash ?? null, settings: null, created_at: Date.now() })
+          .values({
+            name: ident("feed", feed),
+            read_id: ident("read_id", readId),
+            password_hash: hash === undefined ? null : sealIn(k?.key ?? null, hash, "feed:hash"),
+            settings: null,
+            created_at: Date.now(),
+            key_id: k?.key_id ?? null,
+            data_key: k?.data_key ?? null,
+            name_sealed: k ? sealText(k.key, feed, "feed:name") : null,
+            read_id_sealed: k ? sealText(k.key, readId, "feed:read_id") : null,
+          })
           .onConflict((oc) => oc.column("name").doNothing())
           .executeTakeFirst();
         return { created: changed(r.numInsertedOrUpdatedRows) };
@@ -269,8 +309,8 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     async deleteFeed(feed) {
       const db = await open();
       // The keys are read before the rows go with the feed (cascade). An image posted in between leaves its object unreferenced.
-      const keys = await db.selectFrom("notes").select("blob_key").where("feed", "=", feed).where("blob_key", "is not", null).execute();
-      const r = await db.deleteFrom("feeds").where("name", "=", feed).executeTakeFirst();
+      const keys = await db.selectFrom("notes").select("blob_key").where("feed", "=", ident("feed", feed)).where("blob_key", "is not", null).execute();
+      const r = await db.deleteFrom("feeds").where("name", "=", ident("feed", feed)).executeTakeFirst();
       if (!changed(r.numDeletedRows)) return false;
       await drop(keys.map((k) => k.blob_key));
       return true;
@@ -279,9 +319,18 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       // Nothing to drop: the rows are the truth, and a feed that is there is not "gone".
     },
     async setReadId(feed, readId) {
-      await refuseRemoved(await open(), undefined, readId);
+      const db = await open();
+      await refuseRemoved(db, undefined, ident("read_id", readId));
+      const row = await feedKeys(db, feed);
+      if (!row) throw new NotFoundError("no such feed");
+      const key = await keyOf(row);
       try {
-        const r = await (await open()).updateTable("feeds").set({ read_id: readId }).where("name", "=", feed).executeTakeFirst();
+        const r = await db
+          .updateTable("feeds")
+          .set({ read_id: ident("read_id", readId), read_id_sealed: key ? sealText(key, readId, "feed:read_id") : null })
+          .where("name", "=", ident("feed", feed))
+          .where("data_key", row.data_key === null ? "is" : "=", row.data_key)
+          .executeTakeFirst();
         if (!changed(r.numUpdatedRows)) throw new NotFoundError("no such feed");
       } catch (e) {
         if (isUnique(e)) throw new ReadIdTakenError();
@@ -289,13 +338,19 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       }
     },
     async feedReadId(feed) {
-      return (await (await open()).selectFrom("feeds").select("read_id").where("name", "=", feed).executeTakeFirst())?.read_id;
+      const row = await (await open()).selectFrom("feeds").select(["read_id", "read_id_sealed", "data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
+      if (!row) return undefined;
+      return row.key_id === null ? row.read_id : openIn(await keyOf(row), row.read_id_sealed!, "feed:read_id");
     },
     async feedForReadId(readId) {
-      return (await (await open()).selectFrom("feeds").select("name").where("read_id", "=", readId).executeTakeFirst())?.name ?? null;
+      const row = await (await open()).selectFrom("feeds").select(["name", "name_sealed", "data_key", "key_id"]).where("read_id", "=", ident("read_id", readId)).executeTakeFirst();
+      return row ? nameOf(row) : null;
     },
+    // Sorted here, not in SQL: encrypted, the column holds fingerprints.
     async listFeeds() {
-      return (await (await open()).selectFrom("feeds").select("name").orderBy("name").execute()).map((r) => r.name);
+      const rows = await (await open()).selectFrom("feeds").select(["name", "name_sealed", "data_key", "key_id"]).execute();
+      const names = await Promise.all(rows.map(nameOf));
+      return names.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     },
     async listFeedNames() {
       return this.listFeeds();
@@ -306,21 +361,23 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     },
 
     // The tombstone goes in first, in its own statement, so a crash after it leaves a feed that is found by neither identifier
-    // and removed by the next run; the rows go with the feed (cascade), the objects last, as in deleteFeed.
+    // and removed by the next run; the rows go with the feed (cascade), the objects last, as in deleteFeed. Encrypted, the
+    // tombstone holds the fingerprints only: nothing needs the name back.
     async takedownFeed(feed, readId) {
       const db = await open();
-      const id = readId ?? (await db.selectFrom("feeds").select("read_id").where("name", "=", feed).executeTakeFirst())?.read_id ?? null;
-      await db.insertInto("tombstones").values({ name: feed, read_id: id, removed_at: Date.now() }).onConflict((oc) => oc.column("name").doNothing()).execute();
-      const keys = (await db.selectFrom("notes").select("blob_key").where("feed", "=", feed).where("blob_key", "is not", null).execute()).map((k) => k.blob_key!);
-      const r = await db.deleteFrom("feeds").where("name", "=", feed).executeTakeFirst();
+      const f = ident("feed", feed);
+      const id = readId !== null ? ident("read_id", readId) : ((await db.selectFrom("feeds").select("read_id").where("name", "=", f).executeTakeFirst())?.read_id ?? null);
+      await db.insertInto("tombstones").values({ name: f, read_id: id, removed_at: Date.now(), sealed: ring ? 1 : 0 }).onConflict((oc) => oc.column("name").doNothing()).execute();
+      const keys = (await db.selectFrom("notes").select("blob_key").where("feed", "=", f).where("blob_key", "is not", null).execute()).map((k) => k.blob_key!);
+      const r = await db.deleteFrom("feeds").where("name", "=", f).executeTakeFirst();
       if (!changed(r.numDeletedRows)) return { removed: false, keys: [] };
       await drop(keys);
       return { removed: true, keys };
     },
     async isRemoved({ feed, readId }) {
       const db = await open();
-      if (feed !== undefined && (await db.selectFrom("tombstones").select("name").where("name", "=", feed).executeTakeFirst())) return true;
-      if (readId !== undefined && (await db.selectFrom("tombstones").select("name").where("read_id", "=", readId).executeTakeFirst())) return true;
+      if (feed !== undefined && (await db.selectFrom("tombstones").select("name").where("name", "=", ident("feed", feed)).executeTakeFirst())) return true;
+      if (readId !== undefined && (await db.selectFrom("tombstones").select("name").where("read_id", "=", ident("read_id", readId)).executeTakeFirst())) return true;
       return false;
     },
     async blockImages(hashes) {

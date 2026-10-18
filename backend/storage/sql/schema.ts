@@ -11,6 +11,12 @@ export interface Schema {
     password_hash: string | null;
     settings: string | null;
     created_at: Time;
+    // Encryption at rest: the main key's id and the feed's data key wrapped by it; the name and read id sealed with the data key.
+    // All null on a plain feed, where `name` and `read_id` are the values themselves, not their fingerprints.
+    key_id: string | null;
+    data_key: string | null;
+    name_sealed: string | null;
+    read_id_sealed: string | null;
   };
   notes: {
     feed: string;
@@ -23,11 +29,21 @@ export interface Schema {
     metadata: string | null;
     created_at: Time;
     updated_at: Time;
+    // 1: the bytes and the metadata are sealed with the feed's data key.
+    sealed: ColumnType<number, number | undefined, number>;
   };
   tombstones: {
     name: string;
     read_id: string | null;
     removed_at: Time;
+    // 1: `name` and `read_id` are fingerprints.
+    sealed: ColumnType<number, number | undefined, number>;
+  };
+  // One row, "fingerprint": the database's fingerprint key, wrapped by the main key `key_id` names.
+  keyring: {
+    name: string;
+    key_id: string;
+    wrapped: string;
   };
   blocked_images: {
     hash: string;
