@@ -14,6 +14,7 @@ type Metrics = {
   duration: Histogram<"kind" | "status" | "feed_size">; dirs: Histogram<"kind" | "feed_size">; files: Histogram<"kind" | "feed_size">;
   parse: Histogram;
   timeouts: Counter;
+  unreadable: Counter;
   waiting: Gauge;
   images?: { count: Gauge; bytes: Gauge; missing: Gauge; at: Gauge };
 };
@@ -30,6 +31,7 @@ function metrics(): Metrics {
       files: new Histogram({ name: "notefeed_request_file_reads", help: "File reads per request", labelNames: ["kind", "feed_size"], buckets: COUNTS, registers: [register] }),
       parse: new Histogram({ name: "notefeed_parse_duration_seconds", help: "How long reading a text in the picture-reading worker took", buckets: SECONDS, registers: [register] }),
       timeouts: new Counter({ name: "notefeed_parse_timeouts_total", help: "Texts refused because reading them took longer than NOTEFEED_PARSE_TIMEOUT_MS", registers: [register] }),
+      unreadable: new Counter({ name: "notefeed_notes_unreadable_total", help: "Reads of a note whose stored copy could not be decrypted (encryption at rest): damaged or tampered with", registers: [register] }),
       waiting: new Gauge({ name: "notefeed_parse_waiting", help: "Texts waiting for a picture-reading worker", registers: [register] }),
     };
   });
@@ -43,7 +45,7 @@ export async function renderMetrics(): Promise<{ contentType: string; body: stri
 /** Tests only: every sample back to its start. The registry stays: its default collectors cannot be stopped, so a new one would leak them. */
 export function resetMetricsForTest(): void {
   const m = metrics();
-  for (const metric of [m.duration, m.dirs, m.files, m.parse, m.timeouts, m.waiting]) metric.reset();
+  for (const metric of [m.duration, m.dirs, m.files, m.parse, m.timeouts, m.unreadable, m.waiting]) metric.reset();
   for (const name of ["notefeed_images_unreferenced", "notefeed_images_unreferenced_bytes", "notefeed_images_missing", "notefeed_images_checked_timestamp_seconds"]) m.register.removeSingleMetric(name);
   m.images = undefined;
 }
@@ -101,6 +103,7 @@ export function noteFeedSize(notes: number): void {
 export const observeParse = (seconds: number): void => void (config.metrics() && metrics().parse.observe(seconds));
 /** One text was refused for time. */
 export const parseTimedOut = (): void => void (config.metrics() && metrics().timeouts.inc());
+export const noteUnreadable = (): void => void (config.metrics() && metrics().unreadable.inc());
 /** The number of texts waiting for a worker now. */
 // What the last clean-up of the image store found (backend/http/operator.ts). Counting means listing the whole store, far too much
 // for every scrape, so these say what the last run saw and when it was. Made on the first run: before it they are absent, not 0.

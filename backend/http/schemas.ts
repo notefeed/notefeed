@@ -25,6 +25,10 @@ export const NoteJson = z
     url: z.url().describe("The note's page in the web UI"),
     sender: z.string().nullable().optional().describe("Verified sign-in name of the poster; absent when the note was posted without a sign-in"),
     tags: z.array(z.string()).describe("Labels the poster gave the note (not verified, and shown to readers like the note itself); empty when none"),
+    unreadable: z
+      .literal(true)
+      .optional()
+      .describe("Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note"),
   })
   .meta({ id: "Note" });
 export type NoteJson = z.infer<typeof NoteJson>;

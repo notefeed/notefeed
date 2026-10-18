@@ -1777,6 +1777,11 @@
               "type": "string"
             },
             "description": "Labels the poster gave the note (not verified, and shown to readers like the note itself); empty when none"
+          },
+          "unreadable": {
+            "description": "Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note",
+            "type": "boolean",
+            "const": true
           }
         },
         "required": [
@@ -2011,6 +2016,11 @@
             },
             "description": "Labels the poster gave the note (not verified, and shown to readers like the note itself); empty when none"
           },
+          "unreadable": {
+            "description": "Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note",
+            "type": "boolean",
+            "const": true
+          },
           "attachments": {
             "description": "A multipart request's pictures, one per `file` part, in their order; absent for a raw body",
             "type": "array",
@@ -2081,7 +2091,8 @@
               "feed_exists",
               "taken",
               "removed",
-              "blocked"
+              "blocked",
+              "unreadable"
             ]
           }
         },

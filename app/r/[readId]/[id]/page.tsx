@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { NoteArticle } from "@/components/NoteList";
+import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
+import { orDamaged } from "@/app/_lib/damaged";
 import { getReadNote, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +14,14 @@ export const generateMetadata = (): Metadata => ({ title: { absolute: instanceTi
 
 export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[id]">) {
   const { readId, id } = await params;
-  const note = await getReadNote(readId, id);
+  const note = await orDamaged(getReadNote(readId, id));
+  if (note === "damaged") {
+    return (
+      <AppShell>
+        <DamagedNote id={id} back={readPath(readId)} />
+      </AppShell>
+    );
+  }
   if (!note && (await isRemovedReadId(readId))) {
     return (
       <AppShell>

@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { NoteArticle } from "@/components/NoteList";
 import { NoteActions, NoteActionsBar, NoteActionsPanel } from "@/components/NoteActions";
+import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
+import { orDamaged } from "@/app/_lib/damaged";
 import { noteErrorMessage } from "@/app/_lib/messages";
 import { reportUrl } from "@/shared/report";
 import { feedCookieName, feedPath, feedUnlocked, getFeedNote, imageUploadsOn, isRemovedFeed, readIdOf, readPath, reportTemplate } from "@/backend";
@@ -28,7 +30,14 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[fe
       </AppShell>
     );
   }
-  const note = await getFeedNote(feed, id);
+  const note = await orDamaged(getFeedNote(feed, id));
+  if (note === "damaged") {
+    return (
+      <AppShell feed={feed}>
+        <DamagedNote feed={feed} id={id} back={feedPath(feed)} />
+      </AppShell>
+    );
+  }
   if (!note) notFound();
   const readId = await readIdOf(feed);
   const imageBase = readId ? `${readPath(readId)}/` : undefined;

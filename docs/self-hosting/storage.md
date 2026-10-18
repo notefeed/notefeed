@@ -114,6 +114,10 @@ openssl rand -hex 32   # the main key
 
 **Keep the key safe and apart from the backups.** Without it nothing can be read back, by anyone. notefeed refuses to start on an encrypted database without the key, or with another key.
 
+### A note that can't be decrypted
+
+A note whose stored copy doesn't decrypt (damaged, or changed behind notefeed's back) never breaks its feed. The feed's page, the read-only view, the API and MCP list it in its place as a damaged note (`"unreadable": true` in the API), RSS leaves it out, and reading it alone answers `500` with the code `unreadable`. It can still be deleted. Each such read is an error line in the log naming the note's id, and counts in `notefeed_notes_unreadable_total` when [metrics](operating.md#metrics) are on.
+
 ### Turning it on for existing data
 
 Set the key and restart. At start, notefeed gives every feed its data key and stores names and read ids as fingerprints. With several containers, stop them all and start them all with the key: one still running without it would write plain rows next to the encrypted ones, and the next start refuses such a database. Notes stored before stay readable, and are encrypted with `POST /api/operator/reseal`, a batch at a time, while notefeed serves:

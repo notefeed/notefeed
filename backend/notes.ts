@@ -1,16 +1,19 @@
 // Notes: validation, ids and reading them back. Where they are kept is the storage backend's business (backend/storage).
 import { randomBytes } from "node:crypto";
 import { idStamp } from "../shared/notes";
-import { InvalidBodyError, UnsupportedTypeError } from "./errors";
+import { InvalidBodyError, UnreadableNoteError, UnsupportedTypeError } from "./errors";
 import { assertFeed, checkFeed, ensureFeed, forgetFeed } from "./feeds";
 import { logger } from "./log";
+import { noteUnreadable } from "./metrics";
 import { storage } from "./storage";
+import { CipherError } from "./storage/cipher";
 import { FeedGoneError, type Meta, type NoteRef } from "./storage/types";
 import { sniffImage } from "../shared/images";
 import { cleanName, FORBIDDEN_IN_TEXT, MAX_ALT } from "../shared/links";
 import { ImageNote } from "./note/image";
 import { MarkdownNote } from "./note/markdown";
 import { Note } from "./note/note";
+import { UnreadableNote } from "./note/unreadable";
 import { NOTE_TYPES, parseMediaType, typeForExt, type NoteType } from "./note/types";
 
 export { checkMarkdown, MAX_BYTES } from "./note/markdown";
@@ -130,24 +133,43 @@ async function noteRefs(feed: string, typeName?: string): Promise<NoteRef[]> {
 // Newest first, ties by id. An id with a time is placed without reading anything; the others are looked up.
 async function newestFirst(feed: string, refs: NoteRef[]): Promise<NoteRef[]> {
   const keyed = await Promise.all(
-    refs.map(async (ref) => ({ ref, at: (stampOf(ref.id) ?? (await readOf(feed, ref))?.createdAt)?.getTime() ?? 0 })), // gone since the listing: oldest
+    refs.map(async (ref) => ({ ref, at: (stampOf(ref.id) ?? (await readOf(feed, ref).catch((e) => (e instanceof UnreadableNoteError ? null : Promise.reject(e))))?.createdAt)?.getTime() ?? 0 })), // gone since the listing, or unreadable: oldest
   );
   return keyed.sort((a, b) => b.at - a.at || (a.ref.id < b.ref.id ? 1 : -1)).map((k) => k.ref);
 }
 
+const log = logger("notes");
+
+/**
+ * A note whose stored copy did not decrypt (issue #212): the operator's to look into, so a line naming the note (its id, never the feed's
+ * name or any content) and a counter. Throws anything else on.
+ */
+export function unreadableNote(id: string, e: unknown): UnreadableNoteError {
+  if (!(e instanceof CipherError)) throw e;
+  log.error({ note: id }, "a note could not be decrypted");
+  noteUnreadable();
+  return new UnreadableNoteError();
+}
+
 // `before` (a note id) pages backwards: the notes after it in that order. A `before` that is gone ends the list.
 // `tag`: only notes carrying it; newest first, the metadata of a chunk is read to choose and the notes themselves only for the
-// matches, until `limit` match.
-export async function listNotes(feed: string, limit = 50, before?: string, tag?: string, typeName?: string): Promise<Note[]> {
+// matches, until `limit` match. A note whose stored copy can't be decrypted is left out, or with `placeholders` listed in its place as
+// an UnreadableNote (the pages, the API and MCP show it; RSS can't); its tags can't be read, so a tag never matches it.
+export async function listNotes(feed: string, limit = 50, before?: string, tag?: string, typeName?: string, placeholders = false): Promise<Note[]> {
   let refs = await newestFirst(feed, await noteRefs(feed, typeName));
   if (before !== undefined) refs = refs.slice(refs.findIndex((r) => r.id === before) + 1 || refs.length);
-  const read = async (page: NoteRef[]) => (await Promise.all(page.map((ref) => readOf(feed, ref)))).filter((n) => n !== null); // null: deleted between the listing and the read
+  const one = (ref: NoteRef): Promise<Note | null> =>
+    readOf(feed, ref).catch((e) => {
+      if (!(e instanceof UnreadableNoteError)) throw e;
+      return placeholders ? new UnreadableNote(ref.id, ref.ext, stampOf(ref.id) ?? new Date(0)) : null;
+    });
+  const read = async (page: NoteRef[]) => (await Promise.all(page.map(one))).filter((n) => n !== null); // null: deleted between the listing and the read
   if (tag === undefined) return read(refs.slice(0, limit));
   // ponytail: a rare tag reads every sidecar of the feed; a tag index would fix it if feeds get large.
   const found: Note[] = [];
   for (let i = 0; i < refs.length && found.length < limit; i += limit) {
     const chunk = refs.slice(i, i + limit);
-    const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref)));
+    const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null))));
     found.push(...(await read(chunk.filter((_, j) => metas[j]?.tags?.includes(tag)))));
   }
   return found.slice(0, limit);
@@ -174,7 +196,7 @@ export async function hasImageNote(feed: string, file: string): Promise<boolean>
 // The note, found by trying `exts` (a lookup by id alone) or the one extension a listing already knows.
 async function readNoteAs(feed: string, id: string, exts: readonly string[]): Promise<Note | null> {
   if (checkFeed(feed) || !isValidId(id)) return null;
-  const stored = await storage().readNote(feed, id, exts, withContent);
+  const stored = await storage().readNote(feed, id, exts, withContent).catch((e) => Promise.reject(unreadableNote(id, e)));
   const type = stored && typeForExt(stored.ext);
   return stored && type ? type.read({ id, ext: stored.ext, meta: stored.meta, createdAt: createdAt(id, stored.meta, stored.mtime), size: stored.size }, stored.content) : null;
 }
