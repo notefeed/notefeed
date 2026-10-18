@@ -9,6 +9,8 @@
 //     reseal, and read as they are meanwhile.
 import { sql, type Kysely, type Transaction } from "kysely";
 import { fingerprint, newDataKey, sealText, type FingerprintKind } from "../cipher";
+import { logger } from "../../log";
+import { requestScope, type RequestScope } from "../../requestscope";
 import type { KeyWrapper } from "../wrapper";
 import type { Kind } from "./migrations";
 import type { Schema } from "./schema";
@@ -25,12 +27,15 @@ export type Keyring = {
 export class KeyringError extends Error {}
 export const ENCRYPTED_NO_KEY = "the database is encrypted, but NOTEFEED_ENCRYPTION_KEY is not set";
 export const unknownKey = (id: string): string =>
-  `the database holds keys wrapped by a main key notefeed does not have (key id ${id}); start once with that key in NOTEFEED_ENCRYPTION_OLD_KEYS to re-wrap them under NOTEFEED_ENCRYPTION_KEY`;
+  id.startsWith("openbao:")
+    ? `the database holds keys wrapped by ${id}, which the OpenBao transit key no longer decrypts (below its min_decryption_version, or another key); restore that key version in OpenBao`
+    : `the database holds keys wrapped by a main key notefeed does not have (key id ${id}); start once with that key in NOTEFEED_ENCRYPTION_OLD_KEYS to re-wrap them under NOTEFEED_ENCRYPTION_KEY`;
 
 export const MIXED =
   "the database holds a feed or a tombstone both plain and encrypted: a notefeed without NOTEFEED_ENCRYPTION_KEY wrote to it after it was encrypted. Stop every notefeed, delete the plain duplicate (its key_id is null) or restore a backup, then start them all with the key";
 export const KEYRING_MISSING = "the database is encrypted, but its keyring is missing (restored in part?); restore the keyring table with the rest of the database";
 
+const log = logger("keyring");
 const CACHED = 10_000;
 const FINGERPRINT = "fingerprint";
 // Any number, the same in every container: PostgreSQL holds it for the transaction, so two starting together convert once.
@@ -63,7 +68,7 @@ export async function ringKey(tx: Transaction<any>, name: string, wrapper: KeyWr
     return won.wrapped === wrapped ? key : wrapper.unwrap(won.wrapped, won.key_id, `keyring:${name}`);
   }
   const key = await wrapper.unwrap(row.wrapped, row.key_id, `keyring:${name}`);
-  if (row.key_id !== wrapper.keyId) await tx.updateTable("keyring").set({ key_id: wrapper.keyId, wrapped: await wrapper.wrap(key, `keyring:${name}`) }).where("name", "=", name).execute();
+  if (row.key_id !== wrapper.keyId) await tx.updateTable("keyring").set({ key_id: wrapper.keyId, wrapped: await wrapper.rewrap(row.wrapped, row.key_id, `keyring:${name}`) }).where("name", "=", name).execute();
   return key;
 }
 
@@ -77,16 +82,17 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
   if (ring.length === 0 && (feedIds.length > 0 || (await tx.selectFrom("tombstones").select("name").where("sealed", "=", 1).executeTakeFirst()) || (await tx.selectFrom("notes").select("id").where("sealed", "=", 1).executeTakeFirst()))) {
     throw new KeyringError(KEYRING_MISSING);
   }
+  const oldRing = ring.filter((r) => r.key_id !== wrapper.keyId).length;
   const fpKey = await ringKey(tx, FINGERPRINT, wrapper);
   // A plain row whose fingerprint is already there was written by a notefeed without the key, after the conversion.
   const taken = async (table: "feeds" | "tombstones", column: "name" | "read_id", value: string) => (await tx.selectFrom(table).select("name").where(column, "=", value).executeTakeFirst()) !== undefined;
 
   // Wrapped by an old main key: the same data key, wrapped again.
   const old = await tx.selectFrom("feeds").select(["name", "data_key", "key_id"]).where("key_id", "is not", null).where("key_id", "!=", wrapper.keyId).execute();
-  for (const f of old) {
-    const key = await wrapper.unwrap(f.data_key!, f.key_id!, `feed:${f.name}`);
-    await tx.updateTable("feeds").set({ key_id: wrapper.keyId, data_key: await wrapper.wrap(key, `feed:${f.name}`) }).where("name", "=", f.name).execute();
-  }
+  // All asked for at once: a key service answers them in one batch.
+  const moved = await Promise.all(old.map((f) => wrapper.rewrap(f.data_key!, f.key_id!, `feed:${f.name}`)));
+  for (const [i, f] of old.entries()) await tx.updateTable("feeds").set({ key_id: wrapper.keyId, data_key: moved[i] }).where("name", "=", f.name).execute();
+  if (old.length + oldRing > 0) log.info({ keys: old.length + oldRing, keyId: wrapper.keyId }, "re-wrapped the keys under the current main key; none left under an older one");
 
   // Plain feeds: a new row under the fingerprint, the notes moved to it, the old row gone (its notes are no longer on it).
   const plain = await tx.selectFrom("feeds").selectAll().where("key_id", "is", null).execute();
@@ -130,11 +136,25 @@ export async function openKeyring(db: Kysely<Schema>, kind: Kind, wrapper: KeyWr
     if (await encrypted(db)) throw new KeyringError(ENCRYPTED_NO_KEY);
     return null;
   }
+  await wrapper.start();
   const fpKey = await db.transaction().execute((tx) => prepare(tx, kind, wrapper));
-  const cache = new Map<string, Promise<Buffer>>();
+  const kept = new Map<string, Promise<Buffer>>();
+  // Without `caches` (a key service, #215), a data key lives as long as the request that unwrapped it: one unwrap per feed and
+  // request in the audit log. Outside a request (a timer, a test), none is kept.
+  const requests = new WeakMap<RequestScope, Map<string, Promise<Buffer>>>();
+  const cacheFor = (): Map<string, Promise<Buffer>> | undefined => {
+    if (wrapper.caches) return kept;
+    const r = requestScope();
+    if (!r) return undefined;
+    let m = requests.get(r);
+    if (!m) requests.set(r, (m = new Map()));
+    return m;
+  };
   return {
     fingerprint: (k, v) => fingerprint(fpKey, k, v),
     feedKey(r) {
+      const cache = cacheFor();
+      if (!cache) return wrapper.unwrap(r.data_key!, r.key_id!, `feed:${r.name}`);
       const hit = cache.get(r.data_key!);
       if (hit) return hit;
       if (cache.size >= CACHED) cache.clear();

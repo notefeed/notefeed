@@ -11,7 +11,7 @@ import {
   InvalidBodyError,
   InvalidFeedError,
   InvalidRequestError,
-  KeyServiceUnavailableError,
+  keyServiceDown,
   LimitReachedError,
   ReadIdTakenError,
   NoteTooLargeError,
@@ -48,7 +48,6 @@ const STATUS: [new (...args: never[]) => NotefeedError, number][] = [
   [BlockedImageError, 451],
   [LimitReachedError, 507],
   [UnreadableNoteError, 500],
-  [KeyServiceUnavailableError, 503],
 ];
 
 export const statusOf = (e: NotefeedError) => STATUS.find(([cls]) => e instanceof cls)?.[1] ?? 500;
@@ -57,13 +56,17 @@ export type ErrorReply = { status: number; body: { error: string; code?: ErrorCo
 
 // Anything that isn't a NotefeedError is a bug or a disk failure: logged, and a bare 500.
 export function errorReply(e: unknown): ErrorReply {
+  if (keyServiceDown(e)) {
+    noteOutcome(e.code);
+    return { status: 503, body: { error: e.message, code: e.code }, headers: { "Retry-After": String(e.retryAfter) } };
+  }
   if (!(e instanceof NotefeedError)) {
     log.error({ err: e }, "request failed");
     noteOutcome("error");
     return { status: 500, body: { error: "internal error" } };
   }
   noteOutcome(e.code);
-  const headers = e instanceof RateLimitedError || e instanceof KeyServiceUnavailableError ? { "Retry-After": String(e.retryAfter) } : undefined;
+  const headers = e instanceof RateLimitedError ? { "Retry-After": String(e.retryAfter) } : undefined;
   return { status: statusOf(e), body: { error: e.message, code: e.code }, headers };
 }
 

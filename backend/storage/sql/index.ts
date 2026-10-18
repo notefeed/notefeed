@@ -1,7 +1,7 @@
 // The database backend: SQLite and PostgreSQL through Kysely, one implementation for both. The database is the only source of truth
 // (no in-memory index): uniqueness is a constraint, counts are queries, so several containers stay consistent.
 import { sql, type Kysely } from "kysely";
-import { NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
+import { keyServiceDown, NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
 import { logger } from "../../log";
 import { noteFeedSize } from "../../metrics";
 import { newKey, type ImageStore } from "../images/types";
@@ -155,7 +155,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
         return db;
       } catch (e) {
         await db?.destroy().catch(() => {});
-        const known = e instanceof KeyringError || (e instanceof Error && e.message.startsWith("the database was made by a newer notefeed"));
+        const known = e instanceof KeyringError || keyServiceDown(e) || (e instanceof Error && e.message.startsWith("the database was made by a newer notefeed"));
         // No `cause`: the driver's error names the address or the file, and the log would carry it.
         throw known ? e : new Error(`cannot use the database named by NOTEFEED_DATABASE_URL (${code(e) || (e as Error)?.name || "error"})`);
       }

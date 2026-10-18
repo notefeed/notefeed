@@ -10,6 +10,8 @@ import { connect } from "./connect";
 import { MIGRATION_NAMES } from "./migrations";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
 import { randomBytes } from "node:crypto";
+import { createOpenBaoWrapper } from "../openbao";
+import { openBaoAddr, openBaoForTests } from "../openbao.testkit";
 import { createLocalWrapper, type KeyWrapper } from "../wrapper";
 import { after } from "./testhooks";
 
@@ -47,6 +49,14 @@ describe.skipIf(!base || !supported)("postgres", () => {
   describeStorage("postgres, encrypted", async () => {
     await resetSchema();
     return { storage: fresh(undefined, createLocalWrapper(randomBytes(32).toString("hex"))), cleanup: async () => {} };
+  });
+
+  describe.skipIf(!openBaoAddr())("with the key service", () => {
+    let bao: ReturnType<typeof openBaoForTests> | undefined;
+    describeStorage("postgres, encrypted by OpenBao", async () => {
+      await resetSchema();
+      return { storage: fresh(undefined, createOpenBaoWrapper((await (bao ??= openBaoForTests()))!)), cleanup: async () => {} };
+    });
   });
 
   // The hosted service's shape: rows in PostgreSQL, image bytes in an S3-compatible store. Needs NOTEFEED_TEST_S3_ENDPOINT and its

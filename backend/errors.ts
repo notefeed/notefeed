@@ -154,7 +154,10 @@ export class UnreadableNoteError extends NotefeedError {
   }
 }
 
-/** The key service (NOTEFEED_KMS, issue #215) does not answer: maintenance, not an error. 503 with Retry-After. */
+/**
+ * The key service (NOTEFEED_KMS, issue #215) does not answer: maintenance, not an error. 503 with Retry-After. Known by its digest
+ * (keyServiceDown), not by instanceof: Next may bundle this module once per route, and the wrapper that throws it is shared.
+ */
 export class KeyServiceUnavailableError extends NotefeedError {
   readonly retryAfter = 30;
   readonly digest = UNAVAILABLE_DIGEST;
@@ -162,3 +165,5 @@ export class KeyServiceUnavailableError extends NotefeedError {
     super("unavailable", "the key service is unreachable");
   }
 }
+
+export const keyServiceDown = (e: unknown): e is KeyServiceUnavailableError => (e as { digest?: unknown } | null)?.digest === UNAVAILABLE_DIGEST;

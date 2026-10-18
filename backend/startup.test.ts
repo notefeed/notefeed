@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { hashPassword } from "./feedlock";
 import { readIdOf, reservedFeedProblems, resetFeedsForTests } from "./feeds";
 import { logsOf, logTo } from "./log";
+import { resetStorageForTests } from "./storage";
 import { createNote } from "./notes";
 import { legalFileWarnings, logStartup, reservedFeedWarnings, reservedFolderWarnings, reservedHint, startupReport } from "./startup";
 
@@ -199,4 +200,11 @@ test("the start after a key change re-wraps the licenses database too", async ()
   resetStorageForTests();
   expect((await licenses().byKeyHash("h1"))?.providerRef).toBe("sub_1");
   resetStorageForTests();
+});
+
+test("a key service that is down at start is a warning, not a failure: notefeed serves the maintenance page until it answers", async () => {
+  stub({ NOTEFEED_STORAGE: "sqlite", NOTEFEED_KMS: "openbao", NOTEFEED_OPENBAO_ADDR: "http://127.0.0.1:9", NOTEFEED_OPENBAO_ROLE_ID: "role", NOTEFEED_OPENBAO_SECRET_ID: "secret" });
+  resetStorageForTests();
+  const logs = await logsOf(logStartup);
+  expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
 });

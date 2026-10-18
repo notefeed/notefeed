@@ -1,9 +1,11 @@
-// The main key (issue #212, ADR 0033): it wraps the data keys and never touches a note. This is the one implementation for now, the
-// key from NOTEFEED_ENCRYPTION_KEY; a key service is a second one (#215). Old keys (NOTEFEED_ENCRYPTION_OLD_KEYS) only unwrap, for the
+// The main key (issue #212, ADR 0033): it wraps the data keys and never touches a note. The local one is the key from
+// NOTEFEED_ENCRYPTION_KEY; the key service OpenBao (NOTEFEED_KMS, #215, openbao.ts) is the other. Old keys (NOTEFEED_ENCRYPTION_OLD_KEYS) only unwrap, for the
 // start that wraps everything again under the new key.
 import { createHash, hkdfSync } from "node:crypto";
 import { config } from "../config";
+import { processState } from "../state";
 import { CipherError, open, seal } from "./cipher";
+import { createOpenBaoWrapper, type OpenBaoWrapper } from "./openbao";
 
 /** The main key. Async because a key service (#215) answers over the network. */
 export interface KeyWrapper {
@@ -75,10 +77,25 @@ export function createOldKeysWrapper(oldKeys: readonly string[]): KeyWrapper | n
   };
 }
 
-/** null when NOTEFEED_ENCRYPTION_KEY is empty: encryption is off. */
+// One per configuration, shared by the feeds' and the licenses' database: one login to the key service, and /health asks the same one.
+const shared = processState("key-wrapper", () => ({}) as { keys?: string; wrapper?: KeyWrapper | null });
+
+/** null when neither NOTEFEED_ENCRYPTION_KEY nor NOTEFEED_KMS is set: encryption is off. */
 export function wrapperFromConfig(): KeyWrapper | null {
+  const keys = encryptionKeys();
+  if (shared.keys === keys && shared.wrapper !== undefined) return shared.wrapper;
   const key = config.encryptionKey();
-  return key ? createLocalWrapper(key, config.encryptionOldKeys()) : null;
+  const wrapper =
+    config.kms() === "openbao" ? createOpenBaoWrapper({ ...config.openbao(), old: createOldKeysWrapper(config.encryptionOldKeys()) }) : key ? createLocalWrapper(key, config.encryptionOldKeys()) : null;
+  shared.keys = keys;
+  shared.wrapper = wrapper;
+  return wrapper;
+}
+
+/** The key service's own check, for /health; undefined without one. */
+export function keyServiceCheck(): (() => Promise<void>) | undefined {
+  const w = config.kms() === "openbao" ? (wrapperFromConfig() as OpenBaoWrapper) : null;
+  return w ? () => w.check() : undefined;
 }
 
 /** Which main keys (or key service) are configured, as a hash: for a cache of instances built with them, which must never hold the keys. */
