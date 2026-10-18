@@ -39,6 +39,10 @@ class NoteEdited:
         name (str | Unset): The file name an image was posted with, when it came with one
         sender (None | str | Unset): Verified sign-in name of the poster; absent when the note was posted without a
             sign-in
+        unreadable (bool | Unset): Present, and true, for a damaged note: its stored copy can't be decrypted. A list
+            shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no
+            content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other
+            note
         attachments (list[Created] | Unset): A multipart request's pictures, one per `file` part, in their order; absent
             for a raw body
     """
@@ -56,6 +60,7 @@ class NoteEdited:
     alt: str | Unset = UNSET
     name: str | Unset = UNSET
     sender: None | str | Unset = UNSET
+    unreadable: bool | Unset = UNSET
     attachments: list[Created] | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
@@ -90,6 +95,8 @@ class NoteEdited:
         else:
             sender = self.sender
 
+        unreadable = self.unreadable
+
         attachments: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.attachments, Unset):
             attachments = []
@@ -120,6 +127,8 @@ class NoteEdited:
             field_dict["name"] = name
         if sender is not UNSET:
             field_dict["sender"] = sender
+        if unreadable is not UNSET:
+            field_dict["unreadable"] = unreadable
         if attachments is not UNSET:
             field_dict["attachments"] = attachments
 
@@ -168,6 +177,8 @@ class NoteEdited:
 
         sender = _parse_sender(d.pop("sender", UNSET))
 
+        unreadable = d.pop("unreadable", UNSET)
+
         _attachments = d.pop("attachments", UNSET)
         attachments: list[Created] | Unset = UNSET
         if _attachments is not UNSET:
@@ -191,6 +202,7 @@ class NoteEdited:
             alt=alt,
             name=name,
             sender=sender,
+            unreadable=unreadable,
             attachments=attachments,
         )
 

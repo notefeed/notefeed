@@ -10,15 +10,16 @@ import { FeedGoneError } from "../types";
 import { logsOf } from "../../log";
 import { connect } from "./connect";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
+import { createLocalWrapper, type KeyWrapper } from "../wrapper";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
 
 const open: { storage: SqlStorage; root: string }[] = [];
-async function fresh(file = "test.db", images?: Images) {
+async function fresh(file = "test.db", images?: Images, wrapper?: KeyWrapper) {
   const root = await mkdtemp(join(tmpdir(), "notefeed-sql-"));
   const url = `file:${join(root, file)}`;
-  const storage = createSqlStorage(() => connect("sqlite", url), "sqlite", images);
+  const storage = createSqlStorage(() => connect("sqlite", url), "sqlite", images, wrapper);
   open.push({ storage, root });
   return { storage, root, url };
 }
@@ -78,6 +79,10 @@ describe.skipIf(!supported)("sqlite", () => {
     const { storage } = await fresh();
     return { storage, cleanup: async () => {} };
   });
+  describeStorage("sqlite, encrypted", async () => {
+    const { storage } = await fresh("test.db", undefined, createLocalWrapper(randomBytes(32).toString("hex")));
+    return { storage, cleanup: async () => {} };
+  });
 
   describeStorage("sqlite with images in a folder", async () => {
     const root = await mkdtemp(join(tmpdir(), "notefeed-sql-images-"));
@@ -94,6 +99,7 @@ describe.skipIf(!supported)("sqlite", () => {
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
     // Back to the schema of 001: the later migrations' columns and tables go, and so do their records, in order.
+    raw.exec("drop index notes_by_sealed; alter table notes drop column sealed; drop table keyring; alter table feeds drop column key_id; alter table feeds drop column data_key; alter table feeds drop column name_sealed; alter table feeds drop column read_id_sealed; delete from kysely_migration where name = '004_encryption'");
     raw.exec("alter table notes drop column blob_key; alter table notes drop column size; drop table tombstones; drop table blocked_images; delete from kysely_migration where name in ('002_image_store', '003_takedown')");
     raw.close();
     const again = createSqlStorage(() => connect("sqlite", a.url));
@@ -404,7 +410,7 @@ describe.skipIf(!supported)("sqlite", () => {
       open.push({ storage: moving, root: "" });
       const first = await moving.moveImages({ from: "db", limit: 2 });
       expect(first).toMatchObject({ moved: { count: 2, bytes: 16 }, skipped: 0, missing: 0, failed: 0, left: 1 });
-      expect(first.next).toMatch(/^\d+:p/);
+      expect(first.next).toMatch(/^\d+:f:p/);
       const second = await moving.moveImages({ from: "db", limit: 2, after: first.next! });
       expect(second).toEqual({ moved: { count: 1, bytes: 8 }, skipped: 0, missing: 0, failed: 0, left: 0, next: null });
       expect(rec.objects.size).toBe(3);

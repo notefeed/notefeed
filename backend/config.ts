@@ -79,6 +79,13 @@ function validateStorage(): void {
     if (missing.length) throw new Error(`NOTEFEED_IMAGES=s3 needs ${missing.join(", ")}`);
     if (!/^https?:\/\//i.test(endpoint) || !URL.canParse(endpoint)) throw new Error("NOTEFEED_S3_ENDPOINT must be an http(s) URL");
   }
+  const key = env("NOTEFEED_ENCRYPTION_KEY");
+  if (key && kind === "fs") throw new Error("NOTEFEED_ENCRYPTION_KEY needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend is not encrypted");
+  if (key && key === env("NOTEFEED_SECRET")) throw new Error("NOTEFEED_ENCRYPTION_KEY must not be NOTEFEED_SECRET");
+  const short = (k: string) => Buffer.byteLength(k) < 32;
+  if (key.includes(",")) throw new Error("NOTEFEED_ENCRYPTION_KEY must not contain a comma: after a key change it goes into the comma-separated NOTEFEED_ENCRYPTION_OLD_KEYS (openssl rand -hex 32 makes none)");
+  if (key && short(key)) throw new Error("NOTEFEED_ENCRYPTION_KEY must be at least 32 bytes (e.g. openssl rand -hex 32)");
+  if (key && config.encryptionOldKeys().some(short)) throw new Error("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes (e.g. openssl rand -hex 32)");
   if (kind === "fs") return;
   if (kind === "postgres" && databaseUrl() === "") throw new Error("NOTEFEED_STORAGE=postgres needs NOTEFEED_DATABASE_URL");
   if (Buffer.byteLength(env("NOTEFEED_SECRET")) < 32) {
@@ -100,6 +107,9 @@ export const config = {
   // Empty means unset: compose passes ${NOTEFEED_PASSWORD:-} and ${NOTEFEED_SECRET:-}.
   password: () => env("NOTEFEED_PASSWORD"),
   secret: () => env("NOTEFEED_SECRET"),
+  // Encryption at rest (issue #212): the main key, and old ones kept for the one start that wraps everything again under the new key.
+  encryptionKey: () => env("NOTEFEED_ENCRYPTION_KEY"),
+  encryptionOldKeys: () => env("NOTEFEED_ENCRYPTION_OLD_KEYS").split(",").map((k) => k.trim()).filter(Boolean),
   publicUrl: () => env("PUBLIC_URL").replace(/\/+$/, ""),
   title: () => env("NOTEFEED_TITLE") || "notefeed",
   // The operator's own imprint and privacy page: Markdown files (see legal.ts). Empty: the page does not exist.

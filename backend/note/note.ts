@@ -24,6 +24,10 @@ export abstract class Note {
     this.size = size;
   }
 
+  /** True for a note whose stored copy can't be decrypted (UnreadableNote): only its id, file and time are known. */
+  get unreadable(): boolean {
+    return false;
+  }
   /** The media type of the note's file, as it was posted. */
   get type(): string {
     return mediaTypeOf(this.ext);

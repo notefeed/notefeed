@@ -19,6 +19,7 @@ export default defineConfig({
   use: { trace: "retain-on-failure" },
   projects: [
     { name: "open", testMatch: "open.spec.ts", use: { baseURL: "http://localhost:3100" } },
+    { name: "errors", testMatch: "errors.spec.ts", use: { baseURL: "http://localhost:3100" } },
     { name: "feedlock", testMatch: "feedlock.spec.ts", use: { baseURL: "http://localhost:3100" } },
     { name: "notes", testMatch: "notes.spec.ts", use: { baseURL: "http://localhost:3100" } },
     { name: "feeds", testMatch: "feeds.spec.ts", use: { baseURL: "http://localhost:3100" } },

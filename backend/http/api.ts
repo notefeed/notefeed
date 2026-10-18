@@ -92,6 +92,7 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   url: `${base}/${n.id}`,
   ...(n.sender !== undefined && { sender: n.sender }),
   tags: n.tags,
+  ...(n.unreadable && { unreadable: true as const }),
 });
 
 // The feed a read id shows, or null for one nobody has. A read id the operator removed is 410 (issue #159), as on the pages,
@@ -205,7 +206,7 @@ const OPS: AnyOp[] = [
     },
     before: passwordFeedAndFeedPassword,
   }).handle(async ({ req, params, query }) => {
-    return page((l, b, t) => listNotes(params.feed, l, b, t), query, publicUrl(req.headers) + feedPath(params.feed), await filesOf(params.feed, req.headers));
+    return page((l, b, t) => listNotes(params.feed, l, b, t, undefined, true), query, publicUrl(req.headers) + feedPath(params.feed), await filesOf(params.feed, req.headers));
   }),
 
   op({
@@ -513,7 +514,7 @@ const OPS: AnyOp[] = [
     if (!isReadId(params.readId)) throw new NotFoundError("malformed read id");
     const feed = await readFeed(params.readId);
     const settings = feed ? await getSettings(feed) : null;
-    const notes = async (l: number, b?: string, t?: string) => (feed && settings ? forReaders(await listNotes(feed, l, b, t), settings) : []);
+    const notes = async (l: number, b?: string, t?: string) => (feed && settings ? forReaders(await listNotes(feed, l, b, t, undefined, true), settings) : []);
     return page(notes, query, publicUrl(req.headers) + readPath(params.readId), `${publicUrl(req.headers)}${readPath(params.readId)}/`);
   }),
 

@@ -66,6 +66,8 @@ See [Storage](storage.md).
 | `NOTEFEED_IMAGES_DIR` | `DATA_DIR/images` | The folder for `NOTEFEED_IMAGES=fs`. |
 | `NOTEFEED_S3_ENDPOINT`, `NOTEFEED_S3_BUCKET`, `NOTEFEED_S3_ACCESS_KEY`, `NOTEFEED_S3_SECRET_KEY` | none | The object store for `NOTEFEED_IMAGES=s3`, all four required. |
 | `NOTEFEED_S3_REGION` | `us-east-1` | The region the store expects in a request's signature. |
+| `NOTEFEED_ENCRYPTION_KEY` | none: off | The main key of [encryption at rest](storage.md#encryption-at-rest), at least 32 characters (`openssl rand -hex 32`), not the same as `NOTEFEED_SECRET`, and without a comma. Needs `sqlite` or `postgres`. Losing it loses the data. |
+| `NOTEFEED_ENCRYPTION_OLD_KEYS` | none | Former main keys, comma-separated, for the one start after [changing the main key](storage.md#changing-the-main-key). |
 
 ## Operating
 

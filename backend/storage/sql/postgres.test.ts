@@ -9,6 +9,9 @@ import { newKey } from "../images/types";
 import { connect } from "./connect";
 import { MIGRATION_NAMES } from "./migrations";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
+import { randomBytes } from "node:crypto";
+import { createLocalWrapper, type KeyWrapper } from "../wrapper";
+import { after } from "./testhooks";
 
 const base = process.env.NOTEFEED_TEST_POSTGRES_URL ?? "";
 const supported = Number(process.versions.node.split(".")[0]) >= 22; // kysely needs Node 22
@@ -27,8 +30,8 @@ async function resetSchema() {
 }
 
 const open: SqlStorage[] = [];
-const fresh = (images?: Images) => {
-  const s = createSqlStorage(() => connect("postgres", url()), "postgres", images);
+const fresh = (images?: Images, wrapper?: KeyWrapper) => {
+  const s = createSqlStorage(() => connect("postgres", url()), "postgres", images, wrapper);
   open.push(s);
   return s;
 };
@@ -40,6 +43,10 @@ describe.skipIf(!base || !supported)("postgres", () => {
   describeStorage("postgres", async () => {
     await resetSchema();
     return { storage: fresh(), cleanup: async () => {} };
+  });
+  describeStorage("postgres, encrypted", async () => {
+    await resetSchema();
+    return { storage: fresh(undefined, createLocalWrapper(randomBytes(32).toString("hex"))), cleanup: async () => {} };
   });
 
   // The hosted service's shape: rows in PostgreSQL, image bytes in an S3-compatible store. Needs NOTEFEED_TEST_S3_ENDPOINT and its
@@ -102,5 +109,50 @@ describe.skipIf(!base || !supported)("postgres", () => {
     expect(err.message).toMatch(/NOTEFEED_DATABASE_URL/);
     expect(err.message).not.toMatch(/hunter2|127\.0\.0\.1/);
     expect(err.cause).toBeUndefined(); // the driver's error would carry the address
+  });
+
+  test("two starts convert once", async () => {
+    await resetSchema();
+    const plain = fresh();
+    for (const n of ["a", "b", "c"]) await plain.createFeed(n, `rid-${n}`);
+    await plain.writeNote("a", "n", "md", "x", {});
+    await plain.close();
+    const w = createLocalWrapper(randomBytes(32).toString("hex"));
+    const [one, two] = [fresh(undefined, w), fresh(undefined, w)];
+    const [l1, l2] = await Promise.all([one.listFeeds(), two.listFeeds()]);
+    expect(l1).toEqual(["a", "b", "c"]);
+    expect(l2).toEqual(["a", "b", "c"]);
+    expect(await one.feedCount()).toBe(3);
+    expect((await two.readNote("a", "n", ["md"], () => true))?.content.toString()).toBe("x");
+    const { Client } = await import("pg");
+    const client = new Client({ connectionString: base });
+    await client.connect();
+    const ring = await client.query("select count(*)::int as n from nf_test.keyring");
+    const keyed = await client.query("select count(*)::int as n from nf_test.feeds where key_id is not null");
+    await client.end();
+    expect(ring.rows[0].n).toBe(1);
+    expect(keyed.rows[0].n).toBe(3);
+  });
+
+  test("an edit of a note's metadata while reseal seals it is kept, sealed", async () => {
+    await resetSchema();
+    const plain = fresh();
+    await plain.createFeed("f", "rid-f");
+    await plain.writeNote("f", "n", "md", "text", { title: "old" });
+    await plain.close();
+    const w = createLocalWrapper(randomBytes(32).toString("hex"));
+    const other = fresh(undefined, w);
+    await other.listFeeds(); // converts the feeds first
+    const hooked = createSqlStorage(async () => (await connect("postgres", url())).withPlugin(after(["ext", "metadata", "sealed"], async () => void (await other.reseal({ limit: 10 })))), "postgres", undefined, w);
+    open.push(hooked);
+    expect(await hooked.updateMeta("f", "n", ["md"], { title: "new" })).toBe(true);
+    expect(await other.readMeta("f", { id: "n", ext: "md" })).toEqual({ title: "new" });
+    const { Client } = await import("pg");
+    const client = new Client({ connectionString: base });
+    await client.connect();
+    const row = await client.query("select metadata, sealed from nf_test.notes");
+    await client.end();
+    expect(row.rows[0].sealed).toBe(1);
+    expect(row.rows[0].metadata).not.toContain("new");
   });
 });

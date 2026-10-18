@@ -21,5 +21,6 @@ export const ERROR_CODES = [
   "taken",
   "removed",
   "blocked",
+  "unreadable",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];

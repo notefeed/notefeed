@@ -5,6 +5,7 @@ import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
 import { bodyAfterTitle } from "@/shared/notes";
 import { reportUrl } from "@/shared/report";
+import { UNREADABLE } from "@/app/_lib/messages";
 
 // Times use the server's TZ (set TZ in compose.yaml).
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA");
@@ -92,7 +93,15 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
       <ol className="mt-2 space-y-3">
         {items.map((n) => (
           <li key={n.id} className={`${card} p-4 ${n.id === posted ? "arrived" : ""}`}>
-            {n.type.startsWith("image/") ? (
+            {n.unreadable ? (
+              // A damaged note, in its place: what happened, and its page (where its owner can delete it).
+              <p role="status" className="text-muted">
+                {UNREADABLE}{" "}
+                <Link href={`${base}/${n.id}`} className="underline hover:text-carbon">
+                  Open
+                </Link>
+              </p>
+            ) : n.type.startsWith("image/") ? (
               <>
                 {n.title && (
                   <Link href={`${base}/${n.id}`} className="mb-3 block text-[17px] font-bold tracking-tight hover:text-carbon">

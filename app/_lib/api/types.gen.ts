@@ -57,6 +57,10 @@ export type Note = {
      * Labels the poster gave the note (not verified, and shown to readers like the note itself); empty when none
      */
     tags: Array<string>;
+    /**
+     * Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note
+     */
+    unreadable?: true;
 };
 
 export type NoteList = {
@@ -179,6 +183,10 @@ export type NoteEdited = {
      */
     tags: Array<string>;
     /**
+     * Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note
+     */
+    unreadable?: true;
+    /**
      * A multipart request's pictures, one per `file` part, in their order; absent for a raw body
      */
     attachments?: Array<Created>;
@@ -203,7 +211,7 @@ export type Error = {
     /**
      * Stable machine-readable code; absent only on a 500
      */
-    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'removed' | 'blocked';
+    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'removed' | 'blocked' | 'unreadable';
 };
 
 export type NoteMeta = {

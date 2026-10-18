@@ -167,3 +167,36 @@ test("the hint for a reserved feed that already exists fits the storage: a folde
     expect(reservedHint(kind)).not.toMatch(/folder|DATA_DIR/);
   }
 });
+
+// Encryption at rest (issue #212): what keeps the server from starting.
+test("an encrypted database without its key, or a short key, keeps logStartup from succeeding", async () => {
+  const { resetStorageForTests, storage } = await import("./storage");
+  stub({ NOTEFEED_STORAGE: "sqlite", NOTEFEED_ENCRYPTION_KEY: "a".repeat(64) });
+  resetStorageForTests();
+  await logStartup();
+  await (storage() as unknown as { close(): Promise<void> }).close();
+  stub({ NOTEFEED_ENCRYPTION_KEY: "" });
+  resetStorageForTests();
+  await expect(logStartup()).rejects.toThrow("the database is encrypted, but NOTEFEED_ENCRYPTION_KEY is not set");
+  stub({ NOTEFEED_ENCRYPTION_KEY: "short" });
+  await expect(logStartup()).rejects.toThrow("NOTEFEED_ENCRYPTION_KEY must be at least 32 bytes");
+  stub({ NOTEFEED_ENCRYPTION_KEY: "a".repeat(64), NOTEFEED_ENCRYPTION_OLD_KEYS: "short" });
+  await expect(logStartup()).rejects.toThrow("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes");
+  resetStorageForTests();
+});
+
+test("the start after a key change re-wraps the licenses database too", async () => {
+  const { resetStorageForTests } = await import("./storage");
+  const { licenses } = await import("./licensing");
+  const [a, b] = ["a".repeat(64), "b".repeat(64)];
+  stub({ NOTEFEED_STORAGE: "sqlite", NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "whsec", NOTEFEED_ENCRYPTION_KEY: a });
+  resetStorageForTests();
+  await licenses().createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+  stub({ NOTEFEED_ENCRYPTION_KEY: b, NOTEFEED_ENCRYPTION_OLD_KEYS: a });
+  resetStorageForTests();
+  await logStartup(); // no license call of its own: the start alone must re-wrap
+  stub({ NOTEFEED_ENCRYPTION_OLD_KEYS: "" });
+  resetStorageForTests();
+  expect((await licenses().byKeyHash("h1"))?.providerRef).toBe("sub_1");
+  resetStorageForTests();
+});

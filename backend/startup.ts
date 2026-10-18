@@ -5,7 +5,9 @@ import { reservedFeedProblems, RESERVED_FEEDS } from "./feeds";
 import { unreadableLegalSettings } from "./legal";
 import { logger } from "./log";
 import { missingVars, providers } from "./oidc/config";
+import { openLicenses } from "./licensing";
 import { storage } from "./storage";
+import { KeyringError } from "./storage/sql/keyring";
 
 type Fields = Record<string, unknown>;
 
@@ -79,16 +81,20 @@ export async function legalFileWarnings(): Promise<Warning[]> {
 }
 
 export async function logStartup(): Promise<void> {
-  config.validateStorage(); // a wrong storage setting keeps the server from starting; the one failure not caught below
+  config.validateStorage(); // a wrong storage setting keeps the server from starting; with a database the main key does too, below
   const warn = (warnings: Warning[]) => warnings.forEach(([component, msg, f]) => logger(component).warn(f, msg));
   try {
     const { fields, warnings } = startupReport();
     logger("startup").info(fields, "notefeed started");
     warn(warnings);
+    // The license store comes to the main key now too: a key change re-wraps it in this start, not at its first use.
+    await openLicenses();
     warn(await legalFileWarnings());
     warn(await reservedFolderWarnings());
     warn(await reservedFeedWarnings()); // loads the feed index, which creates missing reserved feeds
   } catch (e) {
+    // A database this main key cannot open (encryption at rest, issue #212) must not be served: every request would fail.
+    if (e instanceof KeyringError) throw e;
     try {
       logger("startup").error({ err: e }, "startup report failed");
     } catch {}

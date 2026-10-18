@@ -25,7 +25,16 @@ const SECRET_NOTE = "The feed name works like a password: anyone who knows it ca
 const feed = z.string().regex(FEED_RE);
 const password = z.string().optional();
 const PROTECTED = "A protected feed needs its password as password.";
-const NoteSummary = z.object({ id: z.string(), type: z.string(), title: z.string(), created_at: z.string(), url: z.string(), sender: z.string().optional(), tags: z.array(z.string()) });
+const NoteSummary = z.object({
+  id: z.string(),
+  type: z.string(),
+  title: z.string(),
+  created_at: z.string(),
+  url: z.string(),
+  sender: z.string().optional(),
+  tags: z.array(z.string()),
+  unreadable: z.literal(true).optional().describe("A damaged note: its stored copy can't be decrypted, so its title and tags are empty and get_note refuses it. It can be deleted"),
+});
 const NoteFull = NoteSummary.extend({ content: z.string().optional() }); // the text of a text type; a picture has none
 
 // A tool result: the body as structured content and, for clients that only read text, as JSON text.
@@ -47,7 +56,7 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
 
 function server(h: Headers): McpServer {
   const base = publicUrl(h);
-  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, created_at: n.createdAt.toISOString(), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags });
+  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, created_at: n.createdAt.toISOString(), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }) });
   // A reserved name must not reach the filesystem lookup, so it is checked first.
   const checkAccess = async (feed: string, password?: string) => {
     assertFeed(feed);
@@ -107,7 +116,7 @@ function server(h: Headers): McpServer {
     },
     guard(async ({ feed, limit, before, tag, password }) => {
       await checkAccess(feed, password);
-      const found = await listNotes(feed, limit + 1, before, tag?.toLowerCase()); // one extra: is there a next page?
+      const found = await listNotes(feed, limit + 1, before, tag?.toLowerCase(), undefined, true); // one extra: is there a next page?
       const shown = found.slice(0, limit);
       return ok({ notes: shown.map((n) => summary(feed, n)), next: found.length > limit ? shown[shown.length - 1].id : null });
     }),

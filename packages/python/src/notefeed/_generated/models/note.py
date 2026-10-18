@@ -35,6 +35,10 @@ class Note:
         name (str | Unset): The file name an image was posted with, when it came with one
         sender (None | str | Unset): Verified sign-in name of the poster; absent when the note was posted without a
             sign-in
+        unreadable (bool | Unset): Present, and true, for a damaged note: its stored copy can't be decrypted. A list
+            shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no
+            content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other
+            note
     """
 
     id: str
@@ -50,6 +54,7 @@ class Note:
     alt: str | Unset = UNSET
     name: str | Unset = UNSET
     sender: None | str | Unset = UNSET
+    unreadable: bool | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         id = self.id
@@ -83,6 +88,8 @@ class Note:
         else:
             sender = self.sender
 
+        unreadable = self.unreadable
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -106,6 +113,8 @@ class Note:
             field_dict["name"] = name
         if sender is not UNSET:
             field_dict["sender"] = sender
+        if unreadable is not UNSET:
+            field_dict["unreadable"] = unreadable
 
         return field_dict
 
@@ -150,6 +159,8 @@ class Note:
 
         sender = _parse_sender(d.pop("sender", UNSET))
 
+        unreadable = d.pop("unreadable", UNSET)
+
         note = cls(
             id=id,
             type_=type_,
@@ -164,6 +175,7 @@ class Note:
             alt=alt,
             name=name,
             sender=sender,
+            unreadable=unreadable,
         )
 
         return note

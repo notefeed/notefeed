@@ -1,0 +1,519 @@
+// Encryption at rest (issue #212) on the SQL backend: what a stolen copy of the database or the image store shows. The contract suite
+// runs encrypted too (sqlite.test.ts, postgres.test.ts); these tests read the raw rows behind the storage's back.
+import { randomBytes } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Kysely } from "kysely";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { ReadIdTakenError, RemovedFeedError } from "../../errors";
+import { CipherError } from "../cipher";
+import { isKey, type ImageStore } from "../images/types";
+import { createLocalWrapper, type KeyWrapper } from "../wrapper";
+import { connect } from "./connect";
+import { createSqlStorage, type Images, type SqlStorage } from ".";
+import { after } from "./testhooks";
+import { ENCRYPTED_NO_KEY, KEYRING_MISSING, MIXED, unknownKey } from "./keyring";
+import type { Schema } from "./schema";
+
+const supported = Number(process.versions.node.split(".")[0]) >= 22;
+const key = () => randomBytes(32).toString("hex");
+
+const opened: { close(): Promise<void> }[] = [];
+const roots: string[] = [];
+afterEach(async () => {
+  for (const o of opened.splice(0)) await o.close();
+  for (const r of roots.splice(0)) await rm(r, { recursive: true, force: true });
+});
+
+async function database() {
+  const root = await mkdtemp(join(tmpdir(), "notefeed-enc-"));
+  roots.push(root);
+  return `file:${join(root, "test.db")}`;
+}
+function storageOn(url: string, wrapper: KeyWrapper | null, images?: Images): SqlStorage {
+  const s = createSqlStorage(() => connect("sqlite", url), "sqlite", images, wrapper);
+  opened.push(s);
+  return s;
+}
+// A second connection to the same file: what a thief with a copy sees.
+async function raw(url: string): Promise<Kysely<Schema>> {
+  const db = await connect("sqlite", url);
+  opened.push({ close: () => db.destroy() });
+  return db;
+}
+// An image store in memory, to look inside.
+// `hooks.put` runs before a put, once per call, and may fail it.
+function memoryStore(hooks: { put?: (key: string) => Promise<void> } = {}): ImageStore & { objects: Map<string, Buffer> } {
+  const objects = new Map<string, Buffer>();
+  return {
+    objects,
+    async put(k, b) {
+      await hooks.put?.(k);
+      objects.set(k, Buffer.from(b));
+    },
+    get: async (k) => objects.get(k) ?? null,
+    delete: async (k) => void objects.delete(k),
+    async *list() {
+      for (const [key, b] of objects) if (isKey(key)) yield { key, size: b.byteLength, modified: new Date(0) };
+    },
+    check: async () => {},
+  };
+}
+const external = (ext: string) => ext === "png";
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("PNGMARK"), Buffer.alloc(16, 0)]);
+const ALL = ["md", "png"];
+
+const allText = (rows: object[]) => JSON.stringify(rows, (_k, v) => (Buffer.isBuffer(v) || v instanceof Uint8Array ? Buffer.from(v).toString("latin1") : v));
+
+describe.skipIf(!supported)("encryption at rest: sqlite", () => {
+  test("a stolen database shows no feed name, read id, settings or password hash", async () => {
+    const url = await database();
+    const w = createLocalWrapper(key());
+    const s = storageOn(url, w);
+    await s.createFeed("secret-feed", "Rid-Secret-1", "hash-xyz");
+    await s.writeSettings("secret-feed", { title: "Title XYZ", description: "", image: "", showSender: false });
+    const db = await raw(url);
+    const feeds = await db.selectFrom("feeds").selectAll().execute();
+    const keyring = await db.selectFrom("keyring").selectAll().execute();
+    for (const secret of ["secret-feed", "Rid-Secret-1", "hash-xyz", "Title XYZ"]) expect(allText([...feeds, ...keyring])).not.toContain(secret);
+    expect(feeds[0].key_id).toBe(w.keyId);
+    expect(await s.readHash("secret-feed")).toBe("hash-xyz");
+    expect((await s.readSettings("secret-feed")).title).toBe("Title XYZ");
+    expect(await s.feedReadId("secret-feed")).toBe("Rid-Secret-1");
+  });
+
+  test("a tombstone shows no name or read id", async () => {
+    const url = await database();
+    const s = storageOn(url, createLocalWrapper(key()));
+    await s.createFeed("secret-feed", "Rid-Secret-1");
+    expect((await s.takedownFeed("secret-feed", null)).removed).toBe(true);
+    const db = await raw(url);
+    const text = allText(await db.selectFrom("tombstones").selectAll().execute());
+    expect(text).not.toContain("secret-feed");
+    expect(text).not.toContain("Rid-Secret-1");
+    await expect(s.createFeed("secret-feed", "Other-1")).rejects.toThrow(RemovedFeedError);
+    await expect(s.createFeed("new-feed", "Rid-Secret-1")).rejects.toThrow(ReadIdTakenError);
+    expect(await s.isRemoved({ readId: "Rid-Secret-1" })).toBe(true);
+  });
+
+  test("feedForReadId and listFeeds give plain names back", async () => {
+    const s = storageOn(await database(), createLocalWrapper(key()));
+    await s.createFeed("b-feed", "Rid-B");
+    await s.createFeed("a-feed", "Rid-A");
+    expect(await s.feedForReadId("Rid-B")).toBe("b-feed");
+    expect(await s.listFeeds()).toEqual(["a-feed", "b-feed"]);
+    expect(await s.listFeedNames()).toEqual(["a-feed", "b-feed"]);
+  });
+
+  test("two feeds have different data keys", async () => {
+    const url = await database();
+    const s = storageOn(url, createLocalWrapper(key()));
+    await s.createFeed("one", "Rid-1");
+    await s.createFeed("two", "Rid-2");
+    const rows = await (await raw(url)).selectFrom("feeds").select("data_key").execute();
+    expect(rows[0].data_key).toBeTruthy();
+    expect(rows[0].data_key).not.toBe(rows[1].data_key);
+  });
+
+  test("a stolen database shows no note text or metadata", async () => {
+    const url = await database();
+    const s = storageOn(url, createLocalWrapper(key()));
+    await s.createFeed("f", "Rid-F");
+    const id = await s.writeNote("f", "n", "md", "# Plain text 123", { title: "Title 456", tags: ["tag789"] });
+    await s.writeNote("f", "p", "png", PNG, { alt: "Alt 321" });
+    const text = allText(await (await raw(url)).selectFrom("notes").selectAll().execute());
+    for (const secret of ["Plain text 123", "Title 456", "tag789", "PNGMARK", "Alt 321"]) expect(text).not.toContain(secret);
+    const note = await s.readNote("f", id, ALL, () => true);
+    expect(note?.content.toString()).toBe("# Plain text 123");
+    expect(note?.meta).toEqual({ title: "Title 456", tags: ["tag789"] });
+    expect(note?.size).toBe(Buffer.byteLength("# Plain text 123"));
+    expect((await s.readFile("f", "p.png"))?.equals(PNG)).toBe(true);
+  });
+
+  test("the image store holds no image bytes", async () => {
+    const store = memoryStore();
+    const s = storageOn(await database(), createLocalWrapper(key()), { store, external });
+    await s.createFeed("f", "Rid-F");
+    await s.writeNote("f", "p", "png", PNG, {});
+    await s.writeNote("f", "p", "png", PNG, {}); // the same id again: p-2
+    expect(store.objects.size).toBe(2);
+    for (const b of store.objects.values()) expect(b.toString("latin1")).not.toContain("PNGMARK");
+    expect((await s.readFile("f", "p.png"))?.equals(PNG)).toBe(true);
+    expect((await s.readFile("f", "p-2.png"))?.equals(PNG)).toBe(true);
+    expect(await s.replaceNote("f", "p", ["png"], Buffer.concat([PNG, Buffer.from("more")]))).toBe(true);
+    expect((await s.readFile("f", "p.png"))?.toString("latin1")).toContain("more");
+    expect(store.objects.size).toBe(2);
+  });
+
+  test("a note's bytes moved to another note do not open", async () => {
+    const url = await database();
+    const s = storageOn(url, createLocalWrapper(key()));
+    await s.createFeed("f", "Rid-F");
+    await s.writeNote("f", "a", "md", "note a", {});
+    await s.writeNote("f", "b", "md", "note b", {});
+    const db = await raw(url);
+    const a = await db.selectFrom("notes").select("content").where("id", "=", "a").executeTakeFirstOrThrow();
+    await db.updateTable("notes").set({ content: a.content }).where("id", "=", "b").execute();
+    await expect(s.readNote("f", "b", ALL, () => true)).rejects.toThrow(CipherError);
+    await expect(s.readFile("f", "b.md")).rejects.toThrow(CipherError);
+  });
+
+  test("moveImages keeps sealed images readable", async () => {
+    const url = await database();
+    const w = createLocalWrapper(key());
+    const inRows = storageOn(url, w);
+    await inRows.createFeed("f", "Rid-F");
+    await inRows.writeNote("f", "p", "png", PNG, {});
+    const store = memoryStore();
+    const toStore = storageOn(url, w, { store, external });
+    expect((await toStore.moveImages({ from: "db", limit: 10 })).moved.count).toBe(1);
+    expect(store.objects.size).toBe(1);
+    expect((await toStore.readFile("f", "p.png"))?.equals(PNG)).toBe(true);
+    const back = storageOn(url, w);
+    expect((await back.moveImages({ from: store, limit: 10 })).moved.count).toBe(1);
+    expect((await back.readFile("f", "p.png"))?.equals(PNG)).toBe(true);
+  });
+
+  test("editing a note's metadata keeps it sealed and readable", async () => {
+    const url = await database();
+    const s = storageOn(url, createLocalWrapper(key()));
+    await s.createFeed("f", "Rid-F");
+    await s.writeNote("f", "n", "md", "text", { tags: ["a"] });
+    expect(await s.updateMeta("f", "n", ALL, { title: "Secret title", tags: ["b"] })).toBe(true);
+    expect(await s.readMeta("f", { id: "n", ext: "md" })).toEqual({ title: "Secret title", tags: ["b"] });
+    expect(allText(await (await raw(url)).selectFrom("notes").selectAll().execute())).not.toContain("Secret title");
+  });
+
+  describe("at start", () => {
+    // A plain database with two feeds, notes (one image in the store) and a tombstone.
+    async function plainFilled(url: string, store = memoryStore()) {
+      const s = storageOn(url, null, { store, external });
+      await s.createFeed("one", "Rid-One", "hash-one");
+      await s.writeSettings("one", { title: "Title One", description: "", image: "", showSender: false });
+      await s.createFeed("two", "Rid-Two");
+      await s.writeNote("one", "n", "md", "note text", { tags: ["t"] });
+      await s.writeNote("one", "p", "png", PNG, {});
+      await s.createFeed("gone", "Rid-Gone");
+      await s.takedownFeed("gone", null);
+      await s.close();
+      return store;
+    }
+    async function reads(s: SqlStorage) {
+      return {
+        feeds: await s.listFeeds(),
+        one: await s.feedForReadId("Rid-One"),
+        rid: await s.feedReadId("two"),
+        hash: await s.readHash("one"),
+        title: (await s.readSettings("one")).title,
+        note: (await s.readNote("one", "n", ALL, () => true))?.content.toString(),
+        meta: await s.readMeta("one", { id: "n", ext: "md" }),
+        png: (await s.readFile("one", "p.png"))?.equals(PNG),
+        gone: await s.isRemoved({ feed: "gone" }),
+        goneId: await s.isRemoved({ readId: "Rid-Gone" }),
+      };
+    }
+    const expected = { feeds: ["one", "two"], one: "one", rid: "Rid-Two", hash: "hash-one", title: "Title One", note: "note text", meta: { tags: ["t"] }, png: true, gone: true, goneId: true };
+
+    test("an existing plain database is converted at start", async () => {
+      const url = await database();
+      const store = await plainFilled(url);
+      const s = storageOn(url, createLocalWrapper(key()), { store, external });
+      expect(await reads(s)).toEqual(expected);
+      const db = await raw(url);
+      const text = allText([...(await db.selectFrom("feeds").selectAll().execute()), ...(await db.selectFrom("tombstones").selectAll().execute())]);
+      for (const secret of ["one", "two", "gone", "Rid-One", "Rid-Gone", "hash-one", "Title One"]) expect(text).not.toContain(`"${secret}"`);
+      expect(text).not.toContain("Title One");
+      // The notes stay plain until reseal, and still read.
+      expect((await db.selectFrom("notes").select("sealed").execute()).every((n) => n.sealed === 0)).toBe(true);
+      await s.writeNote("two", "new", "md", "after", {});
+      expect((await s.readNote("two", "new", ALL, () => true))?.content.toString()).toBe("after");
+    });
+
+    test("a key change re-wraps and touches no note", async () => {
+      const url = await database();
+      const [a, b] = [key(), key()];
+      const store = memoryStore();
+      const first = storageOn(url, createLocalWrapper(a), { store, external });
+      await first.createFeed("one", "Rid-One", "hash-one");
+      await first.writeNote("one", "n", "md", "note text", {});
+      await first.writeNote("one", "p", "png", PNG, {});
+      await first.close();
+      const db = await raw(url);
+      const notesBefore = allText(await db.selectFrom("notes").selectAll().orderBy("id").execute());
+      const objectsBefore = allText([...store.objects.entries()]);
+      const changedKey = storageOn(url, createLocalWrapper(b, [a]), { store, external });
+      expect((await changedKey.readNote("one", "n", ALL, () => true))?.content.toString()).toBe("note text");
+      await changedKey.close();
+      const bId = createLocalWrapper(b).keyId;
+      expect((await db.selectFrom("feeds").select("key_id").execute()).map((r) => r.key_id)).toEqual([bId]);
+      expect((await db.selectFrom("keyring").select("key_id").execute()).map((r) => r.key_id)).toEqual([bId]);
+      expect(allText(await db.selectFrom("notes").selectAll().orderBy("id").execute())).toBe(notesBefore);
+      expect(allText([...store.objects.entries()])).toBe(objectsBefore);
+      const onlyB = storageOn(url, createLocalWrapper(b), { store, external });
+      expect((await onlyB.readFile("one", "p.png"))?.equals(PNG)).toBe(true);
+      expect(await onlyB.readHash("one")).toBe("hash-one");
+    });
+
+    test("refuses without the key", async () => {
+      const url = await database();
+      const s = storageOn(url, createLocalWrapper(key()));
+      await s.createFeed("one", "Rid-One");
+      await s.close();
+      await expect(storageOn(url, null).listFeeds()).rejects.toThrow(ENCRYPTED_NO_KEY);
+    });
+
+    test("refuses an unknown key", async () => {
+      const url = await database();
+      const a = createLocalWrapper(key());
+      const s = storageOn(url, a);
+      await s.createFeed("one", "Rid-One");
+      await s.close();
+      await expect(storageOn(url, createLocalWrapper(key())).listFeeds()).rejects.toThrow(unknownKey(a.keyId));
+    });
+
+    test("a re-wrap stopped half way finishes on the next start", async () => {
+      const url = await database();
+      const [a, b] = [key(), key()];
+      const first = storageOn(url, createLocalWrapper(a));
+      await first.createFeed("one", "Rid-One");
+      await first.createFeed("two", "Rid-Two");
+      await first.close();
+      const real = createLocalWrapper(b, [a]);
+      let wraps = 0;
+      const failing: KeyWrapper = { keyId: real.keyId, knows: real.knows, unwrap: real.unwrap, wrap: async (k, c) => (++wraps === 2 ? Promise.reject(new Error("key service down")) : real.wrap(k, c)) };
+      await expect(storageOn(url, failing).listFeeds()).rejects.toThrow();
+      const aId = createLocalWrapper(a).keyId;
+      const db = await raw(url);
+      expect((await db.selectFrom("feeds").select("key_id").execute()).every((r) => r.key_id === aId)).toBe(true);
+      expect((await db.selectFrom("keyring").select("key_id").executeTakeFirstOrThrow()).key_id).toBe(aId);
+      expect(await storageOn(url, createLocalWrapper(b, [a])).listFeeds()).toEqual(["one", "two"]);
+    });
+  });
+
+  describe("reseal", () => {
+    async function plainNotes(url: string, store: ImageStore) {
+      const s = storageOn(url, null, { store, external });
+      await s.createFeed("f", "Rid-F");
+      for (const n of ["a", "b", "c"]) await s.writeNote("f", n, "md", `text ${n}`, { title: `Title ${n}` });
+      await s.writeNote("f", "p", "png", PNG, {});
+      await s.close();
+    }
+
+    test("reseal encrypts every note", async () => {
+      const url = await database();
+      const store = memoryStore();
+      await plainNotes(url, store);
+      const s = storageOn(url, createLocalWrapper(key()), { store, external });
+      let after: string | undefined;
+      let total = 0;
+      for (let i = 0; i < 10; i++) {
+        const r = await s.reseal({ limit: 2, after });
+        total += r.resealed;
+        expect(r.failed).toBe(0);
+        if (r.next === null) break;
+        after = r.next;
+      }
+      expect(total).toBe(4);
+      const db = await raw(url);
+      const rows = await db.selectFrom("notes").selectAll().execute();
+      expect(rows.every((r) => r.sealed === 1)).toBe(true);
+      expect(allText(rows)).not.toContain("text a");
+      expect(allText(rows)).not.toContain("Title b");
+      for (const b of store.objects.values()) expect(b.toString("latin1")).not.toContain("PNGMARK");
+      expect([...store.objects.keys()]).toEqual(rows.flatMap((r) => (r.blob_key ? [r.blob_key] : [])));
+      expect((await s.readNote("f", "c", ALL, () => true))?.content.toString()).toBe("text c");
+      expect((await s.readMeta("f", { id: "a", ext: "md" }))?.title).toBe("Title a");
+      expect((await s.readFile("f", "p.png"))?.equals(PNG)).toBe(true);
+      expect(await s.reseal({ limit: 10 })).toEqual({ resealed: 0, skipped: 0, failed: 0, left: 0, next: null });
+    });
+
+    test("reseal loses no edit made meanwhile", async () => {
+      const url = await database();
+      const live: { s?: SqlStorage } = {};
+      let edited = false;
+      const store = memoryStore({
+        put: async () => {
+          if (!live.s || edited) return;
+          edited = true; // the reseal's copy is about to be stored: the note is replaced first
+          await live.s.replaceNote("f", "p", ["png"], Buffer.concat([PNG, Buffer.from("edited")]));
+        },
+      });
+      const plain = storageOn(url, null, { store, external });
+      await plain.createFeed("f", "Rid-F");
+      await plain.writeNote("f", "p", "png", PNG, {});
+      await plain.close();
+      const s = (live.s = storageOn(url, createLocalWrapper(key()), { store, external }));
+      const r = await s.reseal({ limit: 10 });
+      expect(r).toMatchObject({ resealed: 0, skipped: 1, failed: 0 });
+      expect((await s.readFile("f", "p.png"))?.toString("latin1")).toContain("edited");
+      const rows = await (await raw(url)).selectFrom("notes").select("blob_key").execute();
+      expect([...store.objects.keys()]).toEqual(rows.map((x) => x.blob_key));
+      expect((await s.reseal({ limit: 10 })).resealed).toBe(1);
+      expect((await s.readFile("f", "p.png"))?.toString("latin1")).toContain("edited");
+    });
+
+    test("reseal is resumable", async () => {
+      const url = await database();
+      let fail = false;
+      const store = memoryStore({ put: async () => { if (fail) { fail = false; throw new Error("store down"); } } });
+      await plainNotes(url, store);
+      const s = storageOn(url, createLocalWrapper(key()), { store, external });
+      fail = true;
+      const first = await s.reseal({ limit: 10 });
+      expect(first).toMatchObject({ resealed: 3, failed: 1 });
+      expect(await s.reseal({ limit: 10 })).toMatchObject({ resealed: 1, failed: 0 });
+      expect((await s.readFile("f", "p.png"))?.equals(PNG)).toBe(true);
+    });
+
+    test("without a key there is nothing to reseal", async () => {
+      const s = storageOn(await database(), null);
+      await expect(s.reseal({ limit: 1 })).rejects.toThrow("nothing to reseal: NOTEFEED_ENCRYPTION_KEY is not set");
+    });
+  });
+
+  describe("found in review", () => {
+    test("a note sealed between readNote's two reads is still given back as plain text", async () => {
+      const url = await database();
+      const plain = storageOn(url, null);
+      await plain.createFeed("f", "Rid-F");
+      await plain.writeNote("f", "n", "md", "the plain text", { title: "T" });
+      await plain.close();
+      const w = createLocalWrapper(key());
+      const other = storageOn(url, w);
+      await other.listFeeds(); // converts the feeds first
+      const hooked = createSqlStorage(async () => (await connect("sqlite", url)).withPlugin(after(["ext", "metadata", "updated_at", "size", "sealed"], async () => void (await other.reseal({ limit: 10 })))), "sqlite", undefined, w);
+      opened.push(hooked);
+      const note = await hooked.readNote("f", "n", ALL, () => true);
+      expect(note?.content.toString()).toBe("the plain text");
+    });
+
+    test("a feed both plain and encrypted is refused, naming the cause", async () => {
+      const url = await database();
+      const w = createLocalWrapper(key());
+      const s = storageOn(url, w);
+      await s.createFeed("foo", "Rid-Foo");
+      await s.close();
+      // What a notefeed still running without the key may write after the conversion.
+      await (await raw(url)).insertInto("feeds").values({ name: "foo", read_id: "Rid-Foo", password_hash: null, settings: null, created_at: 1, key_id: null, data_key: null, name_sealed: null, read_id_sealed: null }).execute();
+      await expect(storageOn(url, w).listFeeds()).rejects.toThrow(MIXED);
+    });
+
+    test("an encrypted database whose keyring is missing is refused", async () => {
+      const url = await database();
+      const w = createLocalWrapper(key());
+      const s = storageOn(url, w);
+      await s.createFeed("foo", "Rid-Foo");
+      await s.close();
+      await (await raw(url)).deleteFrom("keyring").execute();
+      await expect(storageOn(url, w).listFeeds()).rejects.toThrow(KEYRING_MISSING);
+    });
+  });
+
+  describe("hardening", () => {
+    test("a feed's values moved onto another feed do not open", async () => {
+      const url = await database();
+      const s = storageOn(url, createLocalWrapper(key()));
+      await s.createFeed("a", "Rid-A");
+      await s.createFeed("b", "Rid-B");
+      await s.writeSettings("b", { title: "Title B", description: "", image: "", showSender: false });
+      // The two rows trade their keys and values; each keeps its own name and read id.
+      const db = await raw(url);
+      const [x, y] = await db.selectFrom("feeds").selectAll().execute();
+      const values = (r: typeof x) => ({ key_id: r.key_id, data_key: r.data_key, settings: r.settings, name_sealed: r.name_sealed, read_id_sealed: r.read_id_sealed });
+      await db.updateTable("feeds").set(values(y)).where("name", "=", x.name).execute();
+      await db.updateTable("feeds").set(values(x)).where("name", "=", y.name).execute();
+      await expect(s.readSettings("a")).rejects.toThrow(CipherError);
+      await expect(s.feedForReadId("Rid-B")).rejects.toThrow(CipherError);
+    });
+
+    test("a note's bytes under another extension do not open", async () => {
+      const url = await database();
+      const s = storageOn(url, createLocalWrapper(key()));
+      await s.createFeed("f", "Rid-F");
+      await s.writeNote("f", "n", "md", "text", {});
+      await (await raw(url)).updateTable("notes").set({ ext: "txt" }).execute();
+      await expect(s.readNote("f", "n", ["txt"], () => true)).rejects.toThrow(CipherError);
+    });
+
+    test("a sealed note whose feed has no key is refused, never read as plain", async () => {
+      const url = await database();
+      const s = storageOn(url, createLocalWrapper(key()));
+      await s.createFeed("f", "Rid-F");
+      await s.writeNote("f", "n", "md", "text", { title: "T" });
+      await (await raw(url)).updateTable("feeds").set({ key_id: null, data_key: null }).execute();
+      await expect(s.readNote("f", "n", ["md"], () => true)).rejects.toThrow(CipherError);
+      await expect(s.readMeta("f", { id: "n", ext: "md" })).rejects.toThrow(CipherError);
+      await expect(s.readFile("f", "n.md")).rejects.toThrow(CipherError);
+    });
+
+    test("reseal passes over a note replaced in the same millisecond", async () => {
+      const url = await database();
+      const plain = storageOn(url, null);
+      await plain.createFeed("f", "Rid-F");
+      await plain.writeNote("f", "n", "md", "before", {});
+      await plain.close();
+      const w = createLocalWrapper(key());
+      // A replace that leaves updated_at as it was, between reseal's read and its write.
+      const hooked = createSqlStorage(
+        async () => (await connect("sqlite", url)).withPlugin(after(["feed", "id", "ext", "content", "blob_key", "metadata", "created_at", "updated_at"], async () => void (await (await raw(url)).updateTable("notes").set({ content: Buffer.from("after") }).execute()))),
+        "sqlite",
+        undefined,
+        w,
+      );
+      opened.push(hooked);
+      expect(await hooked.reseal({ limit: 10 })).toMatchObject({ resealed: 0, skipped: 1 });
+      expect((await hooked.readNote("f", "n", ["md"], () => true))?.content.toString()).toBe("after");
+    });
+
+    test("reading a sealed note costs no more queries than reading a plain one", async () => {
+      const count = async (wrapper: KeyWrapper | null) => {
+        const url = await database();
+        const s = storageOn(url, wrapper);
+        await s.createFeed("f", "Rid-F");
+        await s.writeNote("f", "n", "md", "text", { title: "T" });
+        let n = 0;
+        const counted = createSqlStorage(async () => (await connect("sqlite", url)).withPlugin({ transformQuery: (a) => (n++, a.node), transformResult: async (a) => a.result }), "sqlite", undefined, wrapper);
+        opened.push(counted);
+        await counted.readMeta("f", { id: "n", ext: "md" }); // opens it: the start's own queries are not counted
+        n = 0;
+        await counted.readNote("f", "n", ["md"], () => true);
+        await counted.readMeta("f", { id: "n", ext: "md" });
+        await counted.readFile("f", "n.md");
+        return n;
+      };
+      expect(await count(createLocalWrapper(key()))).toBe(await count(null));
+    });
+
+    test("reseal and moveImages walk notes with the same time and id in two feeds", async () => {
+      const url = await database();
+      const store = memoryStore();
+      const plain = storageOn(url, null);
+      const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+      try {
+        for (const f of ["a", "b"]) {
+          await plain.createFeed(f, `Rid-${f}`);
+          await plain.writeNote(f, "n", "md", `text ${f}`, {});
+          await plain.writeNote(f, "p", "png", PNG, {});
+        }
+      } finally {
+        now.mockRestore();
+      }
+      await plain.close();
+      const s = storageOn(url, createLocalWrapper(key()), { store, external });
+      const walk = async (step: (after?: string) => Promise<{ next: string | null; n: number }>) => {
+        let total = 0;
+        let after: string | undefined;
+        for (let i = 0; i < 20; i++) {
+          const r = await step(after);
+          total += r.n;
+          if (!r.next) break;
+          after = r.next;
+        }
+        return total;
+      };
+      expect(await walk(async (a) => ((r) => ({ next: r.next, n: r.moved.count }))(await s.moveImages({ from: "db", limit: 1, after: a })))).toBe(2);
+      expect(await walk(async (a) => ((r) => ({ next: r.next, n: r.resealed }))(await s.reseal({ limit: 1, after: a })))).toBe(4);
+    });
+  });
+});

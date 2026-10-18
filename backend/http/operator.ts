@@ -8,6 +8,8 @@
 //     POST    removes the feed a read link, a read id or an image URL names, for good, and blocklists its images
 //   /api/operator/images/move (issue #128)
 //     POST    moves image bytes into the configured store, from the rows or from another store named in the JSON body
+//   /api/operator/reseal (issue #212)
+//     POST    encrypts the notes stored before NOTEFEED_ENCRYPTION_KEY was set, a batch per call
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { config } from "../config";
@@ -114,4 +116,28 @@ export async function moveImagesRoute(req: Request): Promise<Response> {
     return json({ error: "the images could not be moved; see the log" }, 502);
   }
   return json({ store: config.images(), from: body.from, moved: move.moved, skipped: move.skipped, missing: move.missing, failed: move.failed, left: move.left, next: move.next });
+}
+
+// POST /api/operator/reseal (issue #212): encrypts, bit by bit, the notes stored before NOTEFEED_ENCRYPTION_KEY was set.
+const ResealBody = z.object({ limit: z.number().int().min(1).max(10_000).default(100), after: z.string().min(1).optional() });
+
+export async function resealRoute(req: Request): Promise<Response> {
+  const refused = gate(req);
+  if (refused) return refused;
+  const text = await req.text().catch(() => "");
+  // No body: the defaults. A body that is not JSON stays a 400.
+  const parsed = ResealBody.safeParse(text.trim() === "" ? {} : await Promise.resolve().then(() => JSON.parse(text)).catch(() => undefined));
+  if (!parsed.success) return json({ error: 'the body is JSON with an optional "limit" (1 to 10000) and an optional "after" (the previous answer\'s "next")' }, 400);
+  const s = storage() as Partial<SqlStorage>;
+  if (!s.reseal) return json({ error: "this instance has no database: NOTEFEED_STORAGE is fs, which is not encrypted" }, 409);
+  let r;
+  try {
+    r = await s.reseal(parsed.data);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/nothing to reseal/.test(message)) return json({ error: message }, 409);
+    log.error({ err }, "notes could not be resealed");
+    return json({ error: "the notes could not be resealed; see the log" }, 502);
+  }
+  return json({ resealed: r.resealed, skipped: r.skipped, failed: r.failed, left: r.left, next: r.next });
 }

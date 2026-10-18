@@ -9,7 +9,7 @@ import { logsOf } from "../log";
 import { renderMetrics, resetMetricsForTest } from "../metrics";
 import { resetStorageForTests, storage } from "../storage";
 import type { SqlStorage } from "../storage/sql";
-import { moveImagesRoute, takedownRoute, unreferencedImagesRoute } from "./operator";
+import { moveImagesRoute, resealRoute, takedownRoute, unreferencedImagesRoute } from "./operator";
 
 const TOKEN = "operator-token-".padEnd(40, "x");
 const node22 = Number(process.versions.node.split(".")[0]) >= 22; // better-sqlite3 and kysely need it
@@ -197,4 +197,41 @@ test("move: on the file system backend there is no database, 409", async () => {
   vi.stubEnv("NOTEFEED_IMAGES", "db");
   resetStorageForTests();
   expect((await move({ from: "db" })).status).toBe(409);
+});
+
+// POST /api/operator/reseal (#212): the same gate; encrypts the notes stored before encryption was turned on.
+const reseal = (body: unknown, authorization: string | null = `Bearer ${TOKEN}`) =>
+  resealRoute(new Request("http://localhost:3000/api/operator/reseal", { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body), headers: { "content-type": "application/json", ...(authorization === null ? {} : { authorization }) } }));
+
+test("reseal: the gate is the same (404 without a token, 401 with a wrong one)", async () => {
+  expect((await reseal({}, "Bearer wrong")).status).toBe(401);
+  vi.stubEnv("NOTEFEED_OPERATOR_TOKEN", "");
+  expect((await reseal({})).status).toBe(404);
+});
+
+test.skipIf(!node22)("reseal: 400 for a bad limit, 409 without a key, 200 with the counts", async () => {
+  expect((await reseal({ limit: 0 })).status).toBe(400);
+  expect((await reseal("not json")).status).toBe(400);
+  const plain = storage();
+  await plain.createFeed("f", "rid-f");
+  await plain.writeNote("f", "n", "md", "plain text", {});
+  expect((await reseal({})).status).toBe(409);
+  await (plain as Partial<SqlStorage>).close?.();
+  vi.stubEnv("NOTEFEED_ENCRYPTION_KEY", "k".repeat(64));
+  resetStorageForTests();
+  const empty = await resealRoute(new Request("http://localhost:3000/api/operator/reseal", { method: "POST", headers: { authorization: `Bearer ${TOKEN}` } }));
+  expect(empty.status).toBe(200); // no body: the defaults
+  expect((await empty.json()).resealed).toBe(1);
+  await storage().writeNote("f", "m", "md", "more", {});
+  const res = await reseal({ limit: 5 });
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ resealed: 0, skipped: 0, failed: 0, left: 0, next: null }); // written sealed already
+  expect((await storage().readNote("f", "n", ["md"], () => true))?.content.toString()).toBe("plain text");
+});
+
+test("reseal: on the file system backend there is no database, 409", async () => {
+  vi.stubEnv("NOTEFEED_STORAGE", "fs");
+  vi.stubEnv("NOTEFEED_IMAGES", "db");
+  resetStorageForTests();
+  expect((await reseal({})).status).toBe(409);
 });

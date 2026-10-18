@@ -10,6 +10,8 @@ import { imagePath } from "./urls";
 
 // The notes the backend hands out; the classes are exported so a component test can build one.
 export { ImageNote, MarkdownNote };
+export { UnreadableNote } from "./note/unreadable";
+export { UnreadableNoteError } from "./errors";
 export type { Note };
 export { IDENTITY_COOKIE, SESSION_COOKIE, identitySender, locked, sessionOk } from "./auth";
 export { checkFeed, isHeldBack as isReservedFeed, isRemovedFeed, isRemovedReadId, readIdOf } from "./feeds";
@@ -23,7 +25,7 @@ export { hasLegalPage, readLegalPage, readNotice, type LegalPage } from "./legal
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
 export { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./http/licenses";
-export { moveImagesRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
+export { moveImagesRoute, resealRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
 export { feedCookieName, feedUnlocked } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
 export { feedAccessRoute } from "./http/feedsession";
@@ -65,7 +67,7 @@ const PAGE = 50;
  */
 export async function getFeed(feed: string, tag?: string): Promise<{ notes: Note[]; readId: string | null; exists: boolean; title: string; description: string; image: string; showSender: boolean; imageUrl: string | null } | null> {
   if (checkFeed(feed)) return null;
-  const notes = await listNotes(feed, PAGE, undefined, tag);
+  const notes = await listNotes(feed, PAGE, undefined, tag, undefined, true);
   // `exists`: a feed that had notes and lost them still exists (it counts toward the feed cap and can't get a password).
   const readId = (await countNotes(feed)) ? await readIdOf(feed) : null; // not notes.length: a tag filter can show none of a feed's notes
   const settings = await getSettings(feed);
@@ -91,7 +93,7 @@ export async function getReadFeed(id: string, tag?: string): Promise<{ notes: No
   const feed = await feedForReadId(id);
   const settings = feed ? await getSettings(feed) : { title: "", description: "", image: "", showSender: true };
   const { title, description, image } = settings;
-  return { notes: feed ? forReaders(await listNotes(feed, PAGE, undefined, tag), settings) : [], title, description, imageUrl: image ? imagePath(id, image) : null };
+  return { notes: feed ? forReaders(await listNotes(feed, PAGE, undefined, tag, undefined, true), settings) : [], title, description, imageUrl: image ? imagePath(id, image) : null };
 }
 
 export async function getReadNote(readId: string, id: string): Promise<Note | null> {

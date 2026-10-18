@@ -19,6 +19,7 @@ import {
   RateLimitedError,
   RemovedFeedError,
   ReservedFeedError,
+  UnreadableNoteError,
   UnsupportedTypeError,
 } from "../errors";
 import { logger } from "../log";
@@ -45,6 +46,7 @@ const STATUS: [new (...args: never[]) => NotefeedError, number][] = [
   [RateLimitedError, 429], // and TooManyAttemptsError
   [BlockedImageError, 451],
   [LimitReachedError, 507],
+  [UnreadableNoteError, 500],
 ];
 
 export const statusOf = (e: NotefeedError) => STATUS.find(([cls]) => e instanceof cls)?.[1] ?? 500;

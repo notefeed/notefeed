@@ -16,6 +16,9 @@ export const TOO_MANY_PICTURES = `A note can have at most ${MAX_ATTACHMENTS} pic
 // In a note box instead of the "Add image" button while NOTEFEED_IMAGE_UPLOADS=0, and the server's refusal of an image.
 export const IMAGES_OFF = "Images can't be posted on this instance.";
 
+// A damaged note (encryption at rest, issue #212), where it is listed and on its own page.
+export const UNREADABLE = "This note can't be shown: its stored copy can't be decrypted.";
+
 // sign_in_failed is no API code: only the OIDC callback's ?error= (backend/oidc/routes.ts).
 const MESSAGES: Record<ErrorCode | "sign_in_failed", string> = {
   invalid_feed: "Invalid feed name.",
@@ -38,6 +41,7 @@ const MESSAGES: Record<ErrorCode | "sign_in_failed", string> = {
   taken: "That read id is taken. Choose another.",
   removed: "This feed was removed by the operator. Its name can't be used again.",
   blocked: "This image may not be posted here.",
+  unreadable: UNREADABLE,
   sign_in_failed: "Sign-in didn't work. Try again.",
 };
 

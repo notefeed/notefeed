@@ -61,6 +61,23 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
         .execute();
     },
   },
+  // Encryption at rest (issue #212, ADR 0033). The keyring holds the database's fingerprint key, wrapped by the main key. A feed's
+  // own data key is in its row, wrapped too; `key_id` names the main key that wrapped it (null: the feed is plain). A note or a
+  // tombstone says whether it is sealed; its key is its feed's, or for a tombstone none (fingerprints only).
+  "004_encryption": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("keyring")
+        .addColumn("name", "text", (c) => c.primaryKey())
+        .addColumn("key_id", "text", (c) => c.notNull())
+        .addColumn("wrapped", "text", (c) => c.notNull())
+        .execute();
+      for (const column of ["key_id", "data_key", "name_sealed", "read_id_sealed"]) await db.schema.alterTable("feeds").addColumn(column, "text").execute();
+      await db.schema.alterTable("notes").addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema.createIndex("notes_by_sealed").on("notes").column("sealed").execute();
+      await db.schema.alterTable("tombstones").addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0)).execute();
+    },
+  },
 });
 
 /** Every migration's name, in order; the tests check the count the migrator recorded against it, so a new one changes no test. */
