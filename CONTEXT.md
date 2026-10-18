@@ -74,6 +74,14 @@ _Avoid_: Label, category
 
 ### Instances and access
 
+**Main key**:
+The operator's key of encryption at rest. It encrypts the data keys and is never stored with the data.
+_Avoid_: Master key, encryption secret, KEK
+
+**Data key**:
+A feed's own key, which encrypts its notes, images, metadata and settings. It is stored next to the feed, encrypted with the main key.
+_Avoid_: Feed key, DEK
+
 **Instance**:
 One running installation of notefeed with its own data.
 _Avoid_: Server, deployment, tenant

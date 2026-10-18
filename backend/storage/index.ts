@@ -9,7 +9,7 @@ import { createFsStorage } from "./fs";
 import { createImageStore } from "./images";
 import { connect } from "./sql/connect";
 import { createSqlStorage } from "./sql";
-import { wrapperFromConfig } from "./wrapper";
+import { encryptionKeys, wrapperFromConfig } from "./wrapper";
 import type { Storage } from "./types";
 
 export type { Storage } from "./types";
@@ -26,7 +26,7 @@ function build(kind: ReturnType<typeof config.storage>): Storage {
 
 export function storage(): Storage {
   const kind = config.storage(); // throws for an unknown value
-  const key = JSON.stringify([kind, config.dataDir(), config.databaseUrl(), process.env.NOTEFEED_IMAGES ?? "", config.imagesDir(), config.s3()]);
+  const key = JSON.stringify([kind, config.dataDir(), config.databaseUrl(), process.env.NOTEFEED_IMAGES ?? "", config.imagesDir(), config.s3(), encryptionKeys()]);
   if (state.instance && state.key === key) return state.instance;
   state.key = key;
   return (state.instance = build(kind));

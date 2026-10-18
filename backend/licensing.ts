@@ -9,7 +9,7 @@ import { countNotes, idsBeyond, removeNote } from "./notes";
 import { processState } from "./state";
 import type { LicenseStore } from "./storage/licenses";
 import { createLicenseDb, type LicenseDb } from "./storage/licensedb";
-import { wrapperFromConfig } from "./storage/wrapper";
+import { encryptionKeys, wrapperFromConfig } from "./storage/wrapper";
 
 const log = logger("licensing");
 
@@ -20,14 +20,16 @@ export const licensePriceYearly = config.licensePriceYearly;
 export const yearlyLicenseOn = (): boolean => config.licensePriceYearly() !== "";
 export const freeNoteCap = config.freeNoteCap;
 
-const state = processState("licenses", () => ({}) as { file?: string; db?: LicenseDb });
+const state = processState("licenses", () => ({}) as { file?: string; keys?: string; db?: LicenseDb });
 
 /** The license store: a SQLite file of its own (config.licenseDb), apart from the feeds. One per file; processState because Next may bundle this module once per route. */
 export function licenses(): LicenseStore {
   const file = config.licenseDb();
-  if (state.db && state.file === file) return state.db;
+  const keys = encryptionKeys();
+  if (state.db && state.file === file && state.keys === keys) return state.db;
   void state.db?.close();
   state.file = file;
+  state.keys = keys;
   return (state.db = createLicenseDb(file, wrapperFromConfig()));
 }
 

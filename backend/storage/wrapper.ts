@@ -1,7 +1,7 @@
 // The main key (issue #212, ADR 0033): it wraps the data keys and never touches a note. This is the one implementation for now, the
 // key from NOTEFEED_ENCRYPTION_KEY; a key service is a second one (#215). Old keys (NOTEFEED_ENCRYPTION_OLD_KEYS) only unwrap, for the
 // start that wraps everything again under the new key.
-import { hkdfSync } from "node:crypto";
+import { createHash, hkdfSync } from "node:crypto";
 import { config } from "../config";
 import { CipherError, open, seal } from "./cipher";
 
@@ -48,3 +48,6 @@ export function wrapperFromConfig(): KeyWrapper | null {
   const key = config.encryptionKey();
   return key ? createLocalWrapper(key, config.encryptionOldKeys()) : null;
 }
+
+/** Which main keys are configured, as a hash: for a cache of instances built with them, which must never hold the keys. */
+export const encryptionKeys = (): string => createHash("sha256").update(JSON.stringify([config.encryptionKey(), config.encryptionOldKeys()])).digest("hex");

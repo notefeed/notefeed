@@ -7,7 +7,7 @@ import type { SqlStorage } from "./sql";
 
 const roots: string[] = [];
 afterEach(async () => {
-  for (const k of ["NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", "NOTEFEED_S3_ENDPOINT", "NOTEFEED_S3_BUCKET", "NOTEFEED_S3_ACCESS_KEY", "NOTEFEED_S3_SECRET_KEY"]) delete process.env[k];
+  for (const k of ["NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", "NOTEFEED_S3_ENDPOINT", "NOTEFEED_S3_BUCKET", "NOTEFEED_S3_ACCESS_KEY", "NOTEFEED_S3_SECRET_KEY", "NOTEFEED_ENCRYPTION_KEY", "NOTEFEED_ENCRYPTION_OLD_KEYS"]) delete process.env[k];
   resetStorageForTests();
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
@@ -22,6 +22,25 @@ test("a changed DATA_DIR gives a new instance", () => {
   const a = storage();
   process.env.DATA_DIR = "/tmp/nf-b";
   expect(storage()).not.toBe(a);
+});
+
+test("storage() is built anew when the main key changes", () => {
+  process.env.NOTEFEED_STORAGE = "sqlite";
+  process.env.NOTEFEED_SECRET = "x".repeat(32);
+  process.env.DATA_DIR = "/tmp/nf-a";
+  process.env.NOTEFEED_ENCRYPTION_KEY = "a".repeat(64);
+  const a = storage();
+  expect(storage()).toBe(a);
+  process.env.NOTEFEED_ENCRYPTION_KEY = "b".repeat(64);
+  const b = storage();
+  expect(b).not.toBe(a);
+  process.env.NOTEFEED_ENCRYPTION_OLD_KEYS = "a".repeat(64);
+  expect(storage()).not.toBe(b);
+});
+
+test("NOTEFEED_STORAGE=fs with a main key throws", () => {
+  process.env.NOTEFEED_ENCRYPTION_KEY = "a".repeat(64);
+  expect(() => storage()).toThrow("NOTEFEED_ENCRYPTION_KEY needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend is not encrypted");
 });
 
 test("an unknown backend throws, naming NOTEFEED_STORAGE", () => {

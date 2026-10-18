@@ -102,6 +102,33 @@ environment:
 
 If the store is unreachable, pictures fail and text notes keep working. Going from `db` to `fs` or `s3` works at any time: old images stay where they are and are still served. Going between `fs` and `s3` strands the old images until they are [moved](#moving-images-between-stores).
 
+## Encryption at rest
+
+With `NOTEFEED_ENCRYPTION_KEY` set, notefeed encrypts what it stores before it reaches the database or the image store, so a copy of either, a dump or a snapshot of the disk can't be read without the key. Each feed has its own data key: its notes, images, metadata, settings and feed password are encrypted with it (AES-256-GCM). The data keys are stored next to their feeds, encrypted with the main key, which is never stored. Feed names and read ids are stored only as fingerprints, so the database doesn't hand anyone a way into a feed. The database's own housekeeping stays readable: ids, sizes and times.
+
+It needs a database backend; on the file system backend notefeed refuses to start with a key. While notefeed runs, it holds the key, so encryption at rest doesn't protect against someone on the running server.
+
+```sh
+openssl rand -hex 32   # the main key
+```
+
+**Keep the key safe and apart from the backups.** Without it nothing can be read back, by anyone. notefeed refuses to start on an encrypted database without the key, or with another key.
+
+### Turning it on for existing data
+
+Set the key and restart. At start, notefeed gives every feed its data key and stores names and read ids as fingerprints. Notes stored before stay readable, and are encrypted with `POST /api/operator/reseal`, a batch at a time, while notefeed serves:
+
+```sh
+curl -X POST -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -H "Content-Type: application/json" \
+  -d '{"limit": 500}' https://notes.example.com/api/operator/reseal
+```
+
+It answers `resealed`, `skipped` (notes that changed meanwhile, or whose image is missing), `failed`, `left` and a `next` cursor to send as `"after"` until it is `null`. Run it until nothing is `left`. It is safe to stop at any point: an image's encrypted copy is written first and the plain one removed last.
+
+### Changing the main key
+
+Put the new key in `NOTEFEED_ENCRYPTION_KEY`, the old one in `NOTEFEED_ENCRYPTION_OLD_KEYS`, and restart. At start, notefeed wraps every data key again under the new key; no note or image is touched, so this takes seconds however much is stored. Then remove the old key. With several containers, restart them all together: one still on the old key can't open what the others re-wrapped.
+
 ### Cleaning up the image store
 
 An image is written before its note and deleted after it, so a stop in between leaves a file or object no note refers to. With `NOTEFEED_OPERATOR_TOKEN` set, the operator's endpoint finds and removes them:
