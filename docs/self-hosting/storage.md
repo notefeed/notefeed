@@ -123,7 +123,7 @@ curl -X POST -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -H "Content-Typ
   -d '{"limit": 500}' https://notes.example.com/api/operator/reseal
 ```
 
-It answers `resealed`, `skipped` (notes that changed meanwhile, or whose image is missing), `failed`, `left` and a `next` cursor to send as `"after"` until it is `null`. Run it until nothing is `left`. It is safe to stop at any point: an image's encrypted copy is written first and the plain one removed last.
+It answers `resealed`, `skipped` (notes that changed meanwhile, or whose image is missing), `failed`, `left` and a `next` cursor to send as `"after"` until it is `null`. A call without a body takes the defaults. Notes that were `skipped` or `failed` stay plain; run it again from the start (without `"after"`) until a run reseals nothing and nothing is `left`. It is safe to stop at any point: an image's encrypted copy is written first and the plain one removed last.
 
 ### Changing the main key
 

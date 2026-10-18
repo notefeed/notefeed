@@ -410,7 +410,7 @@ describe.skipIf(!supported)("sqlite", () => {
       open.push({ storage: moving, root: "" });
       const first = await moving.moveImages({ from: "db", limit: 2 });
       expect(first).toMatchObject({ moved: { count: 2, bytes: 16 }, skipped: 0, missing: 0, failed: 0, left: 1 });
-      expect(first.next).toMatch(/^\d+:p/);
+      expect(first.next).toMatch(/^\d+:f:p/);
       const second = await moving.moveImages({ from: "db", limit: 2, after: first.next! });
       expect(second).toEqual({ moved: { count: 1, bytes: 8 }, skipped: 0, missing: 0, failed: 0, left: 0, next: null });
       expect(rec.objects.size).toBe(3);

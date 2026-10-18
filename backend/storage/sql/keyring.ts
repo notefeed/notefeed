@@ -15,9 +15,10 @@ import type { Schema } from "./schema";
 
 export type Keyring = {
   fingerprint(kind: FingerprintKind, value: string): string;
-  /** The feed's data key, unwrapped. Only for a row whose key_id is set. */
-  feedKey(row: { data_key: string | null; key_id: string | null }): Promise<Buffer>;
-  newFeedKey(): Promise<{ key: Buffer; data_key: string; key_id: string }>;
+  /** The feed's data key, unwrapped. Only for a row whose key_id is set; `name` is the feed's fingerprint, which the key is bound to. */
+  feedKey(row: { name: string; data_key: string | null; key_id: string | null }): Promise<Buffer>;
+  /** A data key for the feed with this fingerprint. */
+  newFeedKey(name: string): Promise<{ key: Buffer; data_key: string; key_id: string }>;
 };
 
 /** A database this main key cannot open. Its message is safe to show: it names no secret. */
@@ -55,14 +56,14 @@ export async function ringKey(tx: Transaction<any>, name: string, wrapper: KeyWr
   const row = await read();
   if (!row) {
     const key = newDataKey();
-    const wrapped = await wrapper.wrap(key);
+    const wrapped = await wrapper.wrap(key, `keyring:${name}`);
     await tx.insertInto("keyring").values({ name, key_id: wrapper.keyId, wrapped }).onConflict((oc) => oc.column("name").doNothing()).execute();
     // Another start may have made one first (SQLite has no lock to wait on): theirs wins.
     const won = (await read())!;
-    return won.wrapped === wrapped ? key : wrapper.unwrap(won.wrapped, won.key_id);
+    return won.wrapped === wrapped ? key : wrapper.unwrap(won.wrapped, won.key_id, `keyring:${name}`);
   }
-  const key = await wrapper.unwrap(row.wrapped, row.key_id);
-  if (row.key_id !== wrapper.keyId) await tx.updateTable("keyring").set({ key_id: wrapper.keyId, wrapped: await wrapper.wrap(key) }).where("name", "=", name).execute();
+  const key = await wrapper.unwrap(row.wrapped, row.key_id, `keyring:${name}`);
+  if (row.key_id !== wrapper.keyId) await tx.updateTable("keyring").set({ key_id: wrapper.keyId, wrapped: await wrapper.wrap(key, `keyring:${name}`) }).where("name", "=", name).execute();
   return key;
 }
 
@@ -83,8 +84,8 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
   // Wrapped by an old main key: the same data key, wrapped again.
   const old = await tx.selectFrom("feeds").select(["name", "data_key", "key_id"]).where("key_id", "is not", null).where("key_id", "!=", wrapper.keyId).execute();
   for (const f of old) {
-    const key = await wrapper.unwrap(f.data_key!, f.key_id!);
-    await tx.updateTable("feeds").set({ key_id: wrapper.keyId, data_key: await wrapper.wrap(key) }).where("name", "=", f.name).execute();
+    const key = await wrapper.unwrap(f.data_key!, f.key_id!, `feed:${f.name}`);
+    await tx.updateTable("feeds").set({ key_id: wrapper.keyId, data_key: await wrapper.wrap(key, `feed:${f.name}`) }).where("name", "=", f.name).execute();
   }
 
   // Plain feeds: a new row under the fingerprint, the notes moved to it, the old row gone (its notes are no longer on it).
@@ -98,13 +99,13 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
       .values({
         name,
         read_id: fingerprint(fpKey, "read_id", f.read_id),
-        password_hash: f.password_hash === null ? null : sealText(key, f.password_hash, "feed:hash"),
-        settings: f.settings === null ? null : sealText(key, f.settings, "feed:settings"),
+        password_hash: f.password_hash === null ? null : sealText(key, f.password_hash, `feed:${name}:hash`),
+        settings: f.settings === null ? null : sealText(key, f.settings, `feed:${name}:settings`),
         created_at: Number(f.created_at),
         key_id: wrapper.keyId,
-        data_key: await wrapper.wrap(key),
-        name_sealed: sealText(key, f.name, "feed:name"),
-        read_id_sealed: sealText(key, f.read_id, "feed:read_id"),
+        data_key: await wrapper.wrap(key, `feed:${name}`),
+        name_sealed: sealText(key, f.name, `feed:${name}:name`),
+        read_id_sealed: sealText(key, f.read_id, `feed:${name}:read_id`),
       })
       .execute();
     await tx.updateTable("notes").set({ feed: name }).where("feed", "=", f.name).execute();
@@ -137,14 +138,14 @@ export async function openKeyring(db: Kysely<Schema>, kind: Kind, wrapper: KeyWr
       const hit = cache.get(r.data_key!);
       if (hit) return hit;
       if (cache.size >= CACHED) cache.clear();
-      const p = wrapper.unwrap(r.data_key!, r.key_id!);
+      const p = wrapper.unwrap(r.data_key!, r.key_id!, `feed:${r.name}`);
       cache.set(r.data_key!, p);
       p.catch(() => cache.delete(r.data_key!));
       return p;
     },
-    async newFeedKey() {
+    async newFeedKey(name) {
       const key = newDataKey();
-      return { key, data_key: await wrapper.wrap(key), key_id: wrapper.keyId };
+      return { key, data_key: await wrapper.wrap(key, `feed:${name}`), key_id: wrapper.keyId };
     },
   };
 }

@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Kysely } from "kysely";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { ReadIdTakenError, RemovedFeedError } from "../../errors";
 import { CipherError } from "../cipher";
 import { isKey, type ImageStore } from "../images/types";
@@ -281,7 +281,7 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       await first.close();
       const real = createLocalWrapper(b, [a]);
       let wraps = 0;
-      const failing: KeyWrapper = { keyId: real.keyId, knows: real.knows, unwrap: real.unwrap, wrap: async (k) => (++wraps === 2 ? Promise.reject(new Error("key service down")) : real.wrap(k)) };
+      const failing: KeyWrapper = { keyId: real.keyId, knows: real.knows, unwrap: real.unwrap, wrap: async (k, c) => (++wraps === 2 ? Promise.reject(new Error("key service down")) : real.wrap(k, c)) };
       await expect(storageOn(url, failing).listFeeds()).rejects.toThrow();
       const aId = createLocalWrapper(a).keyId;
       const db = await raw(url);
@@ -407,6 +407,113 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       await s.close();
       await (await raw(url)).deleteFrom("keyring").execute();
       await expect(storageOn(url, w).listFeeds()).rejects.toThrow(KEYRING_MISSING);
+    });
+  });
+
+  describe("hardening", () => {
+    test("a feed's values moved onto another feed do not open", async () => {
+      const url = await database();
+      const s = storageOn(url, createLocalWrapper(key()));
+      await s.createFeed("a", "Rid-A");
+      await s.createFeed("b", "Rid-B");
+      await s.writeSettings("b", { title: "Title B", description: "", image: "", showSender: false });
+      // The two rows trade their keys and values; each keeps its own name and read id.
+      const db = await raw(url);
+      const [x, y] = await db.selectFrom("feeds").selectAll().execute();
+      const values = (r: typeof x) => ({ key_id: r.key_id, data_key: r.data_key, settings: r.settings, name_sealed: r.name_sealed, read_id_sealed: r.read_id_sealed });
+      await db.updateTable("feeds").set(values(y)).where("name", "=", x.name).execute();
+      await db.updateTable("feeds").set(values(x)).where("name", "=", y.name).execute();
+      await expect(s.readSettings("a")).rejects.toThrow(CipherError);
+      await expect(s.feedForReadId("Rid-B")).rejects.toThrow(CipherError);
+    });
+
+    test("a note's bytes under another extension do not open", async () => {
+      const url = await database();
+      const s = storageOn(url, createLocalWrapper(key()));
+      await s.createFeed("f", "Rid-F");
+      await s.writeNote("f", "n", "md", "text", {});
+      await (await raw(url)).updateTable("notes").set({ ext: "txt" }).execute();
+      await expect(s.readNote("f", "n", ["txt"], () => true)).rejects.toThrow(CipherError);
+    });
+
+    test("a sealed note whose feed has no key is refused, never read as plain", async () => {
+      const url = await database();
+      const s = storageOn(url, createLocalWrapper(key()));
+      await s.createFeed("f", "Rid-F");
+      await s.writeNote("f", "n", "md", "text", { title: "T" });
+      await (await raw(url)).updateTable("feeds").set({ key_id: null, data_key: null }).execute();
+      await expect(s.readNote("f", "n", ["md"], () => true)).rejects.toThrow(CipherError);
+      await expect(s.readMeta("f", { id: "n", ext: "md" })).rejects.toThrow(CipherError);
+      await expect(s.readFile("f", "n.md")).rejects.toThrow(CipherError);
+    });
+
+    test("reseal passes over a note replaced in the same millisecond", async () => {
+      const url = await database();
+      const plain = storageOn(url, null);
+      await plain.createFeed("f", "Rid-F");
+      await plain.writeNote("f", "n", "md", "before", {});
+      await plain.close();
+      const w = createLocalWrapper(key());
+      // A replace that leaves updated_at as it was, between reseal's read and its write.
+      const hooked = createSqlStorage(
+        async () => (await connect("sqlite", url)).withPlugin(after(["feed", "id", "ext", "content", "blob_key", "metadata", "created_at", "updated_at"], async () => void (await (await raw(url)).updateTable("notes").set({ content: Buffer.from("after") }).execute()))),
+        "sqlite",
+        undefined,
+        w,
+      );
+      opened.push(hooked);
+      expect(await hooked.reseal({ limit: 10 })).toMatchObject({ resealed: 0, skipped: 1 });
+      expect((await hooked.readNote("f", "n", ["md"], () => true))?.content.toString()).toBe("after");
+    });
+
+    test("reading a sealed note costs no more queries than reading a plain one", async () => {
+      const count = async (wrapper: KeyWrapper | null) => {
+        const url = await database();
+        const s = storageOn(url, wrapper);
+        await s.createFeed("f", "Rid-F");
+        await s.writeNote("f", "n", "md", "text", { title: "T" });
+        let n = 0;
+        const counted = createSqlStorage(async () => (await connect("sqlite", url)).withPlugin({ transformQuery: (a) => (n++, a.node), transformResult: async (a) => a.result }), "sqlite", undefined, wrapper);
+        opened.push(counted);
+        await counted.readMeta("f", { id: "n", ext: "md" }); // opens it: the start's own queries are not counted
+        n = 0;
+        await counted.readNote("f", "n", ["md"], () => true);
+        await counted.readMeta("f", { id: "n", ext: "md" });
+        await counted.readFile("f", "n.md");
+        return n;
+      };
+      expect(await count(createLocalWrapper(key()))).toBe(await count(null));
+    });
+
+    test("reseal and moveImages walk notes with the same time and id in two feeds", async () => {
+      const url = await database();
+      const store = memoryStore();
+      const plain = storageOn(url, null);
+      const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+      try {
+        for (const f of ["a", "b"]) {
+          await plain.createFeed(f, `Rid-${f}`);
+          await plain.writeNote(f, "n", "md", `text ${f}`, {});
+          await plain.writeNote(f, "p", "png", PNG, {});
+        }
+      } finally {
+        now.mockRestore();
+      }
+      await plain.close();
+      const s = storageOn(url, createLocalWrapper(key()), { store, external });
+      const walk = async (step: (after?: string) => Promise<{ next: string | null; n: number }>) => {
+        let total = 0;
+        let after: string | undefined;
+        for (let i = 0; i < 20; i++) {
+          const r = await step(after);
+          total += r.n;
+          if (!r.next) break;
+          after = r.next;
+        }
+        return total;
+      };
+      expect(await walk(async (a) => ((r) => ({ next: r.next, n: r.moved.count }))(await s.moveImages({ from: "db", limit: 1, after: a })))).toBe(2);
+      expect(await walk(async (a) => ((r) => ({ next: r.next, n: r.resealed }))(await s.reseal({ limit: 1, after: a })))).toBe(4);
     });
   });
 });

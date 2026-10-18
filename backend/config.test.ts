@@ -119,6 +119,13 @@ test("validateStorage: an encryption key needs a database backend", () => {
   expect(() => config.validateStorage()).toThrow("NOTEFEED_ENCRYPTION_KEY must not be NOTEFEED_SECRET");
 });
 
+test("validateStorage: a main key with a comma could not be an old key later, so it is refused", () => {
+  process.env.NOTEFEED_STORAGE = "sqlite";
+  process.env.NOTEFEED_SECRET = "x".repeat(32);
+  process.env.NOTEFEED_ENCRYPTION_KEY = "k".repeat(40) + ",x";
+  expect(() => config.validateStorage()).toThrow("NOTEFEED_ENCRYPTION_KEY must not contain a comma");
+});
+
 test("encryptionOldKeys: comma-separated, trimmed, empties dropped", () => {
   expect(config.encryptionOldKeys()).toEqual([]);
   process.env.NOTEFEED_ENCRYPTION_OLD_KEYS = " a , ,b,";

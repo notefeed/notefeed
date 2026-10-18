@@ -124,7 +124,9 @@ const ResealBody = z.object({ limit: z.number().int().min(1).max(10_000).default
 export async function resealRoute(req: Request): Promise<Response> {
   const refused = gate(req);
   if (refused) return refused;
-  const parsed = ResealBody.safeParse(await req.json().catch(() => undefined));
+  const text = await req.text().catch(() => "");
+  // No body: the defaults. A body that is not JSON stays a 400.
+  const parsed = ResealBody.safeParse(text.trim() === "" ? {} : await Promise.resolve().then(() => JSON.parse(text)).catch(() => undefined));
   if (!parsed.success) return json({ error: 'the body is JSON with an optional "limit" (1 to 10000) and an optional "after" (the previous answer\'s "next")' }, 400);
   const s = storage() as Partial<SqlStorage>;
   if (!s.reseal) return json({ error: "this instance has no database: NOTEFEED_STORAGE is fs, which is not encrypted" }, 409);

@@ -219,9 +219,13 @@ test.skipIf(!node22)("reseal: 400 for a bad limit, 409 without a key, 200 with t
   await (plain as Partial<SqlStorage>).close?.();
   vi.stubEnv("NOTEFEED_ENCRYPTION_KEY", "k".repeat(64));
   resetStorageForTests();
+  const empty = await resealRoute(new Request("http://localhost:3000/api/operator/reseal", { method: "POST", headers: { authorization: `Bearer ${TOKEN}` } }));
+  expect(empty.status).toBe(200); // no body: the defaults
+  expect((await empty.json()).resealed).toBe(1);
+  await storage().writeNote("f", "m", "md", "more", {});
   const res = await reseal({ limit: 5 });
   expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ resealed: 1, skipped: 0, failed: 0, left: 0, next: null });
+  expect(await res.json()).toEqual({ resealed: 0, skipped: 0, failed: 0, left: 0, next: null }); // written sealed already
   expect((await storage().readNote("f", "n", ["md"], () => true))?.content.toString()).toBe("plain text");
 });
 

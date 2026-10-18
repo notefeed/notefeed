@@ -11,13 +11,12 @@ export interface KeyWrapper {
   readonly keyId: string;
   /** The current key or an old one. */
   knows(keyId: string): boolean;
-  /** Under the current key. */
-  wrap(dataKey: Buffer): Promise<string>;
-  /** CipherError for an unknown key id or a value another key wrapped. */
-  unwrap(wrapped: string, keyId: string): Promise<Buffer>;
+  /** Under the current key, bound to `context` (what the key belongs to: "feed:<fingerprint>", "keyring:<name>"). */
+  wrap(dataKey: Buffer, context: string): Promise<string>;
+  /** CipherError for an unknown key id, a value another key wrapped, or one wrapped for another context. */
+  unwrap(wrapped: string, keyId: string, context: string): Promise<Buffer>;
 }
 
-const AAD = "data-key";
 const derive = (key: string, info: string) => Buffer.from(hkdfSync("sha256", Buffer.from(key), "notefeed", info, 32));
 
 function strong(key: string, name: string): string {
@@ -34,11 +33,11 @@ export function createLocalWrapper(key: string, oldKeys: readonly string[] = [])
   return {
     keyId,
     knows: (id) => keys.has(id),
-    wrap: async (dataKey) => seal(keys.get(keyId)!, dataKey, AAD).toString("base64url"),
-    async unwrap(wrapped, id) {
+    wrap: async (dataKey, context) => seal(keys.get(keyId)!, dataKey, `data-key:${context}`).toString("base64url"),
+    async unwrap(wrapped, id, context) {
       const k = keys.get(id);
       if (!k) throw new CipherError(`no main key with id ${id}`);
-      return open(k, Buffer.from(wrapped, "base64url"), AAD);
+      return open(k, Buffer.from(wrapped, "base64url"), `data-key:${context}`);
     },
   };
 }

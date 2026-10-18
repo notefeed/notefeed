@@ -14,7 +14,8 @@ describe("local key wrapper", () => {
   test("wrap then unwrap gives the data key back", async () => {
     const w = createLocalWrapper(k1);
     const d = newDataKey();
-    expect((await w.unwrap(await w.wrap(d), w.keyId)).equals(d)).toBe(true);
+    expect((await w.unwrap(await w.wrap(d, "feed:x"), w.keyId, "feed:x")).equals(d)).toBe(true);
+    await expect(w.unwrap(await w.wrap(d, "feed:x"), w.keyId, "feed:y")).rejects.toThrow(CipherError);
     expect(w.keyId).toMatch(/^[0-9a-f]{8}$/);
     expect(createLocalWrapper(k2).keyId).not.toBe(w.keyId);
   });
@@ -22,18 +23,18 @@ describe("local key wrapper", () => {
   test("an old key unwraps what it wrapped", async () => {
     const old = createLocalWrapper(k1);
     const d = newDataKey();
-    const wrapped = await old.wrap(d);
+    const wrapped = await old.wrap(d, "c");
     const now = createLocalWrapper(k2, [k1]);
-    expect((await now.unwrap(wrapped, old.keyId)).equals(d)).toBe(true);
+    expect((await now.unwrap(wrapped, old.keyId, "c")).equals(d)).toBe(true);
     expect(now.knows(old.keyId) && now.knows(now.keyId)).toBe(true);
     expect(now.keyId).toBe(createLocalWrapper(k2).keyId);
   });
 
   test("unwrap with an unknown key id throws CipherError", async () => {
     const w = createLocalWrapper(k1);
-    const wrapped = await w.wrap(newDataKey());
+    const wrapped = await w.wrap(newDataKey(), "c");
     expect(createLocalWrapper(k2).knows(w.keyId)).toBe(false);
-    await expect(createLocalWrapper(k2).unwrap(wrapped, w.keyId)).rejects.toThrow(CipherError);
+    await expect(createLocalWrapper(k2).unwrap(wrapped, w.keyId, "c")).rejects.toThrow(CipherError);
   });
 
   test("refuses a short key", () => {

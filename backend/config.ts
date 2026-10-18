@@ -83,6 +83,7 @@ function validateStorage(): void {
   if (key && kind === "fs") throw new Error("NOTEFEED_ENCRYPTION_KEY needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend is not encrypted");
   if (key && key === env("NOTEFEED_SECRET")) throw new Error("NOTEFEED_ENCRYPTION_KEY must not be NOTEFEED_SECRET");
   const short = (k: string) => Buffer.byteLength(k) < 32;
+  if (key.includes(",")) throw new Error("NOTEFEED_ENCRYPTION_KEY must not contain a comma: after a key change it goes into the comma-separated NOTEFEED_ENCRYPTION_OLD_KEYS (openssl rand -hex 32 makes none)");
   if (key && short(key)) throw new Error("NOTEFEED_ENCRYPTION_KEY must be at least 32 bytes (e.g. openssl rand -hex 32)");
   if (key && config.encryptionOldKeys().some(short)) throw new Error("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes (e.g. openssl rand -hex 32)");
   if (kind === "fs") return;
