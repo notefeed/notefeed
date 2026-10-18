@@ -88,6 +88,11 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         }
         posting={
           <>
+            <DisclosureRow icon={<Braces />} label="REST API">
+              <p className="mb-2 text-muted">Everything the web page does, under <code className="font-mono">/api/v1</code>. This server&apos;s own spec:</p>
+              <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`${base}/api/v1/openapi.json`}</pre>
+              <DocsLink href={`${DOCS}/integrations/api/`}>REST API</DocsLink>
+            </DisclosureRow>
             <DisclosureRow icon={<Terminal />} label="Post from a script">
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{curlFor(base, feed, access === "unlocked")}</pre>
               <DocsLink href={`${DOCS}/using/posting/`}>Posting notes</DocsLink>
@@ -96,11 +101,6 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
               <p className="mb-2 text-muted">The client libraries for Python and JavaScript take the server and the feed from the environment.</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`pip install notefeed\nnpm install notefeed`}</pre>
               <DocsLink href={`${DOCS}/integrations/clients/`}>Client libraries</DocsLink>
-            </DisclosureRow>
-            <DisclosureRow icon={<Braces />} label="REST API">
-              <p className="mb-2 text-muted">Everything the web page does, under <code className="font-mono">/api/v1</code>. This server&apos;s own spec:</p>
-              <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`${base}/api/v1/openapi.json`}</pre>
-              <DocsLink href={`${DOCS}/integrations/api/`}>REST API</DocsLink>
             </DisclosureRow>
             <DisclosureRow icon={<Bot />} label="Post from an AI agent">
               <p className="mb-2 text-muted">Add notefeed to Claude Code as an MCP server; the agent then posts to this feed by its name.</p>
