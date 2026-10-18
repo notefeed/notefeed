@@ -40,6 +40,11 @@ export async function resetLicensesForTests(): Promise<void> {
 }
 
 /** The feed is gone (deleted, or taken down): its license is not lost, it is free to be entered on another feed. */
+/** Opens the license store at start, when there is one (see LicenseDb.ready). */
+export async function openLicenses(): Promise<void> {
+  if (licensingOn()) await (licenses() as LicenseDb).ready();
+}
+
 export async function releaseLicense(feed: string): Promise<void> {
   if (licensingOn()) await licenses().detach(feed);
 }

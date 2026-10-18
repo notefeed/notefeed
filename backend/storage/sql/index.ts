@@ -206,10 +206,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       if (key === undefined) return null; // the feed went meanwhile
       let content: Buffer = EMPTY;
       if (withContent(row.ext)) {
-        const full = await db.selectFrom("notes").select(["content", "blob_key"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst();
+        // `sealed` again with the bytes: reseal may have sealed the note since the first read.
+        const full = await db.selectFrom("notes").select(["content", "blob_key", "sealed"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst();
         const found = full && (await bytesOf(full));
         if (!found) return null; // deleted since the first read, or its object is gone
-        content = contentIn(key, id, found);
+        const bytesKey = full.sealed === row.sealed ? key : await noteKey(db, feed, full.sealed);
+        if (bytesKey === undefined) return null;
+        content = contentIn(bytesKey, id, found);
       }
       return { ext: row.ext, content, size: Number(row.size), meta: metaIn(key, id, row.metadata), mtime: new Date(Number(row.updated_at)) };
     },
@@ -263,14 +266,25 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
 
     async updateMeta(feed, id, exts, patch) {
       if (exts.length === 0) return false;
+      // The update names the metadata and the state it read, so a reseal in between (on PostgreSQL, from another connection) makes it
+      // read again rather than write plain metadata onto a sealed note.
       return (await open()).transaction().execute(async (tx) => {
-        const row = await tx.selectFrom("notes").select(["ext", "metadata", "sealed"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
-        if (!row) return false;
-        const key = await noteKey(tx, feed, row.sealed);
-        if (key === undefined) return false;
-        const merged = applyPatch(metaIn(key, id, row.metadata), patch);
-        await tx.updateTable("notes").set({ metadata: metaOut(key, id, merged) }).where("feed", "=", ident("feed", feed)).where("id", "=", id).execute();
-        return true;
+        for (;;) {
+          const row = await tx.selectFrom("notes").select(["ext", "metadata", "sealed"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
+          if (!row) return false;
+          const key = await noteKey(tx, feed, row.sealed);
+          if (key === undefined) return false;
+          const merged = applyPatch(metaIn(key, id, row.metadata), patch);
+          const r = await tx
+            .updateTable("notes")
+            .set({ metadata: metaOut(key, id, merged) })
+            .where("feed", "=", ident("feed", feed))
+            .where("id", "=", id)
+            .where("sealed", "=", row.sealed)
+            .where("metadata", row.metadata === null ? "is" : "=", row.metadata)
+            .executeTakeFirst();
+          if (changed(r.numUpdatedRows)) return true;
+        }
       });
     },
 

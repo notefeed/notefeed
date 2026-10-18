@@ -7,7 +7,7 @@ import { Kysely, SqliteDialect, type ColumnType, type Selectable } from "kysely"
 import { Migrator, type Migration } from "kysely/migration";
 import type { AttachResult, License, LicenseStatus, LicenseStore } from "./licenses";
 import { fingerprint, openText, sealText } from "./cipher";
-import { ENCRYPTED_NO_KEY, KeyringError, ringKey, unknownKey } from "./sql/keyring";
+import { ENCRYPTED_NO_KEY, KEYRING_MISSING, KeyringError, ringKey, unknownKey } from "./sql/keyring";
 import type { KeyWrapper } from "./wrapper";
 
 type Time = ColumnType<number | string, number, number>;
@@ -74,7 +74,9 @@ async function prepareKeys(db: Kysely<LicenseSchema>, wrapper: KeyWrapper | null
     return null;
   }
   return db.transaction().execute(async (tx) => {
-    for (const { key_id } of await tx.selectFrom("keyring").select("key_id").execute()) if (!wrapper.knows(key_id)) throw new KeyringError(inLicenses(unknownKey(key_id)));
+    const ring = await tx.selectFrom("keyring").select("key_id").execute();
+    for (const { key_id } of ring) if (!wrapper.knows(key_id)) throw new KeyringError(inLicenses(unknownKey(key_id)));
+    if (ring.length === 0 && (await tx.selectFrom("licenses").select("id").where("sealed", "=", 1).executeTakeFirst())) throw new KeyringError(inLicenses(KEYRING_MISSING));
     const keys = { fp: await ringKey(tx, "fingerprint", wrapper), data: await ringKey(tx, "data", wrapper) };
     for (const r of await tx.selectFrom("licenses").select(["id", "feed", "provider_ref"]).where("sealed", "=", 0).execute()) {
       await tx.updateTable("licenses").set(sealedRefs(keys, r.id, r.feed, r.provider_ref)).where("id", "=", r.id).execute();
@@ -106,7 +108,8 @@ const licenseOf = (keys: Keys | null, r: Row): License => ({
   validUntil: r.valid_until === null ? null : Number(r.valid_until),
 });
 
-export type LicenseDb = LicenseStore & { close(): Promise<void> };
+/** `ready()` opens the file now, as the start does: so a key change re-wraps it then, and a wrong key is found then. */
+export type LicenseDb = LicenseStore & { ready(): Promise<void>; close(): Promise<void> };
 
 /** `file`: the SQLite file, made (with its folder) on first use. With a `wrapper` (the main key) it is encrypted (issue #212). */
 export function createLicenseDb(file: string, wrapper: KeyWrapper | null = null): LicenseDb {
@@ -187,6 +190,9 @@ export function createLicenseDb(file: string, wrapper: KeyWrapper | null = null)
       if (Object.keys(set).length === 0) return (await find("provider_ref", providerRef)) !== null;
       const r = await db.updateTable("licenses").set(set).where("provider_ref", "=", ident("provider_ref", providerRef)).executeTakeFirst();
       return Number(r.numUpdatedRows) > 0;
+    },
+    async ready() {
+      await open();
     },
     async close() {
       if (opened) await (await opened).destroy();

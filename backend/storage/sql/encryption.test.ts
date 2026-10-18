@@ -12,7 +12,8 @@ import { isKey, type ImageStore } from "../images/types";
 import { createLocalWrapper, type KeyWrapper } from "../wrapper";
 import { connect } from "./connect";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
-import { ENCRYPTED_NO_KEY, unknownKey } from "./keyring";
+import { after } from "./testhooks";
+import { ENCRYPTED_NO_KEY, KEYRING_MISSING, MIXED, unknownKey } from "./keyring";
 import type { Schema } from "./schema";
 
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -368,6 +369,44 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
     test("without a key there is nothing to reseal", async () => {
       const s = storageOn(await database(), null);
       await expect(s.reseal({ limit: 1 })).rejects.toThrow("nothing to reseal: NOTEFEED_ENCRYPTION_KEY is not set");
+    });
+  });
+
+  describe("found in review", () => {
+    test("a note sealed between readNote's two reads is still given back as plain text", async () => {
+      const url = await database();
+      const plain = storageOn(url, null);
+      await plain.createFeed("f", "Rid-F");
+      await plain.writeNote("f", "n", "md", "the plain text", { title: "T" });
+      await plain.close();
+      const w = createLocalWrapper(key());
+      const other = storageOn(url, w);
+      await other.listFeeds(); // converts the feeds first
+      const hooked = createSqlStorage(async () => (await connect("sqlite", url)).withPlugin(after(["ext", "metadata", "updated_at", "size", "sealed"], async () => void (await other.reseal({ limit: 10 })))), "sqlite", undefined, w);
+      opened.push(hooked);
+      const note = await hooked.readNote("f", "n", ALL, () => true);
+      expect(note?.content.toString()).toBe("the plain text");
+    });
+
+    test("a feed both plain and encrypted is refused, naming the cause", async () => {
+      const url = await database();
+      const w = createLocalWrapper(key());
+      const s = storageOn(url, w);
+      await s.createFeed("foo", "Rid-Foo");
+      await s.close();
+      // What a notefeed still running without the key may write after the conversion.
+      await (await raw(url)).insertInto("feeds").values({ name: "foo", read_id: "Rid-Foo", password_hash: null, settings: null, created_at: 1, key_id: null, data_key: null, name_sealed: null, read_id_sealed: null }).execute();
+      await expect(storageOn(url, w).listFeeds()).rejects.toThrow(MIXED);
+    });
+
+    test("an encrypted database whose keyring is missing is refused", async () => {
+      const url = await database();
+      const w = createLocalWrapper(key());
+      const s = storageOn(url, w);
+      await s.createFeed("foo", "Rid-Foo");
+      await s.close();
+      await (await raw(url)).deleteFrom("keyring").execute();
+      await expect(storageOn(url, w).listFeeds()).rejects.toThrow(KEYRING_MISSING);
     });
   });
 });

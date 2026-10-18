@@ -116,7 +116,7 @@ openssl rand -hex 32   # the main key
 
 ### Turning it on for existing data
 
-Set the key and restart. At start, notefeed gives every feed its data key and stores names and read ids as fingerprints. Notes stored before stay readable, and are encrypted with `POST /api/operator/reseal`, a batch at a time, while notefeed serves:
+Set the key and restart. At start, notefeed gives every feed its data key and stores names and read ids as fingerprints. With several containers, stop them all and start them all with the key: one still running without it would write plain rows next to the encrypted ones, and the next start refuses such a database. Notes stored before stay readable, and are encrypted with `POST /api/operator/reseal`, a batch at a time, while notefeed serves:
 
 ```sh
 curl -X POST -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -H "Content-Type: application/json" \

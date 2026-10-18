@@ -11,6 +11,7 @@ import { MIGRATION_NAMES } from "./migrations";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
 import { randomBytes } from "node:crypto";
 import { createLocalWrapper, type KeyWrapper } from "../wrapper";
+import { after } from "./testhooks";
 
 const base = process.env.NOTEFEED_TEST_POSTGRES_URL ?? "";
 const supported = Number(process.versions.node.split(".")[0]) >= 22; // kysely needs Node 22
@@ -131,5 +132,27 @@ describe.skipIf(!base || !supported)("postgres", () => {
     await client.end();
     expect(ring.rows[0].n).toBe(1);
     expect(keyed.rows[0].n).toBe(3);
+  });
+
+  test("an edit of a note's metadata while reseal seals it is kept, sealed", async () => {
+    await resetSchema();
+    const plain = fresh();
+    await plain.createFeed("f", "rid-f");
+    await plain.writeNote("f", "n", "md", "text", { title: "old" });
+    await plain.close();
+    const w = createLocalWrapper(randomBytes(32).toString("hex"));
+    const other = fresh(undefined, w);
+    await other.listFeeds(); // converts the feeds first
+    const hooked = createSqlStorage(async () => (await connect("postgres", url())).withPlugin(after(["ext", "metadata", "sealed"], async () => void (await other.reseal({ limit: 10 })))), "postgres", undefined, w);
+    open.push(hooked);
+    expect(await hooked.updateMeta("f", "n", ["md"], { title: "new" })).toBe(true);
+    expect(await other.readMeta("f", { id: "n", ext: "md" })).toEqual({ title: "new" });
+    const { Client } = await import("pg");
+    const client = new Client({ connectionString: base });
+    await client.connect();
+    const row = await client.query("select metadata, sealed from nf_test.notes");
+    await client.end();
+    expect(row.rows[0].sealed).toBe(1);
+    expect(row.rows[0].metadata).not.toContain("new");
   });
 });

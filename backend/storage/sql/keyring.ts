@@ -26,6 +26,10 @@ export const ENCRYPTED_NO_KEY = "the database is encrypted, but NOTEFEED_ENCRYPT
 export const unknownKey = (id: string): string =>
   `the database holds keys wrapped by a main key notefeed does not have (key id ${id}); start once with that key in NOTEFEED_ENCRYPTION_OLD_KEYS to re-wrap them under NOTEFEED_ENCRYPTION_KEY`;
 
+export const MIXED =
+  "the database holds a feed or a tombstone both plain and encrypted: a notefeed without NOTEFEED_ENCRYPTION_KEY wrote to it after it was encrypted. Stop every notefeed, delete the plain duplicate (its key_id is null) or restore a backup, then start them all with the key";
+export const KEYRING_MISSING = "the database is encrypted, but its keyring is missing (restored in part?); restore the keyring table with the rest of the database";
+
 const CACHED = 10_000;
 const FINGERPRINT = "fingerprint";
 // Any number, the same in every container: PostgreSQL holds it for the transaction, so two starting together convert once.
@@ -68,7 +72,13 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
   const feedIds = await tx.selectFrom("feeds").select("key_id").distinct().where("key_id", "is not", null).execute();
   for (const { key_id } of [...ring, ...feedIds]) if (!wrapper.knows(key_id!)) throw new KeyringError(unknownKey(key_id!));
 
+  // Encrypted data without its keyring: a new fingerprint key would find nothing and let every name be taken again.
+  if (ring.length === 0 && (feedIds.length > 0 || (await tx.selectFrom("tombstones").select("name").where("sealed", "=", 1).executeTakeFirst()) || (await tx.selectFrom("notes").select("id").where("sealed", "=", 1).executeTakeFirst()))) {
+    throw new KeyringError(KEYRING_MISSING);
+  }
   const fpKey = await ringKey(tx, FINGERPRINT, wrapper);
+  // A plain row whose fingerprint is already there was written by a notefeed without the key, after the conversion.
+  const taken = async (table: "feeds" | "tombstones", column: "name" | "read_id", value: string) => (await tx.selectFrom(table).select("name").where(column, "=", value).executeTakeFirst()) !== undefined;
 
   // Wrapped by an old main key: the same data key, wrapped again.
   const old = await tx.selectFrom("feeds").select(["name", "data_key", "key_id"]).where("key_id", "is not", null).where("key_id", "!=", wrapper.keyId).execute();
@@ -82,6 +92,7 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
   for (const f of plain) {
     const key = newDataKey();
     const name = fingerprint(fpKey, "feed", f.name);
+    if ((await taken("feeds", "name", name)) || (await taken("feeds", "read_id", fingerprint(fpKey, "read_id", f.read_id)))) throw new KeyringError(MIXED);
     await tx
       .insertInto("feeds")
       .values({
@@ -102,6 +113,7 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
 
   const stones = await tx.selectFrom("tombstones").select(["name", "read_id"]).where("sealed", "=", 0).execute();
   for (const t of stones) {
+    if (await taken("tombstones", "name", fingerprint(fpKey, "feed", t.name))) throw new KeyringError(MIXED);
     await tx
       .updateTable("tombstones")
       .set({ name: fingerprint(fpKey, "feed", t.name), read_id: t.read_id === null ? null : fingerprint(fpKey, "read_id", t.read_id), sealed: 1 })
