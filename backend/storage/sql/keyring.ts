@@ -17,7 +17,6 @@ const CACHED = 10_000;
 const FINGERPRINT = "fingerprint";
 
 /** null without a main key: the database is plain. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function openKeyring(db: Kysely<Schema>, kind: Kind, wrapper: KeyWrapper | null): Promise<Keyring | null> {
   if (!wrapper) return null;
   const read = () => db.selectFrom("keyring").select(["key_id", "wrapped"]).where("name", "=", FINGERPRINT).executeTakeFirst();
