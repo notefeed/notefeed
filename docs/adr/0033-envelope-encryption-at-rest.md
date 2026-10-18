@@ -27,7 +27,7 @@ Chosen: envelope encryption inside notefeed, optional, on the database backends.
 * **Changing the main key is a re-wrap.** One start with the new key and the old one in `NOTEFEED_ENCRYPTION_OLD_KEYS` wraps the data keys and fingerprint keys again, in one transaction; no note or image is touched, so it takes seconds at any size. Fingerprints do not change.
 * **Turning it on is gradual.** At start, plain feeds and tombstones are converted in one transaction (PostgreSQL holds an advisory lock, so containers starting together convert once). Plain notes keep reading as they are, marked by `notes.sealed`, and `POST /api/operator/reseal` encrypts them in batches while notefeed serves.
 * **Refused, never guessed.** An encrypted database without the main key, or with keys wrapped by a key notefeed does not have, does not start. A value that does not open is an error, never empty.
-* **Wrapping behind one interface** (`KeyWrapper`): the local main key now, a key service such as OpenBao later (#215).
+* **Wrapping behind one interface** (`KeyWrapper`): the local main key, or OpenBao (ADR 0034).
 * **Not the file system backend**: its folders and files are meant to be read and edited by hand (ADR 0017, 0018); disk encryption is the answer there.
 
 ### Consequences

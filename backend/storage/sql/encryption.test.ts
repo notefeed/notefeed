@@ -6,10 +6,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Kysely } from "kysely";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { ReadIdTakenError, RemovedFeedError } from "../../errors";
+import { KeyServiceUnavailableError, ReadIdTakenError, RemovedFeedError } from "../../errors";
+import { inRequest } from "../../requestscope";
 import { CipherError } from "../cipher";
 import { isKey, type ImageStore } from "../images/types";
-import { createLocalWrapper, type KeyWrapper } from "../wrapper";
+import { createOpenBaoWrapper, type OpenBaoOptions } from "../openbao";
+import { openBaoAddr, openBaoForTests, type OpenBaoForTests } from "../openbao.testkit";
+import { createLocalWrapper, createOldKeysWrapper, type KeyWrapper } from "../wrapper";
 import { connect } from "./connect";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
 import { after } from "./testhooks";
@@ -281,7 +284,8 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       await first.close();
       const real = createLocalWrapper(b, [a]);
       let wraps = 0;
-      const failing: KeyWrapper = { keyId: real.keyId, knows: real.knows, unwrap: real.unwrap, wrap: async (k, c) => (++wraps === 2 ? Promise.reject(new Error("key service down")) : real.wrap(k, c)) };
+      const second = <T>(f: () => Promise<T>) => (++wraps === 2 ? Promise.reject(new Error("key service down")) : f());
+      const failing: KeyWrapper = { ...real, wrap: (k, c) => second(() => real.wrap(k, c)), rewrap: (w, id, c) => second(() => real.rewrap(w, id, c)) };
       await expect(storageOn(url, failing).listFeeds()).rejects.toThrow();
       const aId = createLocalWrapper(a).keyId;
       const db = await raw(url);
@@ -515,5 +519,104 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       expect(await walk(async (a) => ((r) => ({ next: r.next, n: r.moved.count }))(await s.moveImages({ from: "db", limit: 1, after: a })))).toBe(2);
       expect(await walk(async (a) => ((r) => ({ next: r.next, n: r.resealed }))(await s.reseal({ limit: 1, after: a })))).toBe(4);
     });
+  });
+});
+
+// The main key in OpenBao (issue #215), against a dev OpenBao (storage/openbao.testkit.ts).
+describe.skipIf(!supported || !openBaoAddr())("with the key service", () => {
+  const counting = () => {
+    const paths: string[] = [];
+    const f: typeof fetch = (input, init) => (paths.push(new URL(String(input)).pathname), fetch(input, init));
+    return { paths, fetch: f };
+  };
+  const baoWrapper = (bao: OpenBaoForTests, o: Partial<OpenBaoOptions> = {}) => createOpenBaoWrapper({ ...bao, ...o });
+  const keyIds = async (url: string) => {
+    const db = await raw(url);
+    return [...(await db.selectFrom("feeds").select("key_id").execute()), ...(await db.selectFrom("keyring").select("key_id").execute())].map((r) => r.key_id);
+  };
+
+  test("a database moves from the local key to OpenBao in one start", async () => {
+    const bao = (await openBaoForTests())!;
+    const url = await database();
+    const local = key();
+    const first = storageOn(url, createLocalWrapper(local));
+    await first.createFeed("f", "Rid-F");
+    const id = await first.writeNote("f", "n", "md", "# Moved", {});
+    await first.close();
+    const s = storageOn(url, baoWrapper(bao, { old: createOldKeysWrapper([local]) }));
+    expect(await s.listFeeds()).toEqual(["f"]);
+    expect(new Set(await keyIds(url))).toEqual(new Set([`openbao:${bao.key}:v1`]));
+    expect((await s.readNote("f", id, ALL, () => true))?.content.toString()).toBe("# Moved");
+    await s.close();
+    // Without the local key now: OpenBao alone opens it.
+    expect(await storageOn(url, baoWrapper(bao)).listFeeds()).toEqual(["f"]);
+  });
+
+  test("after a rotation the next start re-wraps everything under the new version", async () => {
+    const bao = (await openBaoForTests())!;
+    const url = await database();
+    const first = storageOn(url, baoWrapper(bao));
+    await first.createFeed("a", "Rid-A");
+    await first.createFeed("b", "Rid-B");
+    await first.createFeed("c", "Rid-C");
+    await first.close();
+    await bao.root(`${bao.mount}/keys/${bao.key}/rotate`, {});
+    const c = counting();
+    expect(await storageOn(url, baoWrapper(bao, { fetch: c.fetch })).listFeeds()).toEqual(["a", "b", "c"]);
+    expect(new Set(await keyIds(url))).toEqual(new Set([`openbao:${bao.key}:v2`]));
+    // The fingerprint key, then the three feeds' keys in one batch: not a request per feed.
+    expect(c.paths.filter((p) => p.endsWith(`/rewrap/${bao.key}`))).toHaveLength(2);
+  });
+
+  test("a key version OpenBao no longer decrypts is refused at start, by its id", async () => {
+    const bao = (await openBaoForTests())!;
+    const url = await database();
+    const first = storageOn(url, baoWrapper(bao));
+    await first.createFeed("a", "Rid-A");
+    await first.close();
+    await bao.root(`${bao.mount}/keys/${bao.key}/rotate`, {});
+    await bao.root(`${bao.mount}/keys/${bao.key}/config`, { min_decryption_version: 2 });
+    await expect(storageOn(url, baoWrapper(bao)).listFeeds()).rejects.toThrow(unknownKey(`openbao:${bao.key}:v1`));
+    expect(unknownKey(`openbao:${bao.key}:v1`)).toContain("min_decryption_version");
+  });
+
+  test("no data key outlives the request that unwrapped it", async () => {
+    const bao = (await openBaoForTests())!;
+    const url = await database();
+    const c = counting();
+    const s = storageOn(url, baoWrapper(bao, { fetch: c.fetch }));
+    await s.createFeed("f", "Rid-F");
+    await s.writeSettings("f", { ...(await s.readSettings("f")), title: "T" });
+    const decrypts = () => c.paths.filter((p) => p.endsWith(`/decrypt/${bao.key}`)).length;
+    const before = decrypts();
+    const page = () => inRequest({ id: randomBytes(4).toString("hex") }, async () => [await s.readSettings("f"), await s.readSettings("f")]);
+    expect((await page()).map((x) => x.title)).toEqual(["T", "T"]);
+    expect(decrypts() - before).toBe(1);
+    await page();
+    expect(decrypts() - before).toBe(2);
+  });
+
+  test("an OpenBao that is down at start is tried again by the next call", async () => {
+    const bao = (await openBaoForTests())!;
+    const url = await database();
+    let down = true;
+    const s = storageOn(url, baoWrapper(bao, { fetch: (input, init) => (down ? Promise.reject(new TypeError("fetch failed")) : fetch(input, init)) }));
+    await expect(s.listFeeds()).rejects.toBeInstanceOf(KeyServiceUnavailableError);
+    down = false;
+    expect(await s.listFeeds()).toEqual([]);
+  });
+
+  test("an OpenBao that goes down later stops every feed, as maintenance", async () => {
+    const bao = (await openBaoForTests())!;
+    const url = await database();
+    let down = false;
+    const s = storageOn(url, baoWrapper(bao, { fetch: (input, init) => (down ? Promise.resolve(new Response("", { status: 503 })) : fetch(input, init)) }));
+    await s.createFeed("f", "Rid-F");
+    await s.writeSettings("f", { ...(await s.readSettings("f")), title: "T" });
+    expect((await s.readSettings("f")).title).toBe("T");
+    down = true;
+    await expect(s.readSettings("f")).rejects.toBeInstanceOf(KeyServiceUnavailableError);
+    down = false;
+    expect((await s.readSettings("f")).title).toBe("T");
   });
 });

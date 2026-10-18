@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vitest";
-import { NotFoundError } from "../errors";
+import { UNAVAILABLE_DIGEST } from "../../shared/errors";
+import { KeyServiceUnavailableError, NotFoundError } from "../errors";
 import { logTo } from "../log";
 import { errorReply } from "./errors";
 
@@ -17,4 +18,24 @@ test("an unexpected error is a bare 500, logged at error without the feed's name
   const o = JSON.parse(lines[0]);
   expect(o).toMatchObject({ level: "error", component: "http", msg: "request failed", err: { type: "Error", code: "EACCES", errno: -13, syscall: "rename", message: "EACCES: permission denied, rename '/data/<path>' -> '/data/<path>'" } });
   expect(lines[0]).not.toMatch(/secret-feed|quarterly-layoffs-plan/);
+});
+
+test("an unreachable key service is a 503 with Retry-After", () => {
+  const r = errorReply(new KeyServiceUnavailableError());
+  expect(r.status).toBe(503);
+  expect(r.body).toEqual({ error: "the key service is unreachable", code: "unavailable" });
+  expect(r.headers).toEqual({ "Retry-After": "30" });
+});
+
+test("an unreachable key service carries the maintenance digest, for the error page", () => {
+  expect(new KeyServiceUnavailableError().digest).toBe(UNAVAILABLE_DIGEST);
+});
+
+test("an unreachable key service from another route bundle is still a 503: it is known by its digest, not its class", () => {
+  // Next may bundle backend/errors.ts once per route; the key service's wrapper is shared, so its error can be another copy's class.
+  const other = Object.assign(new Error("the key service is unreachable"), { name: "KeyServiceUnavailableError", code: "unavailable", retryAfter: 30, digest: UNAVAILABLE_DIGEST });
+  const r = errorReply(other);
+  expect(r.status).toBe(503);
+  expect(r.body).toEqual({ error: "the key service is unreachable", code: "unavailable" });
+  expect(r.headers).toEqual({ "Retry-After": "30" });
 });

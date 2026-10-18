@@ -50,6 +50,8 @@ export { API_PREFIX };
 
 const err = (description: string) => ({ description, schema: ErrorJson }) satisfies ResponseSpec;
 const RETRY = { "Retry-After": { description: "Seconds to wait before trying again", type: "integer" } } as const;
+// Only on an instance whose main key is in a key service (NOTEFEED_KMS, issue #215).
+const UNAVAILABLE = { ...err("The key service is unreachable: the instance is down for maintenance; try again after Retry-After"), headers: RETRY };
 const MULTIPART =
   "A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), " +
   `\`file\` parts (up to ${MAX_ATTACHMENTS} pictures, each with its file name and image \`Content-Type\`) and \`alt.<file name>\` fields. ` +
@@ -183,6 +185,7 @@ const OPS: AnyOp[] = [
       415: err("Content-Type missing or not one of the accepted types, or the body (or a multipart body's picture) is not what it declares"),
       429: { ...err("Too many posts, or wrong passwords, from this client"), headers: RETRY },
       451: BLOCKED,
+      503: UNAVAILABLE,
       507: err("NOTEFEED_MAX_FEEDS, NOTEFEED_MAX_NOTES_PER_FEED or NOTEFEED_MAX_IMAGES_PER_FEED reached"),
     },
   }).handle(({ req, params }) => handlePostNote(req, params.feed)),
@@ -203,6 +206,7 @@ const OPS: AnyOp[] = [
       400: err("Invalid or reserved feed name, or a bad `limit` / `before`"),
       401: UNAUTHORIZED,
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordFeedAndFeedPassword,
   }).handle(async ({ req, params, query }) => {
@@ -224,6 +228,7 @@ const OPS: AnyOp[] = [
       401: UNAUTHORIZED,
       404: err("No such note"),
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordFeedAndFeedPassword,
   }).handle(async ({ req, params }) => {
@@ -263,6 +268,7 @@ const OPS: AnyOp[] = [
       415: err("Content-Type missing, not accepted or not the note's own type (a multipart body is for a markdown note), or the body (or a picture) is not what it declares"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
       451: BLOCKED,
+      503: UNAVAILABLE,
       507: err("NOTEFEED_MAX_IMAGES_PER_FEED reached"),
     },
     before: passwordAndFeed,
@@ -300,6 +306,7 @@ const OPS: AnyOp[] = [
       404: err("No such note"),
       415: err("Content-Type is not application/json"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
@@ -323,6 +330,7 @@ const OPS: AnyOp[] = [
       401: UNAUTHORIZED,
       404: err("No such note"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
@@ -346,6 +354,7 @@ const OPS: AnyOp[] = [
       401: UNAUTHORIZED,
       404: err("No such feed"),
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordFeedAndFeedPassword,
   }).handle(async ({ req, params }) => {
@@ -374,6 +383,7 @@ const OPS: AnyOp[] = [
       404: err("No such feed"),
       409: err("The read id belongs to another feed or is held back for a reserved one"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
@@ -410,6 +420,7 @@ const OPS: AnyOp[] = [
       401: UNAUTHORIZED,
       404: err("No such feed"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
@@ -435,6 +446,7 @@ const OPS: AnyOp[] = [
       402: LICENSE_REQUIRED,
       409: err("The feed has no password"),
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
@@ -464,6 +476,7 @@ const OPS: AnyOp[] = [
       401: UNAUTHORIZED,
       409: err("The feed has no password"),
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
+      503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
@@ -485,6 +498,7 @@ const OPS: AnyOp[] = [
       200: { description: "The feed's public settings", schema: ReadFeedJson },
       404: err("Malformed read id"),
       410: REMOVED_READ,
+      503: UNAVAILABLE,
     },
   }).handle(async ({ req, params }) => {
     if (!isReadId(params.readId)) throw new NotFoundError("malformed read id");
@@ -509,6 +523,7 @@ const OPS: AnyOp[] = [
       400: err("A bad `limit` / `before`"),
       404: err("Malformed read id"),
       410: REMOVED_READ,
+      503: UNAVAILABLE,
     },
   }).handle(async ({ req, params, query }) => {
     if (!isReadId(params.readId)) throw new NotFoundError("malformed read id");
@@ -530,6 +545,7 @@ const OPS: AnyOp[] = [
       200: { description: "The note", schema: NoteJson },
       404: err("No such note, or a malformed or unknown read id"),
       410: REMOVED_READ,
+      503: UNAVAILABLE,
     },
   }).handle(async ({ req, params }) => {
     const feed = await readFeed(params.readId);

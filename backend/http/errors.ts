@@ -11,6 +11,7 @@ import {
   InvalidBodyError,
   InvalidFeedError,
   InvalidRequestError,
+  keyServiceDown,
   LimitReachedError,
   ReadIdTakenError,
   NoteTooLargeError,
@@ -55,6 +56,10 @@ export type ErrorReply = { status: number; body: { error: string; code?: ErrorCo
 
 // Anything that isn't a NotefeedError is a bug or a disk failure: logged, and a bare 500.
 export function errorReply(e: unknown): ErrorReply {
+  if (keyServiceDown(e)) {
+    noteOutcome(e.code);
+    return { status: 503, body: { error: e.message, code: e.code }, headers: { "Retry-After": String(e.retryAfter) } };
+  }
   if (!(e instanceof NotefeedError)) {
     log.error({ err: e }, "request failed");
     noteOutcome("error");

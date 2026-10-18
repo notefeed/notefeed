@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { randomBytes } from "node:crypto";
 import { Kysely, SqliteDialect } from "kysely";
 import { createLicenseDb, type LicenseDb } from "./licensedb";
-import { createLocalWrapper, type KeyWrapper } from "./wrapper";
+import { createOpenBaoWrapper } from "./openbao";
+import { openBaoAddr, openBaoForTests } from "./openbao.testkit";
+import { createLocalWrapper, createOldKeysWrapper, type KeyWrapper } from "./wrapper";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -139,6 +141,20 @@ describe.skipIf(!supported)("license store: encryption at rest", () => {
     expect((await changed.byFeed("f"))?.providerRef).toBe("sub_1");
     await changed.close();
     expect((await make(file, createLocalWrapper(b)).byProviderRef("sub_1"))?.feed).toBe("f");
+  });
+
+  test.skipIf(!openBaoAddr())("moves from the local key to OpenBao (#215)", async () => {
+    const bao = (await openBaoForTests())!;
+    const file = join(dir, "licenses.db");
+    const local = key();
+    const first = make(file, createLocalWrapper(local));
+    await first.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+    await first.attach("h1", "f");
+    await first.close();
+    const moved = make(file, createOpenBaoWrapper({ ...bao, old: createOldKeysWrapper([local]) }));
+    expect((await moved.byFeed("f"))?.providerRef).toBe("sub_1");
+    await moved.close();
+    expect((await make(file, createOpenBaoWrapper(bao)).byProviderRef("sub_1"))?.feed).toBe("f");
   });
 
   test("refuses without the key", async () => {

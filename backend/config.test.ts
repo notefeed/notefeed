@@ -1,6 +1,8 @@
 import { afterEach, expect, test } from "vitest";
-import { config } from "./config";
+import { config, encryptionOn } from "./config";
+import { encryptionKeys } from "./storage/wrapper";
 
+const BAO_VARS = ["NOTEFEED_KMS", "NOTEFEED_OPENBAO_ADDR", "NOTEFEED_OPENBAO_MOUNT", "NOTEFEED_OPENBAO_KEY", "NOTEFEED_OPENBAO_ROLE_ID", "NOTEFEED_OPENBAO_SECRET_ID"];
 const S3_VARS = ["NOTEFEED_S3_ENDPOINT", "NOTEFEED_S3_BUCKET", "NOTEFEED_S3_REGION", "NOTEFEED_S3_ACCESS_KEY", "NOTEFEED_S3_SECRET_KEY"];
 
 afterEach(() => {
@@ -13,7 +15,7 @@ afterEach(() => {
   delete process.env.NOTEFEED_METRICS_TOKEN;
   delete process.env.NOTEFEED_SHRINK_IMAGE_BYTES;
   delete process.env.NOTEFEED_MAX_IMAGE_BYTES;
-  for (const k of ["NOTEFEED_PAYMENT_PROVIDER", "NOTEFEED_CREEM_API_KEY", "NOTEFEED_CREEM_PRODUCT_ID", "NOTEFEED_CREEM_PRODUCT_ID_YEARLY", "NOTEFEED_CREEM_WEBHOOK_SECRET", "NOTEFEED_LICENSE_PRICE_YEARLY", "PUBLIC_URL", "NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", "NOTEFEED_ENCRYPTION_KEY", "NOTEFEED_ENCRYPTION_OLD_KEYS", ...S3_VARS]) delete process.env[k];
+  for (const k of ["NOTEFEED_PAYMENT_PROVIDER", "NOTEFEED_CREEM_API_KEY", "NOTEFEED_CREEM_PRODUCT_ID", "NOTEFEED_CREEM_PRODUCT_ID_YEARLY", "NOTEFEED_CREEM_WEBHOOK_SECRET", "NOTEFEED_LICENSE_PRICE_YEARLY", "PUBLIC_URL", "NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", "NOTEFEED_ENCRYPTION_KEY", "NOTEFEED_ENCRYPTION_OLD_KEYS", ...S3_VARS, ...BAO_VARS]) delete process.env[k];
 });
 
 test("the report URL template is empty unless set, and trimmed; with an endpoint and no template, the link opens the built-in page", () => {
@@ -124,6 +126,74 @@ test("validateStorage: a main key with a comma could not be an old key later, so
   process.env.NOTEFEED_SECRET = "x".repeat(32);
   process.env.NOTEFEED_ENCRYPTION_KEY = "k".repeat(40) + ",x";
   expect(() => config.validateStorage()).toThrow("NOTEFEED_ENCRYPTION_KEY must not contain a comma");
+});
+
+function openbao() {
+  process.env.NOTEFEED_STORAGE = "sqlite";
+  process.env.NOTEFEED_SECRET = "x".repeat(32);
+  process.env.NOTEFEED_KMS = "openbao";
+  process.env.NOTEFEED_OPENBAO_ADDR = "http://bao.internal:8200/";
+  process.env.NOTEFEED_OPENBAO_ROLE_ID = "role";
+  process.env.NOTEFEED_OPENBAO_SECRET_ID = "secret";
+}
+
+test("kms: openbao or empty", () => {
+  expect(config.kms()).toBe("");
+  process.env.NOTEFEED_KMS = " OpenBao ";
+  expect(config.kms()).toBe("openbao");
+  process.env.NOTEFEED_KMS = "vault";
+  expect(() => config.kms()).toThrow('NOTEFEED_KMS must be openbao or empty, got "vault"');
+});
+
+test("openbao: the settings, with defaults for the mount and the key", () => {
+  openbao();
+  expect(config.openbao()).toEqual({ addr: "http://bao.internal:8200", mount: "transit", key: "notefeed", roleId: "role", secretId: "secret" });
+});
+
+test("validateStorage: the key service needs a database backend", () => {
+  openbao();
+  process.env.NOTEFEED_STORAGE = "fs";
+  expect(() => config.validateStorage()).toThrow("NOTEFEED_KMS needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend is not encrypted");
+});
+
+test("validateStorage: the key service replaces the local key, which may only stay as an old one", () => {
+  openbao();
+  expect(() => config.validateStorage()).not.toThrow();
+  process.env.NOTEFEED_ENCRYPTION_OLD_KEYS = "k".repeat(64);
+  expect(() => config.validateStorage()).not.toThrow();
+  process.env.NOTEFEED_ENCRYPTION_OLD_KEYS = "short";
+  expect(() => config.validateStorage()).toThrow("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes");
+  delete process.env.NOTEFEED_ENCRYPTION_OLD_KEYS;
+  process.env.NOTEFEED_ENCRYPTION_KEY = "k".repeat(64);
+  expect(() => config.validateStorage()).toThrow("NOTEFEED_KMS=openbao replaces NOTEFEED_ENCRYPTION_KEY: to move to the key service, put the local key in NOTEFEED_ENCRYPTION_OLD_KEYS");
+});
+
+test("validateStorage: the key service needs its address and credential", () => {
+  openbao();
+  delete process.env.NOTEFEED_OPENBAO_ADDR;
+  delete process.env.NOTEFEED_OPENBAO_SECRET_ID;
+  expect(() => config.validateStorage()).toThrow("NOTEFEED_KMS=openbao needs NOTEFEED_OPENBAO_ADDR, NOTEFEED_OPENBAO_SECRET_ID");
+  process.env.NOTEFEED_OPENBAO_SECRET_ID = "secret";
+  process.env.NOTEFEED_OPENBAO_ADDR = "bao:8200";
+  expect(() => config.validateStorage()).toThrow("NOTEFEED_OPENBAO_ADDR must be an http(s) URL");
+});
+
+test("encryptionOn: a local key or the key service", () => {
+  expect(encryptionOn()).toBe(false);
+  process.env.NOTEFEED_ENCRYPTION_KEY = "k".repeat(64);
+  expect(encryptionOn()).toBe(true);
+  delete process.env.NOTEFEED_ENCRYPTION_KEY;
+  openbao();
+  expect(encryptionOn()).toBe(true);
+});
+
+test("encryptionKeys: changes with the key service's settings", () => {
+  openbao();
+  const before = encryptionKeys();
+  process.env.NOTEFEED_OPENBAO_ADDR = "http://other:8200";
+  const addr = encryptionKeys();
+  process.env.NOTEFEED_OPENBAO_SECRET_ID = "rotated";
+  expect(new Set([before, addr, encryptionKeys()]).size).toBe(3);
 });
 
 test("encryptionOldKeys: comma-separated, trimmed, empties dropped", () => {

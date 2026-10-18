@@ -55,3 +55,7 @@ test("withPictures points at a title or an alt text refused for its characters",
   expect(message("invalid_body", null, `attachment "a.png": alt ${rule}`)).toBe(`a.png: The alt text ${rule}.`);
   expect(message("invalid_body", null, "title must be at most 100 characters")).toBe("The note could not be read.");
 });
+
+test("an unreachable key service is maintenance, on every form", () => {
+  for (const fn of [errorMessage, noteErrorMessage, feedErrorMessage, feedDetailsErrorMessage]) expect(fn("unavailable")).toBe("notefeed is down for maintenance. Please try again in a few minutes.");
+});

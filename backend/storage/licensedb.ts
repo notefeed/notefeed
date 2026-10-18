@@ -9,6 +9,9 @@ import type { AttachResult, License, LicenseStatus, LicenseStore } from "./licen
 import { fingerprint, openText, sealText } from "./cipher";
 import { ENCRYPTED_NO_KEY, KEYRING_MISSING, KeyringError, ringKey, unknownKey } from "./sql/keyring";
 import type { KeyWrapper } from "./wrapper";
+import { logger } from "../log";
+
+const log = logger("licenses");
 
 type Time = ColumnType<number | string, number, number>;
 interface LicenseSchema {
@@ -73,11 +76,14 @@ async function prepareKeys(db: Kysely<LicenseSchema>, wrapper: KeyWrapper | null
     if (ring || sealed) throw new KeyringError(inLicenses(ENCRYPTED_NO_KEY));
     return null;
   }
+  await wrapper.start();
   return db.transaction().execute(async (tx) => {
     const ring = await tx.selectFrom("keyring").select("key_id").execute();
+    const older = ring.filter((r) => r.key_id !== wrapper.keyId).length;
     for (const { key_id } of ring) if (!wrapper.knows(key_id)) throw new KeyringError(inLicenses(unknownKey(key_id)));
     if (ring.length === 0 && (await tx.selectFrom("licenses").select("id").where("sealed", "=", 1).executeTakeFirst())) throw new KeyringError(inLicenses(KEYRING_MISSING));
     const keys = { fp: await ringKey(tx, "fingerprint", wrapper), data: await ringKey(tx, "data", wrapper) };
+    if (older > 0) log.info({ keys: older, keyId: wrapper.keyId }, "re-wrapped the license database's keys under the current main key; none left under an older one");
     for (const r of await tx.selectFrom("licenses").select(["id", "feed", "provider_ref"]).where("sealed", "=", 0).execute()) {
       await tx.updateTable("licenses").set(sealedRefs(keys, r.id, r.feed, r.provider_ref)).where("id", "=", r.id).execute();
     }

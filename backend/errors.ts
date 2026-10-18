@@ -1,7 +1,7 @@
 // Everything the backend refuses, as classes. `message` is the API's wording (lower case, no period),
 // `code` the stable key the web UI words itself (shared/errors.ts). Each adapter maps the class to
 // its own form; nothing parses a message.
-import type { ErrorCode } from "../shared/errors";
+import { UNAVAILABLE_DIGEST, type ErrorCode } from "../shared/errors";
 import { ACCEPTED_TYPES } from "./note/media";
 
 export class NotefeedError extends Error {
@@ -153,3 +153,17 @@ export class UnreadableNoteError extends NotefeedError {
     super("unreadable", "the note's stored copy cannot be decrypted");
   }
 }
+
+/**
+ * The key service (NOTEFEED_KMS, issue #215) does not answer: maintenance, not an error. 503 with Retry-After. Known by its digest
+ * (keyServiceDown), not by instanceof: Next may bundle this module once per route, and the wrapper that throws it is shared.
+ */
+export class KeyServiceUnavailableError extends NotefeedError {
+  readonly retryAfter = 30;
+  readonly digest = UNAVAILABLE_DIGEST;
+  constructor() {
+    super("unavailable", "the key service is unreachable");
+  }
+}
+
+export const keyServiceDown = (e: unknown): e is KeyServiceUnavailableError => (e as { digest?: unknown } | null)?.digest === UNAVAILABLE_DIGEST;

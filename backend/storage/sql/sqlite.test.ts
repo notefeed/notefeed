@@ -10,6 +10,8 @@ import { FeedGoneError } from "../types";
 import { logsOf } from "../../log";
 import { connect } from "./connect";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
+import { createOpenBaoWrapper } from "../openbao";
+import { openBaoAddr, openBaoForTests } from "../openbao.testkit";
 import { createLocalWrapper, type KeyWrapper } from "../wrapper";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
@@ -84,6 +86,14 @@ describe.skipIf(!supported)("sqlite", () => {
     return { storage, cleanup: async () => {} };
   });
 
+  // The main key in OpenBao (#215); one Transit mount for the whole suite.
+  describe.skipIf(!openBaoAddr())("with the key service", () => {
+    let bao: ReturnType<typeof openBaoForTests> | undefined;
+    describeStorage("sqlite, encrypted by OpenBao", async () => {
+      const { storage } = await fresh("test.db", undefined, createOpenBaoWrapper((await (bao ??= openBaoForTests()))!));
+      return { storage, cleanup: async () => {} };
+    });
+  });
   describeStorage("sqlite with images in a folder", async () => {
     const root = await mkdtemp(join(tmpdir(), "notefeed-sql-images-"));
     const { storage } = await fresh("test.db", { store: createFsImageStore(root), external: (ext) => ext === "png" });

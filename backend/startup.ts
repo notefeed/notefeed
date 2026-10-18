@@ -1,6 +1,7 @@
 // The startup line and what is wrong with the configuration, logged once when the server starts
 // (instrumentation.ts). Names of variables only, never their values.
 import { config, LOG_LEVELS, type StorageKind } from "./config";
+import { keyServiceDown } from "./errors";
 import { reservedFeedProblems, RESERVED_FEEDS } from "./feeds";
 import { unreadableLegalSettings } from "./legal";
 import { logger } from "./log";
@@ -95,6 +96,8 @@ export async function logStartup(): Promise<void> {
   } catch (e) {
     // A database this main key cannot open (encryption at rest, issue #212) must not be served: every request would fail.
     if (e instanceof KeyringError) throw e;
+    // The key service (#215) is down: each request tries again, and gets the maintenance page meanwhile.
+    if (keyServiceDown(e)) return void logger("startup").warn("the key service is unreachable: serving the maintenance page until it answers");
     try {
       logger("startup").error({ err: e }, "startup report failed");
     } catch {}
