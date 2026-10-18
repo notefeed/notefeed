@@ -211,7 +211,7 @@ export type Error = {
     /**
      * Stable machine-readable code; absent only on a 500
      */
-    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'removed' | 'blocked' | 'unreadable';
+    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'removed' | 'blocked' | 'unreadable' | 'unavailable';
 };
 
 export type NoteMeta = {
@@ -360,6 +360,10 @@ export type ListNotesErrors = {
      * Too many wrong passwords from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type ListNotesError = ListNotesErrors[keyof ListNotesErrors];
@@ -460,6 +464,10 @@ export type PostNoteErrors = {
      */
     451: Error;
     /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+    /**
      * NOTEFEED_MAX_FEEDS, NOTEFEED_MAX_NOTES_PER_FEED or NOTEFEED_MAX_IMAGES_PER_FEED reached
      */
     507: Error;
@@ -515,6 +523,10 @@ export type DeleteNoteErrors = {
      * Too many posts, edits and deletes, or wrong passwords, from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type DeleteNoteError = DeleteNoteErrors[keyof DeleteNoteErrors];
@@ -567,6 +579,10 @@ export type GetNoteErrors = {
      * Too many wrong passwords from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type GetNoteError = GetNoteErrors[keyof GetNoteErrors];
@@ -623,6 +639,10 @@ export type PatchNoteErrors = {
      * Too many posts, edits and deletes, or wrong passwords, from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type PatchNoteError = PatchNoteErrors[keyof PatchNoteErrors];
@@ -703,6 +723,10 @@ export type EditNoteErrors = {
      */
     451: Error;
     /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+    /**
      * NOTEFEED_MAX_IMAGES_PER_FEED reached
      */
     507: Error;
@@ -754,6 +778,10 @@ export type DeleteFeedErrors = {
      * Too many posts, edits and deletes, or wrong passwords, from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type DeleteFeedError = DeleteFeedErrors[keyof DeleteFeedErrors];
@@ -802,6 +830,10 @@ export type GetFeedErrors = {
      * Too many wrong passwords from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type GetFeedError = GetFeedErrors[keyof GetFeedErrors];
@@ -854,6 +886,10 @@ export type UpdateFeedErrors = {
      * Too many posts, edits and deletes, or wrong passwords, from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type UpdateFeedError = UpdateFeedErrors[keyof UpdateFeedErrors];
@@ -902,6 +938,10 @@ export type RemoveFeedPasswordErrors = {
      * Too many wrong passwords from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type RemoveFeedPasswordError = RemoveFeedPasswordErrors[keyof RemoveFeedPasswordErrors];
@@ -954,6 +994,10 @@ export type ChangeFeedPasswordErrors = {
      * Too many wrong passwords from this client
      */
     429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type ChangeFeedPasswordError = ChangeFeedPasswordErrors[keyof ChangeFeedPasswordErrors];
@@ -988,6 +1032,10 @@ export type GetReadFeedErrors = {
      * The operator removed the feed this read id belonged to (`removed`)
      */
     410: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type GetReadFeedError = GetReadFeedErrors[keyof GetReadFeedErrors];
@@ -1039,6 +1087,10 @@ export type ListReadNotesErrors = {
      * The operator removed the feed this read id belonged to (`removed`)
      */
     410: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type ListReadNotesError = ListReadNotesErrors[keyof ListReadNotesErrors];
@@ -1077,6 +1129,10 @@ export type GetReadNoteErrors = {
      * The operator removed the feed this read id belonged to (`removed`)
      */
     410: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
 };
 
 export type GetReadNoteError = GetReadNoteErrors[keyof GetReadNoteErrors];

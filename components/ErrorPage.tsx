@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { card, secondary } from "@/components/styles";
+import { MAINTENANCE } from "@/app/_lib/messages";
+import { card, primary, secondary } from "@/components/styles";
+import { UNAVAILABLE_DIGEST } from "@/shared/errors";
 
 // A page of its own for what is missing or broken (app/not-found.tsx, app/error.tsx, app/global-error.tsx): the logo, what happened in a
 // sentence or two, and the way on. No server code, so the client error boundaries can use it too; never an error's own message.
@@ -23,5 +25,31 @@ export function ErrorPage({ title, children, actions }: { title: string; childre
         </div>
       </div>
     </main>
+  );
+}
+
+/** What app/error.tsx and app/global-error.tsx show for `error`: the maintenance page while the key service is unreachable (#215). */
+export const failedTitle = (error: { digest?: string }) => (error.digest === UNAVAILABLE_DIGEST ? "Down for maintenance" : "Something went wrong");
+
+export function FailedPage({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+  const down = error.digest === UNAVAILABLE_DIGEST;
+  return (
+    <ErrorPage
+      title={failedTitle(error)}
+      actions={
+        <button type="button" onClick={() => retry()} className={primary}>
+          Try again
+        </button>
+      }
+    >
+      {down ? (
+        <p>{MAINTENANCE}</p>
+      ) : (
+        <>
+          <p>This page couldn&apos;t be loaded just now. Trying again often helps. If it keeps happening, let the operator of this site know.</p>
+          {error.digest && <p className="text-sm">Reference for the operator: {error.digest}</p>}
+        </>
+      )}
+    </ErrorPage>
   );
 }

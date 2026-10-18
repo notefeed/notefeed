@@ -4,6 +4,8 @@ import { expect, test, vi } from "vitest";
 import GlobalError from "@/app/global-error";
 import ErrorBoundary from "@/app/error";
 import NotFound from "@/app/not-found";
+import { MAINTENANCE } from "@/app/_lib/messages";
+import { UNAVAILABLE_DIGEST } from "@/shared/errors";
 import { DamagedNote } from "./DamagedNote";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
@@ -42,4 +44,14 @@ test("a damaged note's page says what happened; its owner can delete it, a reade
   const reader = renderToStaticMarkup(<DamagedNote id="n1" back="/r/rid" />);
   expect(reader).not.toContain("Delete");
   expect(reader).toContain('href="/r/rid"');
+});
+
+test("a page that failed on an unreachable key service is the maintenance page, on both error pages", () => {
+  const down = Object.assign(new Error("the key service is unreachable"), { digest: UNAVAILABLE_DIGEST });
+  for (const html of [renderToStaticMarkup(<ErrorBoundary error={down} retry={() => {}} />), renderToStaticMarkup(<GlobalError error={down} retry={() => {}} />)]) {
+    expect(html).toContain("Down for maintenance");
+    expect(html).toContain(MAINTENANCE);
+    expect(html).toContain("Try again");
+    expect(html).not.toContain("Reference for the operator");
+  }
 });

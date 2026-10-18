@@ -21,6 +21,7 @@ class ErrorCode(StrEnum):
     TAKEN = "taken"
     TOO_LARGE = "too_large"
     TOO_MANY_ATTEMPTS = "too_many_attempts"
+    UNAVAILABLE = "unavailable"
     UNREADABLE = "unreadable"
     UNSUPPORTED_TYPE = "unsupported_type"
 

@@ -19,6 +19,9 @@ export const IMAGES_OFF = "Images can't be posted on this instance.";
 // A damaged note (encryption at rest, issue #212), where it is listed and on its own page.
 export const UNREADABLE = "This note can't be shown: its stored copy can't be decrypted.";
 
+// The key service is unreachable (#215): on the maintenance page and under a form.
+export const MAINTENANCE = "notefeed is down for maintenance. Please try again in a few minutes.";
+
 // sign_in_failed is no API code: only the OIDC callback's ?error= (backend/oidc/routes.ts).
 const MESSAGES: Record<ErrorCode | "sign_in_failed", string> = {
   invalid_feed: "Invalid feed name.",
@@ -42,6 +45,7 @@ const MESSAGES: Record<ErrorCode | "sign_in_failed", string> = {
   removed: "This feed was removed by the operator. Its name can't be used again.",
   blocked: "This image may not be posted here.",
   unreadable: UNREADABLE,
+  unavailable: MAINTENANCE,
   sign_in_failed: "Sign-in didn't work. Try again.",
 };
 

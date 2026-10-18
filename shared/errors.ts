@@ -22,5 +22,10 @@ export const ERROR_CODES = [
   "removed",
   "blocked",
   "unreadable",
+  "unavailable",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
+
+// The digest of a page that failed because the key service is unreachable (#215): app/error.tsx shows the maintenance page for it.
+// Next keeps a digest the thrown error already has.
+export const UNAVAILABLE_DIGEST = "NOTEFEED_UNAVAILABLE";
