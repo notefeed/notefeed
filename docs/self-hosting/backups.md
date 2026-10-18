@@ -6,7 +6,7 @@ Back up the `data` folder, including `.secret` and the dot files inside each fee
 tar czf notefeed-notes.tgz -C data .
 ```
 
-With a [database](storage.md#databases), back up the database instead (`pg_dump`, or the SQLite file) and keep `NOTEFEED_SECRET` with it: it is not in the database. With [encryption at rest](storage.md#encryption-at-rest), keep `NOTEFEED_ENCRYPTION_KEY` too, but not in the same place as the backups: a backup and its key together can be read by whoever has both, and a backup without its key can be read by nobody. With [image bytes outside the database](storage.md#image-bytes-outside-the-database), back up the folder or the bucket as well, after the database: an image without its note is only an unused file, while a note without its image shows as broken.
+With a [database](storage.md#databases), back up the database instead (`pg_dump`, or the SQLite file) and keep `NOTEFEED_SECRET` with it: it is not in the database. With [encryption at rest](storage.md#encryption-at-rest), keep `NOTEFEED_ENCRYPTION_KEY` too, but not in the same place as the backups: a backup and its key together can be read by whoever has both, and a backup without its key can be read by nobody. With the main key in [OpenBao](storage.md#the-main-key-in-openbao), a backup needs OpenBao and the key version it was wrapped with: back up OpenBao on its own, and retiring a key version makes the backups only it wrapped unreadable. With [image bytes outside the database](storage.md#image-bytes-outside-the-database), back up the folder or the bucket as well, after the database: an image without its note is only an unused file, while a note without its image shows as broken.
 
 ## How long a backup keeps what was deleted
 

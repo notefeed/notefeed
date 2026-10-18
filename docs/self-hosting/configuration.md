@@ -67,7 +67,12 @@ See [Storage](storage.md).
 | `NOTEFEED_S3_ENDPOINT`, `NOTEFEED_S3_BUCKET`, `NOTEFEED_S3_ACCESS_KEY`, `NOTEFEED_S3_SECRET_KEY` | none | The object store for `NOTEFEED_IMAGES=s3`, all four required. |
 | `NOTEFEED_S3_REGION` | `us-east-1` | The region the store expects in a request's signature. |
 | `NOTEFEED_ENCRYPTION_KEY` | none: off | The main key of [encryption at rest](storage.md#encryption-at-rest), at least 32 characters (`openssl rand -hex 32`), not the same as `NOTEFEED_SECRET`, and without a comma. Needs `sqlite` or `postgres`. Losing it loses the data. |
-| `NOTEFEED_ENCRYPTION_OLD_KEYS` | none | Former main keys, comma-separated, for the one start after [changing the main key](storage.md#changing-the-main-key). |
+| `NOTEFEED_ENCRYPTION_OLD_KEYS` | none | Former main keys, comma-separated, for the one start after [changing the main key](storage.md#changing-the-main-key) or [moving it to OpenBao](storage.md#the-main-key-in-openbao). |
+| `NOTEFEED_KMS` | none: the local key | `openbao`: the main key is in [OpenBao](storage.md#the-main-key-in-openbao) instead of `NOTEFEED_ENCRYPTION_KEY`, which must then be empty. Needs `sqlite` or `postgres`. |
+| `NOTEFEED_OPENBAO_ADDR` | none | OpenBao's address, e.g. `https://bao.internal:8200`. Required for `openbao`. For a certificate of a private CA, add the CA with `NODE_EXTRA_CA_CERTS`. |
+| `NOTEFEED_OPENBAO_ROLE_ID`, `NOTEFEED_OPENBAO_SECRET_ID` | none | notefeed's AppRole. Both required for `openbao`. |
+| `NOTEFEED_OPENBAO_MOUNT` | `transit` | Where the Transit engine is mounted. |
+| `NOTEFEED_OPENBAO_KEY` | `notefeed` | The Transit key's name; it must be derived (`derived=true`). |
 
 ## Operating
 

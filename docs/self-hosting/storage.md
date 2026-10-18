@@ -104,7 +104,7 @@ If the store is unreachable, pictures fail and text notes keep working. Going fr
 
 ## Encryption at rest
 
-With `NOTEFEED_ENCRYPTION_KEY` set, notefeed encrypts what it stores before it reaches the database or the image store, so a copy of either, a dump or a snapshot of the disk can't be read without the key. Each feed has its own data key: its notes, images, metadata, settings and feed password are encrypted with it (AES-256-GCM). The data keys are stored next to their feeds, encrypted with the main key, which is never stored. Feed names and read ids are stored only as fingerprints, so the database doesn't hand anyone a way into a feed. The database's own housekeeping stays readable: ids, sizes and times.
+With `NOTEFEED_ENCRYPTION_KEY` set, or the main key in a [key service](#the-main-key-in-openbao), notefeed encrypts what it stores before it reaches the database or the image store, so a copy of either, a dump or a snapshot of the disk can't be read without the key. Each feed has its own data key: its notes, images, metadata, settings and feed password are encrypted with it (AES-256-GCM). The data keys are stored next to their feeds, encrypted with the main key, which is never stored. Feed names and read ids are stored only as fingerprints, so the database doesn't hand anyone a way into a feed. The database's own housekeeping stays readable: ids, sizes and times.
 
 It needs a database backend; on the file system backend notefeed refuses to start with a key. While notefeed runs, it holds the key, so encryption at rest doesn't protect against someone on the running server.
 
@@ -132,6 +132,40 @@ It answers `resealed`, `skipped` (notes that changed meanwhile, or whose image i
 ### Changing the main key
 
 Put the new key in `NOTEFEED_ENCRYPTION_KEY`, the old one in `NOTEFEED_ENCRYPTION_OLD_KEYS`, and restart. At start, notefeed wraps every data key again under the new key; no note or image is touched, so this takes seconds however much is stored. Then remove the old key. With several containers, restart them all together: one still on the old key can't open what the others re-wrapped.
+
+### The main key in OpenBao
+
+With `NOTEFEED_KMS=openbao` the main key stays in [OpenBao](https://openbao.org)'s Transit engine and never reaches notefeed: notefeed asks OpenBao to wrap and unwrap the data keys, with an AppRole that can be revoked, and OpenBao's audit log shows every unwrap. notefeed keeps no data key past the request that needed it, so every request that opens a feed is one entry there. It replaces `NOTEFEED_ENCRYPTION_KEY`; the two are refused together. The settings are in [Configuration](configuration.md#storage).
+
+In OpenBao, make a derived Transit key (derived, so each data key is bound to its feed) and an AppRole whose policy allows exactly this:
+
+```sh
+bao secrets enable transit
+bao write -f transit/keys/notefeed derived=true
+bao auth enable approle
+bao policy write notefeed - <<'POLICY'
+path "transit/encrypt/notefeed" { capabilities = ["update"] }
+path "transit/decrypt/notefeed" { capabilities = ["update"] }
+path "transit/rewrap/notefeed"  { capabilities = ["update"] }
+path "transit/keys/notefeed"    { capabilities = ["read"] }
+POLICY
+bao write auth/approle/role/notefeed token_policies=notefeed token_ttl=1h token_max_ttl=24h \
+  secret_id_bound_cidrs=10.0.0.0/24 token_bound_cidrs=10.0.0.0/24   # notefeed's private network
+bao read -field=role_id auth/approle/role/notefeed/role-id            # NOTEFEED_OPENBAO_ROLE_ID
+bao write -f -field=secret_id auth/approle/role/notefeed/secret-id    # NOTEFEED_OPENBAO_SECRET_ID
+```
+
+notefeed logs in at start and renews its token itself. To change the secret id, make a new one, restart notefeed with it, and destroy the old one (`bao write auth/approle/role/notefeed/secret-id-accessor/destroy secret_id_accessor=…`).
+
+**While OpenBao doesn't answer**, notefeed shows a maintenance page and the API answers `503` with the code `unavailable` and `Retry-After`. Every feed is affected, since no data key is kept. `/health` reports `"keys": "unavailable"`. notefeed starts even then, and serves again as soon as OpenBao answers, without a restart.
+
+**Moving from a local key**: set `NOTEFEED_KMS=openbao` and its settings, move the key from `NOTEFEED_ENCRYPTION_KEY` to `NOTEFEED_ENCRYPTION_OLD_KEYS`, and restart. At start, notefeed wraps every data key again under OpenBao, as for [a changed main key](#changing-the-main-key). Then remove the old key: from then on a copy of the server holds no key at all.
+
+**Rotating the key** gives it a new version. Older versions still unwrap until you retire them, and retiring one makes everything only it wrapped unreadable, for good. In this order:
+
+1. `bao write -f transit/keys/notefeed/rotate`.
+2. Restart every notefeed container. At start each database is wrapped again under the new version, and the log says so (`re-wrapped the keys under the current main key`, with the key id `openbao:notefeed:v<n>`). A database that opened has nothing left on an older version.
+3. Only then retire the old versions: `bao write transit/keys/notefeed/config min_decryption_version=<n>`. Backups made before step 2 need the old versions too: retiring them makes those backups unreadable, which is the point after a leak and a loss otherwise. If a database still holds keys of a retired version, notefeed refuses to start and names the version; lowering `min_decryption_version` again restores it, as long as the version was not trimmed.
 
 ### Cleaning up the image store
 
