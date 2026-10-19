@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, test, vi } from "vitest";
-import { createCreem } from "./creem";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { createCreem, resetPlansForTests } from "./creem";
+import FIXTURE from "./fixtures/creem-product.json";
 import { WebhookRejectedError } from "./types";
 
 const SECRET = "whsec";
@@ -153,5 +154,85 @@ describe("Creem", () => {
   test("a completed checkout without a key hash is rejected", async () => {
     const raw = event("checkout.completed", { subscription: { id: "sub_1" } });
     await expect(creem().parseWebhook(raw, sign(raw))).rejects.toBeInstanceOf(WebhookRejectedError);
+  });
+});
+
+// The product as GET /v1/products answered it in the test store on 2026-10-19 (fixtures/creem-product.json, cut down).
+describe("Creem's plans", () => {
+  beforeEach(resetPlansForTests);
+  afterEach(() => vi.useRealTimers());
+  const product = (over: Record<string, unknown> = {}) => Response.json({ ...FIXTURE, ...over });
+  const both = (yearly: () => Response | Promise<Response> = () => product({ id: "prod_year", name: "Yearly", price: 1990, description: null })) =>
+    vi.fn(async (url: string) => (url.endsWith("prod_year") ? yearly() : product()));
+  const monthly = { period: "month", name: "notefeed license, monthly", description: FIXTURE.description, amount: 199, currency: "EUR", taxIncluded: true };
+
+  test("the plans are the configured products, monthly then yearly, as Creem holds them", async () => {
+    const fetch = both();
+    expect(await creem(fetch as never, "prod_year").plans()).toEqual([monthly, { period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", taxIncluded: true }]);
+    const [to, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(to).toBe("https://test-api.creem.io/v1/products?product_id=prod_1");
+    expect(init.headers).toMatchObject({ "x-api-key": "creem_test_abc" });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  test("without a yearly product there is the monthly plan alone; tax not included is said so", async () => {
+    expect(await creem((async () => product({ tax_mode: "exclusive" })) as never).plans()).toEqual([{ ...monthly, taxIncluded: false }]);
+  });
+
+  test("a product that is gone, not active or not a product is left out", async () => {
+    expect(await creem(both(() => new Response("{}", { status: 404 })) as never, "prod_year").plans()).toEqual([monthly]);
+    resetPlansForTests();
+    expect(await creem((async () => product({ status: "archived" })) as never).plans()).toEqual([]);
+    resetPlansForTests();
+    expect(await creem((async () => product({ price: "1.99" })) as never).plans()).toEqual([]);
+    resetPlansForTests();
+    expect(await creem((async () => product({ currency: "euro" })) as never).plans()).toEqual([]);
+  });
+
+  test("the plans are kept five minutes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const fetch = both();
+    await creem(fetch as never, "prod_year").plans();
+    await creem(fetch as never, "prod_year").plans();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+    await creem(fetch as never, "prod_year").plans();
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
+  test("other products are other plans: a changed setting is not served from the cache", async () => {
+    const fetch = both();
+    await creem(fetch as never).plans();
+    expect(await creem(fetch as never, "prod_year").plans()).toHaveLength(2);
+  });
+
+  test("a failed refresh serves the stale list, and with none an empty one that is not kept", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await creem((async () => product()) as never).plans();
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+    const down = vi.fn(async () => new Response("no", { status: 500 }));
+    expect(await creem(down as never).plans()).toEqual([monthly]);
+    resetPlansForTests();
+    expect(await creem(down as never).plans()).toEqual([]);
+    const up = vi.fn(async () => product());
+    expect(await creem(up as never).plans()).toEqual([monthly]);
+  });
+
+  test("a read that times out counts as unreachable", async () => {
+    const fetch = vi.fn(async () => {
+      throw new DOMException("timed out", "TimeoutError");
+    });
+    expect(await creem(fetch as never).plans()).toEqual([]);
+  });
+
+  test("concurrent calls share one refresh", async () => {
+    const fetch = both();
+    const lists = await Promise.all([1, 2, 3].map(() => creem(fetch as never, "prod_year").plans()));
+    expect(lists.every((l) => l.length === 2)).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  test("a description is kept as written, line breaks too", async () => {
+    expect((await creem((async () => product({ description: "a\nb" })) as never).plans())[0].description).toBe("a\nb");
   });
 });

@@ -1,0 +1,12 @@
+{
+  "id": "prod_3mjeG6etmrvAbUAsIIvK7e",
+  "object": "product",
+  "name": "notefeed license, monthly",
+  "description": "Lifts the free limits for one feed on notefeed.me: no cap on stored notes, pictures, and a feed password.",
+  "price": 199,
+  "currency": "EUR",
+  "billing_period": "every-month",
+  "status": "active",
+  "tax_mode": "inclusive",
+  "mode": "test"
+}

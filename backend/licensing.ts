@@ -6,6 +6,7 @@ import { config } from "./config";
 import { LicenseRequiredError } from "./errors";
 import { logger } from "./log";
 import { countNotes, idsBeyond, removeNote } from "./notes";
+import { paymentProvider, type Plan } from "./payments";
 import { processState } from "./state";
 import type { LicenseStore } from "./storage/licenses";
 import { createLicenseDb, type LicenseDb } from "./storage/licensedb";
@@ -16,9 +17,9 @@ const log = logger("licensing");
 export const licensingOn = (): boolean => config.paymentProvider() !== "";
 export const licensePrice = config.licensePrice;
 export const licensePriceYearly = config.licensePriceYearly;
-/** Whether a yearly license is offered next to the monthly one. */
-export const yearlyLicenseOn = (): boolean => config.licensePriceYearly() !== "";
 export const freeNoteCap = config.freeNoteCap;
+/** The plans for sale, as the provider holds them (ADR 0035); none without a provider. */
+export const licensePlans = async (): Promise<Plan[]> => (await paymentProvider()?.plans()) ?? [];
 
 const state = processState("licenses", () => ({}) as { file?: string; keys?: string; db?: LicenseDb });
 

@@ -1,6 +1,6 @@
 // A provider that charges nobody, for the tests and for trying the flow on a development instance (NOTEFEED_PAYMENT_PROVIDER=fake).
-// The checkout is the success page itself; the webhook is JSON that already is a list of events, signed with HMAC-SHA256 in
-// `x-fake-signature` using NOTEFEED_FAKE_WEBHOOK_SECRET.
+// It sells a monthly and a yearly plan at fixed prices. The checkout is the success page itself; the webhook is JSON that already
+// is a list of events, signed with HMAC-SHA256 in `x-fake-signature` using NOTEFEED_FAKE_WEBHOOK_SECRET.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { WebhookRejectedError, type LicenseEvent, type PaymentProvider } from "./types";
 
@@ -11,6 +11,12 @@ export const cancelled: string[] = [];
 
 export function createFake(webhookSecret: string): PaymentProvider {
   return {
+    async plans() {
+      return [
+        { period: "month", name: "Monthly", description: "", amount: 199, currency: "EUR", taxIncluded: true },
+        { period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", taxIncluded: true },
+      ];
+    },
     async createCheckout({ successUrl }) {
       return { url: successUrl };
     },

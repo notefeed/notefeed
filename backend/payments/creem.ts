@@ -2,7 +2,11 @@
 // signed with HMAC-SHA256 over the raw body, hex, in `creem-signature`; the same event can arrive more than once. A refund leaves
 // the subscription running at Creem (seen in the sandbox), which is why licenseflow cancels it.
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { WebhookRejectedError, type LicenseEvent, type PaymentProvider } from "./types";
+import { logger } from "../log";
+import { processState } from "../state";
+import { WebhookRejectedError, type LicenseEvent, type LicensePeriod, type PaymentProvider, type Plan } from "./types";
+
+const log = logger("payments");
 
 /** `productId` is the monthly license; `yearlyProductId` the yearly one, if sold. */
 export type CreemOptions = { apiKey: string; productId: string; yearlyProductId?: string; webhookSecret: string; fetch?: typeof fetch };
@@ -15,6 +19,17 @@ const time = (v: unknown): number | null => {
   return Number.isFinite(t) ? t : null;
 };
 
+// The plans are the configured products as Creem holds them (ADR 0035), kept five minutes so a changed price shows soon without
+// a read per page view. processState: the provider is made anew for each use, and Next may bundle this module once per route.
+const PLANS_FRESH_MS = 5 * 60 * 1000;
+const plansCache = processState("creem-plans", () => ({}) as { key?: string; at?: number; plans?: Plan[]; pending?: Promise<Plan[]> });
+
+export function resetPlansForTests(): void {
+  for (const k of Object.keys(plansCache)) delete plansCache[k as keyof typeof plansCache];
+}
+
+class ProductsUnreadable extends Error {}
+
 export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSecret, fetch: doFetch = fetch }: CreemOptions): PaymentProvider {
   const base = apiKey.startsWith("creem_test_") ? "https://test-api.creem.io/v1" : "https://api.creem.io/v1";
   const call = async (what: string, path: string, body?: unknown): Promise<Obj | undefined> => {
@@ -26,7 +41,48 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
     if (!res.ok) throw new Error(`creem: ${what} failed (${res.status})`);
     return obj(await res.json());
   };
+  // One product: null when it is not offered (gone, not active, not a product), said in the log; throws when Creem cannot be read.
+  const notOffered = (id: string, reason: string): null => {
+    log.warn({ product: id, reason }, "a configured product is not offered");
+    return null;
+  };
+  const product = async (period: LicensePeriod, id: string): Promise<Plan | null> => {
+    let res: Response;
+    try {
+      res = await doFetch(`${base}/products?product_id=${encodeURIComponent(id)}`, { headers: { "x-api-key": apiKey }, signal: AbortSignal.timeout(5000) });
+    } catch (e) {
+      throw new ProductsUnreadable(e instanceof Error ? e.name : "error");
+    }
+    if (res.status === 404) return notOffered(id, "not found");
+    if (!res.ok) throw new ProductsUnreadable(String(res.status));
+    const p = obj(await res.json().catch(() => undefined));
+    if (p?.status !== "active") return notOffered(id, "not active");
+    const name = str(p.name);
+    const amount = p.price;
+    const currency = typeof p.currency === "string" && /^[A-Z]{3}$/.test(p.currency) ? p.currency : undefined;
+    if (!name || !Number.isInteger(amount) || (amount as number) < 0 || !currency) return notOffered(id, "not a product");
+    return { period, name, description: typeof p.description === "string" ? p.description : "", amount: amount as number, currency, taxIncluded: p.tax_mode === "inclusive" };
+  };
+  const refresh = async (): Promise<Plan[]> => {
+    const sold: [LicensePeriod, string][] = [["month", productId], ...(yearlyProductId ? [["year", yearlyProductId] as [LicensePeriod, string]] : [])];
+    return (await Promise.all(sold.map(([period, id]) => product(period, id)))).filter((p): p is Plan => p !== null);
+  };
   return {
+    async plans() {
+      const key = `${base} ${productId} ${yearlyProductId}`;
+      if (plansCache.key !== key) resetPlansForTests();
+      if (plansCache.plans && Date.now() - (plansCache.at ?? 0) <= PLANS_FRESH_MS) return plansCache.plans;
+      plansCache.key = key;
+      plansCache.pending ??= refresh()
+        .then((plans) => Object.assign(plansCache, { plans, at: Date.now() }).plans as Plan[])
+        .catch((e) => {
+          log.warn({ why: e instanceof ProductsUnreadable ? e.message : "error" }, "the products cannot be read");
+          return plansCache.plans ?? []; // the last list while Creem is away, else none; nothing new is kept
+        })
+        .finally(() => (plansCache.pending = undefined));
+      return plansCache.pending;
+    },
+
     async createCheckout({ keyHash, successUrl, period }) {
       const product = period === "year" ? yearlyProductId : productId;
       if (!product) throw new Error(`creem: no product for a license per ${period}`);

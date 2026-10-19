@@ -85,7 +85,6 @@ function validatePayments(): void {
   if (provider !== "creem") throw new Error(`NOTEFEED_PAYMENT_PROVIDER=${provider} is not a payment provider; use creem`);
   const missing = Object.entries({ NOTEFEED_CREEM_API_KEY: env("NOTEFEED_CREEM_API_KEY"), NOTEFEED_CREEM_PRODUCT_ID: env("NOTEFEED_CREEM_PRODUCT_ID"), NOTEFEED_CREEM_WEBHOOK_SECRET: env("NOTEFEED_CREEM_WEBHOOK_SECRET"), PUBLIC_URL: env("PUBLIC_URL") }).flatMap(([k, v]) => (v === "" ? [k] : []));
   if (missing.length) throw new Error(`NOTEFEED_PAYMENT_PROVIDER=creem needs ${missing.join(", ")}`);
-  if (env("NOTEFEED_LICENSE_PRICE_YEARLY").trim() !== "" && env("NOTEFEED_CREEM_PRODUCT_ID_YEARLY") === "") throw new Error("NOTEFEED_LICENSE_PRICE_YEARLY needs NOTEFEED_CREEM_PRODUCT_ID_YEARLY");
 }
 
 function validateStorage(): void {
