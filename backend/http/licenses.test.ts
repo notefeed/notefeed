@@ -7,6 +7,7 @@ import { isLicensed, resetLicensesForTests } from "../licensing";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { createNote } from "../notes";
+import { resetPlansForTests } from "../payments/creem";
 import { cancelled, fakeSignature } from "../payments/fake";
 import { API_PREFIX, dispatch } from "./api";
 import { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./licenses";
@@ -35,6 +36,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+const stubAll = (vars: Record<string, string>) => Object.entries(vars).forEach(([k, v]) => vi.stubEnv(k, v));
 const post = (path: string, body: unknown, method = "POST", headers: Record<string, string> = {}) =>
   new Request(`https://notefeed.test${path}`, { method, headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
 const webhook = (events: unknown[], secret = SECRET) => {
@@ -62,13 +64,29 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect(url).toMatch(/^https:\/\/notefeed\.test\/license#[A-Za-z0-9_-]{22}$/);
   });
 
-  test("a yearly license can be bought once its price is set, and the period must be month or year", async () => {
-    expect((await checkoutRoute(post("/api/licenses/checkout", { period: "year" }))).status).toBe(400);
+  test("both periods are sold with the fake provider, and the period must be month or year", async () => {
+    for (const period of ["month", "year"]) {
+      const { url } = await (await checkoutRoute(post("/api/licenses/checkout", { period }))).json();
+      expect(url).toMatch(/^https:\/\/notefeed\.test\/license#[A-Za-z0-9_-]{22}$/);
+    }
     expect((await checkoutRoute(post("/api/licenses/checkout", { period: "week" }))).status).toBe(400);
-    vi.stubEnv("NOTEFEED_LICENSE_PRICE_YEARLY", "19.90 € per year");
-    const { url } = await (await checkoutRoute(post("/api/licenses/checkout", { period: "year" }))).json();
-    expect(url).toMatch(/^https:\/\/notefeed\.test\/license#[A-Za-z0-9_-]{22}$/);
-    expect((await checkoutRoute(post("/api/licenses/checkout", { period: "week" }))).status).toBe(400);
+  });
+
+  test("a period the provider does not sell is refused before any checkout: no yearly product, or one that is not active", async () => {
+    resetPlansForTests();
+    stubAll({ NOTEFEED_PAYMENT_PROVIDER: "creem", NOTEFEED_CREEM_API_KEY: "creem_test_x", NOTEFEED_CREEM_PRODUCT_ID: "prod_month", NOTEFEED_CREEM_WEBHOOK_SECRET: "whsec" });
+    const fetch = vi.fn(async (url: string) => (url.includes("/products") ? Response.json({ name: "Monthly", price: 199, currency: "EUR", status: url.endsWith("prod_month") ? "active" : "archived" }) : Response.json({ checkout_url: "https://creem.test/pay" })));
+    vi.stubGlobal("fetch", fetch);
+    try {
+      expect((await checkoutRoute(post("/api/licenses/checkout", { period: "year" }))).status).toBe(400);
+      vi.stubEnv("NOTEFEED_CREEM_PRODUCT_ID_YEARLY", "prod_year"); // configured, but archived at Creem
+      expect((await checkoutRoute(post("/api/licenses/checkout", { period: "year" }))).status).toBe(400);
+      expect(fetch.mock.calls.some(([u]) => String(u).endsWith("/checkouts"))).toBe(false);
+      expect((await (await checkoutRoute(post("/api/licenses/checkout", { period: "month" }))).json()).url).toBe("https://creem.test/pay");
+    } finally {
+      vi.unstubAllGlobals();
+      resetPlansForTests();
+    }
   });
 
   test("buy, enter the key on a feed, and the feed is licensed; detach takes it off", async () => {

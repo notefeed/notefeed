@@ -5,7 +5,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { config } from "./config";
 import { InvalidBodyError, LicenseRequiredError, NotFoundError } from "./errors";
-import { licenses, yearlyLicenseOn } from "./licensing";
+import { licenses } from "./licensing";
 import { logger } from "./log";
 import { paymentProvider, WebhookRejectedError, type LicenseEvent, type LicensePeriod } from "./payments";
 import { checkFeed } from "./feednames";
@@ -21,7 +21,8 @@ const KEY_RE = /^[A-Za-z0-9_-]{22,64}$/;
 export async function startCheckout(period: LicensePeriod = "month"): Promise<{ url: string }> {
   const provider = paymentProvider();
   if (!provider) throw new NotFoundError("licenses are not sold on this instance");
-  if (period === "year" && !yearlyLicenseOn()) throw new InvalidBodyError("no yearly license is sold here");
+  // What the provider sells right now: a product that is not configured, gone or not active has no plan (ADR 0035).
+  if (!(await provider.plans()).some((p) => p.period === period)) throw new InvalidBodyError(`no license per ${period} is sold here`);
   const key = randomBytes(16).toString("base64url");
   return provider.createCheckout({ keyHash: hashKey(key), successUrl: `${config.publicUrl()}/license#${key}`, period });
 }

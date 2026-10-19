@@ -7,7 +7,8 @@ import { readIdOf, reservedFeedProblems, resetFeedsForTests } from "./feeds";
 import { logsOf, logTo } from "./log";
 import { resetStorageForTests } from "./storage";
 import { createNote } from "./notes";
-import { legalFileWarnings, logStartup, reservedFeedWarnings, reservedFolderWarnings, reservedHint, startupReport } from "./startup";
+import { VALID_LICENSE } from "./licensepage.fixture";
+import { legalFileWarnings, logStartup, requireLicensePage, reservedFeedWarnings, reservedFolderWarnings, reservedHint, startupReport } from "./startup";
 
 let dir: string;
 beforeEach(async () => {
@@ -193,7 +194,8 @@ test("the start after a key change re-wraps the licenses database too", async ()
   stub({ NOTEFEED_STORAGE: "sqlite", NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "whsec", NOTEFEED_ENCRYPTION_KEY: a });
   resetStorageForTests();
   await licenses().createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-  stub({ NOTEFEED_ENCRYPTION_KEY: b, NOTEFEED_ENCRYPTION_OLD_KEYS: a });
+  stub({ NOTEFEED_ENCRYPTION_KEY: b, NOTEFEED_ENCRYPTION_OLD_KEYS: a, NOTEFEED_LICENSE_FILE: join(dir, "license.md") });
+  await writeFile(join(dir, "license.md"), VALID_LICENSE); // selling licenses needs the license page
   resetStorageForTests();
   await logStartup(); // no license call of its own: the start alone must re-wrap
   stub({ NOTEFEED_ENCRYPTION_OLD_KEYS: "" });
@@ -207,4 +209,38 @@ test("a key service that is down at start is a warning, not a failure: notefeed 
   resetStorageForTests();
   const logs = await logsOf(logStartup);
   expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
+});
+
+test("with a provider, a missing or broken license.md stops the start, naming the problem and not the text", async () => {
+  stub({ NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "s" });
+  await expect(requireLicensePage()).rejects.toThrow("NOTEFEED_PAYMENT_PROVIDER needs a license page: NOTEFEED_LICENSE_FILE is not set");
+  stub({ NOTEFEED_LICENSE_FILE: join(dir, "license.md") });
+  await expect(requireLicensePage()).rejects.toThrow(/NOTEFEED_LICENSE_FILE names no readable file/);
+  await writeFile(join(dir, "license.md"), "---\nfree: [secret\n---\n");
+  const err = await requireLicensePage().catch((e: Error) => e);
+  expect(String(err)).toMatch(/not valid YAML \(line \d+\)$/);
+  expect(String(err)).not.toContain("secret");
+  await writeFile(join(dir, "license.md"), VALID_LICENSE);
+  await expect(requireLicensePage()).resolves.toBeUndefined();
+});
+
+test("without a provider, license.md is not needed", async () => {
+  await expect(requireLicensePage()).resolves.toBeUndefined();
+});
+
+test("a removed price setting is a warning, without its value", () => {
+  stub({ NOTEFEED_LICENSE_PRICE: "1 € value", NOTEFEED_LICENSE_PRICE_YEARLY: "" });
+  const { warnings } = startupReport();
+  const msg = "a setting is no longer read; the price shown is the payment provider's product's";
+  expect(warnings.filter(([, m]) => m === msg)).toEqual([["startup", msg, { setting: "NOTEFEED_LICENSE_PRICE" }]]); // empty counts as unset
+  expect(JSON.stringify(warnings)).not.toContain("value");
+});
+
+test("a support address that is not one warns, without its value", () => {
+  const warned = () => startupReport().warnings.filter(([, m]) => m.includes("NOTEFEED_SUPPORT_EMAIL"));
+  expect(warned()).toEqual([]);
+  vi.stubEnv("NOTEFEED_SUPPORT_EMAIL", "nope-value");
+  expect(warned()).toEqual([["startup", "NOTEFEED_SUPPORT_EMAIL is not an email address; there is no Support link", {}]]);
+  vi.stubEnv("NOTEFEED_SUPPORT_EMAIL", "support@example.com");
+  expect(warned()).toEqual([]);
 });

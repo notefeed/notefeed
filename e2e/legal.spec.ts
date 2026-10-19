@@ -1,5 +1,6 @@
 // The imprint and the privacy page are the operator's own files. The "locked" server (port 3101) has both set, to the
 // fixtures here; the "open" one (3100) has neither. The notice on the start page is the same kind of file, set on 3102.
+// 3101 also has a support address, 3100 none.
 import { expect, test } from "@playwright/test";
 
 const WITH = "http://localhost:3101";
@@ -32,6 +33,13 @@ test("without the files, neither page exists and the footer has no link to them"
   await expect(footer.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", "https://github.com/notefeed/notefeed");
   await expect(footer.getByRole("link", { name: "Imprint" })).toHaveCount(0);
   await expect(footer.getByRole("link", { name: "Data privacy" })).toHaveCount(0);
+});
+
+test("the footer has a Support link where an address is set", async ({ page }) => {
+  await page.goto(`${WITH}/imprint`);
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "Support" })).toHaveAttribute("href", "mailto:support@example.com");
+  await page.goto(WITHOUT + "/");
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "Support" })).toHaveCount(0);
 });
 
 test("the two names cannot be taken as feeds", async ({ request }) => {

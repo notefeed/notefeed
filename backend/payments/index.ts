@@ -4,7 +4,7 @@ import { createCreem } from "./creem";
 import { createFake } from "./fake";
 import type { PaymentProvider } from "./types";
 
-export type { LicenseEvent, LicensePeriod, PaymentProvider } from "./types";
+export type { LicenseEvent, LicensePeriod, PaymentProvider, Plan } from "./types";
 export { WebhookRejectedError } from "./types";
 
 export function paymentProvider(): PaymentProvider | null {

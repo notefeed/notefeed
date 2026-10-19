@@ -14,7 +14,7 @@ import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
 import { errorMessage, feedErrorMessage } from "@/app/_lib/messages";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +73,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
   // What another app shared to notefeed (app/share): the text and the link go into the note.
   const shared = [one(share_text), one(share_url)].filter(Boolean).join("\n\n");
   const isNew = access === "open" && !exists;
+  const licensePage = await licensePageOn(); // the links to /license (ADR 0035)
 
   return (
     <AppShell
@@ -91,19 +92,19 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           tag={tag}
           base={feedPath(feed)}
         >
-          {isNew && <ProtectFeed licensing={licensingOn()} />}
+          {isNew && <ProtectFeed licensing={licensingOn()} licensePage={licensePage} />}
         </FeedAbout>
       }
     >
       {exists && <RememberFeed feed={{ name: feed, title, image: data.imageUrl }} />}
-      {exists && <FreeTierNotice usage={await freeTier(feed)} />}
+      {exists && <FreeTierNotice usage={await freeTier(feed)} licensePage={licensePage} />}
       {deleted && (
         <p role="status" className="mb-4 text-sm text-carbon">
           Note deleted.
         </p>
       )}
       <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={errorMessage(error, retry)} errorCode={one(error)}
-        isNew={isNew} settingsHref={exists ? settingsPath(feed) : undefined}
+        isNew={isNew} settingsHref={exists ? settingsPath(feed) : undefined} licensePage={licensePage}
         sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
         initialTitle={one(share_title)} initialText={shared}
       />

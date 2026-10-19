@@ -1,4 +1,4 @@
-// What notefeed needs from a payment provider (ADR 0029): a checkout to send the buyer to, the provider's webhook turned into
+// What notefeed needs from a payment provider (ADR 0029): the plans it sells (ADR 0035), a checkout to send the buyer to, the provider's webhook turned into
 // events about a license, a link to the provider's page for the buyer, and a way to end a subscription. Everything provider-specific stays behind this; backend/licenseflow.ts is the only caller.
 
 /** What a webhook says about a license. `providerRef` is the provider's subscription id; `validUntil` is when the paid period ends (ms). */
@@ -14,8 +14,9 @@ export type LicenseEvent =
   /** Refunded or disputed: lapses at once. */
   | { type: "refunded"; providerRef: string };
 
-/** How long a license is bought for at a time: the two products the operator may offer (a yearly one only if configured). */
-export type LicensePeriod = "month" | "year";
+import type { LicensePeriod, Plan } from "@/shared/plans";
+
+export type { LicensePeriod, Plan };
 
 export class WebhookRejectedError extends Error {
   constructor(message: string) {
@@ -25,6 +26,9 @@ export class WebhookRejectedError extends Error {
 }
 
 export interface PaymentProvider {
+  /** The plans sold, monthly then yearly, as the provider holds them: name, description, price. Never throws: a provider that
+   *  cannot be read gives what it gave last, or none. */
+  plans(): Promise<Plan[]>;
   /** The URL to send the buyer to. `keyHash` is carried through the provider and comes back in the `started` event. `period` picks
    *  the product; throws when the provider has none for it. */
   createCheckout(o: { keyHash: string; successUrl: string; period: LicensePeriod }): Promise<{ url: string }>;

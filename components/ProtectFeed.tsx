@@ -10,7 +10,8 @@ import { PASSWORD_PATTERN } from "@/shared/password";
 // them on posting and checks the password's pattern with its own fields.
 export const COMPOSE_FORM = "compose";
 
-export function ProtectFeed({ licensing }: { licensing: boolean }) {
+// `licensePage`: /license exists (ADR 0035), so the hint links to it.
+export function ProtectFeed({ licensing, licensePage }: { licensing: boolean; licensePage: boolean }) {
   return (
     <section aria-labelledby="protect-feed" className={`${card} p-4 text-sm xl:p-5`}>
       <h2 id="protect-feed" className={`${sectionLabel} flex items-center gap-1.5`}>
@@ -54,10 +55,17 @@ export function ProtectFeed({ licensing }: { licensing: boolean }) {
           />
           <p id="new-feed-license-key-hint" className="mt-1 text-[13px] text-muted">
             A feed password is for licensed feeds.{" "}
-            <Link href="/license" className="text-carbon underline">
-              Buy a license
-            </Link>{" "}
-            and enter its key here: the first note then creates the feed protected and licensed.
+            {licensePage ? (
+              <>
+                <Link href="/license" className="text-carbon underline">
+                  Buy a license
+                </Link>{" "}
+                and enter its key here
+              </>
+            ) : (
+              "Enter a license key here"
+            )}
+            : the first note then creates the feed protected and licensed.
           </p>
         </>
       )}

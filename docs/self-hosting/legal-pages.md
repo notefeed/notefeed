@@ -21,6 +21,14 @@ services:
 
 `NOTEFEED_NOTICE_FILE` names a Markdown file shown as a red warning banner on the start page: that the service is still being built, that a maintenance window is coming, or what you do not promise. Only the start page shows it; remove the setting to take it down.
 
+## A support address
+
+`NOTEFEED_SUPPORT_EMAIL` puts a **Support** link, `mailto:` the address, in every page's footer next to the legal pages. Unset, there is no link. Only an address is taken: with a space, a `?` or a second `@` in it there is no link, and the startup log says so.
+
+```yaml
+      NOTEFEED_SUPPORT_EMAIL: support@example.com
+```
+
 ## What to write
 
 That is yours to decide, and for a public service worth a lawyer's look. A privacy page usually says who is responsible and how to reach them, where the instance is hosted, what is stored (notes, feeds, images, [what the logs hold](operating.md#logs)), for how long, [how long backups keep what was deleted](backups.md#how-long-a-backup-keeps-what-was-deleted), and which rights a person has. With [sign-in](sign-in/index.md#privacy-page-and-imprint) on, say what is stored about the people who sign in.

@@ -85,7 +85,6 @@ function validatePayments(): void {
   if (provider !== "creem") throw new Error(`NOTEFEED_PAYMENT_PROVIDER=${provider} is not a payment provider; use creem`);
   const missing = Object.entries({ NOTEFEED_CREEM_API_KEY: env("NOTEFEED_CREEM_API_KEY"), NOTEFEED_CREEM_PRODUCT_ID: env("NOTEFEED_CREEM_PRODUCT_ID"), NOTEFEED_CREEM_WEBHOOK_SECRET: env("NOTEFEED_CREEM_WEBHOOK_SECRET"), PUBLIC_URL: env("PUBLIC_URL") }).flatMap(([k, v]) => (v === "" ? [k] : []));
   if (missing.length) throw new Error(`NOTEFEED_PAYMENT_PROVIDER=creem needs ${missing.join(", ")}`);
-  if (env("NOTEFEED_LICENSE_PRICE_YEARLY").trim() !== "" && env("NOTEFEED_CREEM_PRODUCT_ID_YEARLY") === "") throw new Error("NOTEFEED_LICENSE_PRICE_YEARLY needs NOTEFEED_CREEM_PRODUCT_ID_YEARLY");
 }
 
 function validateStorage(): void {
@@ -124,6 +123,8 @@ function validateStorage(): void {
 /** The built-in report page's link template (issue #156): the ids go into the page's hidden fields. */
 export const REPORT_PAGE = "/report?read_id={read_id}&note_id={note_id}&file={file}";
 
+const SUPPORT_EMAIL = /^[^\s@?#&/<>"]+@[^\s@?#&/<>"]+$/;
+
 export const config = {
   dataDir,
   storage: storageKind,
@@ -142,6 +143,10 @@ export const config = {
   encryptionOldKeys: () => env("NOTEFEED_ENCRYPTION_OLD_KEYS").split(",").map((k) => k.trim()).filter(Boolean),
   publicUrl: () => env("PUBLIC_URL").replace(/\/+$/, ""),
   title: () => env("NOTEFEED_TITLE") || "notefeed",
+  // The address of the "Support" link in every footer (mailto:). Only an address: anything that would add to the link (a space,
+  // ?subject=, a second @) means no link, and the startup log says so.
+  supportEmail: () => (SUPPORT_EMAIL.test(env("NOTEFEED_SUPPORT_EMAIL").trim()) ? env("NOTEFEED_SUPPORT_EMAIL").trim() : ""),
+  supportEmailInvalid: () => env("NOTEFEED_SUPPORT_EMAIL").trim() !== "" && !SUPPORT_EMAIL.test(env("NOTEFEED_SUPPORT_EMAIL").trim()),
   // The operator's own imprint and privacy page: Markdown files (see legal.ts). Empty: the page does not exist.
   imprintFile: () => env("NOTEFEED_IMPRINT_FILE"),
   privacyFile: () => env("NOTEFEED_PRIVACY_FILE"),
@@ -149,6 +154,8 @@ export const config = {
   termsFile: () => env("NOTEFEED_TERMS_FILE"),
   // The operator's notice on the start page, a Markdown file too. Empty: no notice.
   noticeFile: () => env("NOTEFEED_NOTICE_FILE"),
+  // The license page's words (license.md, ADR 0035), needed while a payment provider is set and not read otherwise.
+  licenseFile: () => env("NOTEFEED_LICENSE_FILE"),
   // Where the built-in report page (/report) posts a report: the endpoint of a form in an inbox such as noticebox.
   // Empty: there is no page.
   reportEndpoint: () => env("NOTEFEED_REPORT_ENDPOINT").trim(),
@@ -166,10 +173,6 @@ export const config = {
   // The fake provider's webhook secret (tests, development).
   fakeWebhookSecret: () => env("NOTEFEED_FAKE_WEBHOOK_SECRET"),
   freeNoteCap: () => Math.max(1, int("NOTEFEED_FREE_NOTE_CAP", 1000)),
-  // The price in the operator's words ("1.99 € per month"), shown where a license is offered. The amount itself is set at the provider.
-  licensePrice: () => env("NOTEFEED_LICENSE_PRICE").trim(),
-  // The yearly license's price, the same way; empty when none is sold (then the page offers the monthly one alone).
-  licensePriceYearly: () => env("NOTEFEED_LICENSE_PRICE_YEARLY").trim(),
   trustProxy: () => env("NOTEFEED_TRUST_PROXY") === "1",
   // Per minute and IP; 0 or below turns it off.
   rateLimit: () => int("NOTEFEED_RATE_LIMIT", 60),

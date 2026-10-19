@@ -1,20 +1,25 @@
 import Link from "next/link";
-import { hasLegalPage, licensingOn } from "@/backend";
+import { hasLegalPage, licensePageOn, supportEmail } from "@/backend";
 
 export type FooterLink = { href: string; label: string; external?: boolean };
 
 // The product links and the operator's legal pages. The imprint, privacy and terms pages are the operator's own files
 // (backend/legal.ts), looked for on every request: a link only where there is a page; the license page only while
-// the instance sells licenses.
+// the instance sells licenses and has its license.md (ADR 0035); a Support link where the operator gave an address.
 export async function footerLinks(): Promise<{ product: FooterLink[]; legal: FooterLink[] }> {
-  const [imprint, privacy, terms] = await Promise.all([hasLegalPage("imprint"), hasLegalPage("privacy"), hasLegalPage("terms")]);
+  const [imprint, privacy, terms, license] = await Promise.all([hasLegalPage("imprint"), hasLegalPage("privacy"), hasLegalPage("terms"), licensePageOn()]);
   return {
     product: [
       { href: "https://docs.notefeed.me/", label: "Docs", external: true },
       { href: "https://github.com/notefeed/notefeed", label: "GitHub", external: true },
-      ...(licensingOn() ? [{ href: "/license", label: "License" }] : []),
+      ...(license ? [{ href: "/license", label: "License" }] : []),
     ],
-    legal: [...(imprint ? [{ href: "/imprint", label: "Imprint" }] : []), ...(privacy ? [{ href: "/privacy", label: "Data privacy" }] : []), ...(terms ? [{ href: "/terms", label: "Terms" }] : [])],
+    legal: [
+      ...(imprint ? [{ href: "/imprint", label: "Imprint" }] : []),
+      ...(privacy ? [{ href: "/privacy", label: "Data privacy" }] : []),
+      ...(terms ? [{ href: "/terms", label: "Terms" }] : []),
+      ...(supportEmail() ? [{ href: `mailto:${supportEmail()}`, label: "Support", external: true }] : []),
+    ],
   };
 }
 

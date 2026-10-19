@@ -21,7 +21,7 @@ export { feedPath, publicUrl, readPath, rssPath, safeNext, settingsPath } from "
 export { dispatch } from "./http/api";
 export { measured } from "./metrics";
 export { noteOutcome } from "./requestscope";
-export { hasLegalPage, readLegalPage, readNotice, type LegalPage } from "./legal";
+export { hasLegalPage, licensePageOn, readLegalPage, readLicensePage, readNotice, type LegalPage } from "./legal";
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
 export { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./http/licenses";
@@ -36,9 +36,11 @@ export { mcpRoute } from "./mcp";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, authorizeRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 
-export { freeNoteCap, freeTier, isLicensed, licensePrice, licensePriceYearly, licensingOn } from "./licensing";
+export { freeNoteCap, freeTier, isLicensed, licensePlans, licensingOn } from "./licensing";
 
 export const instanceTitle = config.title;
+/** The address of the footer's Support link; "" for none. */
+export const supportEmail = config.supportEmail;
 
 /** The sign-in providers for the buttons, in order: id (for /api/oidc/start?provider=) and label; empty while identity is off. */
 export const signInProviders = (): { id: string; label: string }[] => providers().map(({ id, label }) => ({ id, label }));
