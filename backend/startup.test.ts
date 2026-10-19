@@ -235,3 +235,12 @@ test("a removed setting is a warning saying what replaces it", () => {
   expect(warnings).toContainEqual(["startup", "a setting is no longer read", { setting: "NOTEFEED_LICENSE_PRICE", replacedBy: "the payment provider's products" }]);
   expect(warnings.filter(([, m]) => m === "a setting is no longer read")).toHaveLength(2); // empty counts as unset
 });
+
+test("a support address that is not one warns, without its value", () => {
+  const warned = () => startupReport().warnings.filter(([, m]) => m.includes("NOTEFEED_SUPPORT_EMAIL"));
+  expect(warned()).toEqual([]);
+  vi.stubEnv("NOTEFEED_SUPPORT_EMAIL", "nope-value");
+  expect(warned()).toEqual([["startup", "NOTEFEED_SUPPORT_EMAIL is not an email address; there is no Support link", {}]]);
+  vi.stubEnv("NOTEFEED_SUPPORT_EMAIL", "support@example.com");
+  expect(warned()).toEqual([]);
+});

@@ -39,6 +39,8 @@ export { authServerRoute, authorizeRoute, checkAuthorize, metadataPreflight, pro
 export { freeNoteCap, freeTier, isLicensed, licensePlans, licensingOn } from "./licensing";
 
 export const instanceTitle = config.title;
+/** The address of the footer's Support link; "" for none. */
+export const supportEmail = config.supportEmail;
 
 /** The sign-in providers for the buttons, in order: id (for /api/oidc/start?provider=) and label; empty while identity is off. */
 export const signInProviders = (): { id: string; label: string }[] => providers().map(({ id, label }) => ({ id, label }));

@@ -29,3 +29,18 @@ test("the License link is there while licenses are sold and license.md is usable
   await rm(join(dir, "license.md"));
   expect(await hasLicense()).toBe(false);
 });
+
+test("the support address is a Support link after the legal pages", async () => {
+  await writeFile(join(dir, "imprint.md"), "# Imprint");
+  vi.stubEnv("NOTEFEED_SUPPORT_EMAIL", " support@example.com ");
+  const { legal } = await footerLinks();
+  expect(legal.map((l) => l.label)).toEqual(["Imprint", "Support"]);
+  expect(legal.at(-1)).toEqual({ href: "mailto:support@example.com", label: "Support", external: true });
+});
+
+test("a support address that is not one gives no link", async () => {
+  for (const v of ["support", "a b@example.com", "a@example.com?subject=x", "a@b@example.com", ""]) {
+    vi.stubEnv("NOTEFEED_SUPPORT_EMAIL", v);
+    expect((await footerLinks()).legal.find((l) => l.label === "Support")).toBeUndefined();
+  }
+});

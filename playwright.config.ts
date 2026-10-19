@@ -47,7 +47,7 @@ export default defineConfig({
   globalSetup: "./e2e/s3-setup.ts",
   webServer: [
     server(3100, { NOTEFEED_METRICS: "1", NOTEFEED_REPORT_URL: "https://report.example.com/?r={read_id}&n={note_id}&f={file}", NOTEFEED_REPORT_ENDPOINT: "http://127.0.0.1:3198/f/notefeed-report" }, SERVER_LOG),
-    server(3101, { NOTEFEED_PASSWORD: "e2e", NOTEFEED_IMAGE_UPLOADS: "0", NOTEFEED_PAGES_DIR: "e2e/fixtures/pages" }),
+    server(3101, { NOTEFEED_PASSWORD: "e2e", NOTEFEED_IMAGE_UPLOADS: "0", NOTEFEED_PAGES_DIR: "e2e/fixtures/pages", NOTEFEED_SUPPORT_EMAIL: "support@example.com" }),
     server(3103, {
       NOTEFEED_STORAGE: "sqlite",
       NOTEFEED_DATABASE_URL: "file:test-results/e2e-3103.db",

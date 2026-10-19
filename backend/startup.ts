@@ -49,6 +49,7 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
   if (config.reservedFeeds().length && !config.reservedPassword()) warnings.push(["feeds", "reserved feeds are listed but have no password; they are not created", {}]);
   if (config.metrics() && !config.metricsToken()) warnings.push(["startup", "metrics are on without NOTEFEED_METRICS_TOKEN: /metrics is open to anyone who can reach the app", {}]);
   for (const [setting, replacedBy] of Object.entries(REMOVED)) if (env[setting]) warnings.push(["startup", "a setting is no longer read", { setting, replacedBy }]);
+  if (config.supportEmailInvalid()) warnings.push(["startup", "NOTEFEED_SUPPORT_EMAIL is not an email address; there is no Support link", {}]);
   if (config.operatorTokenTooShort()) warnings.push(["startup", "NOTEFEED_OPERATOR_TOKEN is shorter than 32 bytes; the operator endpoints stay off", {}]);
   const fields = {
     node: process.version,

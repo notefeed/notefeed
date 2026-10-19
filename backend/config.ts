@@ -123,6 +123,8 @@ function validateStorage(): void {
 /** The built-in report page's link template (issue #156): the ids go into the page's hidden fields. */
 export const REPORT_PAGE = "/report?read_id={read_id}&note_id={note_id}&file={file}";
 
+const SUPPORT_EMAIL = /^[^\s@?#&/<>"]+@[^\s@?#&/<>"]+$/;
+
 export const config = {
   dataDir,
   storage: storageKind,
@@ -141,6 +143,10 @@ export const config = {
   encryptionOldKeys: () => env("NOTEFEED_ENCRYPTION_OLD_KEYS").split(",").map((k) => k.trim()).filter(Boolean),
   publicUrl: () => env("PUBLIC_URL").replace(/\/+$/, ""),
   title: () => env("NOTEFEED_TITLE") || "notefeed",
+  // The address of the "Support" link in every footer (mailto:). Only an address: anything that would add to the link (a space,
+  // ?subject=, a second @) means no link, and the startup log says so.
+  supportEmail: () => (SUPPORT_EMAIL.test(env("NOTEFEED_SUPPORT_EMAIL").trim()) ? env("NOTEFEED_SUPPORT_EMAIL").trim() : ""),
+  supportEmailInvalid: () => env("NOTEFEED_SUPPORT_EMAIL").trim() !== "" && !SUPPORT_EMAIL.test(env("NOTEFEED_SUPPORT_EMAIL").trim()),
   // The folder of the operator's own pages: imprint.md, privacy.md, terms.md, notice.md and license.md (see legal.ts). Empty: none of them.
   pagesDir: () => env("NOTEFEED_PAGES_DIR").trim(),
   // Where the built-in report page (/report) posts a report: the endpoint of a form in an inbox such as noticebox.
