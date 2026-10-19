@@ -37,8 +37,8 @@ See [Rate limits and caps](limits.md).
 |---|---|---|
 | `NOTEFEED_RESERVED_FEEDS` | empty | Comma-separated names nobody can create, e.g. `news,announcements`. See [Reserved feeds](access.md#reserved-feeds). |
 | `NOTEFEED_RESERVED_PASSWORD` | none | With it, each reserved name exists from start-up as a protected feed with its name as read id. |
-| `NOTEFEED_IMPRINT_FILE`, `NOTEFEED_PRIVACY_FILE`, `NOTEFEED_TERMS_FILE` | none | A Markdown file each, shown at `/imprint`, `/privacy` and `/terms`. See [Imprint, privacy page and terms](legal-pages.md). |
-| `NOTEFEED_NOTICE_FILE` | none | A Markdown file shown as a red banner on the start page. |
+| `NOTEFEED_PAGES_DIR` | none | A folder of your own Markdown files: `imprint.md`, `privacy.md` and `terms.md` (shown at `/imprint`, `/privacy` and `/terms`) and `notice.md` (a red banner on the start page). See [Imprint, privacy page and terms](legal-pages.md). |
+| `NOTEFEED_SUPPORT_EMAIL` | none | An address for a **Support** link (`mailto:`) in every footer. See [A support address](legal-pages.md#a-support-address). |
 | `NOTEFEED_REPORT_URL` | none | A URL template for a **Report** link on every note, with `{read_id}`, `{note_id}` and `{file}` filled in. See [A report link on every note](legal-pages.md#a-report-link-on-every-note). |
 | `NOTEFEED_REPORT_ENDPOINT` | none | Where the built-in report page `/report` sends a report. |
 | `NOTEFEED_OPERATOR_TOKEN` | none | At least 32 characters. Turns on the operator's endpoints: the [image store clean-up](storage.md#cleaning-up-the-image-store) and [removing a feed](deleting.md#removing-a-feed-as-the-operator). |

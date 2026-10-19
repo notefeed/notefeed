@@ -16,6 +16,9 @@ Notes are untouched by upgrades. Image tags on `ghcr.io/notefeed/notefeed`:
 
 To upgrade only on purpose, pin a version. Each release is listed on [GitHub Releases](https://github.com/notefeed/notefeed/releases) with its notes.
 
+!!! warning "From 0.19 to 0.20: the pages folder"
+    `NOTEFEED_IMPRINT_FILE`, `NOTEFEED_PRIVACY_FILE`, `NOTEFEED_TERMS_FILE` and `NOTEFEED_NOTICE_FILE` are no longer read. Put the files in one folder as `imprint.md`, `privacy.md`, `terms.md` and `notice.md`, mount it, and set `NOTEFEED_PAGES_DIR` to it (see [Imprint, privacy page and terms](legal-pages.md)). Until then those pages are gone; the startup log names each old setting that is still set.
+
 !!! note "Older set-ups"
     Up to 0.9.0 the image was `ghcr.io/marceltov/notefeed`; change the `image:` line to keep upgrading. Since 0.10.1 the image has no shell: remove a `healthcheck:` of your own that calls `wget` or `curl`, the image's own check does the same (see [Health check](operating.md#docker)).
 
