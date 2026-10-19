@@ -21,7 +21,7 @@ export { feedPath, publicUrl, readPath, rssPath, safeNext, settingsPath } from "
 export { dispatch } from "./http/api";
 export { measured } from "./metrics";
 export { noteOutcome } from "./requestscope";
-export { hasLegalPage, readLegalPage, readNotice, type LegalPage } from "./legal";
+export { hasLegalPage, licensePageOn, readLegalPage, readLicensePage, readNotice, type LegalPage } from "./legal";
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
 export { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./http/licenses";

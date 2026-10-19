@@ -1,32 +1,29 @@
-// The imprint, the privacy page and the terms of an instance: Markdown files of the operator's own, named by NOTEFEED_IMPRINT_FILE,
-// NOTEFEED_PRIVACY_FILE and NOTEFEED_TERMS_FILE. notefeed ships none of the texts. Without a file, or with one that cannot be read, the page does
-// not exist and the footer has no link to it. NOTEFEED_NOTICE_FILE is a third file of the same kind: a notice of the
-// operator's on the start page, which without a file is as notefeed ships it.
+// The operator's own pages (ADR 0035): Markdown files in one folder, NOTEFEED_PAGES_DIR, under fixed names. imprint.md, privacy.md
+// and terms.md are the pages /imprint, /privacy and /terms; notice.md is a notice on the start page; license.md holds the license
+// page's words (backend/licensepage.ts). No other file in the folder is read. notefeed ships none of the texts: without a file, or
+// with one that cannot be read, the page does not exist and nothing links to it.
 import { readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+import type { LicenseText } from "@/shared/plans";
 import { config } from "./config";
+import { parseLicensePage } from "./licensepage";
+import { licensingOn } from "./licensing";
 
 export type LegalPage = "imprint" | "privacy" | "terms";
 
-// A page of text, not a place to keep files: anything larger is a mistake in the setting.
+// A page of text, not a place to keep files: anything larger is a mistake.
 export const MAX_LEGAL_BYTES = 256 * 1024;
 
-type OperatorFile = LegalPage | "notice";
+type OperatorFile = LegalPage | "notice" | "license";
+const FILES: OperatorFile[] = ["imprint", "privacy", "terms", "notice", "license"];
 
-const SETTINGS: Record<OperatorFile, { name: string; path: () => string }> = {
-  imprint: { name: "NOTEFEED_IMPRINT_FILE", path: config.imprintFile },
-  privacy: { name: "NOTEFEED_PRIVACY_FILE", path: config.privacyFile },
-  terms: { name: "NOTEFEED_TERMS_FILE", path: config.termsFile },
-  notice: { name: "NOTEFEED_NOTICE_FILE", path: config.noticeFile },
-};
+const pathOf = (file: OperatorFile): string => join(/*turbopackIgnore: true*/ config.pagesDir(), `${file}.md`);
 
-const fileOf = (file: OperatorFile): string => SETTINGS[file].path();
-
-/** The size of the file; null when the setting is empty or does not name a regular file of a sensible size. */
+/** The size of the file; null without a folder, or when the file is no regular file of a sensible size. */
 async function sizeOf(file: OperatorFile): Promise<number | null> {
-  const path = fileOf(file);
-  if (path === "") return null;
+  if (config.pagesDir() === "") return null;
   try {
-    const info = await stat(/*turbopackIgnore: true*/ path);
+    const info = await stat(/*turbopackIgnore: true*/ pathOf(file));
     return info.isFile() && info.size <= MAX_LEGAL_BYTES ? info.size : null;
   } catch {
     return null;
@@ -48,16 +45,52 @@ export async function readNotice(): Promise<string | null> {
 async function read(file: OperatorFile): Promise<string | null> {
   if ((await sizeOf(file)) === null) return null;
   try {
-    return await readFile(/*turbopackIgnore: true*/ fileOf(file), "utf8");
+    return await readFile(/*turbopackIgnore: true*/ pathOf(file), "utf8");
   } catch {
     return null; // removed since the look, or not readable
   }
 }
 
-/** For the startup log: the settings that are set but name nothing readable (the variable's name, never the path). */
-export async function unreadableLegalSettings(): Promise<string[]> {
-  const out: string[] = [];
-  for (const file of Object.keys(SETTINGS) as OperatorFile[])
-    if (fileOf(file) !== "" && (await sizeOf(file)) === null) out.push(SETTINGS[file].name);
-  return out;
+/** What is wrong with license.md, for the startup error: a setting or field, never the file's text. Null when it is usable. */
+export async function licensePageProblem(): Promise<string | null> {
+  if (config.pagesDir() === "") return "NOTEFEED_PAGES_DIR is not set";
+  const markdown = await read("license");
+  if (markdown === null) return "NOTEFEED_PAGES_DIR has no readable license.md (missing, not a file, or larger than 256 KiB)";
+  try {
+    parseLicensePage(markdown);
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : "license.md cannot be read";
+  }
+}
+
+/** license.md's words, read on every request; null when the file is missing, unreadable or broken. */
+export async function readLicensePage(): Promise<LicenseText | null> {
+  const markdown = await read("license");
+  if (markdown === null) return null;
+  try {
+    return parseLicensePage(markdown);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether /license exists, and with it every link to it: a payment provider is set and license.md is usable. Without a provider license.md is not read. */
+export const licensePageOn = async (): Promise<boolean> => licensingOn() && (await readLicensePage()) !== null;
+
+/** For the startup log: the folder when it is set but is none, else each of the five files that exists but cannot be shown (names only, never the path). */
+export async function pagesDirWarnings(): Promise<{ setting?: string; file?: string }[]> {
+  const dir = config.pagesDir();
+  if (dir === "") return [];
+  try {
+    if (!(await stat(/*turbopackIgnore: true*/ dir)).isDirectory()) return [{ setting: "NOTEFEED_PAGES_DIR" }];
+  } catch {
+    return [{ setting: "NOTEFEED_PAGES_DIR" }];
+  }
+  const out: { file: string }[] = [];
+  for (const file of FILES) {
+    const exists = await stat(/*turbopackIgnore: true*/ pathOf(file)).then(() => true, () => false);
+    if (exists && (await sizeOf(file)) === null) out.push({ file: `${file}.md` });
+  }
+  return out.sort((a, b) => a.file.localeCompare(b.file));
 }

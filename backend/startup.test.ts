@@ -38,15 +38,16 @@ test("an operator token that is too short is warned about, without its value", (
   expect(warned()).toEqual([]);
 });
 
-test("an imprint, privacy or notice file that cannot be read is warned about by its setting's name, never its path", async () => {
+test("a pages folder that is none, or a page in it that cannot be shown, is warned about by name, never by its path", async () => {
   expect(await legalFileWarnings()).toEqual([]);
-  await writeFile(join(dir, "imprint.md"), "# Imprint");
-  vi.stubEnv("NOTEFEED_IMPRINT_FILE", join(dir, "imprint.md"));
-  vi.stubEnv("NOTEFEED_PRIVACY_FILE", join(dir, "no-such-file.md"));
-  vi.stubEnv("NOTEFEED_NOTICE_FILE", join(dir, "no-notice.md"));
+  vi.stubEnv("NOTEFEED_PAGES_DIR", join(dir, "no-such-folder"));
+  expect(await legalFileWarnings()).toEqual([["startup", "NOTEFEED_PAGES_DIR is not a readable folder; there are no pages", { setting: "NOTEFEED_PAGES_DIR" }]]);
+  await mkdir(join(dir, "pages"));
+  await writeFile(join(dir, "pages", "imprint.md"), "# Imprint");
+  await mkdir(join(dir, "pages", "privacy.md"));
+  vi.stubEnv("NOTEFEED_PAGES_DIR", join(dir, "pages"));
   const warnings = await legalFileWarnings();
-  const msg = "a page's or the notice's file cannot be read (missing, not a file, or larger than 256 KiB); it is not shown";
-  expect(warnings).toEqual([["startup", msg, { setting: "NOTEFEED_PRIVACY_FILE" }], ["startup", msg, { setting: "NOTEFEED_NOTICE_FILE" }]]);
+  expect(warnings).toEqual([["startup", "a page's file in NOTEFEED_PAGES_DIR cannot be shown (not a file, or larger than 256 KiB)", { file: "privacy.md" }]]);
   expect(JSON.stringify(warnings)).not.toContain(dir);
 });
 
