@@ -3,10 +3,10 @@
 import { config, LOG_LEVELS, type StorageKind } from "./config";
 import { keyServiceDown } from "./errors";
 import { reservedFeedProblems, RESERVED_FEEDS } from "./feeds";
-import { pagesDirWarnings } from "./legal";
+import { licensePageProblem, pagesDirWarnings } from "./legal";
 import { logger } from "./log";
 import { missingVars, providers } from "./oidc/config";
-import { openLicenses } from "./licensing";
+import { licensingOn, openLicenses } from "./licensing";
 import { storage } from "./storage";
 import { KeyringError } from "./storage/sql/keyring";
 
@@ -24,6 +24,16 @@ export const reservedHint = (kind: StorageKind): string =>
     ? "delete its folder in DATA_DIR and restart so it is recreated protected, with its read id equal to its name"
     : "delete the feed and restart so it is recreated protected, with its read id equal to its name";
 
+// Settings notefeed no longer reads (ADR 0035), and what took their place: an upgraded instance keeps running, without its pages.
+const REMOVED: Record<string, string> = {
+  NOTEFEED_IMPRINT_FILE: "NOTEFEED_PAGES_DIR",
+  NOTEFEED_PRIVACY_FILE: "NOTEFEED_PAGES_DIR",
+  NOTEFEED_TERMS_FILE: "NOTEFEED_PAGES_DIR",
+  NOTEFEED_NOTICE_FILE: "NOTEFEED_PAGES_DIR",
+  NOTEFEED_LICENSE_PRICE: "the payment provider's products",
+  NOTEFEED_LICENSE_PRICE_YEARLY: "the payment provider's products",
+};
+
 export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: Fields; warnings: Warning[] } {
   const warnings: Warning[] = [];
   // A provider some but not all of whose variables are set (empty counts as unset) stays off: say which are missing.
@@ -38,6 +48,7 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
   if (level && level !== config.logLevel()) warnings.push(["startup", "NOTEFEED_LOG_LEVEL is not a level; using info", { accepted: [...LOG_LEVELS] }]);
   if (config.reservedFeeds().length && !config.reservedPassword()) warnings.push(["feeds", "reserved feeds are listed but have no password; they are not created", {}]);
   if (config.metrics() && !config.metricsToken()) warnings.push(["startup", "metrics are on without NOTEFEED_METRICS_TOKEN: /metrics is open to anyone who can reach the app", {}]);
+  for (const [setting, replacedBy] of Object.entries(REMOVED)) if (env[setting]) warnings.push(["startup", "a setting is no longer read", { setting, replacedBy }]);
   if (config.operatorTokenTooShort()) warnings.push(["startup", "NOTEFEED_OPERATOR_TOKEN is shorter than 32 bytes; the operator endpoints stay off", {}]);
   const fields = {
     node: process.version,
@@ -53,6 +64,7 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
     logLevel: config.logLevel(),
     logRequests: config.logRequests(),
     metrics: config.metrics(),
+    pagesDirSet: config.pagesDir() !== "",
   };
   return { fields, warnings };
 }
@@ -83,8 +95,16 @@ export async function legalFileWarnings(): Promise<Warning[]> {
   );
 }
 
+// Selling licenses needs the license page's words: without them the page, and every way to buy, would be missing.
+export async function requireLicensePage(): Promise<void> {
+  if (!licensingOn()) return;
+  const problem = await licensePageProblem();
+  if (problem) throw new Error(`NOTEFEED_PAYMENT_PROVIDER needs a license page: ${problem}`);
+}
+
 export async function logStartup(): Promise<void> {
   config.validateStorage(); // a wrong storage setting keeps the server from starting; with a database the main key does too, below
+  await requireLicensePage(); // so does selling licenses without a license.md
   const warn = (warnings: Warning[]) => warnings.forEach(([component, msg, f]) => logger(component).warn(f, msg));
   try {
     const { fields, warnings } = startupReport();

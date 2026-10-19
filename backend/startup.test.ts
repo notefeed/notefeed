@@ -7,7 +7,8 @@ import { readIdOf, reservedFeedProblems, resetFeedsForTests } from "./feeds";
 import { logsOf, logTo } from "./log";
 import { resetStorageForTests } from "./storage";
 import { createNote } from "./notes";
-import { legalFileWarnings, logStartup, reservedFeedWarnings, reservedFolderWarnings, reservedHint, startupReport } from "./startup";
+import { VALID_LICENSE } from "./licensepage.fixture";
+import { legalFileWarnings, logStartup, requireLicensePage, reservedFeedWarnings, reservedFolderWarnings, reservedHint, startupReport } from "./startup";
 
 let dir: string;
 beforeEach(async () => {
@@ -25,7 +26,7 @@ test("the startup fields: features and caps, never a secret", () => {
   stub({ NOTEFEED_PASSWORD: "pw-value", NOTEFEED_TRUST_PROXY: "1", NOTEFEED_MAX_FEEDS: "10", NOTEFEED_MAX_NOTES_PER_FEED: "5", NOTEFEED_MAX_IMAGES_PER_FEED: "3", NOTEFEED_LOG_LEVEL: "debug", PUBLIC_URL: "" });
   provider("", FULL);
   const { fields } = startupReport();
-  expect(fields).toEqual({ node: process.version, storage: "fs", dataDir: dir, passwordSet: true, oidcProviders: 1, publicUrlSet: false, trustProxy: true, maxFeeds: 10, maxNotesPerFeed: 5, maxImagesPerFeed: 3, logLevel: "debug", logRequests: true, metrics: false });
+  expect(fields).toEqual({ node: process.version, storage: "fs", dataDir: dir, passwordSet: true, oidcProviders: 1, publicUrlSet: false, trustProxy: true, maxFeeds: 10, maxNotesPerFeed: 5, maxImagesPerFeed: 3, logLevel: "debug", logRequests: true, metrics: false, pagesDirSet: false });
   expect(JSON.stringify(startupReport())).not.toMatch(/pw-value|the-secret|ann@x\.com/);
 });
 
@@ -194,7 +195,8 @@ test("the start after a key change re-wraps the licenses database too", async ()
   stub({ NOTEFEED_STORAGE: "sqlite", NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "whsec", NOTEFEED_ENCRYPTION_KEY: a });
   resetStorageForTests();
   await licenses().createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-  stub({ NOTEFEED_ENCRYPTION_KEY: b, NOTEFEED_ENCRYPTION_OLD_KEYS: a });
+  stub({ NOTEFEED_ENCRYPTION_KEY: b, NOTEFEED_ENCRYPTION_OLD_KEYS: a, NOTEFEED_PAGES_DIR: dir });
+  await writeFile(join(dir, "license.md"), VALID_LICENSE); // selling licenses needs the license page
   resetStorageForTests();
   await logStartup(); // no license call of its own: the start alone must re-wrap
   stub({ NOTEFEED_ENCRYPTION_OLD_KEYS: "" });
@@ -208,4 +210,27 @@ test("a key service that is down at start is a warning, not a failure: notefeed 
   resetStorageForTests();
   const logs = await logsOf(logStartup);
   expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
+});
+
+test("with a provider, a missing or broken license.md stops the start, naming the problem and not the text", async () => {
+  stub({ NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "s" });
+  await expect(requireLicensePage()).rejects.toThrow("NOTEFEED_PAYMENT_PROVIDER needs a license page: NOTEFEED_PAGES_DIR is not set");
+  stub({ NOTEFEED_PAGES_DIR: dir });
+  await writeFile(join(dir, "license.md"), "---\nfree: [secret\n---\n");
+  const err = await requireLicensePage().catch((e: Error) => e);
+  expect(String(err)).toMatch(/not valid YAML \(line \d+\)$/);
+  expect(String(err)).not.toContain("secret");
+  await writeFile(join(dir, "license.md"), VALID_LICENSE);
+  await expect(requireLicensePage()).resolves.toBeUndefined();
+});
+
+test("without a provider, license.md is not needed", async () => {
+  await expect(requireLicensePage()).resolves.toBeUndefined();
+});
+
+test("a removed setting is a warning saying what replaces it", () => {
+  const { warnings } = startupReport({ NOTEFEED_IMPRINT_FILE: "/x", NOTEFEED_LICENSE_PRICE: "1 €", NOTEFEED_NOTICE_FILE: "" } as NodeJS.ProcessEnv);
+  expect(warnings).toContainEqual(["startup", "a setting is no longer read", { setting: "NOTEFEED_IMPRINT_FILE", replacedBy: "NOTEFEED_PAGES_DIR" }]);
+  expect(warnings).toContainEqual(["startup", "a setting is no longer read", { setting: "NOTEFEED_LICENSE_PRICE", replacedBy: "the payment provider's products" }]);
+  expect(warnings.filter(([, m]) => m === "a setting is no longer read")).toHaveLength(2); // empty counts as unset
 });
