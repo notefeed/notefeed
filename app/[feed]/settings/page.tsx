@@ -15,7 +15,7 @@ import { FeedAbout } from "@/components/FeedAbout";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { DisclosureRow, Row } from "@/components/SettingsRows";
 import { iconButton } from "@/components/styles";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensingOn, publicUrl, readPath, rssPath } from "@/backend";
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +110,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
           </>
         }
       >
-        {licensingOn() && <LicenseSection feed={feed} freeTier={await freeTier(feed)} />}
+        {licensingOn() && <LicenseSection feed={feed} freeTier={await freeTier(feed)} licensePage={await licensePageOn()} />}
         {access === "unlocked" && <FeedSettings feed={feed} error={passwordError ? feedErrorMessage(error, retry) : undefined} />}
       </FeedDetails>
     </AppShell>

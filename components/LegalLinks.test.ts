@@ -1,0 +1,31 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { footerLinks } from "@/components/LegalLinks";
+
+// The license page's words, as the operator writes them (backend/licensepage.fixture.ts in short).
+const LICENSE = "---\nfree:\n  title: Free\n  price: 0\n  features: []\nplans:\n  features: []\n  button: Buy\n---\n";
+
+let dir: string;
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "notefeed-footer-"));
+  vi.stubEnv("NOTEFEED_PAGES_DIR", dir);
+});
+afterEach(async () => {
+  vi.unstubAllEnvs();
+  await rm(dir, { recursive: true, force: true });
+});
+const hasLicense = async () => (await footerLinks()).product.some((l) => l.href === "/license");
+
+test("the License link is there while licenses are sold and license.md is usable", async () => {
+  await writeFile(join(dir, "license.md"), LICENSE);
+  expect(await hasLicense()).toBe(false); // no provider
+  vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+  vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "s");
+  expect(await hasLicense()).toBe(true);
+  await writeFile(join(dir, "license.md"), "broken");
+  expect(await hasLicense()).toBe(false);
+  await rm(join(dir, "license.md"));
+  expect(await hasLicense()).toBe(false);
+});

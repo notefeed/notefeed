@@ -10,8 +10,9 @@ import { DisclosureRow, Group } from "@/components/SettingsRows";
 import { field, primary, secondary } from "@/components/styles";
 
 // On a feed's settings page while the instance sells licenses (ADR 0029): the feed's tier (a free one with its notes against the cap,
-// issue #183), a field for a key, and a way to take it off. `freeTier` is null for a licensed feed.
-export function LicenseSection({ feed, freeTier }: { feed: string; freeTier: FreeTierUsage | null }) {
+// issue #183), a field for a key, and a way to take it off. `freeTier` is null for a licensed feed. `licensePage`: /license exists
+// (ADR 0035), so the texts link to it.
+export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; freeTier: FreeTierUsage | null; licensePage: boolean }) {
   const licensed = freeTier === null;
   const router = useRouter();
   const [key, setKey] = useState("");
@@ -42,11 +43,17 @@ export function LicenseSection({ feed, freeTier }: { feed: string; freeTier: Fre
         {licensed ? (
           <>
             <p className="text-muted">
-              This feed has a license: no cap on stored notes, a feed password and images. To cancel the subscription, change how you pay or get an invoice, go to the{" "}
-              <Link href="/license" className="text-carbon underline">
-                license page
-              </Link>{" "}
-              with your key.
+              This feed has a license: no cap on stored notes, a feed password and images.
+              {licensePage && (
+                <>
+                  {" "}
+                  To cancel the subscription, change how you pay or get an invoice, go to the{" "}
+                  <Link href="/license" className="text-carbon underline">
+                    license page
+                  </Link>{" "}
+                  with your key.
+                </>
+              )}
             </p>
             <button type="button" onClick={() => send("DELETE")} className={`${secondary} mt-3`}>
               Take the license off this feed
@@ -57,10 +64,16 @@ export function LicenseSection({ feed, freeTier }: { feed: string; freeTier: Fre
             <FreeTierBar usage={freeTier} />
             <p className="mt-3 text-muted">
               This feed is on the free tier: it keeps its newest {freeTier.cap} notes, and has no images and no feed password.{" "}
-              <Link href="/license" className="text-carbon underline">
-                Buy a license
-              </Link>
-              , then enter its key.
+              {licensePage ? (
+                <>
+                  <Link href="/license" className="text-carbon underline">
+                    Buy a license
+                  </Link>
+                  , then enter its key.
+                </>
+              ) : (
+                "Enter a license key to lift these limits."
+              )}
             </p>
             <form
               className="mt-3 flex max-w-xl gap-2"

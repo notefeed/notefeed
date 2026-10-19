@@ -21,7 +21,7 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // the feed's details (components/ProtectFeed.tsx, issue #205) but belong to this form (`id` COMPOSE_FORM): the post sends them,
 // so it creates the feed protected and licensed in one go (issue #193). A post refused for the lack of a license (402) gets a
 // banner that says what to do, with the feed's settings (`settingsHref`, an existing feed) as the place to enter a key.
-// `errorCode` is the code behind `error`.
+// `errorCode` is the code behind `error`. `licensePage`: /license exists (ADR 0035), so that banner links to it.
 // `images` false: the instance takes no pictures.
 // `imageBase`: the feed's read link, for the preview's stored pictures. `initialTitle` and `initialText`: what was shared to
 // notefeed from another app (app/share), so the box opens with it.
@@ -45,6 +45,7 @@ export function Compose({
   imageBase,
   initialTitle = "",
   initialText = "",
+  licensePage = false,
 }: {
   feed: string;
   action: string;
@@ -57,6 +58,7 @@ export function Compose({
   imageBase?: string;
   initialTitle?: string;
   initialText?: string;
+  licensePage?: boolean;
 }) {
   const images = usePendingImages();
   const { run, error, code, setError, pending, router } = useApiForm(action, initialError, withPictures(errorMessage, images.pending.length > 0), errorCode);
@@ -279,7 +281,7 @@ export function Compose({
           </button>
         </MarkdownInput>
         {sender && <p className="mt-2 text-sm text-muted">{SENDER_NOTICE}</p>}
-        {licenseRefused && <LicenseNeeded isNew={!!isNew} password={sent.password} keyGiven={sent.key} settingsHref={settingsHref} />}
+        {licenseRefused && <LicenseNeeded isNew={!!isNew} password={sent.password} keyGiven={sent.key} settingsHref={settingsHref} licensePage={licensePage} />}
         <p id="compose-error" role="alert" className="text-sm text-error empty:hidden">
           {licenseRefused ? "" : error}
         </p>
@@ -290,15 +292,16 @@ export function Compose({
 
 // The post was refused with 402 (`license_required`): a banner instead of the one red line, with what needs the license, what to
 // do and where (issue #193). `password`: the post sent a password, so that is what was refused (else it was the pictures);
-// `keyGiven`: a key was sent with it, so the key's license is not active.
-function LicenseNeeded({ isNew, password, keyGiven, settingsHref }: { isNew: boolean; password: boolean; keyGiven: boolean; settingsHref?: string }) {
+// `keyGiven`: a key was sent with it, so the key's license is not active. `licensePage`: /license exists (ADR 0035), so the banner
+// says to buy one there; without it, only where a key goes.
+export function LicenseNeeded({ isNew, password, keyGiven, settingsHref, licensePage }: { isNew: boolean; password: boolean; keyGiven: boolean; settingsHref?: string; licensePage: boolean }) {
   const what = password ? "A feed password needs a license." : "Pictures need a license.";
   const next =
     isNew && password
       ? keyGiven
-        ? "The license of the key you entered is not active any more: it has lapsed or was refunded. Buy a license and enter its key under Protect this feed."
-        : "Buy a license and enter its key under Protect this feed: the first note then creates the feed protected and licensed. A feed can only get a password when it is created."
-      : "This feed is on the free tier. Buy a license and enter its key under License in the feed's settings.";
+        ? `The license of the key you entered is not active any more: it has lapsed or was refunded.${licensePage ? " Buy a license and enter its key under Protect this feed." : ""}`
+        : `${licensePage ? "Buy a license and enter its key" : "Enter a license key"} under Protect this feed: the first note then creates the feed protected and licensed. A feed can only get a password when it is created.`
+      : `This feed is on the free tier. ${licensePage ? "Buy a license and enter its key" : "Enter a license key"} under License in the feed's settings.`;
   return (
     <section role="alert" aria-labelledby="license-needed" className="mt-3 rounded-xl border border-error/40 bg-error/5 p-4 text-sm">
       <p id="license-needed" className="font-bold text-ink">
@@ -306,9 +309,11 @@ function LicenseNeeded({ isNew, password, keyGiven, settingsHref }: { isNew: boo
       </p>
       <p className="mt-1 text-muted">{next}</p>
       <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-bold">
-        <Link href="/license" className="text-carbon underline">
-          Buy a license
-        </Link>
+        {licensePage && (
+          <Link href="/license" className="text-carbon underline">
+            Buy a license
+          </Link>
+        )}
         {settingsHref && (
           <Link href={`${settingsHref}#license`} className="text-carbon underline">
             Feed settings

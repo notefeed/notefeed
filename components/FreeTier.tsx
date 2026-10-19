@@ -27,19 +27,25 @@ export function FreeTierBar({ usage }: { usage: FreeTierUsage }) {
   );
 }
 
-/** On the feed's page, for whoever can post to it, once the feed is near or at the cap. Never in RSS or on the read pages. */
-export function FreeTierNotice({ usage }: { usage: FreeTierUsage | null }) {
+/** On the feed's page, for whoever can post to it, once the feed is near or at the cap. Never in RSS or on the read pages.
+ *  `licensePage`: /license exists (ADR 0035), so the notice points to it. */
+export function FreeTierNotice({ usage, licensePage }: { usage: FreeTierUsage | null; licensePage: boolean }) {
   if (!usage || usage.notes < usage.cap * WARN_FROM) return null;
   return (
     <section role="status" className={`${card} mb-4 p-4 text-sm`}>
       <p>
         {fullCap(usage)
           ? `This feed is at its ${usage.cap} free notes: each new note drops the oldest one.`
-          : `This feed holds ${usage.notes} of its ${usage.cap} free notes. Past that, each new note drops the oldest one.`}{" "}
-        <Link href="/license" className="text-carbon underline">
-          A license
-        </Link>{" "}
-        keeps them all.
+          : `This feed holds ${usage.notes} of its ${usage.cap} free notes. Past that, each new note drops the oldest one.`}
+        {licensePage && (
+          <>
+            {" "}
+            <Link href="/license" className="text-carbon underline">
+              A license
+            </Link>{" "}
+            keeps them all.
+          </>
+        )}
       </p>
     </section>
   );
