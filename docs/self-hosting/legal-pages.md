@@ -1,30 +1,25 @@
 # Imprint, privacy page and terms
 
-notefeed ships no imprint, privacy page or terms: who runs an instance, and what it does with data, is different for each one. A public instance in the EU needs them. Write them as Markdown files in one folder and point notefeed at it:
+notefeed ships no imprint, privacy page or terms: who runs an instance, and what it does with data, is different for each one. A public instance in the EU needs them. Write them as Markdown files and point notefeed at them:
 
 ```yaml
 services:
   notefeed:
     environment:
-      NOTEFEED_PAGES_DIR: /pages
+      NOTEFEED_IMPRINT_FILE: /legal/imprint.md    # /imprint, "Imprint" in the footer
+      NOTEFEED_PRIVACY_FILE: /legal/privacy.md    # /privacy, "Data privacy"
+      NOTEFEED_TERMS_FILE: /legal/terms.md        # /terms, "Terms"
     volumes:
-      - ./pages:/pages:ro
+      - ./legal:/legal:ro
 ```
 
-| File | Shows |
-|---|---|
-| `imprint.md` | `/imprint`, "Imprint" in the footer |
-| `privacy.md` | `/privacy`, "Data privacy" |
-| `terms.md` | `/terms`, "Terms" |
-| `notice.md` | a notice on the start page (below) |
-
-- Each is optional; without a file the page is `404` and nothing links to it. notefeed reads these names only: any other file in the folder is ignored.
+- Each is optional; without a file the page is `404` and nothing links to it.
 - All three are public, also on a locked instance.
 - The file is read on every request, so a change shows at once. Keep the files in version control: for a privacy page it matters what it said on which day.
 
 ## A notice on the start page
 
-`notice.md` in the folder is shown as a red warning banner on the start page: that the service is still being built, that a maintenance window is coming, or what you do not promise. Only the start page shows it; remove the file, or empty it, to take it down.
+`NOTEFEED_NOTICE_FILE` names a Markdown file shown as a red warning banner on the start page: that the service is still being built, that a maintenance window is coming, or what you do not promise. Only the start page shows it; remove the setting to take it down.
 
 ## A support address
 

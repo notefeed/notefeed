@@ -26,7 +26,7 @@ test("the startup fields: features and caps, never a secret", () => {
   stub({ NOTEFEED_PASSWORD: "pw-value", NOTEFEED_TRUST_PROXY: "1", NOTEFEED_MAX_FEEDS: "10", NOTEFEED_MAX_NOTES_PER_FEED: "5", NOTEFEED_MAX_IMAGES_PER_FEED: "3", NOTEFEED_LOG_LEVEL: "debug", PUBLIC_URL: "" });
   provider("", FULL);
   const { fields } = startupReport();
-  expect(fields).toEqual({ node: process.version, storage: "fs", dataDir: dir, passwordSet: true, oidcProviders: 1, publicUrlSet: false, trustProxy: true, maxFeeds: 10, maxNotesPerFeed: 5, maxImagesPerFeed: 3, logLevel: "debug", logRequests: true, metrics: false, pagesDirSet: false });
+  expect(fields).toEqual({ node: process.version, storage: "fs", dataDir: dir, passwordSet: true, oidcProviders: 1, publicUrlSet: false, trustProxy: true, maxFeeds: 10, maxNotesPerFeed: 5, maxImagesPerFeed: 3, logLevel: "debug", logRequests: true, metrics: false });
   expect(JSON.stringify(startupReport())).not.toMatch(/pw-value|the-secret|ann@x\.com/);
 });
 
@@ -39,16 +39,15 @@ test("an operator token that is too short is warned about, without its value", (
   expect(warned()).toEqual([]);
 });
 
-test("a pages folder that is none, or a page in it that cannot be shown, is warned about by name, never by its path", async () => {
+test("an imprint, privacy or notice file that cannot be read is warned about by its setting's name, never its path", async () => {
   expect(await legalFileWarnings()).toEqual([]);
-  vi.stubEnv("NOTEFEED_PAGES_DIR", join(dir, "no-such-folder"));
-  expect(await legalFileWarnings()).toEqual([["startup", "NOTEFEED_PAGES_DIR is not a readable folder; there are no pages", { setting: "NOTEFEED_PAGES_DIR" }]]);
-  await mkdir(join(dir, "pages"));
-  await writeFile(join(dir, "pages", "imprint.md"), "# Imprint");
-  await mkdir(join(dir, "pages", "privacy.md"));
-  vi.stubEnv("NOTEFEED_PAGES_DIR", join(dir, "pages"));
+  await writeFile(join(dir, "imprint.md"), "# Imprint");
+  vi.stubEnv("NOTEFEED_IMPRINT_FILE", join(dir, "imprint.md"));
+  vi.stubEnv("NOTEFEED_PRIVACY_FILE", join(dir, "no-such-file.md"));
+  vi.stubEnv("NOTEFEED_NOTICE_FILE", join(dir, "no-notice.md"));
   const warnings = await legalFileWarnings();
-  expect(warnings).toEqual([["startup", "a page's file in NOTEFEED_PAGES_DIR cannot be shown (not a file, or larger than 256 KiB)", { file: "privacy.md" }]]);
+  const msg = "a page's or the notice's file cannot be read (missing, not a file, or larger than 256 KiB); it is not shown";
+  expect(warnings).toEqual([["startup", msg, { setting: "NOTEFEED_PRIVACY_FILE" }], ["startup", msg, { setting: "NOTEFEED_NOTICE_FILE" }]]);
   expect(JSON.stringify(warnings)).not.toContain(dir);
 });
 
@@ -195,7 +194,7 @@ test("the start after a key change re-wraps the licenses database too", async ()
   stub({ NOTEFEED_STORAGE: "sqlite", NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "whsec", NOTEFEED_ENCRYPTION_KEY: a });
   resetStorageForTests();
   await licenses().createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-  stub({ NOTEFEED_ENCRYPTION_KEY: b, NOTEFEED_ENCRYPTION_OLD_KEYS: a, NOTEFEED_PAGES_DIR: dir });
+  stub({ NOTEFEED_ENCRYPTION_KEY: b, NOTEFEED_ENCRYPTION_OLD_KEYS: a, NOTEFEED_LICENSE_FILE: join(dir, "license.md") });
   await writeFile(join(dir, "license.md"), VALID_LICENSE); // selling licenses needs the license page
   resetStorageForTests();
   await logStartup(); // no license call of its own: the start alone must re-wrap
@@ -214,8 +213,9 @@ test("a key service that is down at start is a warning, not a failure: notefeed 
 
 test("with a provider, a missing or broken license.md stops the start, naming the problem and not the text", async () => {
   stub({ NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "s" });
-  await expect(requireLicensePage()).rejects.toThrow("NOTEFEED_PAYMENT_PROVIDER needs a license page: NOTEFEED_PAGES_DIR is not set");
-  stub({ NOTEFEED_PAGES_DIR: dir });
+  await expect(requireLicensePage()).rejects.toThrow("NOTEFEED_PAYMENT_PROVIDER needs a license page: NOTEFEED_LICENSE_FILE is not set");
+  stub({ NOTEFEED_LICENSE_FILE: join(dir, "license.md") });
+  await expect(requireLicensePage()).rejects.toThrow(/NOTEFEED_LICENSE_FILE names no readable file/);
   await writeFile(join(dir, "license.md"), "---\nfree: [secret\n---\n");
   const err = await requireLicensePage().catch((e: Error) => e);
   expect(String(err)).toMatch(/not valid YAML \(line \d+\)$/);
@@ -228,12 +228,12 @@ test("without a provider, license.md is not needed", async () => {
   await expect(requireLicensePage()).resolves.toBeUndefined();
 });
 
-test("a removed setting is a warning saying what replaces it", () => {
-  stub({ NOTEFEED_IMPRINT_FILE: "/x", NOTEFEED_LICENSE_PRICE: "1 €", NOTEFEED_NOTICE_FILE: "" });
+test("a removed price setting is a warning, without its value", () => {
+  stub({ NOTEFEED_LICENSE_PRICE: "1 € value", NOTEFEED_LICENSE_PRICE_YEARLY: "" });
   const { warnings } = startupReport();
-  expect(warnings).toContainEqual(["startup", "a setting is no longer read", { setting: "NOTEFEED_IMPRINT_FILE", replacedBy: "NOTEFEED_PAGES_DIR" }]);
-  expect(warnings).toContainEqual(["startup", "a setting is no longer read", { setting: "NOTEFEED_LICENSE_PRICE", replacedBy: "the payment provider's products" }]);
-  expect(warnings.filter(([, m]) => m === "a setting is no longer read")).toHaveLength(2); // empty counts as unset
+  const msg = "a setting is no longer read; the price shown is the payment provider's product's";
+  expect(warnings.filter(([, m]) => m === msg)).toEqual([["startup", msg, { setting: "NOTEFEED_LICENSE_PRICE" }]]); // empty counts as unset
+  expect(JSON.stringify(warnings)).not.toContain("value");
 });
 
 test("a support address that is not one warns, without its value", () => {

@@ -1,6 +1,6 @@
-// The imprint and the privacy page are the operator's own files, in the folder NOTEFEED_PAGES_DIR. The "locked" server (port 3101)
-// has both, in fixtures/pages; the "open" one (3100) has no folder. The notice on the start page is the same kind of file, in
-// fixtures/notice on 3102. 3101 also has a support address, 3100 none.
+// The imprint and the privacy page are the operator's own files. The "locked" server (port 3101) has both set, to the
+// fixtures here; the "open" one (3100) has neither. The notice on the start page is the same kind of file, set on 3102.
+// 3101 also has a support address, 3100 none.
 import { expect, test } from "@playwright/test";
 
 const WITH = "http://localhost:3101";

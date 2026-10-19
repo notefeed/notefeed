@@ -55,7 +55,7 @@ test("a free feed shows its notes against the cap, warns near it, and a license 
   expect((await (await request.get(`/api/v1/feeds/${feed}`)).json()).free_tier).toBeNull();
 });
 
-// The license page offers the fake provider's two plans, a tile each, in the words of fixtures/license/license.md; the fake
+// The license page offers the fake provider's two plans, a tile each, in the words of fixtures/license.md; the fake
 // provider's checkout is the success page itself.
 test("the license page sells a month or a year, and the yearly checkout comes back with a key", async ({ page }) => {
   await page.goto("/license");

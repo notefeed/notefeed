@@ -3,7 +3,7 @@
 import { config, LOG_LEVELS, type StorageKind } from "./config";
 import { keyServiceDown } from "./errors";
 import { reservedFeedProblems, RESERVED_FEEDS } from "./feeds";
-import { licensePageProblem, pagesDirWarnings } from "./legal";
+import { licensePageProblem, unreadableLegalSettings } from "./legal";
 import { logger } from "./log";
 import { missingVars, providers } from "./oidc/config";
 import { licensingOn, openLicenses } from "./licensing";
@@ -24,15 +24,8 @@ export const reservedHint = (kind: StorageKind): string =>
     ? "delete its folder in DATA_DIR and restart so it is recreated protected, with its read id equal to its name"
     : "delete the feed and restart so it is recreated protected, with its read id equal to its name";
 
-// Settings notefeed no longer reads (ADR 0035), and what took their place: an upgraded instance keeps running, without its pages.
-const REMOVED: Record<string, string> = {
-  NOTEFEED_IMPRINT_FILE: "NOTEFEED_PAGES_DIR",
-  NOTEFEED_PRIVACY_FILE: "NOTEFEED_PAGES_DIR",
-  NOTEFEED_TERMS_FILE: "NOTEFEED_PAGES_DIR",
-  NOTEFEED_NOTICE_FILE: "NOTEFEED_PAGES_DIR",
-  NOTEFEED_LICENSE_PRICE: "the payment provider's products",
-  NOTEFEED_LICENSE_PRICE_YEARLY: "the payment provider's products",
-};
+// Settings notefeed no longer reads (ADR 0035): the price is the payment provider's product's now.
+const REMOVED = ["NOTEFEED_LICENSE_PRICE", "NOTEFEED_LICENSE_PRICE_YEARLY"];
 
 export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: Fields; warnings: Warning[] } {
   const warnings: Warning[] = [];
@@ -48,7 +41,7 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
   if (level && level !== config.logLevel()) warnings.push(["startup", "NOTEFEED_LOG_LEVEL is not a level; using info", { accepted: [...LOG_LEVELS] }]);
   if (config.reservedFeeds().length && !config.reservedPassword()) warnings.push(["feeds", "reserved feeds are listed but have no password; they are not created", {}]);
   if (config.metrics() && !config.metricsToken()) warnings.push(["startup", "metrics are on without NOTEFEED_METRICS_TOKEN: /metrics is open to anyone who can reach the app", {}]);
-  for (const [setting, replacedBy] of Object.entries(REMOVED)) if (env[setting]) warnings.push(["startup", "a setting is no longer read", { setting, replacedBy }]);
+  for (const setting of REMOVED) if (env[setting]) warnings.push(["startup", "a setting is no longer read; the price shown is the payment provider's product's", { setting }]);
   if (config.supportEmailInvalid()) warnings.push(["startup", "NOTEFEED_SUPPORT_EMAIL is not an email address; there is no Support link", {}]);
   if (config.operatorTokenTooShort()) warnings.push(["startup", "NOTEFEED_OPERATOR_TOKEN is shorter than 32 bytes; the operator endpoints stay off", {}]);
   const fields = {
@@ -65,7 +58,6 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
     logLevel: config.logLevel(),
     logRequests: config.logRequests(),
     metrics: config.metrics(),
-    pagesDirSet: config.pagesDir() !== "",
   };
   return { fields, warnings };
 }
@@ -89,11 +81,9 @@ export async function reservedFolderWarnings(): Promise<Warning[]> {
 }
 
 // Throws only for a wrong storage setting; any other failure here must not keep the server from starting.
-// The folder of the operator's pages that is none, or a page in it that cannot be shown: the visitor would only see that it is missing.
+// An imprint, privacy page or notice that was asked for and cannot be shown: the visitor would only see that it is missing.
 export async function legalFileWarnings(): Promise<Warning[]> {
-  return (await pagesDirWarnings()).map((w): Warning =>
-    w.setting ? ["startup", "NOTEFEED_PAGES_DIR is not a readable folder; there are no pages", { setting: w.setting }] : ["startup", "a page's file in NOTEFEED_PAGES_DIR cannot be shown (not a file, or larger than 256 KiB)", { file: w.file }],
-  );
+  return (await unreadableLegalSettings()).map((setting) => ["startup", "a page's or the notice's file cannot be read (missing, not a file, or larger than 256 KiB); it is not shown", { setting }]);
 }
 
 // Selling licenses needs the license page's words: without them the page, and every way to buy, would be missing.
@@ -105,7 +95,7 @@ export async function requireLicensePage(): Promise<void> {
 
 export async function logStartup(): Promise<void> {
   config.validateStorage(); // a wrong storage setting keeps the server from starting; with a database the main key does too, below
-  await requireLicensePage(); // so does selling licenses without a license.md
+  await requireLicensePage(); // so does selling licenses without the license page's words
   const warn = (warnings: Warning[]) => warnings.forEach(([component, msg, f]) => logger(component).warn(f, msg));
   try {
     const { fields, warnings } = startupReport();

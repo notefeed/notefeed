@@ -47,7 +47,7 @@ export default defineConfig({
   globalSetup: "./e2e/s3-setup.ts",
   webServer: [
     server(3100, { NOTEFEED_METRICS: "1", NOTEFEED_REPORT_URL: "https://report.example.com/?r={read_id}&n={note_id}&f={file}", NOTEFEED_REPORT_ENDPOINT: "http://127.0.0.1:3198/f/notefeed-report" }, SERVER_LOG),
-    server(3101, { NOTEFEED_PASSWORD: "e2e", NOTEFEED_IMAGE_UPLOADS: "0", NOTEFEED_PAGES_DIR: "e2e/fixtures/pages", NOTEFEED_SUPPORT_EMAIL: "support@example.com" }),
+    server(3101, { NOTEFEED_PASSWORD: "e2e", NOTEFEED_IMAGE_UPLOADS: "0", NOTEFEED_IMPRINT_FILE: "e2e/fixtures/imprint.md", NOTEFEED_PRIVACY_FILE: "e2e/fixtures/privacy.md", NOTEFEED_SUPPORT_EMAIL: "support@example.com" }),
     server(3103, {
       NOTEFEED_STORAGE: "sqlite",
       NOTEFEED_DATABASE_URL: "file:test-results/e2e-3103.db",
@@ -59,7 +59,7 @@ export default defineConfig({
       NOTEFEED_S3_SECRET_KEY: "e2e-secret",
       NOTEFEED_OPERATOR_TOKEN: "e2e-operator-token-".padEnd(32, "x"),
     }),
-    server(3102, { NOTEFEED_PAGES_DIR: "e2e/fixtures/notice", NOTEFEED_STORAGE: "sqlite", NOTEFEED_DATABASE_URL: "file:test-results/e2e-3102.db", NOTEFEED_IMAGES: "fs", NOTEFEED_IMAGES_DIR: "test-results/e2e-3102-images", NOTEFEED_SECRET: "e2e-sqlite-secret-".padEnd(32, "x") }),
-    server(3104, { NOTEFEED_PAGES_DIR: "e2e/fixtures/license", NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "e2e-webhook", NOTEFEED_FREE_NOTE_CAP: "10" }),
+    server(3102, { NOTEFEED_NOTICE_FILE: "e2e/fixtures/notice.md", NOTEFEED_STORAGE: "sqlite", NOTEFEED_DATABASE_URL: "file:test-results/e2e-3102.db", NOTEFEED_IMAGES: "fs", NOTEFEED_IMAGES_DIR: "test-results/e2e-3102-images", NOTEFEED_SECRET: "e2e-sqlite-secret-".padEnd(32, "x") }),
+    server(3104, { NOTEFEED_LICENSE_FILE: "e2e/fixtures/license.md", NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "e2e-webhook", NOTEFEED_FREE_NOTE_CAP: "10" }),
   ],
 });

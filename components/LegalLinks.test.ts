@@ -10,7 +10,7 @@ const LICENSE = "---\nfree:\n  title: Free\n  price: 0\n  features: []\nplans:\n
 let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "notefeed-footer-"));
-  vi.stubEnv("NOTEFEED_PAGES_DIR", dir);
+  vi.stubEnv("NOTEFEED_LICENSE_FILE", join(dir, "license.md"));
 });
 afterEach(async () => {
   vi.unstubAllEnvs();
@@ -32,6 +32,7 @@ test("the License link is there while licenses are sold and license.md is usable
 
 test("the support address is a Support link after the legal pages", async () => {
   await writeFile(join(dir, "imprint.md"), "# Imprint");
+  vi.stubEnv("NOTEFEED_IMPRINT_FILE", join(dir, "imprint.md"));
   vi.stubEnv("NOTEFEED_SUPPORT_EMAIL", " support@example.com ");
   const { legal } = await footerLinks();
   expect(legal.map((l) => l.label)).toEqual(["Imprint", "Support"]);

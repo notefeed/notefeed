@@ -147,8 +147,15 @@ export const config = {
   // ?subject=, a second @) means no link, and the startup log says so.
   supportEmail: () => (SUPPORT_EMAIL.test(env("NOTEFEED_SUPPORT_EMAIL").trim()) ? env("NOTEFEED_SUPPORT_EMAIL").trim() : ""),
   supportEmailInvalid: () => env("NOTEFEED_SUPPORT_EMAIL").trim() !== "" && !SUPPORT_EMAIL.test(env("NOTEFEED_SUPPORT_EMAIL").trim()),
-  // The folder of the operator's own pages: imprint.md, privacy.md, terms.md, notice.md and license.md (see legal.ts). Empty: none of them.
-  pagesDir: () => env("NOTEFEED_PAGES_DIR").trim(),
+  // The operator's own imprint and privacy page: Markdown files (see legal.ts). Empty: the page does not exist.
+  imprintFile: () => env("NOTEFEED_IMPRINT_FILE"),
+  privacyFile: () => env("NOTEFEED_PRIVACY_FILE"),
+  // The operator's terms of service and refund policy, the page a payment provider asks for (see legal.ts).
+  termsFile: () => env("NOTEFEED_TERMS_FILE"),
+  // The operator's notice on the start page, a Markdown file too. Empty: no notice.
+  noticeFile: () => env("NOTEFEED_NOTICE_FILE"),
+  // The license page's words (license.md, ADR 0035), needed while a payment provider is set and not read otherwise.
+  licenseFile: () => env("NOTEFEED_LICENSE_FILE"),
   // Where the built-in report page (/report) posts a report: the endpoint of a form in an inbox such as noticebox.
   // Empty: there is no page.
   reportEndpoint: () => env("NOTEFEED_REPORT_ENDPOINT").trim(),
