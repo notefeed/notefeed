@@ -229,7 +229,8 @@ test("without a provider, license.md is not needed", async () => {
 });
 
 test("a removed setting is a warning saying what replaces it", () => {
-  const { warnings } = startupReport({ NOTEFEED_IMPRINT_FILE: "/x", NOTEFEED_LICENSE_PRICE: "1 €", NOTEFEED_NOTICE_FILE: "" } as NodeJS.ProcessEnv);
+  stub({ NOTEFEED_IMPRINT_FILE: "/x", NOTEFEED_LICENSE_PRICE: "1 €", NOTEFEED_NOTICE_FILE: "" });
+  const { warnings } = startupReport();
   expect(warnings).toContainEqual(["startup", "a setting is no longer read", { setting: "NOTEFEED_IMPRINT_FILE", replacedBy: "NOTEFEED_PAGES_DIR" }]);
   expect(warnings).toContainEqual(["startup", "a setting is no longer read", { setting: "NOTEFEED_LICENSE_PRICE", replacedBy: "the payment provider's products" }]);
   expect(warnings.filter(([, m]) => m === "a setting is no longer read")).toHaveLength(2); // empty counts as unset
