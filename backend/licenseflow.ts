@@ -63,7 +63,13 @@ async function apply(e: LicenseEvent): Promise<void> {
       // Stays active to the end of the paid period; isLicensed ends it then.
       await store.update(e.providerRef, { validUntil: e.validUntil });
       return;
-    case "ended":
+    case "ended": {
+      // Delivered late, after the payment retried for that period went through: the license already runs on past it.
+      const license = await store.byProviderRef(e.providerRef);
+      if (e.periodEnd !== null && license?.validUntil != null && license.validUntil > e.periodEnd) return void log.info("a late end of a period that is paid since");
+      await store.update(e.providerRef, { status: "lapsed" });
+      return void log.info({ why: e.type }, "license lapsed");
+    }
     case "refunded":
       await store.update(e.providerRef, { status: "lapsed" });
       return void log.info({ why: e.type }, "license lapsed");
