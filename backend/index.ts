@@ -36,7 +36,7 @@ export { mcpRoute } from "./mcp";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, authorizeRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 
-export { freeNoteCap, freeTier, isLicensed, licensePlans, licensePrice, licensePriceYearly, licensingOn } from "./licensing";
+export { freeNoteCap, freeTier, isLicensed, licensePlans, licensingOn } from "./licensing";
 
 export const instanceTitle = config.title;
 

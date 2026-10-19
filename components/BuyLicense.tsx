@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
 import { card, field, primary, secondary } from "@/components/styles";
+import { formatPrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
 
 const KEY = /^[A-Za-z0-9_-]{22,64}$/;
 
@@ -15,11 +16,11 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
   throw new Error(answer.error && answer.code === "invalid_body" ? `${answer.error[0].toUpperCase()}${answer.error.slice(1)}.` : (errorMessage(answer.code) ?? "Something went wrong."));
 }
 
-// The page a buyer lands on (ADR 0029). Before paying: what a license is, and a tile per plan next to the free tier: per month and,
-// where one is sold, per year, each with a button that opens the provider's checkout.
-// After: the key, which is in the fragment of this page's URL, so notefeed's server has not received it; it keeps only the hash and
-// cannot show it again. Below both: the way to the provider's page for a license one holds, by its key.
-export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; yearlyPrice?: string; cap: number }) {
+// The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile and a tile per plan the provider sells
+// (ADR 0035): its name, price and description from the provider, the rest from license.md, each with a button that opens the
+// provider's checkout. After: the key, which is in the fragment of this page's URL, so notefeed's server has not received it; it
+// keeps only the hash and cannot show it again. Below both: the way to the provider's page for a license one holds, by its key.
+export function BuyLicense({ text, intro, plans, cap }: { text: LicenseText; intro: ReactNode; plans: Sold[]; cap: number }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,7 +35,9 @@ export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; ye
     return () => window.removeEventListener("hashchange", read);
   }, []);
 
-  async function buy(period: "month" | "year") {
+  const month = plans.find((p) => p.period === "month");
+
+  async function buy(period: Sold["period"]) {
     setBusy(true);
     setError("");
     try {
@@ -67,23 +70,34 @@ export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; ye
         </section>
       ) : (
         <section aria-label="Buy a license">
-          <p className="mb-5 text-[15px] text-muted">
-            A license lifts the free tier&apos;s limits for one feed. Reading a feed is always free, and there are no accounts: the license is a key you keep.
-          </p>
-          <div className={`grid gap-3 ${yearlyPrice ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-            <div className={`${card} flex flex-col p-5`}>
-              <h2 className="text-[15px] font-bold">Free</h2>
-              <p className="mt-1 text-xl font-bold tracking-tight">0</p>
-              <p className="text-[13px] text-muted">Every feed starts here.</p>
-              <ul className="mt-4 space-y-2 text-[14px]">
-                <Feature>The newest {cap} notes are kept</Feature>
-                <Feature off>No images</Feature>
-                <Feature off>No feed password</Feature>
-              </ul>
-            </div>
-            <Plan title={yearlyPrice ? "Monthly" : "With a license"} price={price} busy={busy} onBuy={() => buy("month")} buyLabel={yearlyPrice ? "Pay monthly" : "Buy a license"} primary={!yearlyPrice} />
-            {yearlyPrice && <Plan title="Yearly" price={yearlyPrice} badge={saving(price, yearlyPrice)} busy={busy} onBuy={() => buy("year")} buyLabel="Pay yearly" primary />}
+          {intro && <div className="mb-5 text-[15px] text-muted">{intro}</div>}
+          <div className={`grid gap-3 ${COLUMNS[plans.length] ?? "sm:grid-cols-3"}`}>
+            <section aria-labelledby="plan-free" className={`${card} flex flex-col p-5`}>
+              <h2 id="plan-free" className="text-[15px] font-bold">
+                {text.free.title}
+              </h2>
+              <p className="mt-1 text-xl font-bold tracking-tight">{text.free.price}</p>
+              {text.free.note && <p className="text-[13px] text-muted">{text.free.note}</p>}
+              <Features features={text.free.features} cap={cap} className="mt-4" />
+            </section>
+            {plans.map((plan, i) => (
+              <Plan
+                key={plan.period}
+                plan={plan}
+                text={text.plans}
+                cap={cap}
+                badge={(plan.period === "year" && saving(month, plan)) || text.plans.badge}
+                busy={busy}
+                onBuy={() => buy(plan.period)}
+                primary={i === plans.length - 1}
+              />
+            ))}
           </div>
+          {plans.length === 0 && (
+            <p role="status" className="mt-3 text-muted">
+              Licenses can&apos;t be bought right now. Please try again later.
+            </p>
+          )}
           <p id="buy-error" role="alert" className="mt-2 text-error empty:hidden">
             {error}
           </p>
@@ -94,42 +108,43 @@ export function BuyLicense({ price, yearlyPrice = "", cap }: { price: string; ye
   );
 }
 
-// A paid tile: the price for one period, what a license adds, and the button to the checkout. `primary`: the highlighted one
-// (the yearly plan where one is sold), `badge`: what it saves.
-function Plan({ title, price, badge, busy, onBuy, buyLabel, primary: highlighted = false }: { title: string; price: string; badge?: string; busy: boolean; onBuy: () => void; buyLabel: string; primary?: boolean }) {
+// Tailwind sees whole class names only: the free tile and one column per plan.
+const COLUMNS: Record<number, string> = { 0: "sm:grid-cols-1", 1: "sm:grid-cols-2", 2: "sm:grid-cols-3" };
+
+// A paid tile: the provider's name, price and description, what every license adds (license.md), and the button to the checkout.
+// `primary`: the highlighted one (the last, the yearly plan where one is sold); `badge`: what it saves, or license.md's badge.
+function Plan({ plan, text, cap, badge, busy, onBuy, primary: highlighted }: { plan: Sold; text: LicenseText["plans"]; cap: number; badge?: string; busy: boolean; onBuy: () => void; primary: boolean }) {
+  const id = `plan-${plan.period}`;
   return (
-    <div className={`${card} flex flex-col p-5 ${highlighted ? "border-carbon" : ""}`}>
-      <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-bold">
-        {title}
-        <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">{badge ?? "Per feed"}</span>
+    <section aria-labelledby={id} className={`${card} flex flex-col p-5 ${highlighted ? "border-carbon" : ""}`}>
+      <h2 id={id} className="flex flex-wrap items-center gap-2 text-[15px] font-bold">
+        {plan.name}
+        {badge && <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">{badge}</span>}
       </h2>
-      <p className="mt-1 text-xl font-bold tracking-tight">{price || "—"}</p>
-      <p className="text-[13px] text-muted">For one feed at a time; the key can move.</p>
-      <ul className="mb-5 mt-4 space-y-2 text-[14px]">
-        <Feature>All notes are kept</Feature>
-        <Feature>Images</Feature>
-        <Feature>A feed password</Feature>
-      </ul>
+      <p className="mt-1 text-xl font-bold tracking-tight">{formatPrice(plan)}</p>
+      {plan.taxIncluded && <p className="text-[13px] text-muted">VAT included</p>}
+      {/* The provider's text as written: plain, with its line breaks. */}
+      {plan.description && <p className="mt-2 whitespace-pre-line text-[13px] text-muted">{plan.description}</p>}
+      {text.note && <p className="mt-2 text-[13px] text-muted">{text.note}</p>}
+      <Features features={text.features} cap={cap} className="mb-5 mt-4" />
       <button type="button" disabled={busy} onClick={onBuy} className={`${highlighted ? primary : secondary} mt-auto w-full py-2.5 text-[15px]`}>
-        {buyLabel}
+        {text.button}
       </button>
-    </div>
+    </section>
   );
 }
 
-// "Save 17 %": what the yearly price saves against twelve months, when both are an amount in the same currency (the prices are the
-// operator's free text, NOTEFEED_LICENSE_PRICE and _YEARLY); otherwise nothing is claimed.
-export function saving(monthly: string, yearly: string): string | undefined {
-  // The currency before the amount ("EUR 1.99", "€1.99") or after it ("1.99 €").
-  const amount = (s: string) => {
-    const m = s.match(/^\s*(?:([A-Z]{3}|[€$£])\s*(\d+(?:[.,]\d{1,2})?)|(\d+(?:[.,]\d{1,2})?)\s*([A-Z]{3}|[€$£]))/);
-    return m && { currency: m[1] ?? m[4], value: Number((m[2] ?? m[3]).replace(",", ".")) };
-  };
-  const m = amount(monthly);
-  const y = amount(yearly);
-  if (!m || !y || m.currency !== y.currency) return undefined;
-  const percent = Math.floor((1 - y.value / (m.value * 12)) * 100);
-  return percent > 0 ? `Save ${percent} %` : undefined;
+// `{cap}` in a feature is the free tier's cap as the server keeps it.
+function Features({ features, cap, className }: { features: LicenseFeature[]; cap: number; className: string }) {
+  return (
+    <ul className={`${className} space-y-2 text-[14px]`}>
+      {features.map((f, i) => (
+        <Feature key={i} off={!f.included}>
+          {f.text.replaceAll("{cap}", String(cap))}
+        </Feature>
+      ))}
+    </ul>
+  );
 }
 
 function Feature({ off = false, children }: { off?: boolean; children: ReactNode }) {

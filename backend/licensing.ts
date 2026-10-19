@@ -15,8 +15,6 @@ import { encryptionKeys, wrapperFromConfig } from "./storage/wrapper";
 const log = logger("licensing");
 
 export const licensingOn = (): boolean => config.paymentProvider() !== "";
-export const licensePrice = config.licensePrice;
-export const licensePriceYearly = config.licensePriceYearly;
 export const freeNoteCap = config.freeNoteCap;
 /** The plans for sale, as the provider holds them (ADR 0035); none without a provider. */
 export const licensePlans = async (): Promise<Plan[]> => (await paymentProvider()?.plans()) ?? [];
