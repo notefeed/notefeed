@@ -218,6 +218,18 @@ describe("Creem's plans", () => {
     expect(await creem(up as never).plans()).toEqual([monthly]);
   });
 
+  test("a stale list is served at once while the refresh runs, not after it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await creem((async () => product()) as never).plans();
+    vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+    let answer: (r: Response) => void = () => {};
+    const slow = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)));
+    expect(await creem(slow as never).plans()).toEqual([monthly]); // would hang if it waited for Creem
+    answer(product({ price: 299 }));
+    await vi.waitFor(async () => expect((await creem(slow as never).plans())[0].amount).toBe(299));
+    expect(slow).toHaveBeenCalledTimes(1);
+  });
+
   test("a read that times out counts as unreachable", async () => {
     const fetch = vi.fn(async () => {
       throw new DOMException("timed out", "TimeoutError");

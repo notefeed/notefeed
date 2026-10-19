@@ -80,7 +80,8 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
           return plansCache.plans ?? []; // the last list while Creem is away, else none; nothing new is kept
         })
         .finally(() => (plansCache.pending = undefined));
-      return plansCache.pending;
+      // A stale list is answered at once while the refresh runs: a slow or absent Creem holds up no page once it has answered once.
+      return plansCache.plans ?? plansCache.pending;
     },
 
     async createCheckout({ keyHash, successUrl, period }) {
