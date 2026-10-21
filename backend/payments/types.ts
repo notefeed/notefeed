@@ -9,8 +9,8 @@ export type LicenseEvent =
   | { type: "renewed"; providerRef: string; validUntil: number | null }
   /** The buyer cancelled: it stays active until `validUntil`. */
   | { type: "cancelled"; providerRef: string; validUntil: number | null }
-  /** The period ended without payment. */
-  | { type: "ended"; providerRef: string }
+  /** The period ended without payment. `periodEnd` is when that period ended, if the provider says. */
+  | { type: "ended"; providerRef: string; periodEnd: number | null }
   /** Refunded or disputed: lapses at once. */
   | { type: "refunded"; providerRef: string };
 

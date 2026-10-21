@@ -158,6 +158,20 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect(await isLicensed("f")).toBe(false);
   });
 
+  // The provider retries a delivery for hours, so the end of a period can arrive after the payment retried for it went through.
+  test("the end of a period that a later payment has already extended does not lapse the license", async () => {
+    await createNote("f", "hi");
+    const key = await buy("sub_1");
+    await attachRoute(post("/api/licenses/attach", { feed: "f", key }));
+    const ran = Date.now() - 1;
+    await webhookRoute(webhook([{ type: "renewed", providerRef: "sub_1", validUntil: Date.now() + 60_000 }]));
+    await webhookRoute(webhook([{ type: "ended", providerRef: "sub_1", periodEnd: ran }]));
+    expect(await isLicensed("f")).toBe(true);
+    // The period that has ended is the license's own, or the provider does not say which: it lapses.
+    await webhookRoute(webhook([{ type: "ended", providerRef: "sub_1", periodEnd: null }]));
+    expect(await isLicensed("f")).toBe(false);
+  });
+
   test("a refund ends the subscription at the provider too, so it is not charged again", async () => {
     cancelled.length = 0;
     await buy("sub_1");

@@ -72,7 +72,8 @@ describe("Creem", () => {
     ]);
     expect(await parse(event("subscription.paid", { id: "sub_1", current_period_end_date: end }))).toEqual([{ type: "renewed", providerRef: "sub_1", validUntil: Date.parse(end) }]);
     expect(await parse(event("subscription.canceled", { id: "sub_1", current_period_end_date: end }))).toEqual([{ type: "cancelled", providerRef: "sub_1", validUntil: Date.parse(end) }]);
-    expect(await parse(event("subscription.expired", { id: "sub_1" }))).toEqual([{ type: "ended", providerRef: "sub_1" }]);
+    expect(await parse(event("subscription.expired", { id: "sub_1", current_period_end_date: end }))).toEqual([{ type: "ended", providerRef: "sub_1", periodEnd: Date.parse(end) }]);
+    expect(await parse(event("subscription.expired", { id: "sub_1" }))).toEqual([{ type: "ended", providerRef: "sub_1", periodEnd: null }]);
     expect(await parse(event("refund.created", { subscription: { id: "sub_1" } }))).toEqual([{ type: "refunded", providerRef: "sub_1" }]);
     expect(await parse(event("credits.granted", {}))).toEqual([]);
   });
@@ -149,6 +150,59 @@ describe("Creem", () => {
       mode: "test",
     };
     expect(await parse(event("refund.created", refund))).toEqual([{ type: "refunded", providerRef: "sub_6I28jztOO823nH6JIoMh1S" }]);
+  });
+
+  // A daily product in the sandbox (2026-10-19 to 21), cut the same way. A renewal is `subscription.update` then `subscription.paid`
+  // with the next period. A cancel at the period's end is carried out ahead of it (20:00 UTC, 11.5 hours early) as a plain
+  // `subscription.canceled`, its period end kept, and nothing follows at that end. A paused subscription sends nothing more.
+  test("a real renewal, a cancel at the period's end carried out early, and a pause", async () => {
+    const c = creem();
+    const parse = (raw: string) => c.parseWebhook(raw, sign(raw));
+    const subscription = (id: string, status: string, start: string, end: string) => ({
+      id,
+      object: "subscription",
+      items: [{ object: "subscription_item", id: "sitem_1", product_id: "prod_1", price_id: "pprice_1", units: 1 }],
+      collection_method: "charge_automatically",
+      status,
+      current_period_start_date: start,
+      current_period_end_date: end,
+      canceled_at: null as string | null,
+      metadata: { key_hash: "543a6bb2" },
+      mode: "test",
+    });
+    const renewed = subscription("sub_5YSfn3UClqcsPBDHxZOBA3", "active", "2026-10-20T05:29:23.115Z", "2026-10-21T05:29:23.115Z");
+    expect(await parse(event("subscription.update", renewed))).toEqual([]);
+    expect(await parse(event("subscription.paid", { ...renewed, last_transaction_id: "tran_1", next_transaction_date: "2026-10-21T05:29:23.115Z" }))).toEqual([
+      { type: "renewed", providerRef: "sub_5YSfn3UClqcsPBDHxZOBA3", validUntil: Date.parse("2026-10-21T05:29:23.115Z") },
+    ]);
+    const end = "2026-10-21T07:38:27.717Z";
+    const carriedOut = { ...subscription("sub_MlPlfUVr4OJzJ9ACnubau", "canceled", "2026-10-20T07:38:27.717Z", end), canceled_at: "2026-10-20T20:00:01.967Z" };
+    expect(await parse(event("subscription.canceled", carriedOut))).toEqual([{ type: "cancelled", providerRef: "sub_MlPlfUVr4OJzJ9ACnubau", validUntil: Date.parse(end) }]);
+    const paused = subscription("sub_6Rp1HuGfUGOjY7X880h7Kv", "paused", "2026-10-19T05:37:38.000Z", "2026-10-20T05:37:38.000Z");
+    expect(await parse(event("subscription.paused", paused))).toEqual([]);
+  });
+
+  // Creem's sample of the event (docs.creem.io, webhooks), cut the same way. Creem sends it when a period ends without a payment, which
+  // the sandbox cannot make happen (its portal refuses every failing test card); a cancel never leads to it. Its status says `active`
+  // and its period starts where it ends; only the id is relied on.
+  test("the documented expiry ends the license", async () => {
+    const c = creem();
+    const raw = event("subscription.expired", {
+      id: "sub_7FgHvrOMC28tG5DEemoCli",
+      object: "subscription",
+      product: { id: "prod_3ELsC3Lt97orn81SOdgQI3", billing_type: "recurring", billing_period: "every-year" },
+      customer: { id: "cust_3y4k2CELGsw7n9Eeeiw2hm", object: "customer" },
+      collection_method: "charge_automatically",
+      status: "active",
+      last_transaction_id: "tran_6ZeTvMqMkGdAIIjw5aAcnh",
+      last_transaction_date: "2024-12-16T12:40:12.658Z",
+      next_transaction_date: "2025-12-16T12:39:47.000Z",
+      current_period_start_date: "2024-12-16T12:39:47.000Z",
+      current_period_end_date: "2024-12-16T12:39:47.000Z",
+      canceled_at: null,
+      mode: "local",
+    });
+    expect(await c.parseWebhook(raw, sign(raw))).toEqual([{ type: "ended", providerRef: "sub_7FgHvrOMC28tG5DEemoCli", periodEnd: Date.parse("2024-12-16T12:39:47.000Z") }]);
   });
 
   test("a completed checkout without a key hash is rejected", async () => {
