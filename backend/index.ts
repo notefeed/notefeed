@@ -24,7 +24,7 @@ export { noteOutcome } from "./requestscope";
 export { hasLegalPage, licensePageOn, readLegalPage, readLicensePage, readNotice, type LegalPage } from "./legal";
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
-export { attachRoute, checkoutRoute, keyRoute, portalRoute, webhookRoute } from "./http/licenses";
+export { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, portalRoute, webhookRoute } from "./http/licenses";
 export { moveImagesRoute, resealRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
 export { feedCookieName, feedUnlocked } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";

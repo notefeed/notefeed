@@ -9,7 +9,7 @@ import { createNote } from "../notes";
 import { resetPlansForTests } from "../payments/creem";
 import { cancelled, fakeKey, fakeSignature } from "../payments/fake";
 import { API_PREFIX, dispatch } from "./api";
-import { attachRoute, checkoutRoute, keyRoute, portalRoute, webhookRoute } from "./licenses";
+import { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, portalRoute, webhookRoute } from "./licenses";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -143,6 +143,34 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     const key = await buy();
     expect((await attachRoute(post("/api/licenses/attach", { feed: "p", key }))).status).toBe(401);
     expect((await attachRoute(post("/api/licenses/attach", { feed: "p", key }, "POST", { "x-feed-password": "Passw0rd!x" }))).status).toBe(200);
+  });
+
+  // The settings page's own route sits under the feed's path, where the unlock cookie is sent (its paths are /<feed> and the
+  // feed's API path); /api/licenses/attach never gets that cookie, so a protected feed's page could not enter a key there.
+  test("the settings page enters and removes a key on a protected feed with its unlock cookie", async () => {
+    const { cookieValue, createProtected } = await import("../feedlock");
+    await createProtected("p", "Passw0rd!x");
+    const key = await buy();
+    const page = (method: string, body: unknown, cookie?: string, origin = "https://notefeed.test") =>
+      new Request("https://notefeed.test/p/license", { method, headers: { "content-type": "application/json", origin, ...(cookie ? { cookie: `nf_feed_p=${cookie}` } : {}) }, body: JSON.stringify(body) });
+    const unlock = (await cookieValue("p"))!;
+    expect((await feedLicenseRoute(page("POST", { key }), "p")).status).toBe(401);
+    expect((await feedLicenseRoute(page("POST", { key }, unlock, "https://evil.test"), "p")).status).toBe(401); // another site's request
+    expect((await feedLicenseRoute(page("POST", { key }, unlock), "p")).status).toBe(200);
+    expect(await isLicensed("p")).toBe(true);
+    expect((await feedLicenseRoute(page("DELETE", {}, unlock), "p")).status).toBe(200);
+    expect(await isLicensed("p")).toBe(false);
+  });
+
+  test("a new key replaces a lapsed license on the feed; an active one still has to be taken off first", async () => {
+    await createNote("f", "hi");
+    const old = await buy("sub_old");
+    expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key: old }))).status).toBe(200);
+    const next = await buy("sub_new");
+    expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key: next }))).status).toBe(400); // the old one is active
+    await webhookRoute(webhook([{ type: "refunded", providerRef: "sub_old" }]));
+    expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key: next }))).status).toBe(200);
+    expect(await isLicensed("f")).toBe(true);
   });
 
   test("a bad signature is 400, and the same event twice does no harm", async () => {
