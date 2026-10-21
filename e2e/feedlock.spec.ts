@@ -15,6 +15,7 @@ async function create(page: Page, name: string, password: string) {
 
 async function unlock(page: Page, name: string, password: string) {
   await page.goto(`/${name}`);
+  await expect(page.getByText("Forgot the password?")).toHaveCount(0); // recovery by license key is only where licenses are sold
   await page.getByLabel("Feed password").fill(password);
   await page.getByRole("button", { name: "Unlock" }).click();
 }

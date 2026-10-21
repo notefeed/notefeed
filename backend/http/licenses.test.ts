@@ -237,3 +237,71 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect((await portalRoute(post("/api/licenses/portal", {}))).status).toBe(400);
   });
 });
+
+// A lost feed password (ADR 0037): there are no accounts, so the only proof of owning a protected feed is the license key on it,
+// which the buyer finds again in the provider's receipt and portal. The password itself stays shareable; the key stays the buyer's.
+describe.skipIf(!supported)("recovering a feed password with the feed's license key", () => {
+  const recover = async (fields: Record<string, string>) => {
+    const { feedAccessRoute } = await import("./feedsession");
+    return feedAccessRoute(
+      new Request("https://notefeed.test/p/access", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://notefeed.test" }, body: new URLSearchParams({ action: "recover", ...fields }) }),
+      "p",
+    );
+  };
+  const opens = async (password: string) => {
+    const { unlock } = await import("../feedlock");
+    return unlock("p", password, "1.2.3.4").then(
+      () => true,
+      () => false,
+    );
+  };
+  const protectedWithLicense = async (ref = "sub_1") => {
+    const { createProtected } = await import("../feedlock");
+    await createProtected("p", "Passw0rd!x");
+    const key = await buy(ref);
+    expect((await attachRoute(post("/api/licenses/attach", { feed: "p", key }, "POST", { "x-feed-password": "Passw0rd!x" }))).status).toBe(200);
+    return key;
+  };
+
+  test("the key on the feed sets a new password, or removes it; any other key is refused", async () => {
+    const { protectedFeed } = await import("../feedlock");
+    const key = await protectedWithLicense();
+    const other = await buy("sub_2"); // a real key, but not this feed's
+    for (const wrong of ["k".repeat(22), other, ""]) {
+      const res = await recover({ key: wrong, next: "N3wPassw0rd!" });
+      expect(res.headers.get("location")).toBe("/p?form=recover&error=auth");
+      expect(res.headers.get("set-cookie")).toBeNull();
+    }
+    expect(await opens("Passw0rd!x")).toBe(true);
+
+    const set = await recover({ key, next: "N3wPassw0rd!" });
+    expect(set.headers.get("location")).toBe("/p/settings?saved=1");
+    expect(set.headers.getSetCookie()).toHaveLength(2);
+    expect(await opens("N3wPassw0rd!")).toBe(true);
+    expect(await opens("Passw0rd!x")).toBe(false);
+
+    const removed = await recover({ key: ` ${key} `, next: "" });
+    expect(removed.headers.get("location")).toBe("/p");
+    expect(removed.headers.getSetCookie().every((c) => c.includes("Max-Age=0"))).toBe(true);
+    expect(await protectedFeed("p")).toBe(false);
+  });
+
+  test("a lapsed license's key removes the password but cannot set a new one", async () => {
+    const { protectedFeed } = await import("../feedlock");
+    const key = await protectedWithLicense();
+    await webhookRoute(webhook([{ type: "refunded", providerRef: "sub_1" }]));
+    expect((await recover({ key, next: "N3wPassw0rd!" })).headers.get("location")).toBe("/p?form=recover&error=license_required");
+    expect(await opens("Passw0rd!x")).toBe(true);
+    expect((await recover({ key, next: "" })).headers.get("location")).toBe("/p");
+    expect(await protectedFeed("p")).toBe(false);
+  });
+
+  test("a bad new password is said before the key is tried, and wrong keys count against the password limit", async () => {
+    const key = await protectedWithLicense();
+    expect((await recover({ key: "k".repeat(22), next: " padded " })).headers.get("location")).toBe("/p?form=recover&error=invalid_body");
+    vi.stubEnv("NOTEFEED_RATE_LIMIT", "2");
+    resetRateLimitsForTests();
+    for (let i = 0; i < 2; i++) await recover({ key: "k".repeat(22), next: "" });
+    expect((await recover({ key, next: "" })).headers.get("location")).toMatch(/^\/p\?form=recover&error=too_many_attempts&retry=\d+$/);
+  });
+});

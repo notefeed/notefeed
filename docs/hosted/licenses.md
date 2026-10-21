@@ -6,17 +6,17 @@ This page is about [notefeed.me](https://notefeed.me) only. A notefeed you run y
 
 Every feed on notefeed.me starts on the free tier, with nothing to sign up for:
 
-- **It keeps its newest 1000 notes.** At the cap, each new note drops the oldest one; a post is never refused for it.
+- **It keeps its newest 100 notes.** At the cap, each new note drops the oldest one; a post is never refused for it.
 - **No pictures.** A picture, posted on its own or with a note, is refused with `402` (`license_required`).
 - **No feed password.** A [feed password](../using/feed-passwords.md) is set when the feed is created, and on notefeed.me that first post needs a license key next to the password (below). Without one it is refused with `402`.
 
-The feed's settings show the tier under **License**, as *Free tier · N of 1000 notes*, with a meter. From 90 % of the cap on, the feed's page tells whoever can post to it; readers, the read-only view and RSS never see it. Scripts read the same from the [Feeds API](../integrations/api.md): `GET /api/v1/feeds/<feed>` answers `free_tier` as `{ "notes": N, "cap": 1000 }`, or `null` for a licensed feed.
+The feed's settings show the tier under **License**, as *Free tier · N of 100 notes*, with a meter. From 90 % of the cap on, the feed's page tells whoever can post to it; readers, the read-only view and RSS never see it. Scripts read the same from the [Feeds API](../integrations/api.md): `GET /api/v1/feeds/<feed>` answers `free_tier` as `{ "notes": N, "cap": 100 }`, or `null` for a licensed feed.
 
 ## What a license is
 
 A license is for one feed, by the month or by the year; the price is on the [license page](https://notefeed.me/license). With it the feed keeps every note, can have a feed password and takes pictures.
 
-There are no accounts. A license is a **key** you keep: notefeed stores only a hash of it and nothing about you; the payment provider holds the purchase. The key is shown once, on the page you land on after paying. Keep it: notefeed cannot show it again or recover a lost one.
+There are no accounts. A license is a **key** you keep: notefeed stores only a hash of it and nothing about you; the payment provider holds the purchase. The key is issued by the payment provider: it is shown on the page you land on after paying, and it is in the provider's receipt e-mail and customer portal, where you find it again if you lose it. notefeed itself cannot show it again.
 
 ## Entering the key
 
@@ -35,11 +35,15 @@ curl -H "X-Feed-Password: ${FEED_PASSWORD:?}" -H "X-License-Key: ${LICENSE_KEY:?
 
 The subscription lives at the payment provider. The [license page](https://notefeed.me/license) opens its portal for your key: cancel there, change how you pay, or download invoices. The provider's receipt is your record of the purchase.
 
+## A lost feed password
+
+The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?**, enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it is also the way to the subscription and its invoices.
+
 ## When a license ends
 
 When the subscription is cancelled the license runs to the end of the paid period; a refund or chargeback ends it at once. The feed then returns to the free tier, and nothing is deleted:
 
-- The notes stay. The cap applies to new notes again: past 1000, each new note drops the oldest one.
+- The notes stay. The cap applies to new notes again: past 100, each new note drops the oldest one.
 - A feed password that is set keeps protecting the feed, but cannot be changed until the feed is licensed again; it can be removed.
 - Pictures already posted are still served; new ones are refused.
 

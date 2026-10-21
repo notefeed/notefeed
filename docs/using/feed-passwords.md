@@ -34,4 +34,6 @@ curl -X PUT -H "X-Feed-Password: ${FEED_PASSWORD:?}" -H "Content-Type: applicati
 
 ## A lost password
 
-The password is stored as a salted hash in `DATA_DIR/<feed>/.password`, read on every request. The operator deletes that file and the feed is open at once, with its notes intact. It cannot get a password again: to keep it protected, copy its notes to a new feed created with a new password. Back up `.password` with the notes.
+The password is stored only as a salted hash, so nobody can look it up. On an instance that sells licenses, the feed's license key recovers it: the unlock screen's **Forgot the password?** sets a new password or removes it ([hosted](../hosted/licenses.md#a-lost-feed-password)).
+
+Otherwise the operator removes it and the feed is open at once, with its notes intact. With the file storage the hash is `DATA_DIR/<feed>/.password`: delete that file, and back it up with the notes. With SQLite or PostgreSQL there is no file: the operator clears the feed's password hash in the database (its `password_hash`, on the row the feed's name finds; with encryption at rest, ADR 0033, that name is stored as a keyed hash). Without a license the feed cannot get a password again: to keep it protected, copy its notes to a new feed created with a new password.

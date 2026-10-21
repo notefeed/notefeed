@@ -13,7 +13,7 @@ import { ProtectFeed } from "@/components/ProtectFeed";
 import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
-import { errorMessage, feedErrorMessage } from "@/app/_lib/messages";
+import { errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : u
 
 export default async function FeedPage({ params, searchParams }: PageProps<"/[feed]">) {
   const { feed } = await params;
-  const { posted, deleted, error, retry, tag: tagParam, share_title, share_text, share_url } = await searchParams;
+  const { posted, deleted, error, retry, form, tag: tagParam, share_title, share_text, share_url } = await searchParams;
   const tag = typeof tagParam === "string" ? tagParam.toLowerCase() : undefined;
   if (!checkFeed(feed) && (await isRemovedFeed(feed))) {
     return (
@@ -59,7 +59,11 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
   if (access === "locked") {
     return (
       <AppShell feed={feed}>
-        <UnlockForm feed={feed} error={feedErrorMessage(error, retry)} />
+        <UnlockForm
+          feed={feed}
+          error={form === "recover" ? undefined : feedErrorMessage(error, retry)}
+          recover={licensingOn() ? { open: form === "recover", error: form === "recover" ? recoverErrorMessage(error, retry) : undefined } : undefined}
+        />
       </AppShell>
     );
   }
