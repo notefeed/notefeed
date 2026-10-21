@@ -16,23 +16,33 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
   throw new Error(answer.error && answer.code === "invalid_body" ? `${answer.error[0].toUpperCase()}${answer.error.slice(1)}.` : (errorMessage(answer.code) ?? "Something went wrong."));
 }
 
-// The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile and a tile per plan the provider sells
-// (ADR 0035): its name, price and description from the provider, the rest from license.md, each with a button that opens the
-// provider's checkout. After: the key, which is in the fragment of this page's URL, so notefeed's server has not received it; it
-// keeps only the hash and cannot show it again. Below both: the way to the provider's page for a license one holds, by its key.
-export function BuyLicense({ text, intro, plans, cap }: { text: LicenseText; intro: ReactNode; plans: Sold[]; cap: number }) {
+// The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile, a tile per plan the provider sells
+// (ADR 0035): its name and price from the provider, the rest from license.md, each with a button that opens the
+// provider's checkout, and license.md's fine print below them. After: the key the provider issued, asked for by the checkout id
+// the buyer came back with (the provider may still be finishing, so it is asked again for a while); it is also in the provider's
+// receipt and customer portal. Below both: the way to the provider's page for a license one holds, by its key.
+export function BuyLicense({ text, intro, fineprint, plans, cap }: { text: LicenseText; intro: ReactNode; fineprint?: ReactNode; plans: Sold[]; cap: number }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Back from the checkout: "waiting" while the key is asked for, "missing" when it never came.
+  const [bought, setBought] = useState<"" | "waiting" | "missing">("");
   useEffect(() => {
-    // A hash is set after the first render; the state follows it. A checkout that comes straight back to this page changes the hash alone.
-    const read = () => {
-      const k = window.location.hash.slice(1);
-      if (KEY.test(k)) setKey(k);
-    };
-    read();
-    window.addEventListener("hashchange", read);
-    return () => window.removeEventListener("hashchange", read);
+    const checkout = new URLSearchParams(window.location.search).get("checkout_id");
+    if (!checkout) return;
+    let gone = false;
+    (async () => {
+      setBought("waiting");
+      for (let i = 0; i < 10 && !gone; i++) {
+        const res = await fetch("/api/licenses/key", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ checkout }) }).catch(() => null);
+        const answer = (await res?.json().catch(() => ({}))) as { key?: string } | undefined;
+        if (res?.ok && answer?.key && KEY.test(answer.key)) return void (gone || setKey(answer.key));
+        if (res && res.status !== 404) break;
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (!gone) setBought("missing");
+    })();
+    return () => void (gone = true);
   }, []);
 
   const month = plans.find((p) => p.period === "month");
@@ -50,7 +60,7 @@ export function BuyLicense({ text, intro, plans, cap }: { text: LicenseText; int
 
   return (
     <div className="space-y-6 text-sm">
-      {key ? (
+      {key || bought ? (
         <section aria-labelledby="your-key" className={`${card} p-5 sm:p-6`}>
           <h2 id="your-key" className="flex items-center gap-2 text-[17px] font-bold">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
@@ -58,15 +68,24 @@ export function BuyLicense({ text, intro, plans, cap }: { text: LicenseText; int
             </span>
             Your license key
           </h2>
-          <div className="mt-4 flex items-center gap-2 rounded-xl bg-surface-2 py-2 pl-4 pr-2">
-            <code className="min-w-0 flex-1 break-all font-mono text-carbon">{key}</code>
-            <CopyButton text={key} />
-          </div>
+          {key ? (
+            <div className="mt-4 flex items-center gap-2 rounded-xl bg-surface-2 py-2 pl-4 pr-2">
+              <code className="min-w-0 flex-1 break-all font-mono text-carbon">{key}</code>
+              <CopyButton text={key} />
+            </div>
+          ) : (
+            <p role="status" className="mt-4">
+              {bought === "waiting" ? "Getting your key from the payment provider…" : "Thank you for your purchase. The key can't be shown here right now."}
+            </p>
+          )}
           <p className="mt-4 text-muted">
-            Keep this key. notefeed stores no information about you, so it cannot show the key again or recover a lost one. Enter it under <em>License</em> in a
-            feed&apos;s settings, or under <em>Protect this feed</em> when you create a protected feed. It works for one feed at a time and can be moved to another.
+            {key ? "Enter it" : "Enter your key"} under <em>License</em> in a feed&apos;s settings, or under <em>Protect this feed</em> when you create a protected feed.
+            It works for one feed at a time and can be moved to another.
           </p>
-          <p className="mt-2 text-muted">The payment provider&apos;s receipt is the record of your purchase.</p>
+          <p className="mt-2 text-muted">
+            The key is also in the payment provider&apos;s receipt e-mail and in its customer portal, so you can find it again there. The receipt is the record of your
+            purchase.
+          </p>
         </section>
       ) : (
         <section aria-label="Buy a license">
@@ -101,6 +120,7 @@ export function BuyLicense({ text, intro, plans, cap }: { text: LicenseText; int
           <p id="buy-error" role="alert" className="mt-2 text-error empty:hidden">
             {error}
           </p>
+          {fineprint && <div className="mt-3 text-[12px] text-muted">{fineprint}</div>}
         </section>
       )}
       <ManageLicense bought={key} />
@@ -111,7 +131,8 @@ export function BuyLicense({ text, intro, plans, cap }: { text: LicenseText; int
 // Tailwind sees whole class names only: the free tile and one column per plan.
 const COLUMNS: Record<number, string> = { 0: "sm:grid-cols-1", 1: "sm:grid-cols-2", 2: "sm:grid-cols-3" };
 
-// A paid tile: the provider's name, price and description, what every license adds (license.md), and the button to the checkout.
+// A paid tile: the provider's name and price, what every license adds (license.md), and the button to the checkout. The provider's
+// description is for its checkout and receipt, where it can say more than a tile should.
 // `primary`: the highlighted one (the last, the yearly plan where one is sold); `badge`: what it saves, or license.md's badge.
 function Plan({ plan, text, cap, badge, busy, onBuy, primary: highlighted }: { plan: Sold; text: LicenseText["plans"]; cap: number; badge?: string; busy: boolean; onBuy: () => void; primary: boolean }) {
   const id = `plan-${plan.period}`;
@@ -123,8 +144,6 @@ function Plan({ plan, text, cap, badge, busy, onBuy, primary: highlighted }: { p
       </h2>
       <p className="mt-1 text-xl font-bold tracking-tight">{formatPrice(plan)}</p>
       {plan.taxIncluded && <p className="text-[13px] text-muted">VAT included</p>}
-      {/* The provider's text as written: plain, with its line breaks. */}
-      {plan.description && <p className="mt-2 whitespace-pre-line text-[13px] text-muted">{plan.description}</p>}
       {text.note && <p className="mt-2 text-[13px] text-muted">{text.note}</p>}
       <Features features={text.features} cap={cap} className="mb-5 mt-4" />
       <button type="button" disabled={busy} onClick={onBuy} className={`${highlighted ? primary : secondary} mt-auto w-full py-2.5 text-[15px]`}>

@@ -1,10 +1,10 @@
-// What notefeed needs from a payment provider (ADR 0029): the plans it sells (ADR 0035), a checkout to send the buyer to, the provider's webhook turned into
-// events about a license, a link to the provider's page for the buyer, and a way to end a subscription. Everything provider-specific stays behind this; backend/licenseflow.ts is the only caller.
+// What notefeed needs from a payment provider (ADR 0029): the plans it sells (ADR 0035), a checkout to send the buyer to, the license key it issued for
+// that checkout, the provider's webhook turned into events about a license, a link to the provider's page for the buyer, and a way to end a subscription. Everything provider-specific stays behind this; backend/licenseflow.ts is the only caller.
 
 /** What a webhook says about a license. `providerRef` is the provider's subscription id; `validUntil` is when the paid period ends (ms). */
 export type LicenseEvent =
-  /** Bought: the license with this key hash exists from now on. */
-  | { type: "started"; providerRef: string; keyHash: string; validUntil: number | null }
+  /** Bought: the license with this key, which the provider issued, exists from now on. */
+  | { type: "started"; providerRef: string; key: string; validUntil: number | null }
   /** Paid again: the period is extended. */
   | { type: "renewed"; providerRef: string; validUntil: number | null }
   /** The buyer cancelled: it stays active until `validUntil`. */
@@ -29,9 +29,12 @@ export interface PaymentProvider {
   /** The plans sold, monthly then yearly, as the provider holds them: name, description, price. Never throws: a provider that
    *  cannot be read gives what it gave last, or none. */
   plans(): Promise<Plan[]>;
-  /** The URL to send the buyer to. `keyHash` is carried through the provider and comes back in the `started` event. `period` picks
-   *  the product; throws when the provider has none for it. */
-  createCheckout(o: { keyHash: string; successUrl: string; period: LicensePeriod }): Promise<{ url: string }>;
+  /** The URL to send the buyer to; after paying, the buyer comes back to `successUrl` with the checkout's id in `checkout_id`.
+   *  `period` picks the product; throws when the provider has none for it. */
+  createCheckout(o: { successUrl: string; period: LicensePeriod }): Promise<{ url: string }>;
+  /** The license key issued for a completed checkout, the same one the `started` event carries; null while it is not completed, or
+   *  for a checkout that is none. */
+  checkoutKey(checkoutId: string): Promise<string | null>;
   /** Verifies the signature over the raw body and returns the events it holds (none for an event kind notefeed does not use).
    *  Throws WebhookRejectedError for a bad signature or a body that is not the provider's. */
   parseWebhook(rawBody: string, headers: Headers): Promise<LicenseEvent[]>;

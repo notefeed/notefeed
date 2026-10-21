@@ -15,7 +15,13 @@ export default async function LicensePage() {
   return (
     <main>
       <h1 className="mb-2 text-3xl font-bold tracking-tight">License</h1>
-      <BuyLicense text={text} intro={text.intro && <NoteView markdown={text.intro} />} plans={await licensePlans()} cap={freeNoteCap()} />
+      <BuyLicense
+        text={text}
+        intro={text.intro && <NoteView markdown={text.intro} />}
+        fineprint={text.fineprint && <NoteView markdown={text.fineprint} />}
+        plans={await licensePlans()}
+        cap={freeNoteCap()}
+      />
     </main>
   );
 }

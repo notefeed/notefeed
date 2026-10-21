@@ -1,8 +1,8 @@
-// Buying and holding a license (ADR 0029): the checkout, the provider's webhook, and entering or detaching a key. The key is 128
-// random bits made here; the provider carries only its hash through the checkout, so the buyer sees the key on the success page
-// (in the URL fragment, which the browser does not send to notefeed) and notefeed stores the hash alone. The provider does hold the
-// key: the success URL is given to it whole, and Creem returns it in `checkout.completed`.
-import { createHash, randomBytes } from "node:crypto";
+// Buying and holding a license (ADR 0029): the checkout, the provider's webhook, and entering or detaching a key. The key is the
+// provider's: it issues one per purchase, puts it in the buyer's receipt and its customer portal, so a lost key is found there
+// again, and hands it to notefeed in the completed checkout. notefeed stores its hash alone; the success page shows the key by
+// asking the provider for the checkout the buyer came back from.
+import { createHash } from "node:crypto";
 import { config } from "./config";
 import { InvalidBodyError, LicenseRequiredError, NotFoundError } from "./errors";
 import { licenses } from "./licensing";
@@ -15,16 +15,27 @@ const log = logger("licenses");
 
 export const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
 const KEY_RE = /^[A-Za-z0-9_-]{22,64}$/;
+const CHECKOUT_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** The URL to send a buyer to, for a license per month or, where one is offered, per year. The success page gets the key in its
- *  fragment. Throws when no provider is configured, or InvalidBodyError for a period that is not sold. */
+/** The URL to send a buyer to, for a license per month or, where one is offered, per year. The buyer comes back to the license
+ *  page with the checkout's id. Throws when no provider is configured, or InvalidBodyError for a period that is not sold. */
 export async function startCheckout(period: LicensePeriod = "month"): Promise<{ url: string }> {
   const provider = paymentProvider();
   if (!provider) throw new NotFoundError("licenses are not sold on this instance");
   // What the provider sells right now: a product that is not configured, gone or not active has no plan (ADR 0035).
   if (!(await provider.plans()).some((p) => p.period === period)) throw new InvalidBodyError(`no license per ${period} is sold here`);
-  const key = randomBytes(16).toString("base64url");
-  return provider.createCheckout({ keyHash: hashKey(key), successUrl: `${config.publicUrl()}/license#${key}`, period });
+  return provider.createCheckout({ successUrl: `${config.publicUrl()}/license`, period });
+}
+
+/** The key bought in a checkout, for the success page. NotFoundError while the checkout is not completed (the page asks again),
+ *  InvalidBodyError for an id that cannot be one. Whoever has the checkout's id may see its key: it is the buyer's redirect. */
+export async function keyOfCheckout(checkoutId: string): Promise<{ key: string }> {
+  const provider = paymentProvider();
+  if (!provider) throw new NotFoundError("licenses are not sold on this instance");
+  if (!CHECKOUT_RE.test(checkoutId)) throw new InvalidBodyError("that is not a checkout");
+  const key = await provider.checkoutKey(checkoutId);
+  if (!key) throw new NotFoundError("no license key for that checkout yet");
+  return { key };
 }
 
 /** Applies one webhook delivery; the same event twice does no harm. Returns how many events it held. */
@@ -54,7 +65,7 @@ async function apply(e: LicenseEvent): Promise<void> {
   const store = licenses();
   switch (e.type) {
     case "started":
-      await store.createLicense({ keyHash: e.keyHash, providerRef: e.providerRef, validUntil: e.validUntil });
+      await store.createLicense({ keyHash: hashKey(e.key), providerRef: e.providerRef, validUntil: e.validUntil });
       return void log.info("license bought");
     case "renewed":
       // A renewal after a lapse (the buyer paid again) makes it active again.

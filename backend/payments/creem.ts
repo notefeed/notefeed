@@ -1,4 +1,6 @@
-// Creem (a merchant of record; https://docs.creem.io), ADR 0029. A key starting `creem_test_` talks to the sandbox. The webhook is
+// Creem (a merchant of record; https://docs.creem.io), ADR 0029. A key starting `creem_test_` talks to the sandbox. The products
+// carry Creem's license key feature: Creem makes the key, puts it in the receipt e-mail and the customer portal, and hands it over
+// in the completed checkout. The webhook is
 // signed with HMAC-SHA256 over the raw body, hex, in `creem-signature`; the same event can arrive more than once. A refund leaves
 // the subscription running at Creem (seen in the sandbox), which is why licenseflow cancels it.
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -29,6 +31,12 @@ export function resetPlansForTests(): void {
 }
 
 class ProductsUnreadable extends Error {}
+
+// The key of a checkout: the first of `license_keys`, one per unit bought; notefeed sells one.
+const licenseKey = (checkout: Obj): string | undefined => {
+  const keys = checkout.license_keys;
+  return Array.isArray(keys) ? str(obj(keys[0])?.key) : undefined;
+};
 
 export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSecret, fetch: doFetch = fetch }: CreemOptions): PaymentProvider {
   const base = apiKey.startsWith("creem_test_") ? "https://test-api.creem.io/v1" : "https://api.creem.io/v1";
@@ -84,13 +92,21 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
       return plansCache.plans ?? plansCache.pending;
     },
 
-    async createCheckout({ keyHash, successUrl, period }) {
+    async createCheckout({ successUrl, period }) {
       const product = period === "year" ? yearlyProductId : productId;
       if (!product) throw new Error(`creem: no product for a license per ${period}`);
-      const checkout = await call("creating a checkout", "/checkouts", { product_id: product, success_url: successUrl, request_id: keyHash, metadata: { key_hash: keyHash } });
+      const checkout = await call("creating a checkout", "/checkouts", { product_id: product, success_url: successUrl });
       const url = str(checkout?.checkout_url);
       if (!url) throw new Error("creem: the checkout has no checkout_url");
       return { url };
+    },
+
+    async checkoutKey(checkoutId) {
+      const res = await doFetch(`${base}/checkouts?checkout_id=${encodeURIComponent(checkoutId)}`, { headers: { "x-api-key": apiKey } });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`creem: reading a checkout failed (${res.status})`);
+      const checkout = obj(await res.json());
+      return (checkout?.status === "completed" && licenseKey(checkout)) || null;
     },
 
     async parseWebhook(rawBody, headers) {
@@ -111,9 +127,9 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
         case "checkout.completed": {
           // A one-off product has no subscription: the order is the reference then.
           const providerRef = str(subscription?.id) ?? str(obj(o.order)?.id);
-          const keyHash = str(obj(o.metadata)?.key_hash) ?? str(obj(subscription?.metadata)?.key_hash);
-          if (!providerRef || !keyHash) throw new WebhookRejectedError("a completed checkout without a subscription and a key hash");
-          return [{ type: "started", providerRef, keyHash, validUntil: time(subscription?.current_period_end_date) }];
+          const key = licenseKey(o);
+          if (!providerRef || !key) throw new WebhookRejectedError("a completed checkout without a subscription and a license key");
+          return [{ type: "started", providerRef, key, validUntil: time(subscription?.current_period_end_date) }];
         }
         case "subscription.paid":
         case "subscription.active": {

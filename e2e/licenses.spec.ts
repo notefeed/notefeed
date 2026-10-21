@@ -1,17 +1,18 @@
 // An instance that sells licenses (the fake provider, port 3104, a cap of 10 free notes): a free feed's owner sees how many of
 // the free notes it uses, a notice on the feed once it nears the cap, and neither once a license is on it (issue #183); a new
 // feed gets its password and its license key in one post (issue #193).
-import { createHash, createHmac } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { type APIRequestContext, expect, test } from "@playwright/test";
 
 const text = { "Content-Type": "text/markdown" };
 const feedName = () => `cap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
-// Bought: the checkout's key, activated by the fake provider's webhook.
+// Bought: the key the fake provider issued for the checkout, activated by its webhook.
 async function buy(request: APIRequestContext, ref: string): Promise<string> {
   const { url } = await (await request.post("/api/licenses/checkout")).json();
-  const key = String(url).split("#")[1];
-  const events = JSON.stringify([{ type: "started", providerRef: ref, keyHash: createHash("sha256").update(key).digest("hex"), validUntil: null }]);
+  const checkout = new URL(url, "http://e2e.invalid").searchParams.get("checkout_id"); // relative without PUBLIC_URL
+  const { key } = await (await request.post("/api/licenses/key", { data: { checkout } })).json();
+  const events = JSON.stringify([{ type: "started", providerRef: ref, key, validUntil: null }]);
   const signature = createHmac("sha256", "e2e-webhook").update(events).digest("hex");
   expect((await request.post("/api/licenses/webhook", { data: events, headers: { "Content-Type": "application/json", "x-fake-signature": signature } })).status()).toBe(200);
   return key;
@@ -56,7 +57,7 @@ test("a free feed shows its notes against the cap, warns near it, and a license 
 });
 
 // The license page offers the fake provider's two plans, a tile each, in the words of fixtures/license.md; the fake
-// provider's checkout is the success page itself.
+// provider's checkout is the success page itself, which shows the key it issued.
 test("the license page sells a month or a year, and the yearly checkout comes back with a key", async ({ page }) => {
   await page.goto("/license");
   await expect(page.getByText("A license lifts the free tier's limits for one feed.")).toBeVisible();
@@ -66,10 +67,13 @@ test("the license page sells a month or a year, and the yearly checkout comes ba
   await expect(monthly.getByText("€1.99 per month")).toBeVisible();
   await expect(yearly.getByText("€19.90 per year")).toBeVisible();
   await expect(yearly.getByText("Save 16 %")).toBeVisible(); // against 12 × €1.99
+  await expect(page.getByText("A subscription renews until you cancel it.")).toBeVisible(); // the fine print, Markdown
+  await expect(page.getByRole("link", { name: "terms" })).toHaveAttribute("href", "/terms");
   await expect(monthly.getByRole("button", { name: "Subscribe" })).toBeVisible();
   await yearly.getByRole("button", { name: "Subscribe" }).click();
   await expect(page.getByRole("heading", { name: "Your license key" })).toBeVisible();
-  expect(new URL(page.url()).hash).toMatch(/^#[A-Za-z0-9_-]{22}$/);
+  await expect(page.locator("code")).toHaveText(/^[A-Za-z0-9_-]{22}$/);
+  await expect(page.getByText("The key is also in the payment provider's receipt e-mail")).toBeVisible();
 });
 
 // A feed password needs a license, and a feed can only get a password when it is created: a new feed's "Protect this feed" section

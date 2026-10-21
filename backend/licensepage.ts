@@ -1,5 +1,5 @@
-// license.md (ADR 0035): the license page's words that the payment provider does not hold. YAML front matter for the free tile
-// and what every plan tile shows, the Markdown body for the intro. A message about a broken file names the field or the line,
+// license.md (ADR 0035): the license page's words that the payment provider does not hold. YAML front matter for the free tile,
+// what every plan tile shows and the fine print below the tiles (Markdown), the Markdown body for the intro. A message about a broken file names the field or the line,
 // never the file's text: it goes to the log at startup.
 import { parse, YAMLParseError } from "yaml";
 import { z } from "zod";
@@ -27,6 +27,7 @@ const shape = z.strictObject({
     features: z.array(feature),
     button: z.string().min(1),
   }),
+  fineprint: z.string().optional(),
 });
 
 const FRONT_MATTER = /^---[ \t]*\n([\s\S]*?)^---[ \t]*(?:\n|$)/m;

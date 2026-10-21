@@ -1,6 +1,7 @@
 // The license endpoints of the SaaS (ADR 0029). Under /api, which proxy.ts leaves to its handlers, and not in the public API
 // description (as the operator's are): they are for notefeed.me's own pages and for the payment provider.
-//   POST   /api/licenses/checkout  {"period"?: "month" | "year"} the URL to send a buyer to (the key comes back in the fragment of the success page)
+//   POST   /api/licenses/checkout  {"period"?: "month" | "year"} the URL to send a buyer to (who comes back with `checkout_id`)
+//   POST   /api/licenses/key       {"checkout"} the license key bought in that checkout, for the success page; 404 until it is completed
 //   POST   /api/licenses/webhook   the provider's events; signed, answered 200 once applied, 400 for a bad signature
 //   POST   /api/licenses/attach    {"feed", "key"} puts the license on the feed; needs write access to the feed
 //   DELETE /api/licenses/attach    {"feed"} takes the license off; needs write access to the feed
@@ -9,7 +10,7 @@
 import { InvalidBodyError, NotefeedError, NotFoundError, RateLimitedError } from "../errors";
 import { checkFeedAccess } from "../feedlock";
 import { checkFeed } from "../feednames";
-import { attachLicense, detachLicense, portalFor, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
+import { attachLicense, detachLicense, keyOfCheckout, portalFor, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
 import { licensingOn } from "../licensing";
 import { clientIp, rateLimit } from "../limits";
 import { logger } from "../log";
@@ -44,6 +45,18 @@ export async function checkoutRoute(req: Request): Promise<Response> {
     const period = (await body(req, 4096)).period ?? "month";
     if (period !== "month" && period !== "year") throw new InvalidBodyError("period must be month or year");
     return json(await startCheckout(period));
+  } catch (e) {
+    return failed(e);
+  }
+}
+
+export async function keyRoute(req: Request): Promise<Response> {
+  if (!licensingOn()) return off();
+  try {
+    const wait = rateLimit(clientIp(req.headers));
+    if (wait !== null) throw new RateLimitedError(wait);
+    const b = await body(req, 4096);
+    return json(await keyOfCheckout(typeof b.checkout === "string" ? b.checkout : ""));
   } catch (e) {
     return failed(e);
   }
