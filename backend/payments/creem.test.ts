@@ -152,8 +152,39 @@ describe("Creem", () => {
     expect(await parse(event("refund.created", refund))).toEqual([{ type: "refunded", providerRef: "sub_6I28jztOO823nH6JIoMh1S" }]);
   });
 
-  // Creem's sample of the event (docs.creem.io, webhooks), cut the same way: not yet seen in the sandbox, where a period cannot be
-  // run out early. Its status says `active` and its period starts where it ends; only the id is relied on.
+  // A daily product in the sandbox (2026-10-19 to 21), cut the same way. A renewal is `subscription.update` then `subscription.paid`
+  // with the next period. A cancel at the period's end is carried out ahead of it (20:00 UTC, 11.5 hours early) as a plain
+  // `subscription.canceled`, its period end kept, and nothing follows at that end. A paused subscription sends nothing more.
+  test("a real renewal, a cancel at the period's end carried out early, and a pause", async () => {
+    const c = creem();
+    const parse = (raw: string) => c.parseWebhook(raw, sign(raw));
+    const subscription = (id: string, status: string, start: string, end: string) => ({
+      id,
+      object: "subscription",
+      items: [{ object: "subscription_item", id: "sitem_1", product_id: "prod_1", price_id: "pprice_1", units: 1 }],
+      collection_method: "charge_automatically",
+      status,
+      current_period_start_date: start,
+      current_period_end_date: end,
+      canceled_at: null as string | null,
+      metadata: { key_hash: "543a6bb2" },
+      mode: "test",
+    });
+    const renewed = subscription("sub_5YSfn3UClqcsPBDHxZOBA3", "active", "2026-10-20T05:29:23.115Z", "2026-10-21T05:29:23.115Z");
+    expect(await parse(event("subscription.update", renewed))).toEqual([]);
+    expect(await parse(event("subscription.paid", { ...renewed, last_transaction_id: "tran_1", next_transaction_date: "2026-10-21T05:29:23.115Z" }))).toEqual([
+      { type: "renewed", providerRef: "sub_5YSfn3UClqcsPBDHxZOBA3", validUntil: Date.parse("2026-10-21T05:29:23.115Z") },
+    ]);
+    const end = "2026-10-21T07:38:27.717Z";
+    const carriedOut = { ...subscription("sub_MlPlfUVr4OJzJ9ACnubau", "canceled", "2026-10-20T07:38:27.717Z", end), canceled_at: "2026-10-20T20:00:01.967Z" };
+    expect(await parse(event("subscription.canceled", carriedOut))).toEqual([{ type: "cancelled", providerRef: "sub_MlPlfUVr4OJzJ9ACnubau", validUntil: Date.parse(end) }]);
+    const paused = subscription("sub_6Rp1HuGfUGOjY7X880h7Kv", "paused", "2026-10-19T05:37:38.000Z", "2026-10-20T05:37:38.000Z");
+    expect(await parse(event("subscription.paused", paused))).toEqual([]);
+  });
+
+  // Creem's sample of the event (docs.creem.io, webhooks), cut the same way. Creem sends it when a period ends without a payment, which
+  // the sandbox cannot make happen (its portal refuses every failing test card); a cancel never leads to it. Its status says `active`
+  // and its period starts where it ends; only the id is relied on.
   test("the documented expiry ends the license", async () => {
     const c = creem();
     const raw = event("subscription.expired", {
