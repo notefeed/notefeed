@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { config } from "./config";
 import { InvalidBodyError, LicenseRequiredError, NotFoundError } from "./errors";
-import { licenses } from "./licensing";
+import { isLicensed, licenses } from "./licensing";
 import { logger } from "./log";
 import { paymentProvider, WebhookRejectedError, type LicenseEvent, type LicensePeriod } from "./payments";
 import { checkFeed } from "./feednames";
@@ -100,7 +100,12 @@ export async function checkLicenseKey(key: string): Promise<void> {
 export async function attachLicense(feed: string, key: string): Promise<void> {
   if (checkFeed(feed) || !(await hasFeed(feed))) throw new NotFoundError("no such feed");
   if (!KEY_RE.test(key)) throw new InvalidBodyError("that is not a license key");
-  const result = await licenses().attach(hashKey(key), feed);
+  let result = await licenses().attach(hashKey(key), feed);
+  // A lapsed license stays on its feed (it is the record of the subscription), but it gives the feed nothing: a new key takes its place.
+  if (result === "feed-has-license" && !(await isLicensed(feed))) {
+    await licenses().detach(feed);
+    result = await licenses().attach(hashKey(key), feed);
+  }
   if (result === "unknown-key") throw new InvalidBodyError("that is not a license key");
   if (result === "feed-has-license") throw new InvalidBodyError("the feed already has a license; detach it first");
 }

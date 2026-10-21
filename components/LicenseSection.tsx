@@ -22,7 +22,8 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
   async function send(method: "POST" | "DELETE") {
     setError("");
     setDone("");
-    const res = await fetch("/api/licenses/attach", { method, headers: { "content-type": "application/json" }, body: JSON.stringify({ feed, key }) });
+    // Under the feed's path, where a protected feed's unlock cookie is sent.
+    const res = await fetch(`/${encodeURIComponent(feed)}/license`, { method, headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) });
     if (res.ok) {
       setKey("");
       setDone(method === "POST" ? "The license is on this feed now." : "The license is off this feed. Its key can be entered on another feed.");

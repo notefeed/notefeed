@@ -22,6 +22,7 @@ export const ROUTES = [
   "/[feed]/access",
   "/[feed]/delete",
   "/[feed]/details",
+  "/[feed]/license",
   "/[feed]/settings",
   "/api/licenses/attach",
   "/api/licenses/checkout",

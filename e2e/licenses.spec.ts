@@ -104,3 +104,31 @@ test("a new feed gets its password and its license key in one post; without the 
   // Protected: a stranger is asked for the password.
   expect((await request.post(`/${feed}`, { data: "# Stranger", headers: text })).status()).toBe(401);
 });
+
+// Seen on notefeed.me (2026-10-21): on a protected feed whose license was refunded, the settings page could not enter a new
+// key. Its request went to /api/licenses/attach, where the feed's unlock cookie is never sent, and the lapsed license still
+// held the feed. The page now posts under the feed's path, and a new key replaces a lapsed one.
+test("on a protected feed, a new key from the settings page replaces a refunded license", async ({ page, request }) => {
+  const feed = feedName();
+  const ref = `sub_${feed}`;
+  const first = await buy(request, ref);
+  await page.goto(`/${feed}`);
+  await page.getByLabel("Note in markdown").fill("# Secret note");
+  const protect = page.getByRole("region", { name: "Protect this feed" });
+  await protect.getByLabel("Password (optional, protects this feed)").fill("Passw0rd!x");
+  await protect.getByLabel("License key (needed with a password)").fill(first);
+  await page.getByRole("button", { name: "Post note" }).click();
+  await expect(page.getByRole("link", { name: "Secret note" })).toBeVisible();
+
+  const refund = JSON.stringify([{ type: "refunded", providerRef: ref }]);
+  const signature = createHmac("sha256", "e2e-webhook").update(refund).digest("hex");
+  expect((await request.post("/api/licenses/webhook", { data: refund, headers: { "Content-Type": "application/json", "x-fake-signature": signature } })).status()).toBe(200);
+
+  const second = await buy(request, `${ref}_2`);
+  await page.goto(`/${feed}/settings`);
+  await page.getByText(/^Free tier/).click();
+  await page.getByLabel("License key").fill(second);
+  await page.getByRole("button", { name: "Use key" }).click();
+  await expect(page.getByText("The license is on this feed now.")).toBeVisible();
+  await expect(page.getByText("Licensed", { exact: true })).toBeVisible();
+});

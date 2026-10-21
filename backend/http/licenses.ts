@@ -5,6 +5,8 @@
 //   POST   /api/licenses/webhook   the provider's events; signed, answered 200 once applied, 400 for a bad signature
 //   POST   /api/licenses/attach    {"feed", "key"} puts the license on the feed; needs write access to the feed
 //   DELETE /api/licenses/attach    {"feed"} takes the license off; needs write access to the feed
+//   POST   /<feed>/license         {"key"} and DELETE: the same for the feed's settings page, under the feed's path, where the
+//                                  unlock cookie of a protected feed is sent (it never reaches /api/licenses)
 //   POST   /api/licenses/portal    {"key"} the provider's page for the holder of the key: cancelling, payment method, invoices
 // All of them are 404 while no payment provider is configured.
 import { InvalidBodyError, NotefeedError, NotFoundError, RateLimitedError } from "../errors";
@@ -79,10 +81,19 @@ export async function webhookRoute(req: Request): Promise<Response> {
 
 export async function attachRoute(req: Request): Promise<Response> {
   if (!licensingOn()) return off();
+  return attachOrDetach(req, async (b) => (typeof b.feed === "string" ? b.feed : ""));
+}
+
+export async function feedLicenseRoute(req: Request, feed: string): Promise<Response> {
+  if (!licensingOn()) return off();
+  return attachOrDetach(req, async () => feed);
+}
+
+async function attachOrDetach(req: Request, feedOf: (b: Record<string, unknown>) => Promise<string>): Promise<Response> {
   try {
     const ip = clientIp(req.headers);
     const b = await body(req, 4096);
-    const feed = typeof b.feed === "string" ? b.feed : "";
+    const feed = await feedOf(b);
     if (checkFeed(feed)) throw new NotFoundError("no such feed");
     await checkFeedAccess(feed, feedAccess(req.headers, feed), ip);
     if (req.method === "DELETE") {
