@@ -17,7 +17,7 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
 }
 
 // The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile, a tile per plan the provider sells
-// (ADR 0035): its name, price and description from the provider, the rest from license.md, each with a button that opens the
+// (ADR 0035): its name and price from the provider, the rest from license.md, each with a button that opens the
 // provider's checkout, and license.md's fine print below them. After: the key the provider issued, asked for by the checkout id
 // the buyer came back with (the provider may still be finishing, so it is asked again for a while); it is also in the provider's
 // receipt and customer portal. Below both: the way to the provider's page for a license one holds, by its key.
@@ -131,7 +131,8 @@ export function BuyLicense({ text, intro, fineprint, plans, cap }: { text: Licen
 // Tailwind sees whole class names only: the free tile and one column per plan.
 const COLUMNS: Record<number, string> = { 0: "sm:grid-cols-1", 1: "sm:grid-cols-2", 2: "sm:grid-cols-3" };
 
-// A paid tile: the provider's name, price and description, what every license adds (license.md), and the button to the checkout.
+// A paid tile: the provider's name and price, what every license adds (license.md), and the button to the checkout. The provider's
+// description is for its checkout and receipt, where it can say more than a tile should.
 // `primary`: the highlighted one (the last, the yearly plan where one is sold); `badge`: what it saves, or license.md's badge.
 function Plan({ plan, text, cap, badge, busy, onBuy, primary: highlighted }: { plan: Sold; text: LicenseText["plans"]; cap: number; badge?: string; busy: boolean; onBuy: () => void; primary: boolean }) {
   const id = `plan-${plan.period}`;
@@ -143,8 +144,6 @@ function Plan({ plan, text, cap, badge, busy, onBuy, primary: highlighted }: { p
       </h2>
       <p className="mt-1 text-xl font-bold tracking-tight">{formatPrice(plan)}</p>
       {plan.taxIncluded && <p className="text-[13px] text-muted">VAT included</p>}
-      {/* The provider's text as written: plain, with its line breaks. */}
-      {plan.description && <p className="mt-2 whitespace-pre-line text-[13px] text-muted">{plan.description}</p>}
       {text.note && <p className="mt-2 text-[13px] text-muted">{text.note}</p>}
       <Features features={text.features} cap={cap} className="mb-5 mt-4" />
       <button type="button" disabled={busy} onClick={onBuy} className={`${highlighted ? primary : secondary} mt-auto w-full py-2.5 text-[15px]`}>
