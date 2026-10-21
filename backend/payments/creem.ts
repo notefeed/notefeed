@@ -128,7 +128,7 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
         case "subscription.expired":
         case "subscription.unpaid": {
           const providerRef = str(o.id);
-          return providerRef ? [{ type: "ended", providerRef }] : [];
+          return providerRef ? [{ type: "ended", providerRef, periodEnd: time(o.current_period_end_date) }] : [];
         }
         case "refund.created":
         case "dispute.created": {
