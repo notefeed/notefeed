@@ -25,6 +25,7 @@ export const ROUTES = [
   "/[feed]/settings",
   "/api/licenses/attach",
   "/api/licenses/checkout",
+  "/api/licenses/key",
   "/api/licenses/portal",
   "/api/licenses/webhook",
   "/api/login",

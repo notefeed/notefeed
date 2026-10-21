@@ -2,15 +2,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { hashKey } from "../licenseflow";
 import { isLicensed, resetLicensesForTests } from "../licensing";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { createNote } from "../notes";
 import { resetPlansForTests } from "../payments/creem";
-import { cancelled, fakeSignature } from "../payments/fake";
+import { cancelled, fakeKey, fakeSignature } from "../payments/fake";
 import { API_PREFIX, dispatch } from "./api";
-import { attachRoute, checkoutRoute, portalRoute, webhookRoute } from "./licenses";
+import { attachRoute, checkoutRoute, keyRoute, portalRoute, webhookRoute } from "./licenses";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -43,11 +42,12 @@ const webhook = (events: unknown[], secret = SECRET) => {
   const raw = JSON.stringify(events);
   return new Request("https://notefeed.test/api/licenses/webhook", { method: "POST", headers: { "x-fake-signature": fakeSignature(secret, raw) }, body: raw });
 };
+// Bought: the checkout comes back with its id, the success page asks for its key, the webhook starts the license.
 const buy = async (ref = "sub_1", validUntil: number | null = null) => {
   const { url } = await (await checkoutRoute(post("/api/licenses/checkout", {}))).json();
-  const key = new URL(url).hash.slice(1);
-  expect((await webhookRoute(webhook([{ type: "started", providerRef: ref, keyHash: hashKey(key), validUntil }]))).status).toBe(200);
-  return key;
+  const { key } = await (await keyRoute(post("/api/licenses/key", { checkout: new URL(url).searchParams.get("checkout_id") }))).json();
+  expect((await webhookRoute(webhook([{ type: "started", providerRef: ref, key, validUntil }]))).status).toBe(200);
+  return key as string;
 };
 
 describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
@@ -57,17 +57,25 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect((await webhookRoute(webhook([]))).status).toBe(404);
     expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key: "k" }))).status).toBe(404);
     expect((await portalRoute(post("/api/licenses/portal", { key: "k" }))).status).toBe(404);
+    expect((await keyRoute(post("/api/licenses/key", { checkout: "fake_1" }))).status).toBe(404);
   });
 
-  test("the checkout sends the buyer to a success page whose fragment holds the key", async () => {
+  test("the checkout comes back to the license page with its id, and the provider's key is had for that id alone", async () => {
     const { url } = await (await checkoutRoute(post("/api/licenses/checkout", {}))).json();
-    expect(url).toMatch(/^https:\/\/notefeed\.test\/license#[A-Za-z0-9_-]{22}$/);
+    expect(url).toMatch(/^https:\/\/notefeed\.test\/license\?checkout_id=fake_[A-Za-z0-9_-]+$/);
+    const checkout = new URL(url).searchParams.get("checkout_id")!;
+    const res = await keyRoute(post("/api/licenses/key", { checkout }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).key).toBe(fakeKey(SECRET, checkout));
+    expect((await keyRoute(post("/api/licenses/key", { checkout: "ch_unknown" }))).status).toBe(404); // not completed, or none
+    expect((await keyRoute(post("/api/licenses/key", { checkout: "a b" }))).status).toBe(400);
+    expect((await keyRoute(post("/api/licenses/key", {}))).status).toBe(400);
   });
 
   test("both periods are sold with the fake provider, and the period must be month or year", async () => {
     for (const period of ["month", "year"]) {
       const { url } = await (await checkoutRoute(post("/api/licenses/checkout", { period }))).json();
-      expect(url).toMatch(/^https:\/\/notefeed\.test\/license#[A-Za-z0-9_-]{22}$/);
+      expect(url).toMatch(/^https:\/\/notefeed\.test\/license\?checkout_id=fake_/);
     }
     expect((await checkoutRoute(post("/api/licenses/checkout", { period: "week" }))).status).toBe(400);
   });
@@ -139,7 +147,7 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
 
   test("a bad signature is 400, and the same event twice does no harm", async () => {
     expect((await webhookRoute(webhook([], "wrong"))).status).toBe(400);
-    const event = { type: "started", providerRef: "sub_1", keyHash: hashKey("k".repeat(22)), validUntil: null };
+    const event = { type: "started", providerRef: "sub_1", key: "k".repeat(22), validUntil: null };
     expect((await webhookRoute(webhook([event]))).status).toBe(200);
     expect((await webhookRoute(webhook([event]))).status).toBe(200);
   });

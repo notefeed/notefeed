@@ -12,7 +12,7 @@ notefeed.me needs income. The decisions so far are in issue #42: the feed owner 
 
 ## Considered Options
 
-* **A license record per feed, with a random key** (chosen): bought through the provider, shown once on the checkout success page, entered in the feed's settings together with write access to the feed.
+* **A license record per feed, with a random key** (chosen): bought through the provider, shown once on the checkout success page, entered in the feed's settings together with write access to the feed. Since ADR 0036 the key is the provider's, which the buyer also finds in the receipt and the provider's portal.
 * **An account identifier that holds licenses and covers several feeds** (Mullvad style): one purchase for many feeds, but a table that links one person's feeds to each other, which notefeed does not know today. Not rejected for good: a license record can gain an owner field later.
 * **Signed tokens checked locally:** no store, but renewals, lapses, refunds and moving a license need state that can change.
 
@@ -36,7 +36,7 @@ Chosen: a license record per feed. Linking a license to a payment is a deterrent
 * Good, because nothing about a buyer is stored: the key is a hash, the provider holds the person.
 * Good, because the provider is replaceable and the feature checks live in one place.
 * Good, because a self-hosted instance cannot be locked out of a feature by a missing license.
-* Bad, because a lost key cannot be recovered by notefeed.
+* Bad, because a lost key cannot be recovered by notefeed. (Changed by ADR 0036: the provider's key is in the buyer's receipt.)
 * Bad, because the license file is one more thing to back up, and a restore of the feeds from an older backup does not undo the detaching a deletion did.
 * Bad, because one person with several feeds buys and manages several licenses.
 * Bad, because the SaaS depends on the provider's webhooks being delivered; a missed one is repaired by the provider's retries and a periodic check of `validUntil`.
