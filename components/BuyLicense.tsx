@@ -16,11 +16,11 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
   throw new Error(answer.error && answer.code === "invalid_body" ? `${answer.error[0].toUpperCase()}${answer.error.slice(1)}.` : (errorMessage(answer.code) ?? "Something went wrong."));
 }
 
-// The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile and a tile per plan the provider sells
+// The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile, a tile per plan the provider sells
 // (ADR 0035): its name, price and description from the provider, the rest from license.md, each with a button that opens the
-// provider's checkout. After: the key, which is in the fragment of this page's URL, so notefeed's server has not received it; it
+// provider's checkout, and license.md's fine print below them. After: the key, which is in the fragment of this page's URL, so notefeed's server has not received it; it
 // keeps only the hash and cannot show it again. Below both: the way to the provider's page for a license one holds, by its key.
-export function BuyLicense({ text, intro, plans, cap }: { text: LicenseText; intro: ReactNode; plans: Sold[]; cap: number }) {
+export function BuyLicense({ text, intro, fineprint, plans, cap }: { text: LicenseText; intro: ReactNode; fineprint?: ReactNode; plans: Sold[]; cap: number }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -101,6 +101,7 @@ export function BuyLicense({ text, intro, plans, cap }: { text: LicenseText; int
           <p id="buy-error" role="alert" className="mt-2 text-error empty:hidden">
             {error}
           </p>
+          {fineprint && <div className="mt-3 text-[12px] text-muted">{fineprint}</div>}
         </section>
       )}
       <ManageLicense bought={key} />

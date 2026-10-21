@@ -66,6 +66,8 @@ test("the license page sells a month or a year, and the yearly checkout comes ba
   await expect(monthly.getByText("€1.99 per month")).toBeVisible();
   await expect(yearly.getByText("€19.90 per year")).toBeVisible();
   await expect(yearly.getByText("Save 16 %")).toBeVisible(); // against 12 × €1.99
+  await expect(page.getByText("A subscription renews until you cancel it.")).toBeVisible(); // the fine print, Markdown
+  await expect(page.getByRole("link", { name: "terms" })).toHaveAttribute("href", "/terms");
   await expect(monthly.getByRole("button", { name: "Subscribe" })).toBeVisible();
   await yearly.getByRole("button", { name: "Subscribe" }).click();
   await expect(page.getByRole("heading", { name: "Your license key" })).toBeVisible();

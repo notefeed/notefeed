@@ -25,13 +25,15 @@ test("the spec's example parses; included defaults to true; the body is the intr
     button: "Subscribe",
   });
   expect(t.intro).toBe("A license lifts the free tier's limits for one feed. Reading a feed is always free, and there are no accounts: the license is a key you keep.");
+  expect(t.fineprint).toBe("A subscription renews until you cancel it. See the [terms](/terms).");
 });
 
-test("badge and notes are optional, an unquoted price is a string, an empty body is no intro", () => {
+test("badge, notes and fine print are optional, an unquoted price is a string, an empty body is no intro", () => {
   const t = parseLicensePage("---\nfree:\n  title: Free\n  price: 0\n  features: []\nplans:\n  features:\n    - { text: Images }\n  button: Buy\n---\n");
   expect(t.free).toEqual({ title: "Free", price: "0", features: [] });
   expect(t.plans).toEqual({ features: [{ text: "Images", included: true }], button: "Buy" });
   expect(t.intro).toBe("");
+  expect(t.fineprint).toBeUndefined();
 });
 
 test("CRLF and a BOM parse like LF", () => {

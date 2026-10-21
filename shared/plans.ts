@@ -9,11 +9,12 @@ export type Plan = { period: LicensePeriod; name: string; description: string; a
 
 export type LicenseFeature = { text: string; included: boolean };
 
-/** license.md: the free tile, what every plan tile shows besides the provider's name, price and description, and the intro (Markdown, "" for none). */
+/** license.md: the free tile, what every plan tile shows besides the provider's name, price and description, the intro (Markdown, "" for none) and the fine print below the tiles (Markdown). */
 export type LicenseText = {
   free: { title: string; price: string; note?: string; features: LicenseFeature[] };
   plans: { badge?: string; note?: string; features: LicenseFeature[]; button: string };
   intro: string;
+  fineprint?: string;
 };
 
 /** "€1.99 per month": the amount in major units, by the currency's own number of digits. */

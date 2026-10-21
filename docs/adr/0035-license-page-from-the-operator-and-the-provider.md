@@ -21,7 +21,7 @@ Before notefeed.me sells licenses (issue #218), everything a visitor reads on an
 
 Chosen: `NOTEFEED_LICENSE_FILE` for the words, the provider's products for the plans.
 
-* **`license.md`**, named by `NOTEFEED_LICENSE_FILE` and read only while a payment provider is set, is Markdown with YAML front matter: the free tile written out in full, and one badge, note, feature list and button label shared by every plan tile, since every license unlocks the same. The body is the intro above the tiles. `{cap}` in a feature is the configured free-tier cap, so the page cannot promise another number than the server keeps. `included` defaults to true (false is the crossed-out style); `badge` and the notes are optional, and the yearly tile shows the computed "Save N %" in place of the badge. The shape is checked strictly (an unknown key is an error); a message about a broken file names the field or the line, never the text. The public docs say nothing about selling (ADR 0029), so the shape is here:
+* **`license.md`**, named by `NOTEFEED_LICENSE_FILE` and read only while a payment provider is set, is Markdown with YAML front matter: the free tile written out in full, one badge, note, feature list and button label shared by every plan tile, since every license unlocks the same, and an optional `fineprint` (Markdown) shown small below the tiles, for what a buyer should know but a tile need not repeat: renewal, cancelling, the key. The body is the intro above the tiles. `{cap}` in a feature is the configured free-tier cap, so the page cannot promise another number than the server keeps. `included` defaults to true (false is the crossed-out style); `badge` and the notes are optional, and the yearly tile shows the computed "Save N %" in place of the badge. The shape is checked strictly (an unknown key is an error); a message about a broken file names the field or the line, never the text. The public docs say nothing about selling (ADR 0029), so the shape is here:
 
   ```markdown
   ---
@@ -41,6 +41,7 @@ Chosen: `NOTEFEED_LICENSE_FILE` for the words, the provider's products for the p
       - { text: Images }
       - { text: A feed password }
     button: Subscribe
+  fineprint: A subscription renews until you cancel it. See the [terms](/terms).
   ---
   A license lifts the free tier's limits for one feed. Reading a feed is always free, and there are no accounts: the license is a key you keep.
   ```
