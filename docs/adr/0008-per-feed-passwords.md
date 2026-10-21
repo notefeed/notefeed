@@ -59,7 +59,7 @@ Out of scope: per-feed read passwords (read links stay public by design), and ga
 * Good, because every entry point goes through the same check, so a bug or a fix shows up everywhere.
 * Good, because the operator keeps full control: deleting one file recovers a feed.
 * Bad, because a `401` for a protected feed reveals that it exists. The notes and the read id stay hidden.
-* Bad, because a lost password can't be recovered without the operator. On a self-hosted instance that is the user.
+* Bad, because a lost password can't be recovered without the operator. On a self-hosted instance that is the user. (Where licenses are sold, the feed's license key recovers it: ADR 0037.)
 * Bad, because the `password` field in a body only creates, and never unlocks: to reach a protected feed a script must send the header (or the cookie, in a browser).
 * Bad, because change and remove are not locked against each other and are not undone: whoever knows the password can change or remove it, and removing it leaves an open feed.
 * Bad, because the cookie never expires on the server and a copied cookie works until the password changes.

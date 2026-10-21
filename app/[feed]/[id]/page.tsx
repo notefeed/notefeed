@@ -9,7 +9,7 @@ import { UnlockForm } from "@/components/UnlockForm";
 import { orDamaged } from "@/app/_lib/damaged";
 import { noteErrorMessage } from "@/app/_lib/messages";
 import { reportUrl } from "@/shared/report";
-import { feedCookieName, feedPath, feedUnlocked, getFeedNote, imageUploadsOn, isRemovedFeed, readIdOf, readPath, reportTemplate } from "@/backend";
+import { feedCookieName, feedPath, feedUnlocked, getFeedNote, imageUploadsOn, isRemovedFeed, licensingOn, readIdOf, readPath, reportTemplate } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[fe
   if ((await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value)) === "locked") {
     return (
       <AppShell feed={feed}>
-        <UnlockForm feed={feed} />
+        <UnlockForm feed={feed} recover={licensingOn() ? { open: false } : undefined} />
       </AppShell>
     );
   }

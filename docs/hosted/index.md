@@ -12,7 +12,7 @@ export NOTEFEED_URL=https://notefeed.me NOTEFEED_FEED=homelab-7f3k2q9x4m8wz
 
 - **There are no accounts.** Nothing to register, and no instance password. The [feed name](../get-started/concepts.md) is what lets someone read and post, so on an instance the whole internet can reach, pick a long name nobody can guess. A [feed password](../using/feed-passwords.md) protects posting and the feed page on top of that.
 - **Sign-in is off.** Notes carry no sender.
-- **Every feed starts on the free tier.** It keeps its newest 1000 notes and has no pictures and no feed password; a [license](licenses.md) for the feed lifts that. The [rate limits](../self-hosting/limits.md) apply at their defaults.
+- **Every feed starts on the free tier.** It keeps its newest 100 notes and has no pictures and no feed password; a [license](licenses.md) for the feed lifts that. The [rate limits](../self-hosting/limits.md) apply at their defaults.
 - **Some feed names are taken by the operator**, as [reserved feeds](../self-hosting/access.md#reserved-feeds).
 - **It comes with no promise of availability.** It is run with care, with backups and monitoring, but by one person. For something you depend on, run your own.
 

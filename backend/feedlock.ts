@@ -8,7 +8,8 @@ import { FeedGoneError } from "./storage/types";
 import { AuthError, FeedExistsError, InvalidBodyError, NotFoundError, TooManyAttemptsError } from "./errors";
 import { checkFeed, createProtectedFeed, secret } from "./feeds";
 import { authAttempt } from "./limits";
-import { requireLicense } from "./licensing";
+import { licenses, licensingOn, requireLicense } from "./licensing";
+import { hashKey } from "./licenseflow";
 
 // An empty password means none, wherever it comes from (header, body field, MCP argument).
 export type FeedAccess = { password?: string; cookie?: string };
@@ -132,4 +133,32 @@ export async function changePassword(feed: string, current: string, next: string
 export async function removePassword(feed: string, current: string, ip: string): Promise<void> {
   await currentHash(feed, current, ip);
   await storage().removeHash(feed);
+}
+
+// A lost password (ADR 0037). With no accounts, the license key on the feed is the only proof of owning it; the buyer finds it
+// again in the provider's receipt and portal. A wrong key is a failed attempt, as a wrong password is. With `next`, the feed
+// gets that password and the cookie for it comes back, which needs an active license like any change; without, the password is
+// removed, which a lapsed license's key may do too.
+export async function recoverPassword(feed: string, key: string, next: string, ip: string): Promise<string | null> {
+  if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+  if (next) checkNewPassword(next);
+  if (!key || (await storage().readHash(feed)) === null) throw new AuthError(); // nothing to prove, or nothing to recover
+  const attempt = authAttempt(ip);
+  if (typeof attempt === "number") throw new TooManyAttemptsError(attempt);
+  // Found by its hash, as everywhere; a key that is someone's but on another feed (or on none) proves nothing here.
+  if ((await licenses().byKeyHash(hashKey(key)))?.feed !== feed) throw new AuthError();
+  attempt();
+  if (!next) {
+    await storage().removeHash(feed);
+    return null;
+  }
+  await requireLicense(feed);
+  const hash = await hashPassword(next);
+  try {
+    await storage().writeHash(feed, hash);
+  } catch (e) {
+    if (e instanceof FeedGoneError) throw new NotFoundError("no such feed"); // deleted meanwhile
+    throw e;
+  }
+  return cookieOf(feed, hash);
 }

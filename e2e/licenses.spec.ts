@@ -132,3 +132,23 @@ test("on a protected feed, a new key from the settings page replaces a refunded 
   await expect(page.getByText("The license is on this feed now.")).toBeVisible();
   await expect(page.getByText("Licensed", { exact: true })).toBeVisible();
 });
+
+// A lost feed password (ADR 0037): the unlock screen takes the feed's license key and sets a new password, or removes it.
+test("a lost feed password is set anew with the feed's license key", async ({ page, request }) => {
+  const feed = feedName();
+  const key = await buy(request, `sub_${feed}`);
+  expect((await request.post(`/${feed}`, { data: "# Secret", headers: { ...text, "X-Feed-Password": "Passw0rd!x", "X-License-Key": key } })).status()).toBe(201);
+  await page.goto(`/${feed}`);
+  await expect(page.getByLabel("Feed password")).toBeVisible(); // this browser never unlocked it
+  await page.getByText("Forgot the password?").click();
+  await page.getByLabel("License key", { exact: true }).fill("k".repeat(22));
+  await page.getByRole("button", { name: "Recover" }).click();
+  await expect(page.getByText("That is not the license key of this feed.")).toBeVisible();
+
+  await page.getByLabel("License key", { exact: true }).fill(key);
+  await page.getByLabel("New password (empty removes it)").fill("N3wPassw0rd!");
+  await page.getByRole("button", { name: "Recover" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${feed}/settings\\?saved=1$`));
+  expect((await request.post(`/${feed}`, { data: "# Old", headers: { ...text, "X-Feed-Password": "Passw0rd!x" } })).status()).toBe(401);
+  expect((await request.post(`/${feed}`, { data: "# New", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
+});

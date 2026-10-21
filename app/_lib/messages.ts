@@ -63,6 +63,14 @@ export function feedErrorMessage(code: unknown, retry?: unknown): string | undef
   return errorMessage(code, retry);
 }
 
+// The same, for recovering a feed password with the feed's license key (ADR 0037).
+export function recoverErrorMessage(code: unknown, retry?: unknown): string | undefined {
+  if (code === "auth") return "That is not the license key of this feed.";
+  if (code === "license_required") return "A new password needs an active license. Leave the new password empty to remove the password instead.";
+  if (code === "invalid_body") return `The new password must be ${PASSWORD_RULE}.`;
+  return errorMessage(code, retry);
+}
+
 // The same, for the feed's settings and delete forms, which send a title and a description or the typed name.
 export function feedDetailsErrorMessage(code: unknown, retry?: unknown): string | undefined {
   if (code === "invalid_body") return "The title, description or read id is too long or too short, or has characters that aren't allowed.";
