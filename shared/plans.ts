@@ -23,6 +23,14 @@ export function formatPrice({ amount, currency, period }: Pick<Plan, "amount" | 
   return `${format.format(amount / 10 ** (format.resolvedOptions().maximumFractionDigits ?? 2))} per ${period}`;
 }
 
+/** The free tile's price from license.md: a bare number gets the plans' currency the way their prices show it ("€0", "€0.50"),
+ *  so the tiles read alike; anything else ("Free") stays as the operator wrote it, as does any price while no plan gives a currency. */
+export function freePrice(price: string, currency: string | undefined): string {
+  if (!currency || !/^\d+(\.\d+)?$/.test(price)) return price;
+  const digits = price.split(".")[1]?.length ?? 0;
+  return new Intl.NumberFormat("en", { style: "currency", currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(price));
+}
+
 /** "Save 16 %": what the yearly plan saves against twelve months, when both are sold in the same currency; otherwise nothing is claimed. */
 export function saving(monthly: Plan | undefined, yearly: Plan | undefined): string | undefined {
   if (!monthly || !yearly || monthly.currency !== yearly.currency || monthly.amount <= 0) return undefined;

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { formatPrice, saving, type LicensePeriod, type Plan } from "./plans";
+import { formatPrice, freePrice, saving, type LicensePeriod, type Plan } from "./plans";
 
 const p = (period: LicensePeriod, amount: number, currency = "EUR"): Plan => ({ period, name: "", description: "", amount, currency, taxIncluded: true });
 
@@ -20,4 +20,12 @@ test("saving: nothing without a saving, across currencies, or without both", () 
   expect(saving(p("month", 200), p("year", 2000, "USD"))).toBeUndefined();
   expect(saving(p("month", 199), undefined)).toBeUndefined();
   expect(saving(undefined, p("year", 1990))).toBeUndefined();
+});
+
+test("the free tile's price: a bare number in the plans' currency, like theirs; anything else as written", () => {
+  expect(freePrice("0", "EUR")).toBe("€0");
+  expect(freePrice("0.50", "EUR")).toBe("€0.50");
+  expect(freePrice("0", "USD")).toBe("$0");
+  expect(freePrice("Free", "EUR")).toBe("Free");
+  expect(freePrice("0", undefined)).toBe("0"); // no plan sold: no currency to put on it
 });

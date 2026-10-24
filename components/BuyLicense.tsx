@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
 import { card, field, primary, secondary } from "@/components/styles";
-import { formatPrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
+import { formatPrice, freePrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
 
 const KEY = /^[A-Za-z0-9_-]{22,64}$/;
 
@@ -96,7 +96,7 @@ export function BuyLicense({ text, intro, fineprint, plans, cap }: { text: Licen
                 {text.free.title}
               </h2>
               <span />
-              <p className="mt-1 text-xl font-bold tracking-tight">{text.free.price}</p>
+              <p className="mt-1 text-xl font-bold tracking-tight">{freePrice(text.free.price, plans[0]?.currency)}</p>
               <div>{text.free.note && <p className="text-[13px] text-muted">{text.free.note}</p>}</div>
               <Features features={text.free.features} cap={cap} className="mt-4" />
               <span />

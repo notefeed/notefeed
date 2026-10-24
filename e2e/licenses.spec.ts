@@ -160,7 +160,7 @@ test("the license tiles line up: prices and first features at the same height", 
   await page.goto("/license");
   const tiles = [page.getByRole("region", { name: "Free" }), page.getByRole("region", { name: "Monthly" }), page.getByRole("region", { name: /^Yearly/ })];
   const top = async (l: import("@playwright/test").Locator) => Math.round((await l.boundingBox())!.y);
-  const prices = await Promise.all(tiles.map((t) => top(t.getByText(/^0$|per (month|year)$/))));
+  const prices = await Promise.all(tiles.map((t) => top(t.getByText(/^€0$|per (month|year)$/))));
   const features = await Promise.all(tiles.map((t) => top(t.getByRole("listitem").first())));
   expect(new Set(prices).size).toBe(1);
   expect(new Set(features).size).toBe(1);
