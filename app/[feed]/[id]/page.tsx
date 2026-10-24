@@ -10,7 +10,7 @@ import { orDamaged } from "@/app/_lib/damaged";
 import { noteErrorMessage } from "@/app/_lib/messages";
 import { reportUrl } from "@/shared/report";
 import { feedCookieName, feedPath, feedUnlocked, getFeedNote, getFeedPictures, imageUploadsOn, isRemovedFeed, licensingOn, readIdOf, readPath, reportTemplate } from "@/backend";
-import { pictureLinks } from "@/shared/pictures";
+import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
 export const dynamic = "force-dynamic";
 
@@ -45,11 +45,12 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[fe
   // The Report link goes in the note's action bar, not on the note. The bar sits in the shell's right column, the forms under
   // the note; NoteActions holds what both share.
   const reportHref = readId && reportTemplate() ? reportUrl(reportTemplate(), { readId, noteId: note.id, file: note.file }) : undefined;
-  // A markdown note's pictures link to their own notes' pages.
-  const link = note.type.startsWith("image/") ? undefined : pictureLinks(await getFeedPictures(feed), feedPath(feed));
+  // A note's attachments link to their own notes' pages.
+  const kind = kindOf(note.type);
+  const link = kind.attachments(note.content).length ? attachmentLinks(await getFeedPictures(feed), feedPath(feed)) : undefined;
 
   return (
-    <NoteActions key={`${note.content}\n${note.meta.title}\n${note.alt}`} feed={feed} id={id} kind={note.type.startsWith("image/") ? "image" : "markdown"} markdown={note.content ?? ""} title={note.meta.title ?? ""} alt={note.alt ?? ""} error={noteErrorMessage(error, retry)} images={imageUploadsOn()} imageBase={imageBase} reportHref={reportHref}>
+    <NoteActions key={`${note.content}\n${note.meta.title}\n${note.alt}`} feed={feed} id={id} kind={kind.name} markdown={note.content ?? ""} title={note.meta.title ?? ""} alt={note.alt ?? ""} error={noteErrorMessage(error, retry)} images={imageUploadsOn()} imageBase={imageBase} reportHref={reportHref}>
     <AppShell feed={feed} about={<NoteActionsBar />} docked>
       {edited === "1" && (
         <p role="status" className="mb-4 text-sm text-carbon">

@@ -10,18 +10,19 @@ import { MarkdownInput } from "@/components/MarkdownInput";
 import { usePendingImages } from "@/components/usePendingImages";
 import { multipart, multipartBody, useApiForm } from "@/app/_lib/useApiForm";
 import { noteErrorMessage, withPictures } from "@/app/_lib/messages";
+import { NOTE_KINDS, type KindName } from "@/shared/notekinds";
 
 // Edit and delete for a note, through the generated API client, with refusals shown inline (`error` is a first message to show).
 // The state of the note page's actions, for the two places they show: the bar (NoteActionsBar, in the shell's right column)
 // and the forms (NoteActionsPanel, under the note). `reportHref`: the note's Report link, in the bar (the note shows none).
-export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, error: initialError, images: imagesOn = true, imageBase, reportHref, children }: { feed: string; id: string; kind: string; markdown: string; title: string; alt: string; error?: string; images?: boolean; imageBase?: string; reportHref?: string; children: ReactNode }) {
+export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, error: initialError, images: imagesOn = true, imageBase, reportHref, children }: { feed: string; id: string; kind: KindName; markdown: string; title: string; alt: string; error?: string; images?: boolean; imageBase?: string; reportHref?: string; children: ReactNode }) {
   const page = `/${feed}`;
   const images = usePendingImages();
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, withPictures(noteErrorMessage, images.pending.length > 0));
   const [text, setText] = useState(markdown);
   const [title, setTitle] = useState(savedTitle); // the title set by hand: empty means the one the text gives
   const [alt, setAlt] = useState(savedAlt);
-  const image = kind === "image";
+  const { text: hasText, alt: hasAlt } = NOTE_KINDS[kind]; // what the edit form offers: a text, an alternative text
   const [mode, setMode] = useState<"edit" | "delete" | null>(initialError ? "edit" : null);
   const base = `${page}/${id}`;
 
@@ -33,8 +34,8 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
     // when that changed; a picture has no text, only a title and an alt text. Nothing changed: nothing is sent.
     // The PATCH goes first: it can be sent twice, the PUT can't (it stores the pictures). So a refused PATCH sent nothing else,
     // and saving again after a refused PUT repeats the harmless PATCH and stores the pictures once.
-    const textChanged = !image && (text !== markdown || images.pending.length > 0);
-    const meta = { ...(title !== savedTitle && { title }), ...(image && alt !== savedAlt && { alt }) };
+    const textChanged = hasText && (text !== markdown || images.pending.length > 0);
+    const meta = { ...(title !== savedTitle && { title }), ...(hasAlt && alt !== savedAlt && { alt }) };
     const metaChanged = Object.keys(meta).length > 0;
     if (!textChanged && !metaChanged) return setMode(null);
     const call = async () => {
@@ -60,7 +61,7 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
   const copyLink = () => copyText(window.location.href).then(() => setCopied(true), () => {});
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
 
-  const value = { back: page, mode, setMode, text, setText, title, setTitle, alt, setAlt, image, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
+  const value = { back: page, mode, setMode, text, setText, title, setTitle, alt, setAlt, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
   return <Actions.Provider value={value}>{children}</Actions.Provider>;
 }
 
@@ -74,7 +75,8 @@ type ActionsState = {
   setTitle: (t: string) => void;
   alt: string;
   setAlt: (t: string) => void;
-  image: boolean;
+  hasText: boolean;
+  hasAlt: boolean;
   images: ReturnType<typeof usePendingImages>;
   imagesOn: boolean;
   imageBase?: string;
@@ -93,7 +95,7 @@ const useActions = () => useContext(Actions)!;
 
 // Edit opens its form under the note: a sheet on a phone, a card from lg. Delete asks in a dialog (DeleteDialog).
 export function NoteActionsPanel() {
-  const { mode, setMode, text, setText, title, setTitle, alt, setAlt, image, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
+  const { mode, setMode, text, setText, title, setTitle, alt, setAlt, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
   return (
     <section aria-label="Edit or delete this note" className="mt-4 text-sm">
       {mode === "delete" && <DeleteDialog onSubmit={remove} onClose={() => setMode(null)} pending={pending} error={error} />}
@@ -102,7 +104,7 @@ export function NoteActionsPanel() {
           {hydrated && <div aria-hidden className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={() => setMode(null)} />}
           <div className={`${card} p-4 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[90dvh] max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:shadow-sheet max-lg:pb-8`}>
               <form onSubmit={save}>
-                {!image && (
+                {hasText && (
                   <MarkdownInput
                     id="edit-markdown"
                     name="markdown"
@@ -120,10 +122,10 @@ export function NoteActionsPanel() {
                   />
                 )}
                 <label htmlFor="edit-title" className="mt-3 block text-muted">
-                  Title {image ? "(optional)" : "(optional, otherwise taken from the text)"}
+                  Title {hasText ? "(optional, otherwise taken from the text)" : "(optional)"}
                 </label>
                 <input id="edit-title" name="title" maxLength={100} autoComplete="off" value={title} onChange={(e) => setTitle(e.target.value)} className={`${field} mt-1 max-w-md`} />
-                {image && (
+                {hasAlt && (
                   <>
                     <label htmlFor="edit-alt" className="mt-3 block text-muted">
                       Alternative text (optional, for screen readers)

@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { ChevronLeft, Flag, Hash } from "lucide-react";
 import { card, chip, sectionLabel } from "@/components/styles";
-import { NoteView } from "@/components/NoteView";
+import { BODIES } from "@/components/NoteBody";
 import type { Note } from "@/backend";
-import { bodyAfterTitle } from "@/shared/notes";
 import { reportUrl } from "@/shared/report";
 import { UNREADABLE } from "@/app/_lib/messages";
-import { pictureLinks, withoutShownPictures } from "@/shared/pictures";
+import { attachmentLinks, kindOf, withoutAttachments } from "@/shared/notekinds";
 
 // Times use the server's TZ (set TZ in compose.yaml).
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA");
@@ -76,20 +75,40 @@ function ReportLink({ note, report }: { note: Note; report?: Report }) {
   );
 }
 
-// An image note's picture, from the feed's current read link (`imageBase`), so it follows a changed read id. The text alternative is
-// the note's own, else its title, else none: a picture without a description is decoration to a screen reader, not a file name.
-function Picture({ note, imageBase, className }: { note: Note; imageBase?: string; className: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={(imageBase ?? "") + note.file} alt={note.alt ?? note.title} loading="lazy" className={className} />;
+// Where a click on a note goes is decided here, the same for every kind (ADR 0038): in a list, everything on a note's card opens
+// that note, its attachments too; on a note's own page, an attachment opens the attachment's own page.
+function Card({ note, open, imageBase, attachments }: { note: Note; open: string; imageBase?: string; attachments: (src: string) => string | undefined }) {
+  const body = BODIES[kindOf(note.type).name];
+  const heading = body.heading(note, "card");
+  return (
+    <>
+      {heading && (
+        <Link href={open} className="block text-[17px] font-bold tracking-tight hover:text-carbon">
+          {heading}
+        </Link>
+      )}
+      <body.Content note={note} place="card" imageBase={imageBase} open={open} attachmentLink={(src) => (attachments(src) ? open : undefined)} />
+    </>
+  );
+}
+
+function Page({ note, imageBase, attachments }: { note: Note; imageBase?: string; attachments?: (src: string) => string | undefined }) {
+  const body = BODIES[kindOf(note.type).name];
+  const heading = body.heading(note, "page");
+  return (
+    <>
+      {heading && <h1 className="mb-2 text-xl font-bold tracking-tight">{heading}</h1>}
+      <body.Content note={note} place="page" imageBase={imageBase} attachmentLink={attachments} />
+    </>
+  );
 }
 
 // Notes as cards, grouped by day under sticky labels; each title links to `${base}/${id}`. `imageBase` is where a note's relative
 // image links point. The day label sticks below the phone's top bar (components/AppShell.tsx), at the top from lg.
-// A picture that a markdown note in the list shows is left out (shared/pictures.ts). In the list, clicking such a picture opens the
-// note that shows it, like its title; the note's own page then links the picture to the picture's page (NoteArticle).
+// An attachment that a note in the list shows is left out (shared/notekinds.ts).
 export function NoteList({ notes, base, imageBase, posted, report }: { notes: Note[]; base: string; imageBase?: string; posted?: string; report?: Report }) {
-  const link = pictureLinks(notes, base);
-  return groupByDay(withoutShownPictures(notes)).map(([day, items]) => (
+  const link = attachmentLinks(notes, base);
+  return groupByDay(withoutAttachments(notes)).map(([day, items]) => (
     <section key={day} aria-labelledby={`day-${dayKey(items[0].createdAt)}`} className="mb-6">
       <h2 id={`day-${dayKey(items[0].createdAt)}`} className={`${sectionLabel} sticky top-14 z-10 -mx-4 bg-paper/90 px-4 py-1.5 backdrop-blur-sm lg:top-0 lg:-mx-6 lg:px-6`}>
         {day}
@@ -105,26 +124,8 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
                   Open
                 </Link>
               </p>
-            ) : n.type.startsWith("image/") ? (
-              <>
-                {n.title && (
-                  <Link href={`${base}/${n.id}`} className="mb-3 block text-[17px] font-bold tracking-tight hover:text-carbon">
-                    {n.title}
-                  </Link>
-                )}
-                <Link href={`${base}/${n.id}`} className="block">
-                  <Picture note={n} imageBase={imageBase} className="max-h-96 w-full rounded-xl object-cover" />
-                </Link>
-              </>
             ) : (
-              <Link href={`${base}/${n.id}`} className="block text-[17px] font-bold tracking-tight hover:text-carbon">
-                {n.title || n.id}
-              </Link>
-            )}
-            {bodyAfterTitle(n.content ?? "") && (
-              <div className="mt-1 text-[15px]">
-                <NoteView markdown={bodyAfterTitle(n.content ?? "")} imageBase={imageBase} link={(src) => (link(src) ? `${base}/${n.id}` : undefined)} />
-              </div>
+              <Card note={n} open={`${base}/${n.id}`} imageBase={imageBase} attachments={link} />
             )}
             <Foot note={n} base={base} when={time(n.createdAt)} report={report} />
           </li>
@@ -137,7 +138,7 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
 // One note on its own page, as a card, under the way back to the list. `report` false: the page shows the Report link elsewhere (the note's action bar).
 // `backInBar`: from lg the way back is in the note's action bar (components/NoteActions.tsx), not above the note, so the note
 // and the right column start level, as on the feed's page.
-// `link`: the pages of the feed's pictures, which the note's pictures link to (shared/pictures.ts).
+// `link`: the pages of the feed's attachments, which the note's attachments link to (shared/notekinds.ts).
 export function NoteArticle({ note, back, imageBase, report, backInBar = false, link }: { note: Note; back: string; imageBase?: string; report?: Report; backInBar?: boolean; link?: (src: string) => string | undefined }) {
   return (
     <>
@@ -147,14 +148,7 @@ export function NoteArticle({ note, back, imageBase, report, backInBar = false, 
       </Link>
       <article className={`${card} p-4 sm:p-5`}>
         <div>
-          {note.type.startsWith("image/") ? (
-            <>
-              {note.title && <h1 className="mb-2 text-xl font-bold tracking-tight">{note.title}</h1>}
-              <Picture note={note} imageBase={imageBase} className="max-w-full rounded-xl" />
-            </>
-          ) : (
-            <NoteView markdown={(note.content ?? "")} imageBase={imageBase} link={link} />
-          )}
+          <Page note={note} imageBase={imageBase} attachments={link} />
         </div>
         <Foot note={note} base={back} when={note.createdAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} report={report} />
       </article>
