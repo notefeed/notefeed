@@ -56,6 +56,7 @@ With `NOTEFEED_METRICS=1`, `GET /metrics` serves the Prometheus text format; wit
 | `notefeed_notes{kind}`, `notefeed_notes_bytes{kind}` | Stored notes and their bytes, by kind (`markdown`, `image`). For images the bytes are wherever the image store keeps them. |
 | `notefeed_feeds_free_cap{notes="near"\|"at"\|"over"}` | With licensing on: feeds by their markdown notes against `NOTEFEED_FREE_NOTE_CAP`. `near` is 80% of it or more, `at` is the cap (a free feed there drops its oldest note with each new one), `over` is more (a license, or one that lapsed since). |
 | `notefeed_licenses{state="active"\|"unattached"\|"lapsed"}` | With licensing on: licenses paid and on a feed, paid with the key not entered on one, and lapsed (by the provider or because the paid period ended). |
+| `notefeed_database_size_bytes`, `notefeed_database_connections` | On a database: its size on disk; on PostgreSQL also its open connections (from every client, not only notefeed). |
 | `notefeed_usage_counted_timestamp_seconds`, `notefeed_usage_count_duration_seconds` | When the last count ran and how long it took. |
 
 **Events**, counted as they happen, for trends:

@@ -39,6 +39,8 @@ export type SqlStorage = Storage & {
    * next call. Throws when the database is not encrypted.
    */
   reseal(o: { limit: number; after?: string }): Promise<Reseal>;
+  /** For the operator's metrics: the database's size on disk, and on PostgreSQL its open connections (null on SQLite). */
+  databaseStats(): Promise<{ bytes: number; connections: number | null }>;
 };
 
 export type Reseal = { resealed: number; skipped: number; failed: number; left: number; next: string | null };
@@ -474,6 +476,17 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     },
     async isBlockedImage(hash) {
       return !!(await (await open()).selectFrom("blocked_images").select("hash").where("hash", "=", hash).executeTakeFirst());
+    },
+
+    async databaseStats() {
+      const db = await open();
+      if (kind === "postgres") {
+        const size = await sql<{ n: string }>`select pg_database_size(current_database()) as n`.execute(db);
+        const conns = await sql<{ n: string }>`select count(*) as n from pg_stat_activity where datname = current_database()`.execute(db);
+        return { bytes: Number(size.rows[0].n), connections: Number(conns.rows[0].n) };
+      }
+      const pages = await sql<{ n: number }>`select page_count * page_size as n from pragma_page_count(), pragma_page_size()`.execute(db);
+      return { bytes: Number(pages.rows[0].n), connections: null };
     },
 
     // The store is listed first and the rows are read after it. An object old enough to count was written before its row, so a row

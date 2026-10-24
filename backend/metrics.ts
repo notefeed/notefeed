@@ -20,6 +20,7 @@ type Metrics = {
   events: { feedsCreated: Counter<"protected">; feedsDeleted: Counter<"reason">; posted: Counter<"kind">; edited: Counter<"kind" | "what">; deleted: Counter<"kind" | "reason">; licenses: Counter<"event"> };
   usage: {
     feeds: Gauge; protected: Gauge; readLink: Gauge; active: Gauge<"within">; notes: Gauge<"kind">; bytes: Gauge<"kind">; nearCap: Gauge<"notes">; licenses: Gauge<"state">;
+    dbBytes: Gauge; dbConnections: Gauge;
     at: Gauge; took: Gauge;
   };
 };
@@ -58,6 +59,8 @@ function metrics(): Metrics {
         bytes: new Gauge({ name: "notefeed_notes_bytes", help: "Bytes of the stored notes by kind (an image's bytes wherever the image store keeps them), as of the last count", labelNames: ["kind"], registers: [] }),
         nearCap: new Gauge({ name: "notefeed_feeds_free_cap", help: "Feeds by their markdown notes against the free tier's cap: near (80% or more), at it, or over it (a license, or one lapsed since); only with licensing on", labelNames: ["notes"], registers: [] }),
         licenses: new Gauge({ name: "notefeed_licenses", help: "Licenses: active (paid, on a feed), unattached (paid, the key not entered) and lapsed; only with licensing on", labelNames: ["state"], registers: [] }),
+        dbBytes: new Gauge({ name: "notefeed_database_size_bytes", help: "The database's size on disk (PostgreSQL or SQLite storage), as of the last count", registers: [] }),
+        dbConnections: new Gauge({ name: "notefeed_database_connections", help: "Open connections to the PostgreSQL database, from every client, as of the last count", registers: [] }),
         at: new Gauge({ name: "notefeed_usage_counted_timestamp_seconds", help: "When the usage gauges were last counted", registers: [] }),
         took: new Gauge({ name: "notefeed_usage_count_duration_seconds", help: "How long the last count of the usage gauges took", registers: [] }),
       },
@@ -176,6 +179,8 @@ export type UsageCount = {
   /** null with licensing off: there is no cap and there are no licenses. */
   freeCap: { near: number; at: number; over: number } | null;
   licenses: { active: number; unattached: number; lapsed: number } | null;
+  /** null on file storage; `connections` null on SQLite. */
+  database?: { bytes: number; connections: number | null } | null;
 };
 
 /** Sets the usage gauges to a count that took `seconds`. They join the registry on the first count, so before it they are absent. */
@@ -183,10 +188,13 @@ export function usageCounted(c: UsageCount, seconds: number, now = Date.now()): 
   if (!config.metrics()) return;
   const m = metrics();
   const u = m.usage;
+  // An unlabelled gauge that is registered shows 0 even when never set: one without a value this time leaves the registry.
+  const absent = new Set<Gauge>([...(c.database ? [] : [u.dbBytes]), ...(c.database?.connections != null ? [] : [u.dbConnections])]);
   for (const g of Object.values(u)) {
     g.reset();
     const name = (g as unknown as { name: string }).name;
-    if (!m.register.getSingleMetric(name)) m.register.registerMetric(g);
+    if (absent.has(g)) m.register.removeSingleMetric(name);
+    else if (!m.register.getSingleMetric(name)) m.register.registerMetric(g);
   }
   u.feeds.set(c.feeds);
   u.protected.set(c.protected);
@@ -198,6 +206,8 @@ export function usageCounted(c: UsageCount, seconds: number, now = Date.now()): 
   }
   if (c.freeCap) for (const [notes, n] of Object.entries(c.freeCap)) u.nearCap.set({ notes }, n);
   if (c.licenses) for (const [state, n] of Object.entries(c.licenses)) u.licenses.set({ state }, n);
+  if (c.database) u.dbBytes.set(c.database.bytes);
+  if (c.database?.connections != null) u.dbConnections.set(c.database.connections);
   u.at.set(Math.floor(now / 1000));
   u.took.set(seconds);
 }

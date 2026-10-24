@@ -161,3 +161,18 @@ test.skipIf(!supported)("with licensing on: licenses by state, and the feeds aga
   expect(await sample("notefeed_feeds_free_cap", { notes: "at" })).toBe(1);
   expect(await sample("notefeed_notes_deleted_total", { kind: "markdown", reason: "free_cap" })).toBe(1);
 });
+
+test.skipIf(!supported)("on a database: its size; on SQLite no connections", async () => {
+  vi.stubEnv("NOTEFEED_STORAGE", "sqlite");
+  await createNote("one", "a");
+  await refreshUsage();
+  expect(await sample("notefeed_database_size_bytes")).toBeGreaterThan(0);
+  expect(await sample("notefeed_database_connections")).toBeUndefined();
+  expect(await sample("notefeed_feeds")).toBe(1);
+});
+
+test("on file storage there is no database to measure", async () => {
+  await createNote("one", "a");
+  await refreshUsage();
+  expect(await sample("notefeed_database_size_bytes")).toBeUndefined();
+});

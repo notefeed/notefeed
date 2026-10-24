@@ -9,6 +9,7 @@ import { usageCounted, type UsageCount } from "./metrics";
 import { typeForExt } from "./note/types";
 import { processState } from "./state";
 import { storage } from "./storage";
+import type { SqlStorage } from "./storage/sql";
 import type { FeedUsage } from "./storage/types";
 
 export const USAGE_MAX_AGE_MS = 5 * 60_000;
@@ -48,8 +49,10 @@ const state = processState("usage", () => ({ at: -Infinity, counted: false }) as
 async function count(): Promise<void> {
   const start = performance.now();
   const on = licensingOn();
-  const [feeds, held] = await Promise.all([storage().usage(), on ? licenses().counts() : null]);
-  usageCounted({ ...countUsage(feeds, on ? config.freeNoteCap() : null), licenses: held }, (performance.now() - start) / 1000);
+  const s = storage();
+  const database = config.storage() === "fs" ? null : (s as SqlStorage).databaseStats();
+  const [feeds, held, db] = await Promise.all([s.usage(), on ? licenses().counts() : null, database]);
+  usageCounted({ ...countUsage(feeds, on ? config.freeNoteCap() : null), licenses: held, database: db }, (performance.now() - start) / 1000);
   state.counted = true;
 }
 
