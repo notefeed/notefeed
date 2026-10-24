@@ -63,11 +63,12 @@ test("a damaged note is a placeholder in its place: no title, no content, a link
   expect(html).not.toContain(">b<"); // the id is no title
 });
 
-test("a picture a markdown note in the list shows is not listed again; the note's picture links to the picture's page", () => {
+test("a picture a markdown note in the list shows is not listed again; in the list the note's picture opens the note", () => {
   const at = new Date("2026-10-24T10:00:00Z");
   const html = list([mdNote({ id: "n1", markdown: "# Herzii\n\n![](p1.png)", createdAt: at }), imgNote({ id: "p1", createdAt: at }), imgNote({ id: "p2", createdAt: at })]);
   expect(html.match(/<li /g)).toHaveLength(2); // the markdown note and the picture nobody shows
-  expect(html).toMatch(/<a [^>]*href="\/feed\/p1"[^>]*><img src="\/r\/rid\/p1\.png"/);
+  expect(html).toMatch(/<a [^>]*href="\/feed\/n1"[^>]*><img src="\/r\/rid\/p1\.png"/); // the note first; its page links the picture's
+
   expect(html.match(/src="\/r\/rid\/p1\.png"/g)).toHaveLength(1);
   expect(html).toMatch(/src="\/r\/rid\/p2\.png"/);
 });

@@ -85,7 +85,8 @@ function Picture({ note, imageBase, className }: { note: Note; imageBase?: strin
 
 // Notes as cards, grouped by day under sticky labels; each title links to `${base}/${id}`. `imageBase` is where a note's relative
 // image links point. The day label sticks below the phone's top bar (components/AppShell.tsx), at the top from lg.
-// A picture that a markdown note in the list shows is left out, and the picture in the note links to its page (shared/pictures.ts).
+// A picture that a markdown note in the list shows is left out (shared/pictures.ts). In the list, clicking such a picture opens the
+// note that shows it, like its title; the note's own page then links the picture to the picture's page (NoteArticle).
 export function NoteList({ notes, base, imageBase, posted, report }: { notes: Note[]; base: string; imageBase?: string; posted?: string; report?: Report }) {
   const link = pictureLinks(notes, base);
   return groupByDay(withoutShownPictures(notes)).map(([day, items]) => (
@@ -122,7 +123,7 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
             )}
             {bodyAfterTitle(n.content ?? "") && (
               <div className="mt-1 text-[15px]">
-                <NoteView markdown={bodyAfterTitle(n.content ?? "")} imageBase={imageBase} link={link} />
+                <NoteView markdown={bodyAfterTitle(n.content ?? "")} imageBase={imageBase} link={(src) => (link(src) ? `${base}/${n.id}` : undefined)} />
               </div>
             )}
             <Foot note={n} base={base} when={time(n.createdAt)} report={report} />
