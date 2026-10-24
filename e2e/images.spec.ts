@@ -40,7 +40,7 @@ test("a new feed offers the same box as any feed, with the password field and th
   await expect(page.getByLabel("Password (optional, protects this feed)")).toBeVisible();
 });
 
-test("dropped images wait in the box; removing one takes its reference out; posting makes one note per image and the text", async ({ page }) => {
+test("dropped images wait in the box; removing one takes its reference out; posting makes one note per image and the text", async ({ page, request }) => {
   const name = feedName();
   await page.goto(`/${name}`);
   await note(page).fill("# Pictured\n\nbefore");
@@ -53,14 +53,15 @@ test("dropped images wait in the box; removing one takes its reference out; post
   await expect(waiting.getByRole("listitem")).toHaveCount(1);
   await page.getByRole("button", { name: "Post note" }).click();
   await expect(page.getByRole("link", { name: "Pictured" })).toBeVisible();
-  // The picture of the markdown note, and the image note of its own.
+  // The picture is a note of its own, shown once: inside the markdown note, not listed again.
   await expect(page.locator(".md img")).toBeVisible();
   await loaded(page.locator(".md img")).toBeGreaterThan(0);
-  await expect(page.locator("ol > li")).toHaveCount(2);
-  await expect(page.locator("ol > li img")).toHaveCount(2);
+  await expect(page.locator("ol > li")).toHaveCount(1);
+  await expect(page.locator("ol > li img")).toHaveCount(1);
+  expect((await (await request.get(`/api/v1/feeds/${name}/notes`)).json()).notes).toHaveLength(2); // the text and the picture
   await page.getByRole("link", { name: "Open read-only view" }).click();
   await expect(page).toHaveURL(/\/r\/[^/]+$/);
-  await expect(page.locator("ol > li img")).toHaveCount(2);
+  await expect(page.locator("ol > li img")).toHaveCount(1);
   await loaded(page.locator("ol > li img")).toBeGreaterThan(0);
 });
 
@@ -111,7 +112,7 @@ test("a new feed takes images and a password in its first post", async ({ page }
   await page.getByLabel("Password (optional, protects this feed)").fill("hunter22");
   await page.getByRole("button", { name: "Post note" }).click();
   await expect(page.getByRole("link", { name: "Locked pictures" })).toBeVisible();
-  await expect(page.locator("ol > li")).toHaveCount(2); // the text and the picture
+  await expect(page.locator("ol > li")).toHaveCount(1); // the text, with the picture in it
   await expect(page.locator(".md img")).toBeVisible();
   await page.context().clearCookies();
   await page.goto(`/${name}`);
@@ -128,7 +129,7 @@ test("two pictures and a text that refers to one go in one request: the text sho
   await note(page).fill("# Two pictured\n\nsee ![](one.png) here");
   await page.getByRole("button", { name: "Post note" }).click();
   await expect(page.getByRole("link", { name: "Two pictured" })).toBeVisible();
-  await expect(page.locator("ol > li")).toHaveCount(3); // the text, one.png and two.png
+  await expect(page.locator("ol > li")).toHaveCount(1); // the text; one.png and two.png are notes of their own, shown in it
   await expect(page.locator(".md img")).toHaveCount(2); // one.png where the text refers to it, two.png appended
   await loaded(page.locator(".md img")).toBeGreaterThan(0);
   expect(posts).toHaveLength(1);
@@ -170,7 +171,7 @@ test("editing a note offers the same control, and saving posts the picture", asy
   await loaded(page.locator(".md img")).toBeGreaterThan(0);
 });
 
-test("a note's text replaced by just a new picture's reference stays a text note, holding the picture", async ({ page }) => {
+test("a note's text replaced by just a new picture's reference stays a text note, holding the picture", async ({ page, request }) => {
   const name = feedName();
   await post(page, name, "# Only words");
   await page.getByRole("link", { name: "Only words" }).click();
@@ -187,7 +188,8 @@ test("a note's text replaced by just a new picture's reference stays a text note
   await page.getByText("Edit", { exact: true }).click();
   await expect(note(page)).toHaveValue(/^!\[\]\(\d{8}T\d{6}Z-[0-9a-f-]{36}\.png\)$/);
   await page.goto(`/${name}`);
-  await expect(page.locator("ol > li")).toHaveCount(2); // the text note and the picture
+  await expect(page.locator("ol > li")).toHaveCount(1); // the text note, holding the picture
+  expect((await (await request.get(`/api/v1/feeds/${name}/notes`)).json()).notes).toHaveLength(2); // the text note and the picture
 });
 
 test("a picture the server refuses when saving: the editor says which, and the note and the feed stay as they were", async ({ page }) => {
@@ -208,7 +210,7 @@ test("a picture the server refuses when saving: the editor says which, and the n
   await expect(page.locator("ol > li")).toHaveCount(1);
 });
 
-test("a title that fails to save after a picture was added: saving again stores the picture once", async ({ page }) => {
+test("a title that fails to save after a picture was added: saving again stores the picture once", async ({ page, request }) => {
   const name = feedName();
   await post(page, name, "# Retried");
   await page.getByRole("link", { name: "Retried" }).click();
@@ -227,7 +229,7 @@ test("a title that fails to save after a picture was added: saving again stores 
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await page.goto(`/${name}`);
   await expect(page.getByRole("link", { name: "New title" })).toBeVisible();
-  await expect(page.locator("ol > li")).toHaveCount(2); // the text note and one picture, not two
+  expect((await (await request.get(`/api/v1/feeds/${name}/notes`)).json()).notes).toHaveLength(2); // the text note and one picture, not two
 });
 
 // A paste event as a browser makes it: a clipboard holding the fixture PNG, and `text` when given.
@@ -419,4 +421,21 @@ test("the preview shows a dropped picture from its file, before it is uploaded",
   const img = page.getByRole("region", { name: "Preview" }).locator("img");
   await expect(img).toHaveAttribute("src", /^blob:/);
   await loaded(img).toBeGreaterThan(0);
+});
+
+// A picture posted with a markdown note is a note of its own; the feed shows it once, inside the note, and that picture leads to
+// the picture's own page.
+test("a note's picture shows once in the feed and opens the picture's own note", async ({ page, request }) => {
+  const name = feedName();
+  const bytes = readFileSync(PNG);
+  const res = await request.post(`/api/v1/feeds/${name}/notes`, { multipart: { text: "# Herzii\n\n![](beach.png)", file: { name: "beach.png", mimeType: "image/png", buffer: bytes } } });
+  expect(res.status()).toBe(201);
+  const picture = (await res.json()).attachments[0];
+  expect((await request.get(`/api/v1/feeds/${name}/notes`)).ok()).toBe(true);
+
+  await page.goto(`/${name}`);
+  await expect(page.getByRole("listitem")).toHaveCount(1); // the markdown note; the picture is not listed again
+  await expect(page.locator("main img")).toHaveCount(1);
+  await page.locator("main img").click();
+  await expect(page).toHaveURL(new RegExp(`/${name}/${picture.id}$`));
 });
