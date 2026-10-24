@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Check, ChevronLeft, Flag, Link2, Pencil, Trash2 } from "lucide-react";
-import { createContext, useContext, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { copyText } from "@/components/copy";
 import { card, field, primary, secondary, sectionLabel } from "@/components/styles";
 import { deleteNote, editNote, patchNote } from "@/app/_lib/api";
@@ -91,16 +91,16 @@ type ActionsState = {
 const Actions = createContext<ActionsState | null>(null);
 const useActions = () => useContext(Actions)!;
 
-// Edit and Delete open their form under the note: a sheet on a phone, a card from lg.
+// Edit opens its form under the note: a sheet on a phone, a card from lg. Delete asks in a dialog (DeleteDialog).
 export function NoteActionsPanel() {
   const { mode, setMode, text, setText, title, setTitle, alt, setAlt, image, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
   return (
     <section aria-label="Edit or delete this note" className="mt-4 text-sm">
-      {mode && (
+      {mode === "delete" && <DeleteDialog onSubmit={remove} onClose={() => setMode(null)} pending={pending} error={error} />}
+      {mode === "edit" && (
         <>
           {hydrated && <div aria-hidden className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={() => setMode(null)} />}
           <div className={`${card} p-4 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[90dvh] max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:shadow-sheet max-lg:pb-8`}>
-            {mode === "edit" ? (
               <form onSubmit={save}>
                 {!image && (
                   <MarkdownInput
@@ -141,29 +141,61 @@ export function NoteActionsPanel() {
                   </button>
                 </div>
               </form>
-            ) : (
-              <form onSubmit={remove} className="text-center lg:text-left">
-                <p className="text-muted">
-                  <span className="block text-[17px] font-bold text-ink">Delete this note?</span> This can&apos;t be undone.
-                </p>
-                <div className="mt-4 flex flex-col gap-2 lg:flex-row">
-                  <button type="submit" disabled={pending} className={`${primary} bg-error`}>
-                    <Trash2 aria-hidden className="h-4 w-4" />
-                    Delete note
-                  </button>
-                  <button type="button" onClick={() => setMode(null)} className={secondary}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
           </div>
         </>
       )}
-      <p id="note-actions-error" role="alert" className="mt-2 text-error empty:hidden">
-        {error}
-      </p>
+      {mode !== "delete" && (
+        <p id="note-actions-error" role="alert" className="mt-2 text-error empty:hidden">
+          {error}
+        </p>
+      )}
     </section>
+  );
+}
+
+// The question before deleting, as a modal dialog at every width: under the note, from lg, it sat below a tall picture where it
+// was easy to miss. showModal() dims the page, keeps the focus inside and closes on Escape (onClose); a click on the backdrop,
+// which is the dialog element itself, closes it too. Cancel gets the focus, so a stray Enter deletes nothing. A refused delete
+// says why inside the dialog.
+function DeleteDialog({ onSubmit, onClose, pending, error }: { onSubmit: (e: FormEvent) => void; onClose: () => void; pending: boolean; error?: string }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    cancel.current?.focus(); // after showModal, which would focus the first button (Delete); React's autoFocus runs before it
+    return () => dialog?.close();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby="delete-note-title"
+      aria-describedby="delete-note-text"
+      onClose={onClose}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      className={`${card} m-auto w-[min(24rem,calc(100%-2rem))] p-5 text-center text-sm backdrop:bg-ink/40 sm:text-left`}
+    >
+      <form onSubmit={onSubmit}>
+        <h2 id="delete-note-title" className="text-[17px] font-bold text-ink">
+          Delete this note?
+        </h2>
+        <p id="delete-note-text" className="mt-1 text-muted">
+          This can&apos;t be undone.
+        </p>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <button type="submit" disabled={pending} className={`${primary} bg-error`}>
+            <Trash2 aria-hidden className="h-4 w-4" />
+            Delete note
+          </button>
+          <button ref={cancel} type="button" onClick={onClose} className={secondary}>
+            Cancel
+          </button>
+        </div>
+        <p id="note-actions-error" role="alert" className="mt-2 text-error empty:hidden">
+          {error}
+        </p>
+      </form>
+    </dialog>
   );
 }
 
