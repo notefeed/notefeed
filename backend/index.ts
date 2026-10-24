@@ -85,6 +85,17 @@ export async function getFeedImages(feed: string): Promise<{ file: string; url: 
   return (await listNotes(feed, PAGE, undefined, undefined, "image")).map((n) => ({ file: n.file, url: imagePath(readId, n.file), title: n.title }));
 }
 
+/** A feed's picture notes (the newest 50), for the links from a markdown note's pictures to their pages (shared/pictures.ts). */
+export async function getFeedPictures(feed: string): Promise<Note[]> {
+  return checkFeed(feed) ? [] : listNotes(feed, PAGE, undefined, undefined, "image");
+}
+
+/** The same by the read id. */
+export async function getReadPictures(readId: string): Promise<Note[]> {
+  const feed = isReadId(readId) ? await feedForReadId(readId) : null;
+  return feed ? listNotes(feed, PAGE, undefined, undefined, "image") : [];
+}
+
 export async function getFeedNote(feed: string, id: string): Promise<Note | null> {
   return getNote(feed, id); // null for an invalid or reserved feed name too
 }

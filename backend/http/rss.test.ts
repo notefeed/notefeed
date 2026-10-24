@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { derivedReadId, readIdOf, resetFeedsForTests } from "../feeds";
-import { createNote, replaceContent } from "../notes";
+import { createNote, createNoteOf, replaceContent } from "../notes";
+import { typeForExt } from "../note/types";
 import { saveSettings } from "../feedsettings";
 import { renderMetrics, resetMetricsForTest } from "../metrics";
 import { rssRoute } from "./rss";
@@ -100,4 +101,17 @@ test("the feed is measured as kind rss", async () => {
     delete process.env.NOTEFEED_METRICS;
     resetMetricsForTest();
   }
+});
+
+// A picture posted with a markdown note is a note of its own; the feed shows it inside that note, not again as an item.
+test("a picture a markdown note shows is not an item of its own; a picture nobody shows is", async () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const { note: shown } = await createNoteOf("pics", typeForExt("png")!, "png", png, {}, new Date("2026-10-24T10:00:00Z"));
+  const { note: alone } = await createNoteOf("pics", typeForExt("png")!, "png", png, {}, new Date("2026-10-24T10:00:01Z"));
+  await createNote("pics", `# Herzii\n\n![](${shown.file})`, new Date("2026-10-24T10:00:02Z"));
+  const xml = await (await get((await readIdOf("pics"))!)).text();
+  const items = [...xml.matchAll(/<item>[\s\S]*?<link>(.*?)<\/link>/g)].map((m) => m[1]);
+  expect(items).toHaveLength(2);
+  expect(items.some((l) => l.endsWith(`/${alone.id}`))).toBe(true);
+  expect(items.some((l) => l.endsWith(`/${shown.id}`))).toBe(false);
 });

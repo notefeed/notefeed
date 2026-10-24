@@ -6,6 +6,7 @@ import type { Note } from "@/backend";
 import { bodyAfterTitle } from "@/shared/notes";
 import { reportUrl } from "@/shared/report";
 import { UNREADABLE } from "@/app/_lib/messages";
+import { pictureLinks, withoutShownPictures } from "@/shared/pictures";
 
 // Times use the server's TZ (set TZ in compose.yaml).
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA");
@@ -84,8 +85,10 @@ function Picture({ note, imageBase, className }: { note: Note; imageBase?: strin
 
 // Notes as cards, grouped by day under sticky labels; each title links to `${base}/${id}`. `imageBase` is where a note's relative
 // image links point. The day label sticks below the phone's top bar (components/AppShell.tsx), at the top from lg.
+// A picture that a markdown note in the list shows is left out, and the picture in the note links to its page (shared/pictures.ts).
 export function NoteList({ notes, base, imageBase, posted, report }: { notes: Note[]; base: string; imageBase?: string; posted?: string; report?: Report }) {
-  return groupByDay(notes).map(([day, items]) => (
+  const link = pictureLinks(notes, base);
+  return groupByDay(withoutShownPictures(notes)).map(([day, items]) => (
     <section key={day} aria-labelledby={`day-${dayKey(items[0].createdAt)}`} className="mb-6">
       <h2 id={`day-${dayKey(items[0].createdAt)}`} className={`${sectionLabel} sticky top-14 z-10 -mx-4 bg-paper/90 px-4 py-1.5 backdrop-blur-sm lg:top-0 lg:-mx-6 lg:px-6`}>
         {day}
@@ -119,7 +122,7 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
             )}
             {bodyAfterTitle(n.content ?? "") && (
               <div className="mt-1 text-[15px]">
-                <NoteView markdown={bodyAfterTitle(n.content ?? "")} imageBase={imageBase} />
+                <NoteView markdown={bodyAfterTitle(n.content ?? "")} imageBase={imageBase} link={link} />
               </div>
             )}
             <Foot note={n} base={base} when={time(n.createdAt)} report={report} />
@@ -133,7 +136,8 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
 // One note on its own page, as a card, under the way back to the list. `report` false: the page shows the Report link elsewhere (the note's action bar).
 // `backInBar`: from lg the way back is in the note's action bar (components/NoteActions.tsx), not above the note, so the note
 // and the right column start level, as on the feed's page.
-export function NoteArticle({ note, back, imageBase, report, backInBar = false }: { note: Note; back: string; imageBase?: string; report?: Report; backInBar?: boolean }) {
+// `link`: the pages of the feed's pictures, which the note's pictures link to (shared/pictures.ts).
+export function NoteArticle({ note, back, imageBase, report, backInBar = false, link }: { note: Note; back: string; imageBase?: string; report?: Report; backInBar?: boolean; link?: (src: string) => string | undefined }) {
   return (
     <>
       <Link href={back} aria-label="Back to all notes" className={`-ml-2 mb-3 h-7 items-center gap-1 rounded-full px-2 text-sm text-carbon hover:bg-surface-2 ${backInBar ? "inline-flex lg:hidden" : "inline-flex"}`}>
@@ -148,7 +152,7 @@ export function NoteArticle({ note, back, imageBase, report, backInBar = false }
               <Picture note={note} imageBase={imageBase} className="max-w-full rounded-xl" />
             </>
           ) : (
-            <NoteView markdown={(note.content ?? "")} imageBase={imageBase} />
+            <NoteView markdown={(note.content ?? "")} imageBase={imageBase} link={link} />
           )}
         </div>
         <Foot note={note} base={back} when={note.createdAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} report={report} />

@@ -5,7 +5,8 @@ import { NoteArticle } from "@/components/NoteList";
 import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
 import { orDamaged } from "@/app/_lib/damaged";
-import { getReadNote, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
+import { getReadNote, getReadPictures, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
+import { pictureLinks } from "@/shared/pictures";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,13 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
 
   return (
     <AppShell>
-      <NoteArticle note={note} back={readPath(readId)} imageBase={`${readPath(readId)}/`} report={reportTemplate() ? { template: reportTemplate(), readId } : undefined} />
+      <NoteArticle
+        note={note}
+        back={readPath(readId)}
+        imageBase={`${readPath(readId)}/`}
+        report={reportTemplate() ? { template: reportTemplate(), readId } : undefined}
+        link={note.type.startsWith("image/") ? undefined : pictureLinks(await getReadPictures(readId), readPath(readId))}
+      />
     </AppShell>
   );
 }
