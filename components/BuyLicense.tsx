@@ -90,14 +90,16 @@ export function BuyLicense({ text, intro, fineprint, plans, cap }: { text: Licen
       ) : (
         <section aria-label="Buy a license">
           {intro && <div className="mb-5 text-[15px] text-muted">{intro}</div>}
-          <div className={`grid gap-3 ${COLUMNS[plans.length] ?? "sm:grid-cols-3"}`}>
-            <section aria-labelledby="plan-free" className={`${card} flex flex-col p-5`}>
+          <div className={`grid gap-x-3 ${COLUMNS[plans.length] ?? "sm:grid-cols-3"}`}>
+            <section aria-labelledby="plan-free" className={`${tile} max-sm:mb-3`}>
               <h2 id="plan-free" className="text-[15px] font-bold">
                 {text.free.title}
               </h2>
+              <span />
               <p className="mt-1 text-xl font-bold tracking-tight">{text.free.price}</p>
-              {text.free.note && <p className="text-[13px] text-muted">{text.free.note}</p>}
+              <div>{text.free.note && <p className="text-[13px] text-muted">{text.free.note}</p>}</div>
               <Features features={text.free.features} cap={cap} className="mt-4" />
+              <span />
             </section>
             {plans.map((plan, i) => (
               <Plan
@@ -131,22 +133,29 @@ export function BuyLicense({ text, intro, fineprint, plans, cap }: { text: Licen
 // Tailwind sees whole class names only: the free tile and one column per plan.
 const COLUMNS: Record<number, string> = { 0: "sm:grid-cols-1", 1: "sm:grid-cols-2", 2: "sm:grid-cols-3" };
 
+// Every tile spans the same six rows of the grid and takes them as its own (subgrid): name, badge, price, the line under it,
+// the features, the button. A row is as tall as its tallest tile, so a badge or a name that wraps in one tile moves the same row
+// in all of them, and prices, features and buttons line up (notefeed/notefeed#223). A tile with nothing for a row leaves it empty.
+const tile = `${card} row-span-6 grid grid-rows-subgrid gap-0 p-5`;
+
 // A paid tile: the provider's name and price, what every license adds (license.md), and the button to the checkout. The provider's
 // description is for its checkout and receipt, where it can say more than a tile should.
 // `primary`: the highlighted one (the last, the yearly plan where one is sold); `badge`: what it saves, or license.md's badge.
 function Plan({ plan, text, cap, badge, busy, onBuy, primary: highlighted }: { plan: Sold; text: LicenseText["plans"]; cap: number; badge?: string; busy: boolean; onBuy: () => void; primary: boolean }) {
   const id = `plan-${plan.period}`;
   return (
-    <section aria-labelledby={id} className={`${card} flex flex-col p-5 ${highlighted ? "border-carbon" : ""}`}>
-      <h2 id={id} className="flex flex-wrap items-center gap-2 text-[15px] font-bold">
+    <section aria-labelledby={id} className={`${tile} max-sm:mb-3 ${highlighted ? "border-carbon" : ""}`}>
+      <h2 id={id} className="text-[15px] font-bold">
         {plan.name}
-        {badge && <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">{badge}</span>}
       </h2>
+      <div className="mt-1.5">{badge && <span className="inline-block rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">{badge}</span>}</div>
       <p className="mt-1 text-xl font-bold tracking-tight">{formatPrice(plan)}</p>
-      {plan.taxIncluded && <p className="text-[13px] text-muted">VAT included</p>}
-      {text.note && <p className="mt-2 text-[13px] text-muted">{text.note}</p>}
+      <div>
+        {plan.taxIncluded && <p className="text-[13px] text-muted">VAT included</p>}
+        {text.note && <p className="mt-2 text-[13px] text-muted">{text.note}</p>}
+      </div>
       <Features features={text.features} cap={cap} className="mb-5 mt-4" />
-      <button type="button" disabled={busy} onClick={onBuy} className={`${highlighted ? primary : secondary} mt-auto w-full py-2.5 text-[15px]`}>
+      <button type="button" disabled={busy} onClick={onBuy} className={`${highlighted ? primary : secondary} w-full self-end py-2.5 text-[15px]`}>
         {text.button}
       </button>
     </section>

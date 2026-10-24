@@ -152,3 +152,16 @@ test("a lost feed password is set anew with the feed's license key", async ({ pa
   expect((await request.post(`/${feed}`, { data: "# Old", headers: { ...text, "X-Feed-Password": "Passw0rd!x" } })).status()).toBe(401);
   expect((await request.post(`/${feed}`, { data: "# New", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
 });
+
+// The tiles share their rows (notefeed/notefeed#223): a plan's badge or a longer name made its price, its first feature and its
+// button sit lower than the free tile's.
+test("the license tiles line up: prices and first features at the same height", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/license");
+  const tiles = [page.getByRole("region", { name: "Free" }), page.getByRole("region", { name: "Monthly" }), page.getByRole("region", { name: /^Yearly/ })];
+  const top = async (l: import("@playwright/test").Locator) => Math.round((await l.boundingBox())!.y);
+  const prices = await Promise.all(tiles.map((t) => top(t.getByText(/^0$|per (month|year)$/))));
+  const features = await Promise.all(tiles.map((t) => top(t.getByRole("listitem").first())));
+  expect(new Set(prices).size).toBe(1);
+  expect(new Set(features).size).toBe(1);
+});
