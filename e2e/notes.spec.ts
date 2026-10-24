@@ -35,11 +35,30 @@ test("delete lands on the feed without the note", async ({ page }) => {
   const name = feedName();
   await postAndOpen(page, name, "# Doomed");
   await page.getByText("Delete", { exact: true }).click();
-  await expect(page.getByText("Delete this note? This can't be undone.")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Delete this note?" })).toContainText("This can't be undone.");
   await page.getByRole("button", { name: "Delete note" }).click();
   await expect(page).toHaveURL(new RegExp(`/${name}\\?deleted=`));
   await expect(page.getByRole("status")).toHaveText("Note deleted.");
   await expect(page.getByText("Doomed")).toHaveCount(0);
+});
+
+// A dialog, not a card under the note: on a wide screen the card sat below a tall picture, out of sight.
+test("delete asks in a dialog: Cancel has the focus, Escape and Cancel close it, nothing is deleted until confirmed", async ({ page }) => {
+  const name = feedName();
+  await postAndOpen(page, name, "# Careful");
+  await page.getByText("Delete", { exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete this note?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await page.getByText("Delete", { exact: true }).click();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Careful" })).toBeVisible();
+  await page.getByText("Delete", { exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete note" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${name}\\?deleted=`));
 });
 
 test("deleting the only note leaves a feed that cannot be given a password", async ({ page }) => {
