@@ -17,6 +17,10 @@ export type License = {
   validUntil: number | null;
 };
 
+/** How many licenses are in each state, for the operator's metrics. `active`: paid and on a feed; `unattached`: paid, the key not
+ *  entered yet (or detached); `lapsed`: the paid period is over. */
+export type LicenseCounts = { active: number; unattached: number; lapsed: number };
+
 export type AttachResult = "attached" | "unknown-key" | "feed-has-license";
 
 export interface LicenseStore {
@@ -31,4 +35,5 @@ export interface LicenseStore {
   detach(feed: string): Promise<boolean>;
   /** The webhook's changes. False when no license has this reference. */
   update(providerRef: string, patch: { status?: LicenseStatus; validUntil?: number | null }): Promise<boolean>;
+  counts(now?: number): Promise<LicenseCounts>;
 }

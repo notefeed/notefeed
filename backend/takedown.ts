@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { InvalidRequestError, NotFoundError } from "./errors";
 import { feedForReadId, isRemovedReadId, isReadId } from "./feeds";
 import { logger } from "./log";
+import { feedRemoved } from "./metrics";
 import { countNotes, listNotes } from "./notes";
 import { storage } from "./storage";
 
@@ -49,6 +50,7 @@ export async function takedown(target: string): Promise<Takedown> {
   const { removed, keys } = await storage().takedownFeed(feed, readId);
   await storage().blockImages([...hashes]);
   await releaseLicense(feed);
+  if (removed) feedRemoved("takedown");
   log.info({ notes, images, blocked: hashes.size, keys: keys.length }, "feed removed by the operator");
   return { removed, already_removed: false, notes, images, blocked: hashes.size, image_keys: keys };
 }

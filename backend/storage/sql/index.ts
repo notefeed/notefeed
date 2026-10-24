@@ -7,7 +7,7 @@ import { noteFeedSize } from "../../metrics";
 import { newKey, type ImageStore } from "../images/types";
 import { applyPatch, hasMeta, parseMeta } from "../meta";
 import { parseSettings, serializeSettings } from "../settings";
-import { FeedGoneError, type Meta, type Storage } from "../types";
+import { FeedGoneError, type FeedUsage, type Meta, type Storage } from "../types";
 import { IMAGE_EXTS } from "../../../shared/images";
 import { CipherError, open as openBytes, openText, seal, sealText, type FingerprintKind } from "../cipher";
 import type { KeyWrapper } from "../wrapper";
@@ -426,6 +426,25 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     async feedCount() {
       const r = await (await open()).selectFrom("feeds").select(sql<number | string>`count(*)`.as("n")).executeTakeFirstOrThrow();
       return Number(r.n);
+    },
+    // Two grouped queries, joined here by the `name` column (a fingerprint when encrypted): no name is opened, no data key used.
+    // Every feed row holds a read id: on a database a feed always has its read link.
+    async usage() {
+      const db = await open();
+      const feeds = await db.selectFrom("feeds").select(["name", "password_hash"]).execute();
+      const notes = await db
+        .selectFrom("notes")
+        .select(["feed", "ext", sql<number | string>`count(*)`.as("n"), sql<number | string>`coalesce(sum(size), 0)`.as("bytes"), sql<number | string>`max(updated_at)`.as("last")])
+        .groupBy(["feed", "ext"])
+        .execute();
+      const byFeed = new Map<string, FeedUsage>(feeds.map((f) => [f.name, { protected: f.password_hash !== null, readLink: true, lastWrite: null, notes: {} }]));
+      for (const r of notes) {
+        const u = byFeed.get(r.feed);
+        if (!u) continue;
+        u.notes[r.ext] = { count: Number(r.n), bytes: Number(r.bytes) };
+        u.lastWrite = Math.max(u.lastWrite ?? 0, Number(r.last));
+      }
+      return [...byFeed.values()];
     },
 
     // The tombstone goes in first, in its own statement, so a crash after it leaves a feed that is found by neither identifier

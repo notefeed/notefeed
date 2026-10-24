@@ -37,7 +37,7 @@ Note content, feed names (a reserved feed's name, which you chose, is the one ex
 
 ## Metrics
 
-With `NOTEFEED_METRICS=1`, `GET /metrics` serves the Prometheus text format; with `NOTEFEED_METRICS_TOKEN` set, it needs `Authorization: Bearer <token>`. It exists to answer one question with data: is reading a feed slow enough to be worth another storage? The counters live in memory and start at 0 on restart, so query with `rate()` or `increase()`.
+With `NOTEFEED_METRICS=1`, `GET /metrics` serves the Prometheus text format; with `NOTEFEED_METRICS_TOKEN` set, it needs `Authorization: Bearer <token>`. It answers two questions with data: is reading a feed slow enough to be worth another storage, and how is the instance used? The counters live in memory and start at 0 on restart, so query with `rate()` or `increase()`.
 
 | Metric | What it shows |
 |---|---|
@@ -47,7 +47,29 @@ With `NOTEFEED_METRICS=1`, `GET /metrics` serves the Prometheus text format; wit
 | `notefeed_images_*` | What the last [image store clean-up](storage.md#cleaning-up-the-image-store) found. |
 | `notefeed_nodejs_*`, `notefeed_process_*` | Event-loop lag, memory, CPU, garbage collection. |
 
-No feed name, read id, note text or address is ever a label. A rule of thumb: the 95th percentile of `feed_page` over 200 ms for feeds under 1000 notes means reading notes is worth optimising; look at a few days of real use first.
+**Usage** ([ADR 0039](../adr/0039-usage-metrics-for-the-operator.md)): what the instance holds, counted at most every 5 minutes (a pass over every feed), never per scrape. A scrape that finds the count older starts the next one and answers with the last; until the first count is done they are absent.
+
+| Metric | What it shows |
+|---|---|
+| `notefeed_feeds`, `notefeed_feeds_protected`, `notefeed_feeds_with_read_link` | Feeds, protected feeds, feeds that have a read link. |
+| `notefeed_feeds_active{within="1d"\|"7d"\|"30d"}` | Feeds with a note written (posted or its content replaced) within that time. |
+| `notefeed_notes{kind}`, `notefeed_notes_bytes{kind}` | Stored notes and their bytes, by kind (`markdown`, `image`). For images the bytes are wherever the image store keeps them. |
+| `notefeed_feeds_free_cap{notes="near"\|"at"\|"over"}` | With licensing on: feeds by their markdown notes against `NOTEFEED_FREE_NOTE_CAP`. `near` is 80% of it or more, `at` is the cap (a free feed there drops its oldest note with each new one), `over` is more (a license, or one that lapsed since). |
+| `notefeed_licenses{state="active"\|"unattached"\|"lapsed"}` | With licensing on: licenses paid and on a feed, paid with the key not entered on one, and lapsed (by the provider or because the paid period ended). |
+| `notefeed_usage_counted_timestamp_seconds`, `notefeed_usage_count_duration_seconds` | When the last count ran and how long it took. |
+
+**Events**, counted as they happen, for trends:
+
+| Metric | What it counts |
+|---|---|
+| `notefeed_feeds_created_total{protected}` | Feeds created, protected from the start or not. |
+| `notefeed_feeds_deleted_total{reason="deleted"\|"takedown"}` | Feeds deleted by their owner, or taken down by the operator. |
+| `notefeed_notes_posted_total{kind}` | Notes posted. |
+| `notefeed_notes_edited_total{kind,what="content"\|"meta"}` | Notes whose content was replaced, or whose title or alt text changed. |
+| `notefeed_notes_deleted_total{kind,reason="deleted"\|"free_cap"}` | Notes deleted by a writer, or dropped past the free tier's cap. |
+| `notefeed_license_events_total{event="bought"\|"attached"\|"renewed"\|"lapsed"}` | License events from the payment provider's webhook and from entering a key. A license that ends because its period ran out, with no webhook, shows only in `notefeed_licenses`. |
+
+No feed name, read id, note text, sender, license key or address is ever a label or a value: the usage metrics are counts over all feeds. A rule of thumb: the 95th percentile of `feed_page` over 200 ms for feeds under 1000 notes means reading notes is worth optimising; look at a few days of real use first.
 
 ### Scraping
 

@@ -4,7 +4,7 @@ import { idStamp } from "../shared/notes";
 import { InvalidBodyError, UnreadableNoteError, UnsupportedTypeError } from "./errors";
 import { assertFeed, checkFeed, ensureFeed, forgetFeed } from "./feeds";
 import { logger } from "./log";
-import { noteUnreadable } from "./metrics";
+import { noteDeleted, noteEdited, notePosted, noteUnreadable } from "./metrics";
 import { storage } from "./storage";
 import { CipherError } from "./storage/cipher";
 import { FeedGoneError, type Meta, type NoteRef } from "./storage/types";
@@ -105,6 +105,7 @@ export async function createNoteOf(feed: string, type: NoteType, ext: string, bo
   const meta: Meta = { ...(sender !== undefined && { sender }), ...(tags.length && { tags }), ...(title && { title }), ...(alt && { alt }), ...(name && { name }) };
   const { id, readId } = await store(feed, { ext, content: body, meta }, now, opts.wantedReadId);
   logger("notes").info({ kind: type.name, bytes: body.length }, "note posted"); // never the feed, the id or the title
+  notePosted(type.name);
   return { note: type.read({ id, ext, meta, createdAt: stampOf(id)!, size: body.length }, Buffer.from(body)), readId };
 }
 
@@ -219,7 +220,9 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
   const note = await getNote(feed, id);
   if (!note) return null;
   if (note.type !== parsed.mediaType) throw new UnsupportedTypeError(`this note is ${note.type}: send that Content-Type`);
-  return (await storage().replaceNote(feed, id, NOTE_EXTS, body)) ? getNote(feed, id) : null;
+  if (!(await storage().replaceNote(feed, id, NOTE_EXTS, body))) return null;
+  noteEdited(parsed.type.name, "content");
+  return getNote(feed, id);
 }
 
 /** Sets the title and/or alt text of a note; "" removes one. At least one is needed; alt only for types that have it. null: no such note. */
@@ -232,10 +235,13 @@ export async function changeMeta(feed: string, id: string, edit: { title?: strin
   if (!note) return null;
   if (alt !== undefined && !typeForExt(note.ext)?.hasAlt) throw new InvalidBodyError("alt is for image notes");
   const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }) };
-  return (await storage().updateMeta(feed, id, NOTE_EXTS, patch)) ? getNote(feed, id) : null;
+  if (!(await storage().updateMeta(feed, id, NOTE_EXTS, patch))) return null;
+  noteEdited(typeForExt(note.ext)?.name ?? "unknown", "meta");
+  return getNote(feed, id);
 }
 
-export async function removeNote(feed: string, id: string): Promise<boolean> {
+/** `reason`: a writer deleted it, or the free tier dropped it past the cap (backend/licensing.ts); for the metrics only. */
+export async function removeNote(feed: string, id: string, reason: "deleted" | "free_cap" = "deleted"): Promise<boolean> {
   if (checkFeed(feed) || !isValidId(id)) return false;
   // Asked per kind, so the log can say which kind went (the storage only says whether something did).
   let removed = false;
@@ -243,6 +249,7 @@ export async function removeNote(feed: string, id: string): Promise<boolean> {
     if (!(await storage().deleteNote(feed, id, type.exts))) continue;
     removed = true;
     logger("notes").info({ kind: type.name }, "note deleted");
+    noteDeleted(type.name, reason);
   }
   return removed;
 }

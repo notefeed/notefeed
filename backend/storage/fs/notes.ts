@@ -8,7 +8,7 @@ import { link, lstat, readdir, readFile, rename, unlink, writeFile } from "node:
 import { join } from "node:path";
 import { countDir, countFile, noteFeedSize } from "../../metrics";
 import { applyPatch, hasMeta, parseMeta } from "../meta";
-import { FeedGoneError, type Meta, type NoteRef, type StoredNote } from "../types";
+import { FeedGoneError, type FeedUsage, type Meta, type NoteRef, type StoredNote } from "../types";
 import { feedDir, isErrno } from "./fs";
 
 const NAME_RE = /^([A-Za-z0-9_-]{1,128})\.([A-Za-z0-9]{1,16})$/;
@@ -108,6 +108,21 @@ export async function listNoteRefs(feed: string): Promise<NoteRef[]> {
   });
   noteFeedSize(found.length);
   return found;
+}
+
+/** A feed's notes per extension, with their bytes and the newest write, for the operator's metrics: a listing and an lstat per note. */
+export async function noteUsage(feed: string): Promise<Pick<FeedUsage, "notes" | "lastWrite">> {
+  const notes: FeedUsage["notes"] = {};
+  let lastWrite: number | null = null;
+  for (const { id, ext } of await listNoteRefs(feed)) {
+    const info = await regular(file(feed, id, ext));
+    if (!info) continue;
+    const n = (notes[ext] ??= { count: 0, bytes: 0 });
+    n.count++;
+    n.bytes += info.size;
+    lastWrite = Math.max(lastWrite ?? 0, info.mtimeMs);
+  }
+  return { notes, lastWrite };
 }
 
 // `withContent` says for an extension whether the bytes are wanted: a picture is only listed, so reading it whole would cost its size

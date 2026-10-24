@@ -5,7 +5,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Kysely, SqliteDialect, type ColumnType, type Selectable } from "kysely";
 import { Migrator, type Migration } from "kysely/migration";
-import type { AttachResult, License, LicenseStatus, LicenseStore } from "./licenses";
+import type { AttachResult, License, LicenseCounts, LicenseStatus, LicenseStore } from "./licenses";
 import { fingerprint, openText, sealText } from "./cipher";
 import { ENCRYPTED_NO_KEY, KEYRING_MISSING, KeyringError, ringKey, unknownKey } from "./sql/keyring";
 import type { KeyWrapper } from "./wrapper";
@@ -196,6 +196,16 @@ export function createLicenseDb(file: string, wrapper: KeyWrapper | null = null)
       if (Object.keys(set).length === 0) return (await find("provider_ref", providerRef)) !== null;
       const r = await db.updateTable("licenses").set(set).where("provider_ref", "=", ident("provider_ref", providerRef)).executeTakeFirst();
       return Number(r.numUpdatedRows) > 0;
+    },
+    // The same rule as isLicensed (backend/licensing.ts): a paid period that has ended counts as lapsed, webhook or not.
+    async counts(now = Date.now()) {
+      const rows = await (await open()).selectFrom("licenses").select(["status", "valid_until", "feed"]).execute();
+      const c: LicenseCounts = { active: 0, unattached: 0, lapsed: 0 };
+      for (const r of rows) {
+        const paid = r.status === "active" && (r.valid_until === null || Number(r.valid_until) > now);
+        c[!paid ? "lapsed" : r.feed === null ? "unattached" : "active"]++;
+      }
+      return c;
     },
     async ready() {
       await open();

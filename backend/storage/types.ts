@@ -12,6 +12,10 @@ export type NoteRef = { id: string; ext: string };
 /** `content` is empty when `withContent` said no; `size` is right either way. `mtime` is when the content was last written. */
 export type StoredNote = { ext: string; content: Buffer; size: number; meta: Meta; mtime: Date };
 
+/** One feed as the operator's metrics count it (ADR 0039): flags and numbers, never its name, read id or anything in it.
+ *  `notes`: per extension, how many and their bytes; `lastWrite`: when the newest content was written (ms), null for no notes. */
+export type FeedUsage = { protected: boolean; readLink: boolean; lastWrite: number | null; notes: Record<string, { count: number; bytes: number }> };
+
 /** A write into a feed that does not exist (deleted since the caller looked). Callers forget the feed and, once, make it anew. */
 export class FeedGoneError extends Error {
   constructor() {
@@ -59,6 +63,8 @@ export interface Storage {
   /** Every stored feed name, valid or not, for the start-up warning about names that collide with routes. */
   listFeedNames(): Promise<string[]>;
   feedCount(): Promise<number>;
+  /** Every feed, once, for the operator's metrics; no content is read. Costs a pass over all notes: the caller caches it. */
+  usage(): Promise<FeedUsage[]>;
 
   // The operator's takedown (issue #155). A tombstone holds a feed's name and its read id for good: createFeed refuses the name
   // (RemovedFeedError) and the id (ReadIdTakenError), setReadId the id. The blocklist holds the hashes (SHA-256, hex) of images that

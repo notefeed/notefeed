@@ -71,6 +71,6 @@ export async function freeTier(feed: string): Promise<{ notes: number; cap: numb
 export async function trimToFreeCap(feed: string): Promise<void> {
   if (await isLicensed(feed)) return;
   const excess = await idsBeyond(feed, config.freeNoteCap(), "markdown");
-  for (const id of excess) await removeNote(feed, id);
+  for (const id of excess) await removeNote(feed, id, "free_cap");
   if (excess.length) log.info({ dropped: excess.length }, "oldest notes dropped, the feed is on the free tier"); // never the feed's name
 }
