@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import { ImageNote, MarkdownNote, UnreadableNote } from "@/backend";
-import { NoteArticle, NoteList } from "./NoteList";
+import { NoteArticle } from "./NoteArticle";
+import { NoteList } from "./NoteList";
 
 // A note as the backend hands it out, without touching the disk.
 const at0 = new Date(0);

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { NoteArticle } from "@/components/NoteList";
+import { NoteArticle } from "@/components/NoteArticle";
 import { NoteActions, NoteActionsBar, NoteActionsPanel } from "@/components/NoteActions";
 import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";

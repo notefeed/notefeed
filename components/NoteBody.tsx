@@ -2,11 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
-import type { KindName } from "@/shared/notekinds";
+import { kindOf, type KindName } from "@/shared/notekinds";
 import { bodyAfterTitle } from "@/shared/notes";
 
 // How each kind of note (shared/notekinds.ts) shows, in a list's card or on its own page (ADR 0038). A body draws content only;
-// where a click goes is decided by the card and the page (components/NoteList.tsx): `open` is where the whole content links (in a
+// where a click goes is decided by CardContent and PageContent below: `open` is where the whole content links (in a
 // card, the note's own page), `attachmentLink` where an attachment inside it links.
 export type Place = "card" | "page";
 type ContentProps = { note: Note; place: Place; imageBase?: string; open?: string; attachmentLink?: (src: string) => string | undefined };
@@ -53,4 +53,34 @@ const image: Body = {
   },
 };
 
-export const BODIES: Record<KindName, Body> = { markdown, image };
+const BODIES: Record<KindName, Body> = { markdown, image };
+
+// Where a click on a note goes is decided here, the same for every kind (ADR 0038): in a list, everything on a note's card opens
+// that note, its attachments too; on a note's own page, an attachment opens the attachment's own page.
+export function CardContent({ note, open, imageBase, attachments }: { note: Note; open: string; imageBase?: string; attachments: (src: string) => string | undefined }) {
+  const body = BODIES[kindOf(note.type).name];
+  const heading = body.heading(note, "card");
+  return (
+    <>
+      {heading && (
+        <Link href={open} className="block text-[17px] font-bold tracking-tight hover:text-carbon">
+          {heading}
+        </Link>
+      )}
+      <body.Content note={note} place="card" imageBase={imageBase} open={open} attachmentLink={(src) => (attachments(src) ? open : undefined)} />
+    </>
+  );
+}
+
+export function PageContent({ note, imageBase, attachments }: { note: Note; imageBase?: string; attachments?: (src: string) => string | undefined }) {
+  const body = BODIES[kindOf(note.type).name];
+  const heading = body.heading(note, "page");
+  return (
+    <>
+      {heading && <h1 className="mb-2 text-xl font-bold tracking-tight">{heading}</h1>}
+      <body.Content note={note} place="page" imageBase={imageBase} attachmentLink={attachments} />
+    </>
+  );
+}
+
+// Notes as cards, grouped by day under sticky labels; each title links to `${base}/${id}`. `imageBase` is where a note's relative

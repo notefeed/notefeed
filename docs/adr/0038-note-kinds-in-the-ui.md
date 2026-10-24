@@ -22,7 +22,7 @@ Chosen: a registry of kinds. The backend stays free of React (ADR 0003), and the
 
 * **`shared/notekinds.ts`**: `kindOf(mediaType)` is the one place that tells kinds apart by media type. A kind says which files its text refers to as attachments, whether it can be an attachment, and whether it has text and an alternative text to edit. Lists, RSS included, leave out attachments shown by another listed note (`withoutAttachments`), and `attachmentLinks` gives an attachment's page.
 * **`components/NoteBody.tsx`**: one body per kind, a heading and the content, for a card or a page. A body draws content only.
-* **One click rule, in `components/NoteList.tsx`**: in a list, everything on a note's card opens that note, its attachments too; on a note's own page, an attachment opens the attachment's own page.
+* **One click rule, in `CardContent` and `PageContent` (`components/NoteBody.tsx`)**: in a list, everything on a note's card opens that note, its attachments too; on a note's own page, an attachment opens the attachment's own page.
 * **Kept in step by a test**: `backend/note/types.test.ts` checks that every backend type has the kind of the same name for each of its media types, with the same alternative text rule.
 
 ### Consequences

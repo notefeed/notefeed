@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { NoteArticle } from "@/components/NoteList";
+import { NoteArticle } from "@/components/NoteArticle";
 import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
 import { orDamaged } from "@/app/_lib/damaged";
