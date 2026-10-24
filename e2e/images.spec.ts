@@ -425,17 +425,20 @@ test("the preview shows a dropped picture from its file, before it is uploaded",
 
 // A picture posted with a markdown note is a note of its own; the feed shows it once, inside the note, and that picture leads to
 // the picture's own page.
-test("a note's picture shows once in the feed and opens the picture's own note", async ({ page, request }) => {
+test("a note's picture shows once in the feed; clicking it opens the note, and there the picture's own note", async ({ page, request }) => {
   const name = feedName();
   const bytes = readFileSync(PNG);
   const res = await request.post(`/api/v1/feeds/${name}/notes`, { multipart: { text: "# Herzii\n\n![](beach.png)", file: { name: "beach.png", mimeType: "image/png", buffer: bytes } } });
   expect(res.status()).toBe(201);
-  const picture = (await res.json()).attachments[0];
+  const posted = await res.json();
+  const picture = posted.attachments[0];
   expect((await request.get(`/api/v1/feeds/${name}/notes`)).ok()).toBe(true);
 
   await page.goto(`/${name}`);
   await expect(page.getByRole("listitem")).toHaveCount(1); // the markdown note; the picture is not listed again
   await expect(page.locator("main img")).toHaveCount(1);
   await page.locator("main img").click();
-  await expect(page).toHaveURL(new RegExp(`/${name}/${picture.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/${name}/${posted.id}$`)); // the note first
+  await page.locator("main img").click();
+  await expect(page).toHaveURL(new RegExp(`/${name}/${picture.id}$`)); // then the picture's own note
 });
