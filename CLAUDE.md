@@ -36,6 +36,7 @@ CI is still the gate, and I decide when a branch is finished and when it is merg
 ## Releases
 
 A `vX.Y.Z` tag is a release: see the `release` skill (`.claude/skills/release/SKILL.md`) before bumping versions or tagging.
+Every release's notes go onto notefeed.me's reserved `releases` feed (https://notefeed.me/r/releases) once the GitHub release exists; the skill says how.
 
 ## Agent skills
 
