@@ -50,6 +50,17 @@ test("a Report link per note fills the template with the read id, the note id an
   expect(article).toContain('href="https://r.example/?r=rid&amp;n=m2&amp;f=m2.md"');
 });
 
+test("a markdown note's page shows its title as the heading, then the rest of the text, as its card does", () => {
+  const page = (markdown: string) => renderToStaticMarkup(<NoteArticle note={mdNote({ id: "m1", markdown })} back="/feed" />);
+  expect(page("Ich liebe dich\n\n![](pic.png)")).toMatch(/<h1[^>]*>Ich liebe dich<\/h1><div[^>]*><p><img src="pic.png"/);
+  expect(page("# Hello\nsome *text*")).toMatch(/<h1[^>]*>Hello<\/h1><div[^>]*><p>some <em>text<\/em><\/p>/);
+  expect(page("Only a line")).toMatch(/<h1[^>]*>Only a line<\/h1>/);
+  // A note that starts with a picture keeps it; a heading further down stays in its place.
+  expect(page("![Cat](cat.png)\nmore")).not.toContain("<h1 class");
+  expect(page("![Cat](cat.png)\nmore")).toContain('src="cat.png"');
+  expect(page("intro\n# Later")).not.toContain("<h1 class");
+});
+
 test("the note page shows the picture large, with its title", () => {
   const html = renderToStaticMarkup(<NoteArticle note={imgNote({ id: "p1", ext: "webp", title: "Cat", createdAt: new Date("2026-09-30T10:00:00Z") })} back="/feed" imageBase="/r/rid/" />);
   expect(html).toMatch(/<img src="\/r\/rid\/p1\.webp"/);

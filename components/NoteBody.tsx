@@ -11,7 +11,7 @@ import { bodyAfterTitle } from "@/shared/notes";
 export type Place = "card" | "page";
 type ContentProps = { note: Note; place: Place; imageBase?: string; open?: string; attachmentLink?: (src: string) => string | undefined };
 type Body = {
-  /** The heading above the content, or none: a markdown note's page shows its title in the text. */
+  /** The heading above the content, or none. */
   heading(note: Note, place: Place): string | undefined;
   Content(props: ContentProps): ReactNode;
 };
@@ -23,11 +23,19 @@ function Picture({ note, imageBase, className }: { note: Note; imageBase?: strin
   return <img src={(imageBase ?? "") + note.file} alt={note.alt ?? note.title} loading="lazy" className={className} />;
 }
 
+// Whether a markdown note's page shows its title as the heading and the text after the title's line, as its card does. Not when the
+// title is a picture's alt text (the picture stays) or a `# ` heading further down (the text shows it in its place).
+function titledPage(markdown: string): boolean {
+  const first = markdown.split(/\r?\n/).find((l) => l.trim() !== "")?.trim() ?? "";
+  return !/^!\[[^\]]*\]\([^)]*\)$/.test(first) && bodyAfterTitle(markdown) !== markdown.trim();
+}
+
 const markdown: Body = {
-  heading: (note, place) => (place === "card" ? note.title || note.id : undefined),
+  heading: (note, place) => (place === "card" ? note.title || note.id : titledPage(note.content ?? "") ? note.title || undefined : undefined),
   Content({ note, place, imageBase, attachmentLink }) {
-    if (place === "page") return <NoteView markdown={note.content ?? ""} imageBase={imageBase} link={attachmentLink} />;
-    const rest = bodyAfterTitle(note.content ?? "");
+    const text = note.content ?? "";
+    if (place === "page") return <NoteView markdown={titledPage(text) ? bodyAfterTitle(text) : text} imageBase={imageBase} link={attachmentLink} />;
+    const rest = bodyAfterTitle(text);
     return (
       rest && (
         <div className="mt-1 text-[15px]">
