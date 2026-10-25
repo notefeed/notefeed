@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { card, sectionLabel } from "@/components/styles";
 import { CardContent } from "@/components/NoteBody";
+import { NoteCard } from "@/components/NoteCard";
 import { Foot, type Report } from "@/components/NoteFoot";
 import type { Note } from "@/backend";
 import { UNREADABLE } from "@/app/_lib/messages";
-import { attachmentLinks, withoutAttachments } from "@/shared/notekinds";
+import { withoutAttachments } from "@/shared/notekinds";
 
 // Times use the server's TZ (set TZ in compose.yaml).
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA");
@@ -35,7 +36,6 @@ function groupByDay(notes: Note[]): [string, Note[]][] {
 // image links point. The day label sticks below the phone's top bar (components/AppShell.tsx), at the top from lg.
 // An attachment that a note in the list shows is left out (shared/notekinds.ts).
 export function NoteList({ notes, base, imageBase, posted, report }: { notes: Note[]; base: string; imageBase?: string; posted?: string; report?: Report }) {
-  const link = attachmentLinks(notes, base);
   return groupByDay(withoutAttachments(notes)).map(([day, items]) => (
     <section key={day} aria-labelledby={`day-${dayKey(items[0].createdAt)}`} className="mb-6">
       <h2 id={`day-${dayKey(items[0].createdAt)}`} className={`${sectionLabel} sticky top-14 z-10 -mx-4 bg-paper/90 px-4 py-1.5 backdrop-blur-sm lg:top-0 lg:-mx-6 lg:px-6`}>
@@ -43,7 +43,7 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
       </h2>
       <ol className="mt-2 space-y-3">
         {items.map((n) => (
-          <li key={n.id} className={`${card} p-4 ${n.id === posted ? "arrived" : ""}`}>
+          <NoteCard key={n.id} className={`${card} p-4 ${n.id === posted ? "arrived" : ""}`}>
             {n.unreadable ? (
               // A damaged note, in its place: what happened, and its page (where its owner can delete it).
               <p role="status" className="text-muted">
@@ -53,25 +53,12 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
                 </Link>
               </p>
             ) : (
-              <CardContent note={n} open={`${base}/${n.id}`} imageBase={imageBase} attachments={link} />
+              <CardContent note={n} imageBase={imageBase} />
             )}
-            <Foot note={n} base={base} when={time(n.createdAt)} report={report} />
-          </li>
+            <Foot note={n} base={base} when={time(n.createdAt)} open={`${base}/${n.id}`} report={report} />
+          </NoteCard>
         ))}
       </ol>
     </section>
   ));
-}
-
-
-// Shown above a filtered list: what it is filtered by, and the way back to all notes.
-export function TagFilter({ tag, base }: { tag: string; base: string }) {
-  return (
-    <p className="mb-4 text-sm text-muted">
-      Notes tagged <span className="font-mono text-ink">{tag}</span> ·{" "}
-      <Link href={base} className="text-carbon hover:underline">
-        Show all notes
-      </Link>
-    </p>
-  );
 }

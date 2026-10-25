@@ -8,7 +8,7 @@ import { FeedAbout } from "@/components/FeedAbout";
 import { FreeTierNotice } from "@/components/FreeTier";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { card } from "@/components/styles";
-import { NoteList, TagFilter } from "@/components/NoteList";
+import { NoteList } from "@/components/NoteList";
 import { ProtectFeed } from "@/components/ProtectFeed";
 import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
@@ -112,7 +112,6 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
         sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
         initialTitle={one(share_title)} initialText={shared}
       />
-      {tag && <TagFilter tag={tag} base={feedPath(feed)} />}
       {tag && notes.length === 0 ? (
         <p className="text-muted">No notes with this tag.</p>
       ) : notes.length === 0 ? (

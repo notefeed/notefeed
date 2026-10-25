@@ -29,13 +29,3 @@ export function extractTitle(markdown: string): string {
 export function idStamp(now: Date): string {
   return now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
 }
-
-/** The note without the line its title came from, so lists don't repeat the title. */
-export function bodyAfterTitle(markdown: string): string {
-  const ls = lines(markdown);
-  const first = ls.findIndex((l) => l.trim() !== "");
-  if (first === -1) return "";
-  const h = headingIndex(ls);
-  const titleIsFirst = h === first || h === -1;
-  return titleIsFirst ? ls.slice(first + 1).join("\n").trim() : markdown.trim();
-}

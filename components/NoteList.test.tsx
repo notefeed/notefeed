@@ -26,16 +26,19 @@ test("the picture's alt text is the note's alt, else its title, else empty", () 
   expect(alts(list([imgNote({ id: "b", createdAt: at, title: "Titled" })]))).toEqual(["Titled"]);
 });
 
-test("an image note's title shows as its link text above the picture; none shows no id", () => {
+test("an image note's title shows above the picture; none shows no id", () => {
   const at = new Date("2026-09-30T10:00:00Z");
-  expect(list([imgNote({ id: "x1", createdAt: at, title: "A cat" })])).toContain(">A cat</a>");
-  expect(list([imgNote({ id: "x2", createdAt: at })])).not.toContain(">x2</a>");
+  expect(list([imgNote({ id: "x1", createdAt: at, title: "A cat" })])).toContain(">A cat</p>");
+  expect(list([imgNote({ id: "x2", createdAt: at })])).not.toContain(">x2<");
 });
 
-test("a markdown note is listed as before: title link, then the rest of the text", () => {
+test("a markdown note without a title of its own shows its text as written, in the list and on its page (ADR 0040)", () => {
   const html = list([mdNote({ id: "m1", markdown: "# Hello\nsome *text*", createdAt: new Date("2026-09-30T10:00:00Z") })]);
-  expect(html).toContain(">Hello</a>");
-  expect(html).toContain("<em>text</em>");
+  expect(html).toMatch(/<div class="md break-words"><h1>Hello<\/h1>\s*<p>some <em>text<\/em>/);
+  expect(html).not.toContain(">m1<"); // no id in place of a title
+  const page = (markdown: string) => renderToStaticMarkup(<NoteArticle note={mdNote({ id: "m1", markdown })} back="/feed" />);
+  expect(page("Ich liebe dich\n\n![](pic.png)")).toMatch(/<div class="md break-words"><p>Ich liebe dich<\/p>\s*<p><img src="pic.png"/);
+  expect(page("Ich liebe dich")).not.toContain("<h1");
 });
 
 test("a Report link per note fills the template with the read id, the note id and the file; none without a template (#154)", () => {
@@ -50,21 +53,10 @@ test("a Report link per note fills the template with the read id, the note id an
   expect(article).toContain('href="https://r.example/?r=rid&amp;n=m2&amp;f=m2.md"');
 });
 
-test("a markdown note's page shows its title as the heading, then the rest of the text, as its card does", () => {
-  const page = (markdown: string) => renderToStaticMarkup(<NoteArticle note={mdNote({ id: "m1", markdown })} back="/feed" />);
-  expect(page("Ich liebe dich\n\n![](pic.png)")).toMatch(/<h1[^>]*>Ich liebe dich<\/h1><div[^>]*><p><img src="pic.png"/);
-  expect(page("# Hello\nsome *text*")).toMatch(/<h1[^>]*>Hello<\/h1><div[^>]*><p>some <em>text<\/em><\/p>/);
-  expect(page("Only a line")).toMatch(/<h1[^>]*>Only a line<\/h1>/);
-  // A note that starts with a picture keeps it; a heading further down stays in its place.
-  expect(page("![Cat](cat.png)\nmore")).not.toContain("<h1 class");
-  expect(page("![Cat](cat.png)\nmore")).toContain('src="cat.png"');
-  expect(page("intro\n# Later")).not.toContain("<h1 class");
-});
-
 test("a markdown note's own title is its heading on card and page, and the text shows whole", () => {
   const note = mdNote({ id: "m1", markdown: "*Released today*\n\nThe notes.", title: "notefeed 1.0" });
   const card = list([note]);
-  expect(card).toContain(">notefeed 1.0</a>");
+  expect(card).toContain(">notefeed 1.0</p>");
   expect(card).toContain("<em>Released today</em>");
   const page = renderToStaticMarkup(<NoteArticle note={note} back="/feed" />);
   expect(page).toMatch(/<h1[^>]*>notefeed 1.0<\/h1><div[^>]*><p><em>Released today<\/em>/);
@@ -87,11 +79,14 @@ test("a damaged note is a placeholder in its place: no title, no content, a link
   expect(html).not.toContain(">b<"); // the id is no title
 });
 
-test("a picture a markdown note in the list shows is not listed again; in the list the note's picture opens the note", () => {
+test("a picture a markdown note in the list shows is not listed again; in the list only the note's time links, to the note (ADR 0040)", () => {
   const at = new Date("2026-10-24T10:00:00Z");
   const html = list([mdNote({ id: "n1", markdown: "# Herzii\n\n![](p1.png)", createdAt: at }), imgNote({ id: "p1", createdAt: at }), imgNote({ id: "p2", createdAt: at })]);
   expect(html.match(/<li /g)).toHaveLength(2); // the markdown note and the picture nobody shows
-  expect(html).toMatch(/<a [^>]*href="\/feed\/n1"[^>]*><img src="\/r\/rid\/p1\.png"/); // the note first; its page links the picture's
+  expect(html).not.toMatch(/<a [^>]*><img/); // the card opens the note, a click on the picture too (components/NoteCard.tsx)
+  const open = html.match(/<a [^>]*data-open[^>]*>/)?.[0];
+  expect(open).toContain('href="/feed/n1"');
+  expect(open).toMatch(/aria-label="Herzii, \d\d:\d\d"/);
 
   expect(html.match(/src="\/r\/rid\/p1\.png"/g)).toHaveLength(1);
   expect(html).toMatch(/src="\/r\/rid\/p2\.png"/);

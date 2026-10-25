@@ -56,7 +56,7 @@ test("a long unbroken word in a note fits the screen", async ({ page }) => {
   await post(page, feed, `# Word\n\n${word} and https://example.com/${"a".repeat(120)}\n\n\`${word}\``);
   await post(page, feed, `# ${word}`);
   await page.goto(`/${feed}`);
-  await expect(page.getByRole("link", { name: "Word", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Word", exact: true })).toBeVisible();
   await expectNoSideScroll(page);
 });
 

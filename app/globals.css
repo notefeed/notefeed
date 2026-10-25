@@ -83,6 +83,8 @@ body {
 .md th, .md td { border: 1px solid var(--rule); padding: 0.25em 0.5em; text-align: left; }
 .md img { max-width: 100%; height: auto; }
 .md hr { border: 0; border-top: 1px solid var(--rule); }
+/* In a list's card a note's headings are no bigger than a title (ADR 0040). */
+.note-card .md :is(h1, h2) { font-size: 17px; letter-spacing: -0.01em; }
 
 /* The operator's pages (components/LegalPage.tsx): a document, with room between its sections. */
 .doc .md > h1:first-child { font-size: 1.75rem; letter-spacing: -0.01em; margin-bottom: 0.25em; }
