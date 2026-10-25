@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
 import { kindOf, type KindName } from "@/shared/notekinds";
-import { bodyAfterTitle } from "@/shared/notes";
+import { bodyAfterTitle, extractTitle } from "@/shared/notes";
+import { cleanLine } from "@/shared/links";
 
 // How each kind of note (shared/notekinds.ts) shows, in a list's card or on its own page (ADR 0038). A body draws content only;
 // where a click goes is decided by CardContent and PageContent below: `open` is where the whole content links (in a
@@ -23,19 +24,23 @@ function Picture({ note, imageBase, className }: { note: Note; imageBase?: strin
   return <img src={(imageBase ?? "") + note.file} alt={note.alt ?? note.title} loading="lazy" className={className} />;
 }
 
-// Whether a markdown note's page shows its title as the heading and the text after the title's line, as its card does. Not when the
-// title is a picture's alt text (the picture stays) or a `# ` heading further down (the text shows it in its place).
+// A markdown note's own title (set when posted or edited, not taken from the text) is its heading, and the text shows whole.
+const ownTitle = (note: Note) => note.meta.title !== undefined && note.title !== "" && note.title !== cleanLine(extractTitle(note.content ?? ""));
+
+// A title taken from the text: the card shows it as the heading and the text after the title's line; the page does the same,
+// except when the title is a picture's alt text (the picture stays) or a `# ` heading further down (the text shows it in its place).
 function titledPage(markdown: string): boolean {
   const first = markdown.split(/\r?\n/).find((l) => l.trim() !== "")?.trim() ?? "";
   return !/^!\[[^\]]*\]\([^)]*\)$/.test(first) && bodyAfterTitle(markdown) !== markdown.trim();
 }
 
 const markdown: Body = {
-  heading: (note, place) => (place === "card" ? note.title || note.id : titledPage(note.content ?? "") ? note.title || undefined : undefined),
+  heading: (note, place) => (place === "card" ? note.title || note.id : ownTitle(note) || titledPage(note.content ?? "") ? note.title || undefined : undefined),
   Content({ note, place, imageBase, attachmentLink }) {
     const text = note.content ?? "";
-    if (place === "page") return <NoteView markdown={titledPage(text) ? bodyAfterTitle(text) : text} imageBase={imageBase} link={attachmentLink} />;
-    const rest = bodyAfterTitle(text);
+    const own = ownTitle(note);
+    if (place === "page") return <NoteView markdown={!own && titledPage(text) ? bodyAfterTitle(text) : text} imageBase={imageBase} link={attachmentLink} />;
+    const rest = own ? text.trim() : bodyAfterTitle(text);
     return (
       rest && (
         <div className="mt-1 text-[15px]">

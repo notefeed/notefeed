@@ -6,7 +6,7 @@ import { NoteList } from "./NoteList";
 
 // A note as the backend hands it out, without touching the disk.
 const at0 = new Date(0);
-const mdNote = ({ id, markdown, createdAt = at0 }: { id: string; markdown: string; createdAt?: Date }) => new MarkdownNote({ id, ext: "md", meta: {}, createdAt, size: markdown.length }, markdown);
+const mdNote = ({ id, markdown, createdAt = at0, title }: { id: string; markdown: string; createdAt?: Date; title?: string }) => new MarkdownNote({ id, ext: "md", meta: title === undefined ? {} : { title }, createdAt, size: markdown.length }, markdown);
 const imgNote = ({ id, ext = "png", createdAt = at0, title, alt }: { id: string; ext?: string; createdAt?: Date; title?: string; alt?: string }) =>
   new ImageNote({ id, ext, meta: { ...(title && { title }), ...(alt && { alt }) }, createdAt, size: 12 });
 
@@ -59,6 +59,18 @@ test("a markdown note's page shows its title as the heading, then the rest of th
   expect(page("![Cat](cat.png)\nmore")).not.toContain("<h1 class");
   expect(page("![Cat](cat.png)\nmore")).toContain('src="cat.png"');
   expect(page("intro\n# Later")).not.toContain("<h1 class");
+});
+
+test("a markdown note's own title is its heading on card and page, and the text shows whole", () => {
+  const note = mdNote({ id: "m1", markdown: "*Released today*\n\nThe notes.", title: "notefeed 1.0" });
+  const card = list([note]);
+  expect(card).toContain(">notefeed 1.0</a>");
+  expect(card).toContain("<em>Released today</em>");
+  const page = renderToStaticMarkup(<NoteArticle note={note} back="/feed" />);
+  expect(page).toMatch(/<h1[^>]*>notefeed 1.0<\/h1><div[^>]*><p><em>Released today<\/em>/);
+  // A stored title that is the text's own first line is shown once.
+  const same = renderToStaticMarkup(<NoteArticle note={mdNote({ id: "m2", markdown: "Hello\nworld", title: "Hello" })} back="/feed" />);
+  expect(same.match(/Hello/g)).toHaveLength(1);
 });
 
 test("the note page shows the picture large, with its title", () => {
