@@ -21,7 +21,25 @@ test("escapes titles", () => {
 test("keeps ]]> intact across CDATA sections", () => {
   const desc = /<description>(.*?)<\/description>/s.exec(xml.split("<item>")[1])![1];
   const text = [...desc.matchAll(/<!\[CDATA\[(.*?)\]\]>/gs)].map((m) => m[1]).join("");
-  expect(text).toBe(notes[0].markdown);
+  expect(text).toBe("<h1>A &#x26; &#x3C;B></h1>\n<p>code: a]]>b ]]> end</p>");
+});
+
+test("a description is the text as HTML: markdown rendered, raw HTML as text, pictures absolute, the first one the item's image", () => {
+  const md = "Look *here*\n\n<b id=x>bold?</b>\n\n![a cat](cat%20one.png) ![](<two pics.webp>) ![far](https://elsewhere.test/c.gif)\n\n| a |\n| - |\n| 1 |";
+  const item = renderFeed([mdNote({ id: "m1", markdown: md })], photoOpts).split("<item>")[1];
+  const html = [...item.matchAll(/<!\[CDATA\[(.*?)\]\]>/gs)].map((m) => m[1]).join("");
+  expect(html).toContain("<p>Look <em>here</em></p>");
+  expect(html).toContain("&#x3C;b id=x>bold?&#x3C;/b>"); // never markup a reader would run
+  expect(html).not.toContain("<b id");
+  expect(html).toContain('<img src="https://x.test/r/AbCdEfGhIjKlMnOpQrSt_-/cat%20one.png" alt="a cat">');
+  expect(html).toContain('<img src="https://x.test/r/AbCdEfGhIjKlMnOpQrSt_-/two%20pics.webp" alt="">');
+  expect(html).toContain('<img src="https://elsewhere.test/c.gif" alt="far">');
+  expect(html).toContain("<table>"); // GFM, as on the page
+  expect(item).toContain('<media:content url="https://x.test/r/AbCdEfGhIjKlMnOpQrSt_-/cat%20one.png" type="image/png" medium="image"/>');
+  expect(item).toContain('<media:thumbnail url="https://x.test/r/AbCdEfGhIjKlMnOpQrSt_-/cat%20one.png"/>');
+  expect(item.match(/<media:content/g)).toHaveLength(1);
+  expect(renderFeed([mdNote({ id: "m1", markdown: md })], photoOpts)).toContain('xmlns:media="http://search.yahoo.com/mrss/"');
+  expect(xml).not.toContain("xmlns:media"); // no pictures, no namespace
 });
 
 test("links are absolute and go through the read id", () => {
@@ -60,9 +78,12 @@ test("a sender becomes an escaped dc:creator and declares the namespace; none, n
 
 const photoOpts = { title: "t", description: "t", baseUrl: "https://x.test", readId: "AbCdEfGhIjKlMnOpQrSt_-" };
 
-test("an image note is an item with an enclosure, no description, and its id as title", () => {
+test("an image note is an item with an enclosure and no description, titled by its alt text, its file's name, else what and when", () => {
   const out = renderFeed([imgNote({ id: "20260930T100000Z-pic", ext: "jpg", size: 2048, createdAt: new Date("2026-09-30T10:00:00Z") })], photoOpts);
-  expect(out).toContain("<title>20260930T100000Z-pic</title>");
+  expect(out).toMatch(/<title>Picture, 30 Sept? 2026, \d\d:00<\/title>/); // never its id
+  expect(out).not.toContain("<title>20260930T100000Z-pic</title>");
+  expect(renderFeed([imgNote({ id: "p", alt: "A cat", name: "IMG_1.jpg" })], photoOpts)).toContain("<title>A cat</title>");
+  expect(renderFeed([imgNote({ id: "p", name: "IMG_1.jpg" })], photoOpts)).toContain("<title>IMG_1.jpg</title>");
   expect(out).toContain('<enclosure url="https://x.test/r/AbCdEfGhIjKlMnOpQrSt_-/20260930T100000Z-pic.jpg" length="2048" type="image/jpeg"/>');
   expect(out).toContain("<link>https://x.test/r/AbCdEfGhIjKlMnOpQrSt_-/20260930T100000Z-pic</link>"); // the note page, not the file
   expect(out.split("<item>")[1]).not.toContain("<description>"); // the channel has one

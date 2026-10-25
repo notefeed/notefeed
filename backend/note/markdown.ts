@@ -1,8 +1,9 @@
-import { absolutizeImages, cleanLine } from "../../shared/links";
+import { cleanLine } from "../../shared/links";
+import { imageType, markdownToHtml } from "../rsshtml";
 import { extractTitle } from "../../shared/notes";
 import type { Meta } from "../storage/types";
 import { EmptyNoteError, NoteTooLargeError } from "../errors";
-import { Note, type NoteInit } from "./note";
+import { Note, type NoteInit, type RssContent } from "./note";
 
 export const MAX_BYTES = 102400;
 
@@ -26,9 +27,11 @@ export class MarkdownNote extends Note {
   get title(): string {
     return cleanLine(this.meta.title ?? extractTitle(this.markdown)); // what no title holds is not shown, whatever was stored or written in the text
   }
-  // Readers have no base to resolve a relative image link against, so it becomes absolute here; the stored note is unchanged.
-  rssContent(base: string) {
-    return { description: absolutizeImages(this.markdown, `${base}/`) };
+  // The text as HTML, its pictures absolute (backend/rsshtml.ts); the first picture also as the item's image.
+  rssContent(base: string): RssContent {
+    const { html, image } = markdownToHtml(this.markdown, `${base}/`);
+    const type = image && imageType(image);
+    return { description: html, ...(image && type && { image: { url: image, type } }) };
   }
   withMeta(meta: Meta): MarkdownNote {
     return new MarkdownNote({ id: this.id, ext: this.ext, meta, createdAt: this.createdAt, size: this.size }, this.markdown);
