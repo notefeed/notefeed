@@ -4,6 +4,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { config } from "../config";
 import { renderMetrics } from "../metrics";
+import { refreshUsage } from "../usage";
 
 // Both sides hashed first, so the comparison takes the same time and works for tokens of any length.
 const digest = (s: string) => createHash("sha256").update(s).digest();
@@ -16,6 +17,7 @@ export async function metricsRoute(req: Request): Promise<Response> {
     const given = /^Bearer (.+)$/.exec(req.headers.get("authorization") ?? "")?.[1] ?? "";
     if (!given || !sameToken(given, token)) return new Response("unauthorized", { status: 401, headers: { "WWW-Authenticate": "Bearer" } });
   }
+  await refreshUsage();
   const { contentType, body } = await renderMetrics();
   return new Response(body, { headers: { "Content-Type": contentType, "Cache-Control": "no-store" } });
 }

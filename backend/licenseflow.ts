@@ -7,6 +7,7 @@ import { config } from "./config";
 import { InvalidBodyError, LicenseRequiredError, NotFoundError } from "./errors";
 import { isLicensed, licenses } from "./licensing";
 import { logger } from "./log";
+import { licenseEvent } from "./metrics";
 import { paymentProvider, WebhookRejectedError, type LicenseEvent, type LicensePeriod } from "./payments";
 import { checkFeed } from "./feednames";
 import { hasFeed } from "./feeds";
@@ -66,10 +67,11 @@ async function apply(e: LicenseEvent): Promise<void> {
   switch (e.type) {
     case "started":
       await store.createLicense({ keyHash: hashKey(e.key), providerRef: e.providerRef, validUntil: e.validUntil });
-      return void log.info("license bought");
+      log.info("license bought");
+      return licenseEvent("bought");
     case "renewed":
       // A renewal after a lapse (the buyer paid again) makes it active again.
-      await store.update(e.providerRef, { status: "active", validUntil: e.validUntil });
+      if (await store.update(e.providerRef, { status: "active", validUntil: e.validUntil })) licenseEvent("renewed");
       return;
     case "cancelled":
       // Stays active to the end of the paid period; isLicensed ends it then.
@@ -79,11 +81,11 @@ async function apply(e: LicenseEvent): Promise<void> {
       // Delivered late, after the payment retried for that period went through: the license already runs on past it.
       const license = await store.byProviderRef(e.providerRef);
       if (e.periodEnd !== null && license?.validUntil != null && license.validUntil > e.periodEnd) return void log.info("a late end of a period that is paid since");
-      await store.update(e.providerRef, { status: "lapsed" });
+      if (await store.update(e.providerRef, { status: "lapsed" })) licenseEvent("lapsed");
       return void log.info({ why: e.type }, "license lapsed");
     }
     case "refunded":
-      await store.update(e.providerRef, { status: "lapsed" });
+      if (await store.update(e.providerRef, { status: "lapsed" })) licenseEvent("lapsed");
       return void log.info({ why: e.type }, "license lapsed");
   }
 }
@@ -108,6 +110,7 @@ export async function attachLicense(feed: string, key: string): Promise<void> {
   }
   if (result === "unknown-key") throw new InvalidBodyError("that is not a license key");
   if (result === "feed-has-license") throw new InvalidBodyError("the feed already has a license; detach it first");
+  licenseEvent("attached");
 }
 
 export async function detachLicense(feed: string): Promise<void> {

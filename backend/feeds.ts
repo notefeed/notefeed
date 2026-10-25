@@ -6,6 +6,7 @@ import { config } from "./config";
 import { InvalidBodyError, NotFoundError, ReadIdTakenError, ReservedFeedError } from "./errors";
 import { checkFeed, CUSTOM_READ_ID_RE, heldBack, isHeldBack, isReadId } from "./feednames";
 import { logger } from "./log";
+import { feedCreated, feedRemoved } from "./metrics";
 import { resetSecretForTests } from "./secret";
 import { storage, resetStorageForTests } from "./storage";
 import type { Storage } from "./storage/types";
@@ -61,7 +62,10 @@ export async function ensureFeed(feed: string, wanted?: string): Promise<string 
   if (known !== undefined) return known;
   if (isHeldBack(feed)) throw new ReservedFeedError();
   if (wanted !== undefined) checkReadId(wanted);
-  if ((await s.createFeed(feed, wanted ?? newReadId())).created) log.info({ protected: false }, "feed created"); // never its name
+  if ((await s.createFeed(feed, wanted ?? newReadId())).created) {
+    log.info({ protected: false }, "feed created"); // never its name
+    feedCreated(false);
+  }
   return (await s.feedReadId(feed)) ?? null;
 }
 
@@ -70,14 +74,20 @@ export async function createProtectedFeed(feed: string, hash: string, wanted?: s
   const s = await prepared();
   if (wanted !== undefined) checkReadId(wanted);
   const { created } = await s.createFeed(feed, wanted ?? newReadId(), hash);
-  if (created) log.info({ protected: true }, "feed created");
+  if (created) {
+    log.info({ protected: true }, "feed created");
+    feedCreated(true);
+  }
   return created;
 }
 
 // Removes a feed with everything in it: false when there is no such feed.
 export async function deleteFeed(feed: string): Promise<boolean> {
   const deleted = await (await prepared()).deleteFeed(feed);
-  if (deleted) log.info("feed deleted");
+  if (deleted) {
+    log.info("feed deleted");
+    feedRemoved("deleted");
+  }
   return deleted;
 }
 

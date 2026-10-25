@@ -81,6 +81,19 @@ describe.skipIf(!supported)(label, () => {
     expect(await licenses.update("sub_x", { status: "lapsed" })).toBe(false);
   });
 
+  test("counts: paid on a feed, paid on none, and lapsed by status or by an ended period", async () => {
+    const licenses = fresh();
+    expect(await licenses.counts(100)).toEqual({ active: 0, unattached: 0, lapsed: 0 });
+    await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+    await licenses.createLicense({ keyHash: "h2", providerRef: "sub_2", validUntil: 200 });
+    await licenses.createLicense({ keyHash: "h3", providerRef: "sub_3", validUntil: 50 });
+    await licenses.createLicense({ keyHash: "h4", providerRef: "sub_4", validUntil: null });
+    await licenses.attach("h1", "f");
+    await licenses.attach("h3", "g");
+    await licenses.update("sub_4", { status: "lapsed" });
+    expect(await licenses.counts(100)).toEqual({ active: 1, unattached: 1, lapsed: 2 });
+  });
+
   test("the licenses are in their own file and are still there when it is opened again", async () => {
     const file = join(dir, "nested", "licenses.db");
     const first = fresh(file);

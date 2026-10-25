@@ -479,6 +479,14 @@ describe.skipIf(!supported)("sqlite", () => {
     });
   });
 
+  test("databaseStats: the file's size, and no connections to count", async () => {
+    const { storage: s } = await fresh();
+    await s.createFeed("f", "rid-f");
+    const { bytes, connections } = await s.databaseStats();
+    expect(bytes).toBeGreaterThan(0);
+    expect(connections).toBeNull();
+  });
+
   test("a second start on the same database migrates nothing and keeps the data", async () => {
     const a = await fresh();
     await a.storage.createFeed("f", "rid-f");

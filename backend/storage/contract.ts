@@ -208,6 +208,24 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect((await s.listFeedNames()).sort()).toEqual(["f", "g"]);
         expect(await s.feedCount()).toBe(2);
       });
+      t("usage counts every feed's notes and bytes per extension, and nothing that names a feed", async ({ storage: s }) => {
+        const before = Date.now() - 1000;
+        await s.createFeed("g", "gid-123", "hash");
+        await s.writeNote("f", "a", "md", "hello", {});
+        await s.writeNote("f", "b", "md", "hi", { title: "T" });
+        await s.writeNote("f", "c", "png", new Uint8Array(10), {});
+        await s.deleteNote("f", "b", MD);
+        const usage = await s.usage();
+        expect(JSON.stringify(usage)).not.toMatch(/"f"|"g"|rid-f|gid-123/);
+        const [g, f] = [...usage].sort((a, b) => Number(a.lastWrite !== null) - Number(b.lastWrite !== null));
+        expect(g).toEqual({ protected: true, readLink: true, lastWrite: null, notes: {} });
+        expect(f).toMatchObject({ protected: false, readLink: true, notes: { md: { count: 1, bytes: 5 }, png: { count: 1, bytes: 10 } } });
+        expect(f.lastWrite).toBeGreaterThanOrEqual(before);
+        expect(f.lastWrite).toBeLessThanOrEqual(Date.now() + 1000);
+      });
+      t("usage of a store with no feed but the harness's is that feed alone, empty", async ({ storage: s }) => {
+        expect(await s.usage()).toEqual([{ protected: false, readLink: true, lastWrite: null, notes: {} }]);
+      });
       t("a feed name and a read id of 64 characters work", async ({ storage: s }) => {
         const name = "n".repeat(64);
         const id = "r".repeat(64);

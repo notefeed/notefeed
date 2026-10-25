@@ -100,6 +100,15 @@ describe.skipIf(!base || !supported)("postgres", () => {
     });
   });
 
+  test("databaseStats: the database's size and its open connections, this one among them", async () => {
+    await resetSchema();
+    const s = fresh();
+    await s.createFeed("f", "rid-f");
+    const { bytes, connections } = await s.databaseStats();
+    expect(bytes).toBeGreaterThan(0);
+    expect(connections).toBeGreaterThanOrEqual(1);
+  });
+
   test("two starts at the same time migrate once", async () => {
     await resetSchema();
     const [a, b] = [fresh(), fresh()];
