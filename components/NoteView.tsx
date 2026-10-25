@@ -17,7 +17,7 @@ const markPicturesInLinks = () => (tree: Hast) => {
 
 // Raw HTML in notes stays escaped: no rehype-raw. `resolve` gives a picture's URL for a link the text holds (the compose box's preview
 // shows the pictures waiting in it from their files, by the name the text calls them, issue #146); undefined falls through to `imageBase`.
-// `link` gives the page of the picture's own note (shared/pictures.ts), which the picture then links to unless the text put it in a link.
+// `link` gives the page of the picture's own note (shared/notekinds.ts), which the picture then links to unless the text put it in a link.
 export function NoteView({ markdown, imageBase, resolve, link }: { markdown: string; imageBase?: string; resolve?: (src: string) => string | undefined; link?: (src: string) => string | undefined }) {
   return (
     <div className="md break-words">

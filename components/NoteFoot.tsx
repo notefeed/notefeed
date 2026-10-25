@@ -1,0 +1,48 @@
+import Link from "next/link";
+import { Flag, Hash } from "lucide-react";
+import { chip } from "@/components/styles";
+import type { Note } from "@/backend";
+import { reportUrl } from "@/shared/report";
+
+// The foot of a note's card, one line: its tags, which link to the list filtered by that tag (`${base}?tag=…`), then who
+// posted it, when, and the Report link. No header row: the title is the first thing in the card.
+export function Foot({ note, base, when, report }: { note: Note; base: string; when: string; report?: Report }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
+      <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+        {note.tags.map((t) => (
+          <Link key={t} href={`${base}?tag=${encodeURIComponent(t)}`} className={chip}>
+            <Hash aria-hidden className="h-3 w-3" />
+            {t}
+          </Link>
+        ))}
+      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 text-[13px] text-muted">
+        {note.sender && (
+          <>
+            <span className="max-w-32 truncate">{note.sender}</span>
+            <span aria-hidden>·</span>
+          </>
+        )}
+        <time dateTime={note.createdAt.toISOString()} className="tabular-nums">
+          {when}
+        </time>
+        <ReportLink note={note} report={report} />
+      </div>
+    </div>
+  );
+}
+
+// Where a reader reports a note (issue #154): the operator's URL template with the read id, never the feed name, so the link is the
+// same on the feed page and in the read-only view. `report` is unset while the instance has no template, or the feed no read link.
+export type Report = { template: string; readId: string };
+function ReportLink({ note, report }: { note: Note; report?: Report }) {
+  if (!report) return null;
+  return (
+    <a href={reportUrl(report.template, { readId: report.readId, noteId: note.id, file: note.file })} rel="nofollow noopener" className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-carbon">
+      <Flag aria-hidden className="h-3.5 w-3.5" />
+      Report
+    </a>
+  );
+}
+

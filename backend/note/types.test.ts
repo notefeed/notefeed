@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { ACCEPTED_TYPES, mediaTypeOf, parseMediaType, typeForExt } from "./types";
+import { kindOf, NOTE_KINDS } from "../../shared/notekinds";
+import { ACCEPTED_TYPES, mediaTypeOf, NOTE_TYPES, parseMediaType, typeForExt } from "./types";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
 const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0]);
@@ -54,4 +55,12 @@ test("ACCEPTED_TYPES names every media type, for the error message", () => {
 
 test("the registry still finds a type by extension", () => {
   expect(typeForExt("png")?.name).toBe("image");
+});
+
+test("every type of the registry is the UI's kind of the same name for each of its media types, with the same alt text rule (ADR 0038)", () => {
+  expect(Object.keys(NOTE_KINDS).sort()).toEqual(NOTE_TYPES.map((t) => t.name).sort());
+  for (const t of NOTE_TYPES) {
+    for (const ext of t.exts) expect(kindOf(mediaTypeOf(ext)).name).toBe(t.name);
+    expect(NOTE_KINDS[t.name as keyof typeof NOTE_KINDS].alt).toBe(t.hasAlt);
+  }
 });

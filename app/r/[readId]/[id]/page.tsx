@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { NoteArticle } from "@/components/NoteList";
+import { NoteArticle } from "@/components/NoteArticle";
 import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
 import { orDamaged } from "@/app/_lib/damaged";
 import { getReadNote, getReadPictures, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
-import { pictureLinks } from "@/shared/pictures";
+import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,7 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
         back={readPath(readId)}
         imageBase={`${readPath(readId)}/`}
         report={reportTemplate() ? { template: reportTemplate(), readId } : undefined}
-        link={note.type.startsWith("image/") ? undefined : pictureLinks(await getReadPictures(readId), readPath(readId))}
+        link={kindOf(note.type).attachments(note.content).length ? attachmentLinks(await getReadPictures(readId), readPath(readId)) : undefined}
       />
     </AppShell>
   );
