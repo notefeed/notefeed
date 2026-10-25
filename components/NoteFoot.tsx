@@ -5,8 +5,14 @@ import type { Note } from "@/backend";
 import { reportUrl } from "@/shared/report";
 
 // The foot of a note's card, one line: its tags, which link to the list filtered by that tag (`${base}?tag=…`), then who
-// posted it, when, and the Report link. No header row: the title is the first thing in the card.
-export function Foot({ note, base, when, report }: { note: Note; base: string; when: string; report?: Report }) {
+// posted it, when, and the Report link. No header row: the title is the first thing in the card. `open`: in a list, the note's page,
+// which its time links to (ADR 0040), named by the note's title for a screen reader.
+export function Foot({ note, base, when, open, report }: { note: Note; base: string; when: string; open?: string; report?: Report }) {
+  const at = (
+    <time dateTime={note.createdAt.toISOString()} className="tabular-nums">
+      {when}
+    </time>
+  );
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
       <div className="flex min-w-0 flex-1 flex-wrap gap-2">
@@ -24,9 +30,13 @@ export function Foot({ note, base, when, report }: { note: Note; base: string; w
             <span aria-hidden>·</span>
           </>
         )}
-        <time dateTime={note.createdAt.toISOString()} className="tabular-nums">
-          {when}
-        </time>
+        {open ? (
+          <Link href={open} data-open aria-label={`${note.title || "Note"}, ${when}`} className="rounded-full hover:text-carbon hover:underline">
+            {at}
+          </Link>
+        ) : (
+          at
+        )}
         <ReportLink note={note} report={report} />
       </div>
     </div>

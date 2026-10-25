@@ -100,7 +100,7 @@ test("tags typed in the compose box show as links that filter the feed", async (
   await expect(page.getByRole("link", { name: "Tagged" })).toBeVisible();
   await page.getByRole("link", { name: "ci", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/${name}\\?tag=ci$`));
-  await expect(page.getByText("Notes tagged")).toBeVisible();
+  await expect(page.locator('[aria-current="page"]', { hasText: "ci" })).toBeVisible(); // the feed's tags show which one filters
   await expect(page.getByRole("link", { name: "Tagged" })).toBeVisible();
 });
 

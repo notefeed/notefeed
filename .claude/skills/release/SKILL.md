@@ -17,3 +17,16 @@ Before tagging:
 2. Commit that on `main`.
 
 The release job refuses a tag that doesn't match both. npm and PyPI refuse a version that is already published, so every release needs a new version.
+
+After the release:
+
+3. Post the release notes to notefeed.me's `releases` feed (a reserved feed, read link https://notefeed.me/r/releases), one note per release: title `notefeed X.Y.Z`, the text the annotated tag message without its first line, tags `release` and `vX.Y.Z`. Post through the API, the password read from the server's notefeed settings and never written into a file or commit:
+
+   ```sh
+   P=$(cd ../notefeed-ansible && ansible notefeed-1 -m shell -a "grep '^NOTEFEED_RESERVED_PASSWORD=' {{ stacks_dir }}/notefeed/.env | cut -d= -f2-" 2>/dev/null | tail -1)
+   git tag -l --format='%(contents)' vX.Y.Z | sed '1{/^notefeed /d}' | sed '/./,$!d' \
+     | sed '1i *Released YYYY-MM-DD · [on GitHub](https://github.com/notefeed/notefeed/releases/tag/vX.Y.Z)*\n' \
+     | curl -sf -X POST https://notefeed.me/api/v1/feeds/releases/notes -H "Content-Type: text/markdown" \
+         -H "X-Feed-Password: $P" -H "X-Note-Title: notefeed X.Y.Z" -H "X-Note-Tags: release,vX.Y.Z" --data-binary @-
+   ```
+ Do it once the GitHub release exists; a release that was not posted is posted late rather than not at all.

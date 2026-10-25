@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { AppShell } from "@/components/AppShell";
 import { FeedAbout } from "@/components/FeedAbout";
-import { NoteList, TagFilter } from "@/components/NoteList";
+import { NoteList } from "@/components/NoteList";
 import { Removed } from "@/components/Removed";
 import { getReadFeed, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
 
@@ -40,7 +40,6 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/r/[
 
   return (
     <AppShell about={<FeedAbout title={title || instanceTitle()} description={description} imageUrl={data.imageUrl} rssUrl={rssPath(readId)} tags={tags} tag={tag} base={readPath(readId)} />}>
-      {tag && <TagFilter tag={tag} base={readPath(readId)} />}
       {notes.length === 0 ? (
         <p className="text-muted">{tag ? "No notes with this tag." : "No notes yet."}</p>
       ) : (

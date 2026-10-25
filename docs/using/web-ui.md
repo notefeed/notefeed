@@ -24,11 +24,11 @@ The **Add image** button in the box's toolbar takes PNG, JPEG, GIF or WebP files
 
 ### Reading, editing and deleting
 
-Notes are listed newest first, each with its title, text, tags, sender (when the feed shows one) and time, in the server's time zone. Raw HTML is shown as text, never run. Click a title to open the note's own page, `/<feed>/<id>`, where **Edit** opens the markdown and the title, **Copy link** copies its address, and **Delete** asks you to confirm before the note is gone for good. An edited note keeps its address and its place in the list. Anyone who can open the feed can edit and delete its notes.
+Notes are listed newest first, each with its text as written (under its title, when it was given one), tags, sender (when the feed shows one) and time, in the server's time zone. Raw HTML is shown as text, never run. Click anywhere on a note, or its time, to open its own page, `/<feed>/<id>`, where **Edit** opens the markdown and the title, **Copy link** copies its address, and **Delete** asks you to confirm before the note is gone for good. An edited note keeps its address and its place in the list. Anyone who can open the feed can edit and delete its notes.
 
 ### Tags
 
-A note's [tags](posting.md#tags) show on its card and page. Each is a link that filters the list to that tag (`?tag=ci`), with a **Show all notes** link above it. The feed's details list the tags of the notes on the page.
+A note's [tags](posting.md#tags) show on its card and page. Each is a link that filters the list to that tag (`?tag=ci`). The feed's details list the tags of the notes on the page, the one filtering marked, and **All notes** goes back.
 
 ### The read link
 
