@@ -8,5 +8,5 @@ export const mdNote = ({ id, markdown, createdAt = new Date(0), sender, tags, ti
     markdown,
   );
 
-export const imgNote = ({ id, ext = "png", size = 12, createdAt = new Date(0), title, sender, tags }: { id: string; ext?: string; size?: number; createdAt?: Date; title?: string; sender?: string; tags?: string[] }): ImageNote =>
-  new ImageNote({ id, ext, meta: { ...(sender !== undefined && { sender }), ...(tags?.length && { tags }), ...(title !== undefined && { title }) }, createdAt, size });
+export const imgNote = ({ id, ext = "png", size = 12, createdAt = new Date(0), title, sender, tags, alt, name }: { id: string; ext?: string; size?: number; createdAt?: Date; title?: string; sender?: string; tags?: string[]; alt?: string; name?: string }): ImageNote =>
+  new ImageNote({ id, ext, meta: { ...(sender !== undefined && { sender }), ...(tags?.length && { tags }), ...(title !== undefined && { title }), ...(alt !== undefined && { alt }), ...(name !== undefined && { name }) }, createdAt, size });

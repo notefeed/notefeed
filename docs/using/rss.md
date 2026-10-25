@@ -2,7 +2,7 @@
 
 ## What's in the feed
 
-The RSS feed at the [read link](read-links.md) holds the newest 50 notes. Its title, description and image are the feed's (see [Feed settings](feeds.md#feed-settings-in-the-web-ui)), or `NOTEFEED_TITLE` when the feed has no title. Each item has the note's title, a link to its read-only page, its time, its tags as `<category>` elements, and the raw markdown as its description; notefeed does not turn markdown into HTML for the feed. A [picture](pictures.md) is an item with an `<enclosure>`, which most readers show inline. The sender shows as `<dc:creator>` only with [sign-in](../self-hosting/sign-in/index.md) on and **Show who posted** on.
+The RSS feed at the [read link](read-links.md) holds the newest 50 notes. Its title, description and image are the feed's (see [Feed settings](feeds.md#feed-settings-in-the-web-ui)), or `NOTEFEED_TITLE` when the feed has no title. Each item has the note's title, a link to its read-only page, its time, its tags as `<category>` elements, and the note's text as HTML for its description, rendered as the page renders it (raw HTML in a note stays text). The first picture in the text is also the item's `<media:content>` and `<media:thumbnail>`, for readers that show one picture per item. A [picture](pictures.md) is an item with an `<enclosure>`, which most readers show inline; without a title it is titled by its alternative text, else the name it was posted with, else "Picture" and its time. The sender shows as `<dc:creator>` only with [sign-in](../self-hosting/sign-in/index.md) on and **Show who posted** on.
 
 `/r/<read id>/feed.xml?tag=ci` is the same feed with only the notes tagged `ci`.
 

@@ -88,7 +88,7 @@ test("a relative image link in a note is absolute in the feed, and the note on d
   const { note } = await createNote("secretname", "# Pic\n\n![](abc.png) ![](https://x.test/y.png)");
   const rid = (await readIdOf("secretname"))!;
   const xml = await (await get(rid)).text();
-  expect(xml).toContain(`![](${BASE}/r/${rid}/abc.png) ![](https://x.test/y.png)`);
+  expect(xml).toContain(`<img src="${BASE}/r/${rid}/abc.png" alt=""> <img src="https://x.test/y.png" alt="">`);
   expect(note.markdown).toContain("![](abc.png)");
 });
 

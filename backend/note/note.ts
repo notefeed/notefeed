@@ -5,7 +5,8 @@ import type { Meta } from "../storage/types";
 import { mediaTypeOf } from "./media";
 
 /** What a note adds to its RSS item: raw markdown as the description, or a file as the enclosure (RSS 2.0 allows one per item). */
-export type RssContent = { description?: string; enclosure?: { url: string; length: number; type: string } };
+/** `description` is HTML; `image` a picture the item shows, for a reader's thumbnail (a picture note has its enclosure instead). */
+export type RssContent = { description?: string; enclosure?: { url: string; length: number; type: string }; image?: { url: string; type: string } };
 
 export type NoteInit = { id: string; ext: string; meta: Meta; createdAt: Date; size: number };
 
