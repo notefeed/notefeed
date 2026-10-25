@@ -17,3 +17,7 @@ Before tagging:
 2. Commit that on `main`.
 
 The release job refuses a tag that doesn't match both. npm and PyPI refuse a version that is already published, so every release needs a new version.
+
+After the release:
+
+3. Post the release notes to notefeed.me's `releases` feed (a reserved feed, read link https://notefeed.me/r/releases), one note per release: title `notefeed X.Y.Z`, the text the annotated tag message without its first line, tags `release` and `vX.Y.Z`. Post with the notefeed MCP's `post_note` and the reserved feeds' password, which the user gives (it is in notefeed-ansible's vault; never read the vault, never write the password into a file or commit). Do it once the GitHub release exists; a release that was not posted is posted late rather than not at all.
