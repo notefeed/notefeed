@@ -104,6 +104,22 @@ test("tags typed in the compose box show as links that filter the feed", async (
   await expect(page.getByRole("link", { name: "Tagged" })).toBeVisible();
 });
 
+test("a note dated in the past in the compose box goes below the newer ones, at its time", async ({ page }) => {
+  const name = feedName();
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill("# Today");
+  await page.getByRole("button", { name: "Post note" }).click();
+  await expect(page.getByRole("link", { name: "Today" })).toBeVisible();
+  const sent = page.waitForRequest((r) => r.method() === "POST");
+  await page.getByLabel("Note in markdown").fill("# Long ago");
+  await page.getByLabel("Written (optional, to post it in the past; empty is now)").fill("2025-03-01T09:30");
+  await page.getByRole("button", { name: "Post note" }).click();
+  expect((await sent).headers()["x-note-created"]).toMatch(/^2025-03-0[12]T\d\d:30:00\.000Z$/); // the browser's time zone, as UTC
+  await expect(page.getByRole("link", { name: "Long ago" })).toBeVisible();
+  const top = async (title: string) => (await page.getByRole("link", { name: title }).boundingBox())!.y;
+  expect(await top("Today")).toBeLessThan(await top("Long ago")); // newest first: the older note goes below
+});
+
 test("the browser refuses a tag with a space in it", async ({ page }) => {
   await page.goto(`/${feedName()}`);
   await page.getByLabel("Note in markdown").fill("# Nope");

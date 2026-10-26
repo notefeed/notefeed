@@ -105,6 +105,12 @@ describe("tools", () => {
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
   });
 
+  test("post_note with created_at posts the note at that time; a bad one is an error", async () => {
+    const r = await call("post_note", { feed: "a", markdown: "# Old", created_at: "2025-03-01" });
+    expect(r.structuredContent.id).toMatch(/^20250301T000000Z-/);
+    expect((await call("post_note", { feed: "a", markdown: "x", created_at: "soon" })).isError).toBe(true);
+  });
+
   test("a refused input value is not echoed by an MCP error", async () => {
     const bad = "a\u202eb\u009b[31m";
     const results = [

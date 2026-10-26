@@ -22,6 +22,7 @@ def _get_kwargs(
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
+    x_note_created: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_feed_password, Unset):
@@ -44,6 +45,9 @@ def _get_kwargs(
 
     if not isinstance(x_note_name, Unset):
         headers["X-Note-Name"] = x_note_name
+
+    if not isinstance(x_note_created, Unset):
+        headers["X-Note-Created"] = x_note_created
 
     _kwargs: dict[str, Any] = {
         "method": "post",
@@ -156,6 +160,7 @@ def sync_detailed(
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
+    x_note_created: str | Unset = UNSET,
 ) -> Response[Error | Posted]:
     """Post a note
 
@@ -173,18 +178,20 @@ def sync_detailed(
     note's `file` and where it is served, `file_url`, under the feed's read id (public like the read
     link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32
     characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are
-    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name). A markdown note with its
-    pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part;
-    a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures,
-    each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are
-    stored first, each as its own note named by its file name, then the text with its references to them
-    (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a
-    picture it never refers to is appended as `![](file)`. Everything is checked before the first write,
-    and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name`
-    are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The
-    `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with
-    no `text` part only the pictures are stored, each with the title, and the answer's top level is the
-    first picture. A refused multipart post that would have created a protected feed creates nothing.
+    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Created` (when it
+    was written, to post it in the past). A markdown note with its pictures is one `multipart/form-data`
+    request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a
+    field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image
+    `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note
+    named by its file name, then the text with its references to them (`![](chart.png)`, `[x]:
+    chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers
+    to is appended as `![](file)`. Everything is checked before the first write, and a failed write
+    removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer
+    has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is
+    optional: `X-Note-Title` goes on the text note, `X-Note-Tags` and `X-Note-Created` on every note;
+    with no `text` part only the pictures are stored, each with the title, and the answer's top level is
+    the first picture. A refused multipart post that would have created a protected feed creates
+    nothing.
 
     Args:
         feed (str):
@@ -195,6 +202,7 @@ def sync_detailed(
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
+        x_note_created (str | Unset):
         body (File): The note, a file: its bytes, of the type `Content-Type` declares
 
     Raises:
@@ -215,6 +223,7 @@ def sync_detailed(
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
+        x_note_created=x_note_created,
     )
 
     response = client.get_httpx_client().request(
@@ -236,6 +245,7 @@ def sync(
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
+    x_note_created: str | Unset = UNSET,
 ) -> Error | Posted | None:
     """Post a note
 
@@ -253,18 +263,20 @@ def sync(
     note's `file` and where it is served, `file_url`, under the feed's read id (public like the read
     link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32
     characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are
-    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name). A markdown note with its
-    pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part;
-    a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures,
-    each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are
-    stored first, each as its own note named by its file name, then the text with its references to them
-    (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a
-    picture it never refers to is appended as `![](file)`. Everything is checked before the first write,
-    and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name`
-    are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The
-    `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with
-    no `text` part only the pictures are stored, each with the title, and the answer's top level is the
-    first picture. A refused multipart post that would have created a protected feed creates nothing.
+    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Created` (when it
+    was written, to post it in the past). A markdown note with its pictures is one `multipart/form-data`
+    request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a
+    field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image
+    `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note
+    named by its file name, then the text with its references to them (`![](chart.png)`, `[x]:
+    chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers
+    to is appended as `![](file)`. Everything is checked before the first write, and a failed write
+    removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer
+    has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is
+    optional: `X-Note-Title` goes on the text note, `X-Note-Tags` and `X-Note-Created` on every note;
+    with no `text` part only the pictures are stored, each with the title, and the answer's top level is
+    the first picture. A refused multipart post that would have created a protected feed creates
+    nothing.
 
     Args:
         feed (str):
@@ -275,6 +287,7 @@ def sync(
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
+        x_note_created (str | Unset):
         body (File): The note, a file: its bytes, of the type `Content-Type` declares
 
     Raises:
@@ -296,6 +309,7 @@ def sync(
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
+        x_note_created=x_note_created,
     ).parsed
 
 
@@ -311,6 +325,7 @@ async def asyncio_detailed(
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
+    x_note_created: str | Unset = UNSET,
 ) -> Response[Error | Posted]:
     """Post a note
 
@@ -328,18 +343,20 @@ async def asyncio_detailed(
     note's `file` and where it is served, `file_url`, under the feed's read id (public like the read
     link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32
     characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are
-    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name). A markdown note with its
-    pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part;
-    a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures,
-    each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are
-    stored first, each as its own note named by its file name, then the text with its references to them
-    (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a
-    picture it never refers to is appended as `![](file)`. Everything is checked before the first write,
-    and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name`
-    are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The
-    `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with
-    no `text` part only the pictures are stored, each with the title, and the answer's top level is the
-    first picture. A refused multipart post that would have created a protected feed creates nothing.
+    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Created` (when it
+    was written, to post it in the past). A markdown note with its pictures is one `multipart/form-data`
+    request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a
+    field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image
+    `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note
+    named by its file name, then the text with its references to them (`![](chart.png)`, `[x]:
+    chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers
+    to is appended as `![](file)`. Everything is checked before the first write, and a failed write
+    removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer
+    has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is
+    optional: `X-Note-Title` goes on the text note, `X-Note-Tags` and `X-Note-Created` on every note;
+    with no `text` part only the pictures are stored, each with the title, and the answer's top level is
+    the first picture. A refused multipart post that would have created a protected feed creates
+    nothing.
 
     Args:
         feed (str):
@@ -350,6 +367,7 @@ async def asyncio_detailed(
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
+        x_note_created (str | Unset):
         body (File): The note, a file: its bytes, of the type `Content-Type` declares
 
     Raises:
@@ -370,6 +388,7 @@ async def asyncio_detailed(
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
+        x_note_created=x_note_created,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -389,6 +408,7 @@ async def asyncio(
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
+    x_note_created: str | Unset = UNSET,
 ) -> Error | Posted | None:
     """Post a note
 
@@ -406,18 +426,20 @@ async def asyncio(
     note's `file` and where it is served, `file_url`, under the feed's read id (public like the read
     link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32
     characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are
-    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name). A markdown note with its
-    pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part;
-    a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures,
-    each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are
-    stored first, each as its own note named by its file name, then the text with its references to them
-    (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a
-    picture it never refers to is appended as `![](file)`. Everything is checked before the first write,
-    and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name`
-    are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The
-    `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with
-    no `text` part only the pictures are stored, each with the title, and the answer's top level is the
-    first picture. A refused multipart post that would have created a protected feed creates nothing.
+    removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Created` (when it
+    was written, to post it in the past). A markdown note with its pictures is one `multipart/form-data`
+    request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a
+    field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image
+    `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note
+    named by its file name, then the text with its references to them (`![](chart.png)`, `[x]:
+    chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers
+    to is appended as `![](file)`. Everything is checked before the first write, and a failed write
+    removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer
+    has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is
+    optional: `X-Note-Title` goes on the text note, `X-Note-Tags` and `X-Note-Created` on every note;
+    with no `text` part only the pictures are stored, each with the title, and the answer's top level is
+    the first picture. A refused multipart post that would have created a protected feed creates
+    nothing.
 
     Args:
         feed (str):
@@ -428,6 +450,7 @@ async def asyncio(
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
+        x_note_created (str | Unset):
         body (File): The note, a file: its bytes, of the type `Content-Type` declares
 
     Raises:
@@ -450,5 +473,6 @@ async def asyncio(
             x_note_tags=x_note_tags,
             x_note_alt=x_note_alt,
             x_note_name=x_note_name,
+            x_note_created=x_note_created,
         )
     ).parsed

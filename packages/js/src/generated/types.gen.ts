@@ -411,6 +411,10 @@ export type PostNoteData = {
          * For an image body: the picture's original file name, kept with the note (at most 200 characters)
          */
         'X-Note-Name'?: string;
+        /**
+         * When the note was written, if not now: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). Not in the future, not before 1970. The note takes its place in the feed by this time, as if posted then. Empty is now.
+         */
+        'X-Note-Created'?: string;
     };
     path: {
         /**
@@ -424,7 +428,7 @@ export type PostNoteData = {
 
 export type PostNoteErrors = {
     /**
-     * Invalid or reserved feed name; a blank note; a bad title, alt text or tags; a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
+     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Created`; a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
      */
     400: Error;
     /**

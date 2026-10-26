@@ -33,6 +33,7 @@ import {
   NoteAltHeader,
   NoteNameHeader,
   NoteTitleHeader,
+  NoteCreatedHeader,
   ReadIdHeader,
   NoteIdParam,
   NoteEdited,
@@ -153,9 +154,9 @@ const OPS: AnyOp[] = [
       "Where licenses are sold, a feed password needs one: the post that creates the feed protected brings the license key in `X-License-Key`, or is refused with `402`. " +
       "Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. " +
       "The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). " +
-      `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name). ` +
+      `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Created\` (when it was written, to post it in the past). ` +
       MULTIPART +
-      "The `text` part is optional: `X-Note-Title` goes on the text note and `X-Note-Tags` on every note; with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. " +
+      "The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` and `X-Note-Created` on every note; with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. " +
       "A refused multipart post that would have created a protected feed creates nothing.",
     tags: ["Feeds"],
     password: true,
@@ -168,12 +169,13 @@ const OPS: AnyOp[] = [
       "X-Note-Tags": NoteTagsHeader,
       "X-Note-Alt": NoteAltHeader,
       "X-Note-Name": NoteNameHeader,
+      "X-Note-Created": NoteCreatedHeader,
     },
     body: { ...Object.fromEntries(MEDIA_TYPES.map((m) => [m.mediaType, FileBody])), "multipart/form-data": MultipartNote },
     responses: {
       201: { description: "Stored: the note, and with a multipart body its pictures", schema: Posted },
       400: err(
-        "Invalid or reserved feed name; a blank note; a bad title, alt text or tags; a new password that is not printable ASCII; a license key that is none; " +
+        "Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Created`; a new password that is not printable ASCII; a license key that is none; " +
           `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad or repeated file name, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,

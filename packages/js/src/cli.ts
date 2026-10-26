@@ -14,7 +14,7 @@ type Io = {
 class UsageError extends Error {}
 
 const USAGE = [
-  "usage: notefeed post <text | - | --file PATH> [--type MEDIA_TYPE] [--title TITLE] [--tag TAG]... [--attach PATH]... [--url URL] [--feed FEED] [--password PASSWORD]",
+  "usage: notefeed post <text | - | --file PATH> [--type MEDIA_TYPE] [--title TITLE] [--tag TAG]... [--attach PATH]... [--created WHEN] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed edit <id> <text | - | --file PATH> [--type MEDIA_TYPE] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed update <id> [--title TITLE] [--alt ALT] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed delete <id> [--url URL] [--feed FEED] [--password PASSWORD]",
@@ -39,6 +39,7 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
         title: { type: "string" },
         alt: { type: "string" },
         tag: { type: "string", multiple: true },
+        created: { type: "string" },
         attach: { type: "string", multiple: true },
         limit: { type: "string" },
         json: { type: "boolean" },
@@ -62,7 +63,7 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
       const noText = attachments.length > 0 && text === undefined && !values.file;
       const input = noText ? { content: null, type: undefined, name: undefined } : await read(text, values.file, values.type, io);
       // The server refuses a file name next to attachments: the text has none then.
-      const note = await client(values).post(input.content, { type: input.type, title: values.title, tags: values.tag, name: attachments.length ? undefined : input.name, attachments });
+      const note = await client(values).post(input.content, { type: input.type, title: values.title, tags: values.tag, createdAt: values.created, name: attachments.length ? undefined : input.name, attachments });
       io.stdout.write(`${[...(noText ? [] : [note.url]), ...note.attachments.map((a) => a.url)].join("\n")}\n`);
       return 0;
     }

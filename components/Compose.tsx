@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Hash, Plus, Send, X } from "lucide-react";
+import { CalendarClock, Camera, Hash, Plus, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, primary } from "@/components/styles";
@@ -68,6 +68,7 @@ export function Compose({
   const licenseRefused = code === "license_required";
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState(initialTitle);
+  const [written, setWritten] = useState(""); // a datetime-local value, the browser's time: empty is now
 
   const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
   // The page remounts this box empty. With pictures only, the answer is the first picture's.
@@ -81,6 +82,7 @@ export function Compose({
       ...(password && { "X-Feed-Password": password }),
       ...(password && licenseKey && { "X-License-Key": licenseKey }),
       ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
+      ...(written && { "X-Note-Created": new Date(written).toISOString() }),
     };
     return run(
       e,
@@ -263,12 +265,21 @@ export function Compose({
             </>
           }
           below={
-            <div className="mt-2 flex items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 sm:max-w-sm">
-              <Hash aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
-              <label htmlFor="note-tags" className="sr-only">
-                Tags (optional, separated by commas)
-              </label>
-              <input id="note-tags" name="tags" type="text" autoComplete="off" placeholder="Tags, e.g. ci, deploy" pattern={TAGS_PATTERN} title={TAGS_HINT} value={tags} onChange={(e) => setTags(e.target.value)} className={`${bare} text-[13px]`} />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <div className="flex min-w-0 flex-1 basis-48 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 sm:max-w-sm">
+                <Hash aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <label htmlFor="note-tags" className="sr-only">
+                  Tags (optional, separated by commas)
+                </label>
+                <input id="note-tags" name="tags" type="text" autoComplete="off" placeholder="Tags, e.g. ci, deploy" pattern={TAGS_PATTERN} title={TAGS_HINT} value={tags} onChange={(e) => setTags(e.target.value)} className={`${bare} text-[13px]`} />
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1" title="When it was written, to post it in the past; empty is now">
+                <CalendarClock aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <label htmlFor="note-written" className="sr-only">
+                  Written (optional, to post it in the past; empty is now)
+                </label>
+                <input id="note-written" name="written" type="datetime-local" value={written} onChange={(e) => setWritten(e.target.value)} className={`${bare} text-[13px] ${written ? "" : "text-muted"}`} />
+              </div>
             </div>
           }
         >

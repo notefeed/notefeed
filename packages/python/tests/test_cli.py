@@ -306,10 +306,10 @@ def test_post_a_picture_file_sends_its_bytes_as_its_type(server, capsys, tmp_pat
     png = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 255])
     f.write_bytes(png)
     server.reply(201, CREATED)
-    assert main(["post", "--file", str(f), "--title", "Café", "--tag", "pets", "--url", server.url, "--feed", "inbox"]) == 0
+    assert main(["post", "--file", str(f), "--title", "Café", "--tag", "pets", "--created", "2025-03-01", "--url", server.url, "--feed", "inbox"]) == 0
     assert capsys.readouterr().out == "https://n.example/inbox/a\n"
     q = server.requests[0]
-    assert (q["body"], q["headers"]["Content-Type"], q["headers"]["X-Note-Tags"], q["headers"]["X-Note-Name"]) == (png, "image/png", "pets", "Photo.PNG")
+    assert (q["body"], q["headers"]["Content-Type"], q["headers"]["X-Note-Tags"], q["headers"]["X-Note-Name"], q["headers"]["X-Note-Created"]) == (png, "image/png", "pets", "Photo.PNG", "2025-03-01")
     assert q["headers"]["X-Note-Title"].encode("latin-1").decode("utf-8") == "Café"
 
 

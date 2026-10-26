@@ -84,6 +84,7 @@ function server(h: Headers): McpServer {
         title: z.string().optional().describe("The note's title (at most 100 characters, one line; control and text-direction override characters are refused); left out, it is taken from the text"),
         password,
         tags: z.array(z.string()).optional().describe(`Labels for the note, e.g. ["ci","deploy"]: ${TAG_RULE}. Not verified; readers see them.`),
+        created_at: z.string().optional().describe("When the note was written, if not now, to post it in the past: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC); from 1970 to now. The note takes its place in the feed by this time."),
         read_id: z.string().optional().describe("Only when this post creates the feed: its read id (3 to 64 characters of a-z, 0-9, - and _), random when left out. A short readable one is guessable. Fails if taken."),
         license_key: z.string().optional().describe("Only on an instance that sells licenses, with a password when this post creates the feed: the key of the license the password needs (a feed password is for licensed feeds; without the key the post fails with license_required). Ignored on an existing feed and without a password."),
         attachments: z
@@ -92,7 +93,7 @@ function server(h: Headers): McpServer {
       }),
       outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
     },
-    guard(async ({ feed, markdown, title, password, tags, read_id, license_key, attachments = [] }) => {
+    guard(async ({ feed, markdown, title, password, tags, created_at, read_id, license_key, attachments = [] }) => {
       // Buffer.from skips what is not base64, so the data is checked here; the rest of the checks are postWithPictures's.
       const pictures = attachments.map((a) => {
         const clean = a.data.replace(/\s/g, "");
@@ -100,7 +101,7 @@ function server(h: Headers): McpServer {
         if (body.toString("base64").replace(/=+$/, "") !== clean.replace(/=+$/, "")) throw new InvalidBodyError(`attachment "${safeName(a.name)}": data is not valid base64`);
         return { name: a.name, body, mediaType: a.type, alt: a.alt };
       });
-      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, tags, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
+      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, tags, created: created_at, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
       const feedUrl = base + feedPath(feed);
       return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
     }),

@@ -150,6 +150,20 @@ describe("metadata and creation settings are headers", () => {
     expect((await post("# a", "text/markdown", { "x-note-tags": "bad tag" })).status).toBe(400);
     expect((await post(PNG as BodyInit, "image/png", { "x-note-alt": "x".repeat(501) })).status).toBe(400);
   });
+  test("X-Note-Created dates the note: its id starts with that time; a bad one is 400 and creates nothing", async () => {
+    const res = await post("# old", "text/markdown", { "x-note-created": "2025-03-01T10:30:00+02:00" });
+    expect(res.status).toBe(201);
+    expect((await res.json()).id).toMatch(/^20250301T083000Z-/);
+    expect((await post("# a", "text/markdown", { "x-note-created": "yesterday" }, "g")).status).toBe(400);
+    expect(await hasFeed("g")).toBe(false);
+  });
+  test("X-Note-Created on a multipart post: the pictures first, then the text, a millisecond apart", async () => {
+    const res = await sendForm([["text", "see ![](a.png)"], ["file", png("a.png")], ["file", png("b.png")]], { "x-note-created": "2025-03-01" });
+    expect(res.status).toBe(201);
+    const { id, attachments } = await res.json();
+    expect([...attachments.map((a: { id: string }) => a.id), id].every((i: string) => i.startsWith("20250301T000000Z-"))).toBe(true);
+    expect([...attachments.map((a: { id: string }) => a.id), id]).toEqual([...attachments.map((a: { id: string }) => a.id), id].sort());
+  });
   test("X-Feed-Password and X-Read-Id make the post that creates the feed protected, with that read id", async () => {
     const res = await post("# Locked", "text/markdown", { "x-feed-password": "hunter22", "x-read-id": "my-feed" });
     expect(res.status).toBe(201);

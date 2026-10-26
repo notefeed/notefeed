@@ -110,8 +110,26 @@ async function checkCap(feed: string, typeName: string, adding: number): Promise
 
 // What a post carries: the file (`body`) and the type the poster declared for it (`mediaType`, a Content-Type), with the optional
 // metadata (`name` is the file name it came with) and, for the post that creates the feed, a password, a read id and the key of the
-// license the password needs (`licenseKey`).
-export type PostInput = { body: Uint8Array; mediaType: string; title?: string; tags?: string[]; alt?: string; name?: string; password?: string; readId?: string; licenseKey?: string };
+// license the password needs (`licenseKey`). `created`: when the note was written, if not now (X-Note-Created, read by checkCreated).
+export type PostInput = { body: Uint8Array; mediaType: string; title?: string; tags?: string[]; alt?: string; name?: string; created?: string; password?: string; readId?: string; licenseKey?: string };
+
+const CREATED = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(\.\d{1,9})?)?(?:(Z)|([+-])(\d{2}):(\d{2})))?$/;
+const CREATED_RULE = "created must be an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date (2026-10-01), from 1970 to now";
+
+// When a note was written: undefined (now) for none, else an ISO 8601 date-time with an offset, or a date alone (midnight UTC). Every
+// field is checked against the calendar (Date.parse takes 2026-02-30 and 24:00); not before 1970, not after now.
+export function checkCreated(value: string | undefined, now = new Date()): Date | undefined {
+  if (value === undefined) return undefined;
+  const m = CREATED.exec(value);
+  if (!m) throw new InvalidBodyError(CREATED_RULE);
+  const [, y, mo, d, h = "0", mi = "0", s = "0", frac = "", , sign, oh = "0", om = "0"] = m;
+  const local = new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s, frac ? Math.floor(Number(frac) * 1000) : 0));
+  const fits = local.getUTCFullYear() === +y && local.getUTCMonth() === +mo - 1 && local.getUTCDate() === +d && local.getUTCHours() === +h && local.getUTCMinutes() === +mi && local.getUTCSeconds() === +s;
+  if (!fits || +oh > 23 || +om > 59) throw new InvalidBodyError(CREATED_RULE);
+  const at = new Date(local.getTime() - (sign === "-" ? -1 : 1) * (+oh * 60 + +om) * 60_000);
+  if (at.getTime() < 0 || at > now) throw new InvalidBodyError(CREATED_RULE);
+  return at;
+}
 
 // `read` runs only once the post is admitted, so a refused request never has its body read.
 // A password (the feed's `X-Feed-Password`) is set only by the post that creates the feed.
@@ -142,12 +160,13 @@ export async function postNote(
   checkLine("title", input.title, MAX_NOTE_TITLE);
   if (checkLine("alt", input.alt, MAX_ALT) && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
   const tags = checkTags(input.tags);
+  const at = checkCreated(input.created);
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const created = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
   // ponytail: checked, not locked. A protected creation can still complete in the few microseconds between
   // this check and createNoteOf's ensureFeed, which then finds the feed and writes into it: this one note is
   // then in the protected feed. A lock around creation, per feed, would close it.
-  const made = await createNoteOf(feed, type, ext, input.body, { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId });
+  const made = await createNoteOf(feed, type, ext, input.body, { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId }, at);
   await trimToFreeCap(feed);
   return { ...made, created };
 }
@@ -208,8 +227,8 @@ export { MAX_ATTACHMENTS }; // defined in shared/links.ts: the web box holds to 
 
 // A picture sent with a markdown text: `name` is the file name the text refers to it by (`![](name)`), kept with the stored note.
 export type Picture = { name: string; body: Uint8Array; mediaType: string; alt?: string };
-// A post of a text and its pictures. No `text`: just the pictures, each with the title. `password`, `readId` and `licenseKey` as in PostInput.
-export type PostBundle = { text?: string; pictures: Picture[]; title?: string; tags?: string[]; password?: string; readId?: string; licenseKey?: string };
+// A post of a text and its pictures. No `text`: just the pictures, each with the title. `created`, `password`, `readId` and `licenseKey` as in PostInput.
+export type PostBundle = { text?: string; pictures: Picture[]; title?: string; tags?: string[]; created?: string; password?: string; readId?: string; licenseKey?: string };
 
 const MARKDOWN_TYPE = "text/markdown";
 const IMAGE_TYPES = MEDIA_TYPES.filter((m) => m.mediaType.startsWith("image/")).map((m) => m.mediaType).join(", ");
@@ -250,13 +269,13 @@ async function checkText(text: string, pictures: { name: string; ext: string }[]
 
 // Stores the pictures in order, then whatever `then` stores (given the stored notes and the map of file name to stored file); if
 // any write fails, the pictures stored so far are removed and the error is rethrown. A picture that can't be removed is logged by its
-// note id (never the feed: its name is the write key), so an operator can find the stray file.
-async function storeWithPictures<T>(feed: string, pictures: (Picture & { type: NoteType; ext: string })[], opts: NewNoteOptions, then: (stored: Note[], sent: Map<string, string>, readId: string | null) => Promise<T>): Promise<T> {
+// note id (never the feed: its name is the write key), so an operator can find the stray file. `at`: picture i is stored at `at` + i ms.
+async function storeWithPictures<T>(feed: string, pictures: (Picture & { type: NoteType; ext: string })[], opts: NewNoteOptions, then: (stored: Note[], sent: Map<string, string>, readId: string | null) => Promise<T>, at?: Date): Promise<T> {
   const stored: Note[] = [];
   try {
     let readId: string | null = null;
-    for (const p of pictures) {
-      const made = await createNoteOf(feed, p.type, p.ext, p.body, { ...opts, alt: p.alt, name: p.name });
+    for (const [i, p] of pictures.entries()) {
+      const made = await createNoteOf(feed, p.type, p.ext, p.body, { ...opts, alt: p.alt, name: p.name }, at && new Date(at.getTime() + i));
       stored.push(made.note);
       readId = made.readId;
     }
@@ -275,7 +294,8 @@ async function storeWithPictures<T>(feed: string, pictures: (Picture & { type: N
 // A markdown text with its pictures, as one post: every check first (the pictures, the text, the caps for the existing notes plus
 // these), then the pictures in order, then the text with its references to them swapped for the stored files (placeImages). All or
 // nothing: a failed write removes the notes this post stored (the feed stays when this post created it). `note` is the text note, or
-// with no text the first picture. The rate limit counts the post once.
+// with no text the first picture. The rate limit counts the post once. Backdated (`created`), the n pictures take its first n ms and
+// the text the next, so the text still comes after its pictures.
 export async function postWithPictures(
   feed: string,
   ip: string,
@@ -293,6 +313,7 @@ export async function postWithPictures(
   const plan = text === undefined ? undefined : await checkText(text, pictures);
   checkLine("title", title, MAX_NOTE_TITLE);
   const tags = checkTags(input.tags);
+  const at = checkCreated(input.created);
   await recheck(feed, ip, access, proved, input.password);
   await checkCap(feed, "markdown", text === undefined ? 0 : 1);
   await checkCap(feed, "image", pictures.length);
@@ -301,10 +322,10 @@ export async function postWithPictures(
   const opts = { sender, tags, wantedReadId };
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined }, async (stored, sent, readId) => {
     if (text === undefined) return { note: stored[0], created, readId, pictures: stored };
-    const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title });
+    const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title }, at && new Date(at.getTime() + pictures.length));
     await trimToFreeCap(feed);
     return { ...made, created, pictures: stored };
-  });
+  }, at);
 }
 
 // A markdown note's new text with its pictures: the same checks and order as postWithPictures, then the text replaces the note's

@@ -327,12 +327,13 @@ test("postPictureFileSendsItsBytesAsItsType", async () => {
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 255]);
   writeFileSync(f, png);
   const t = io();
-  expect(await main(["post", "--file", f, "--title", "Café", "--tag", "pets", "--url", server.url, "--feed", "inbox"], t.io)).toBe(0);
+  expect(await main(["post", "--file", f, "--title", "Café", "--tag", "pets", "--created", "2025-03-01", "--url", server.url, "--feed", "inbox"], t.io)).toBe(0);
   expect(t.out.stdout.trim()).toBe(CREATED_REPLY.url);
   expect(typeOf(0)).toBe("image/png");
   expect([...server.requests[0].body]).toEqual([...png]);
   expect(Buffer.from(String(server.requests[0].headers["x-note-title"]), "latin1").toString("utf8")).toBe("Café");
   expect(server.requests[0].headers["x-note-tags"]).toBe("pets");
+  expect(server.requests[0].headers["x-note-created"]).toBe("2025-03-01");
   expect(server.requests[0].headers["x-note-name"]).toBe("Photo.PNG");
 });
 
