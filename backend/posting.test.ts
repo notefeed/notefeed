@@ -231,6 +231,11 @@ describe("dated posts", () => {
     expect([...r.pictures, r.note].map((n) => n.date.toISOString())).toEqual(["2025-03-01T07:59:59.998Z", "2025-03-01T07:59:59.999Z", "2025-03-01T08:00:00.000Z"]);
     expect((await listNotes("f")).map((n) => n.id)).toEqual([r.note.id, r.pictures[1].id, r.pictures[0].id]);
   });
+  test("attachments of a note dated at 1970 stay at 1970", async () => {
+    const r = await post({ text: "![](a.png)", pictures: [pic("a.png"), pic("b.png")], date: "1970-01-01T00:00:00Z" });
+    expect(r.note.date.getTime()).toBe(0);
+    for (const p of r.pictures) expect((await getNote("f", p.id))!.date.getTime()).toBeGreaterThanOrEqual(0);
+  });
   test("pictures without a text record no text note", async () => {
     const r = await post({ pictures: [pic("a.png")] });
     expect((await getNote("f", r.note.id))?.of).toBeUndefined();
@@ -247,9 +252,10 @@ describe("dated posts", () => {
       const day = 86_400_000;
       const at = (offset: number) => new Date(Date.now() + offset).toISOString();
       const text = (body: string, date?: string) => postNote("f", "ip", async () => ({ body: new TextEncoder().encode(body), mediaType: "text/markdown", date }), {});
-      const old = (await text("# -2d", at(-2 * day))).note;
-      await text("# -1d", at(-day));
+      // Posted out of date order: dropping by when a note was posted would drop the +1y one first.
       const later = (await text("# +1y", at(365 * day))).note;
+      await text("# -1d", at(-day));
+      const old = (await text("# -2d", at(-2 * day))).note;
       await text("# now");
       expect(await getNote("f", old.id)).toBeNull();
       expect(await getNote("f", later.id)).not.toBeNull();

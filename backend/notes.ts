@@ -214,7 +214,7 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
 
 /** Sets the title and/or alt text of a note; "" removes one. At least one is needed; alt only for types that have it. null: no such note. */
 export async function changeMeta(feed: string, id: string, edit: { title?: string; alt?: string }): Promise<Note | null> {
-  if (edit.title === undefined && edit.alt === undefined) throw new InvalidBodyError("nothing to change: send title, alt or date");
+  if (edit.title === undefined && edit.alt === undefined) throw new InvalidBodyError("nothing to change: send title or alt");
   const title = checkLine("title", edit.title, MAX_NOTE_TITLE);
   const alt = checkLine("alt", edit.alt, MAX_ALT);
   if (checkFeed(feed) || !isValidId(id)) return null;
@@ -244,7 +244,7 @@ export async function changeDate(feed: string, id: string, date: Date): Promise<
   for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
     const chunk = refs.slice(i, i + READS_AT_ONCE);
     const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null))));
-    await Promise.all(chunk.filter((_, j) => metas[j]?.of === id).map((ref) => storage().setDate(feed, ref.id, [ref.ext], ref.date + shift)));
+    await Promise.all(chunk.filter((_, j) => metas[j]?.of === id).map((ref) => storage().setDate(feed, ref.id, [ref.ext], Math.max(0, ref.date + shift))));
   }
   return getNote(feed, id);
 }

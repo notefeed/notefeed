@@ -200,6 +200,13 @@ describe("changeDate", () => {
     expect((await getNote("test", i2.id))?.date).toEqual(new Date(D.getTime() - 1));
     expect((await getNote("test", other.id))?.date).toEqual(at("2026-01-01T08:00:00Z"));
   });
+  test("changeDate keeps attachments at 1970 or later", async () => {
+    const id = "early-text";
+    const { note: i } = await createImageNote("test", png, { of: id }, at("2026-01-01T09:59:59.999Z"));
+    await createNoteOf("test", MARKDOWN, "md", new TextEncoder().encode("# Text"), { id }, at("2026-01-01T10:00:00Z"));
+    await changeDate("test", id, new Date(0));
+    expect((await getNote("test", i.id))?.date.getTime()).toBe(0);
+  });
   test("changeDate refuses an invalid date", async () => {
     const { note } = await createNote("test", "# Seed");
     await expect(changeDate("test", note.id, new Date(NaN))).rejects.toBeInstanceOf(InvalidBodyError);

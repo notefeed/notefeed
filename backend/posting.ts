@@ -328,7 +328,7 @@ export async function postWithPictures(
   const created = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
   const opts = { sender, tags, wantedReadId };
   const id = text === undefined ? undefined : newNoteId();
-  const dateOf = (i: number) => new Date(at.getTime() - pictures.length + i);
+  const dateOf = (i: number) => new Date(Math.max(0, at.getTime() - pictures.length + i)); // never before 1970
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined, of: id }, dateOf, async (stored, sent, readId) => {
     if (text === undefined) return { note: stored[0], created, readId, pictures: stored };
     const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title, id }, at);
