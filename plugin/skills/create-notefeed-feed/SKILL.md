@@ -54,18 +54,19 @@ A feed is created by its first note. Post one with `post_note` on the new feed n
 `read_id`: a short first note that says what the feed is for (show it to the user first), or
 the user's first real note through `post-to-notefeed`.
 
-**The license at the start.** notefeed takes a license key only on the post that creates the
-feed, and only together with a feed password (`password` and `license_key` on that
-`post_note`). A feed password is a second secret readers and posters need on top of the feed
-name, which is already secret; it is only worth it when the feed name may be seen by others
-(shared with a script or a co-author who shouldn't read everything). So:
+**No feed password.** The feed name already is the password; a feed password would be a second
+secret on top. Don't suggest one. Only if the user asks for a protected feed: generate it like
+the feed name, save it as `password` in the entry, and know that on notefeed.me it needs a
+license key on the same first post.
 
-- **Key and a feed password wanted:** both on the first `post_note`. Generate the password like
-  the feed name and save it as `password` in the entry; every later call on the feed needs it.
-- **Key, no password:** create the feed without them; then the user enters the key in the
-  feed's settings (**License** → *Use key*), which they open at `<url>/<feed name>` from their
-  password manager. Offer to show that link, since it contains the feed name.
+**The license at the start.** notefeed currently takes a license key on the first post only
+together with a feed password, so without one:
+
+- **Key:** create the feed; then the user enters the key in the feed's settings (**License** →
+  *Use key*), which they open at `<url>/<feed name>` from their password manager. Offer to show
+  that link, since it contains the feed name.
 - **No key:** the feed starts on the free tier; a key can be entered in the settings later.
+- **Protected feed (asked for):** `password` and `license_key` both on the first `post_note`.
 
 A taken read id fails the post: ask for another. A `402` means the key is missing or inactive,
 a `400` that it is not a key.
