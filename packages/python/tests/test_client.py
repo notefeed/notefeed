@@ -436,6 +436,17 @@ def test_update_feed_puts_title_and_description(server):
         assert server.requests[1]["headers"]["X-Feed-Password"] == "o"
 
 
+def test_attach_license_puts_the_key_and_detach_license_deletes_it(server):
+    server.reply(200, FEED)
+    server.reply(200, FEED)
+    with Client(server.url, "inbox", feed_password="fp") as c:
+        assert c.attach_license("k" * 22).name == "inbox"
+        assert c.detach_license(feed="other").name == "inbox"
+    put, delete = server.requests
+    assert (put["method"], put["path"], json.loads(put["body"]), put["headers"]["X-Feed-Password"]) == ("PUT", "/api/v1/feeds/inbox/license", {"key": "k" * 22}, "fp")
+    assert (delete["method"], delete["path"]) == ("DELETE", "/api/v1/feeds/other/license")
+
+
 def test_delete_feed_sends_delete_and_returns_none(server):
     server.reply(204, "")
     with Client(server.url, "inbox", feed_password="fp") as c:

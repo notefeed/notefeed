@@ -4,13 +4,14 @@
 // asking the provider for the checkout the buyer came back from.
 import { createHash } from "node:crypto";
 import { config } from "./config";
-import { InvalidBodyError, LicenseRequiredError, NotFoundError } from "./errors";
+import { InvalidBodyError, LicenseRequiredError, NotFoundError, TooManyAttemptsError, UnknownLicenseKeyError } from "./errors";
 import { isLicensed, licenses } from "./licensing";
 import { logger } from "./log";
 import { licenseEvent } from "./metrics";
 import { paymentProvider, WebhookRejectedError, type LicenseEvent, type LicensePeriod } from "./payments";
 import { checkFeed } from "./feednames";
 import { hasFeed } from "./feeds";
+import { authFailed, authWait } from "./limits";
 
 const log = logger("licenses");
 
@@ -94,23 +95,37 @@ async function apply(e: LicenseEvent): Promise<void> {
  *  be created with a password it may not have. InvalidBodyError for a key that is none, LicenseRequiredError for a lapsed one. */
 export async function checkLicenseKey(key: string): Promise<void> {
   const license = KEY_RE.test(key) ? await licenses().byKeyHash(hashKey(key)) : null;
-  if (!license) throw new InvalidBodyError("that is not a license key");
+  if (!license) throw new UnknownLicenseKeyError();
   if (license.status !== "active" || (license.validUntil !== null && license.validUntil <= Date.now())) throw new LicenseRequiredError();
 }
 
-/** Enters a key for a feed. The caller has proved write access to the feed. */
+/** Enters a key for a feed: UnknownLicenseKeyError for a key that is none, LicenseRequiredError for a lapsed one. The caller has
+ *  proved write access to the feed. */
 export async function attachLicense(feed: string, key: string): Promise<void> {
   if (checkFeed(feed) || !(await hasFeed(feed))) throw new NotFoundError("no such feed");
-  if (!KEY_RE.test(key)) throw new InvalidBodyError("that is not a license key");
+  await checkLicenseKey(key); // a lapsed license would give the feed nothing: 402, as on the post that creates a feed (#247)
   let result = await licenses().attach(hashKey(key), feed);
   // A lapsed license stays on its feed (it is the record of the subscription), but it gives the feed nothing: a new key takes its place.
   if (result === "feed-has-license" && !(await isLicensed(feed))) {
     await licenses().detach(feed);
     result = await licenses().attach(hashKey(key), feed);
   }
-  if (result === "unknown-key") throw new InvalidBodyError("that is not a license key");
+  if (result === "unknown-key") throw new UnknownLicenseKeyError();
   if (result === "feed-has-license") throw new InvalidBodyError("the feed already has a license; detach it first");
   licenseEvent("attached");
+}
+
+/** A key someone sends, from `ip`: a key notefeed doesn't know counts as a failed attempt, as a wrong password does, and over the
+ *  limit no key is looked at (TooManyAttemptsError), so keys can't be tried in bulk (#247). */
+export async function countingKeys<T>(ip: string, tryKey: () => Promise<T>): Promise<T> {
+  const wait = authWait(ip);
+  if (wait !== null) throw new TooManyAttemptsError(wait);
+  try {
+    return await tryKey();
+  } catch (e) {
+    if (e instanceof UnknownLicenseKeyError) authFailed(ip);
+    throw e;
+  }
 }
 
 export async function detachLicense(feed: string): Promise<void> {

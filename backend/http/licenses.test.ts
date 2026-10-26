@@ -137,6 +137,50 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect(await isLicensed("p")).toBe(false); // moved, as from the settings
   });
 
+  test("X-License-Key licenses the open feed its post creates; a bad key creates nothing (#247)", async () => {
+    const key = await buy();
+    const create = (feed: string, headers: Record<string, string>) =>
+      dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/notes`, { method: "POST", headers: { host: "notefeed.test", "content-type": "text/markdown", ...headers }, body: "# Hi" }), ["feeds", feed, "notes"]);
+    const bad = await create("o", { "x-license-key": "x".repeat(22) });
+    expect([bad.status, (await bad.json()).error]).toEqual([400, "that is not a license key"]);
+    expect((await create("o", { "x-license-key": key })).status).toBe(201);
+    expect(await isLicensed("o")).toBe(true);
+    const feed = await (await dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/o`, { headers: { host: "notefeed.test" } }), ["feeds", "o"])).json();
+    expect(feed).toMatchObject({ protected: false, free_tier: null });
+  });
+
+  test("PUT and DELETE /api/v1/feeds/{feed}/license put a license on a feed and take it off (#247)", async () => {
+    const key = await buy();
+    const api = (feed: string, method: string, body?: unknown, headers: Record<string, string> = {}) =>
+      dispatch(
+        new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/license`, { method, headers: { host: "notefeed.test", "content-type": "application/json", ...headers }, ...(body !== undefined && { body: JSON.stringify(body) }) }),
+        ["feeds", feed, "license"],
+      );
+    expect((await api("f", "PUT", { key })).status).toBe(404); // no such feed yet
+    await createNote("f", "hi");
+    expect((await api("f", "PUT", { nope: 1 })).status).toBe(400);
+    expect((await api("f", "PUT", { key: "k".repeat(22) })).status).toBe(400);
+    const put = await api("f", "PUT", { key: ` ${key} ` });
+    expect(put.status).toBe(200);
+    expect(await put.json()).toMatchObject({ name: "f", protected: false, free_tier: null });
+    expect(await isLicensed("f")).toBe(true);
+    const del = await api("f", "DELETE");
+    expect(del.status).toBe(200);
+    expect((await del.json()).free_tier).toMatchObject({ notes: 1 });
+    expect(await isLicensed("f")).toBe(false);
+    // A protected feed needs its password; a lapsed key is 402.
+    const { createProtected } = await import("../feedlock");
+    await createProtected("p", "Passw0rd!x");
+    expect((await api("p", "PUT", { key })).status).toBe(401);
+    expect((await api("p", "PUT", { key }, { "x-feed-password": "Passw0rd!x" })).status).toBe(200);
+    await webhookRoute(webhook([{ type: "refunded", providerRef: "sub_1" }]));
+    expect((await api("f", "PUT", { key })).status).toBe(402);
+    // Where licenses are not sold, the route is not there.
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "");
+    expect((await api("f", "PUT", { key })).status).toBe(404);
+    expect((await api("f", "DELETE")).status).toBe(404);
+  });
+
   test("attaching to a protected feed needs its password", async () => {
     const { createProtected } = await import("../feedlock");
     await createProtected("p", "Passw0rd!x");

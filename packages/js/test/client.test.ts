@@ -205,6 +205,16 @@ describe("feed settings and deletion", () => {
     expect(server.requests[1].path).toBe("/api/v1/feeds/other");
     expect(server.requests[1].headers["x-feed-password"]).toBe("o");
   });
+  test("attachLicense PUTs the key, detachLicense DELETEs it; both return the feed", async () => {
+    server.reply(200, FEED);
+    server.reply(200, FEED);
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
+    expect(await c.attachLicense("k".repeat(22))).toEqual(FEED);
+    expect(await c.detachLicense({ feed: "other" })).toEqual(FEED);
+    const [put, del] = server.requests;
+    expect([put.method, put.path, JSON.parse(put.body.toString()), put.headers["x-feed-password"]]).toEqual(["PUT", "/api/v1/feeds/inbox/license", { key: "k".repeat(22) }, "fp"]);
+    expect([del.method, del.path]).toEqual(["DELETE", "/api/v1/feeds/other/license"]);
+  });
   test("deleteFeed sends DELETE and resolves to nothing on 204", async () => {
     server.reply(204, "", "text/plain");
     const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });

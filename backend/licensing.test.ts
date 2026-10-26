@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { config } from "./config";
-import { InvalidBodyError, LicenseRequiredError } from "./errors";
+import { AuthError, InvalidBodyError, LicenseRequiredError, NotFoundError, TooManyAttemptsError } from "./errors";
 import { changePassword, createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, resetFeedsForTests } from "./feeds";
-import { resetRateLimitsForTests } from "./limits";
-import { hashKey } from "./licenseflow";
+import { authWait, resetRateLimitsForTests } from "./limits";
+import { countingKeys, hashKey } from "./licenseflow";
 import { freeTier, isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
 import { countNotes, createNote } from "./notes";
-import { deleteFeed, postNote, postWithPictures } from "./posting";
+import { deleteFeed, postNote, postWithPictures, setLicense } from "./posting";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -37,7 +37,7 @@ const text = (feed: string, body = "hi", password?: string, licenseKey?: string)
   postNote(feed, "ip", async () => ({ body: new TextEncoder().encode(body), mediaType: "text/markdown", password, licenseKey }), {});
 // A key as the checkout hands it out (22 characters of base64url).
 const KEY = "k".repeat(22);
-const image = (feed: string) => postNote(feed, "ip", async () => ({ body: png, mediaType: "image/png" }), {});
+const image = (feed: string, licenseKey?: string) => postNote(feed, "ip", async () => ({ body: png, mediaType: "image/png", licenseKey }), {});
 
 describe.skipIf(!supported)("licensing (ADR 0029)", () => {
   test("with no payment provider everything is open and no cap is kept", async () => {
@@ -134,7 +134,7 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       expect(await countNotes("pics", "image")).toBe(1);
     });
 
-    test("a key that is none, or of a lapsed license, creates nothing; without a password a key is ignored", async () => {
+    test("a key that is none, or of a lapsed license, creates nothing, with a password or without", async () => {
       await expect(text("new", "hi", "Passw0rd!x", "x".repeat(22))).rejects.toBeInstanceOf(InvalidBodyError);
       await expect(text("new", "hi", "Passw0rd!x", "too short")).rejects.toBeInstanceOf(InvalidBodyError);
       await licenses().createLicense({ keyHash: hashKey(KEY), providerRef: "sub_1", validUntil: null });
@@ -142,11 +142,63 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       await expect(text("new", "hi", "Passw0rd!x", KEY)).rejects.toBeInstanceOf(LicenseRequiredError);
       await licenses().update("sub_1", { status: "active", validUntil: Date.now() - 1000 });
       await expect(text("new", "hi", "Passw0rd!x", KEY)).rejects.toBeInstanceOf(LicenseRequiredError);
+      await expect(text("new", "hi", undefined, KEY)).rejects.toBeInstanceOf(LicenseRequiredError);
+      await expect(text("new", "hi", undefined, "x".repeat(22))).rejects.toBeInstanceOf(InvalidBodyError);
+      await expect(image("new", "x".repeat(22))).rejects.toBeInstanceOf(InvalidBodyError);
       expect(await hasFeed("new")).toBe(false);
-      await licenses().update("sub_1", { status: "active", validUntil: null });
-      await text("open", "hi", undefined, KEY);
+    });
+
+    test("the post that creates an open feed can bring the key too: a license needs no password (#247)", async () => {
+      await licenses().createLicense({ keyHash: hashKey(KEY), providerRef: "sub_1", validUntil: null });
+      await text("open", "hi", undefined, ` ${KEY} `);
+      expect(await protectedFeed("open")).toBe(false);
+      expect(await isLicensed("open")).toBe(true);
+      // A picture as the first post, with the key: judged by the key, and the feed is licensed (the key moves the license).
+      await image("pics", KEY);
+      expect(await isLicensed("pics")).toBe(true);
       expect(await isLicensed("open")).toBe(false);
-      expect((await licenses().byKeyHash(hashKey(KEY)))?.feed).toBeNull();
+      expect(await countNotes("pics", "image")).toBe(1);
+      await postWithPictures("both", "ip", async () => ({ text: "x ![](a.png)", pictures: [{ name: "a.png", body: png, mediaType: "image/png" }], licenseKey: KEY }), {});
+      expect(await isLicensed("both")).toBe(true);
+      // On a feed that exists, a key on a post is not used: the license stays where it is.
+      await text("both", "again", undefined, KEY);
+      await text("pics", "again", undefined, KEY);
+      expect(await isLicensed("pics")).toBe(false);
+      expect((await licenses().byKeyHash(hashKey(KEY)))?.feed).toBe("both");
+    });
+
+    test("setLicense puts a key's license on an existing feed, open or protected, and takes it off (#247)", async () => {
+      await licenses().createLicense({ keyHash: hashKey(KEY), providerRef: "sub_1", validUntil: null });
+      await text("open", "hi");
+      await setLicense("open", "ip", KEY, {});
+      expect(await isLicensed("open")).toBe(true);
+      await expect(setLicense("open", "ip", "y".repeat(22), {})).rejects.toBeInstanceOf(InvalidBodyError); // a key that is none
+      await createProtected("locked", "Passw0rd!x"); // as before licensing: protected, no license
+      await expect(setLicense("locked", "ip", KEY, {})).rejects.toBeInstanceOf(AuthError);
+      await setLicense("locked", "ip", KEY, { password: "Passw0rd!x" });
+      expect(await isLicensed("locked")).toBe(true);
+      expect(await isLicensed("open")).toBe(false);
+      await setLicense("locked", "ip", null, { password: "Passw0rd!x" });
+      expect(await isLicensed("locked")).toBe(false);
+      await setLicense("locked", "ip", null, { password: "Passw0rd!x" }); // nothing to take off: the same answer
+      await expect(setLicense("nothing", "ip", KEY, {})).rejects.toBeInstanceOf(NotFoundError);
+      await licenses().update("sub_1", { status: "lapsed" });
+      await expect(setLicense("open", "ip", KEY, {})).rejects.toBeInstanceOf(LicenseRequiredError);
+    });
+
+    test("wrong keys count as failed attempts, as wrong passwords do: over the limit no key is looked at (#247)", async () => {
+      vi.stubEnv("NOTEFEED_RATE_LIMIT", "2");
+      resetRateLimitsForTests();
+      await licenses().createLicense({ keyHash: hashKey(KEY), providerRef: "sub_1", validUntil: null });
+      await createNote("open", "hi");
+      await expect(setLicense("open", "ip", "y".repeat(22), {})).rejects.toBeInstanceOf(InvalidBodyError);
+      expect(authWait("ip")).toBeNull();
+      await expect(text("new", "hi", undefined, "z".repeat(22))).rejects.toBeInstanceOf(InvalidBodyError);
+      expect(authWait("ip")).toBeGreaterThan(0); // two failed: the third key from there is not even looked at
+      await expect(countingKeys("ip", async () => "never")).rejects.toBeInstanceOf(TooManyAttemptsError);
+      await setLicense("open", "other-ip", KEY, {});
+      expect(await isLicensed("open")).toBe(true);
+      expect(authWait("other-ip")).toBeNull(); // a right key costs nothing
     });
 
     test("an existing password keeps protecting a lapsed feed, but it cannot be changed", async () => {
