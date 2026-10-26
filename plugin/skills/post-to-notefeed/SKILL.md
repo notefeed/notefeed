@@ -1,9 +1,9 @@
 ---
-name: post-with-review
-description: Write a note for a notefeed feed - a blog post, release notes, a status update, a newsletter, an announcement - show it as a draft, revise it until the user approves, and only then post it. Use when the user asks to write, draft, post or publish something "on notefeed" or to one of their feeds, to turn a conversation, notes or a link into such a note, to show, revise or publish a draft, to fix a note already posted, or to set up which feeds to post to. Other skills can use it for the writing and posting and add their own steps.
+name: post-to-notefeed
+description: Post to notefeed with a review step: write a note for a notefeed feed (a blog post, release notes, a status update, a newsletter, an announcement), show it as a draft, revise it until the user approves, and only then post it. Use when the user asks to write, draft, post or publish something "on notefeed" or to one of their feeds, to turn a conversation, notes or a link into such a note, to show, revise or publish a draft, to fix a note already posted, or to set up which feeds to post to. Other skills can use it for the writing and posting and add their own steps.
 ---
 
-# Post with review
+# Post to notefeed
 
 A note is written for readers, so it goes out only after the user has read it. The flow is the
 same whatever the note is: **draft, show, revise, post on approval.**
@@ -43,7 +43,8 @@ same whatever the note is: **draft, show, revise, post on approval.**
    | `drafts_feed` | optional: a second feed for drafts, so the user (or someone they send its read link to) sees a draft as readers will. Without it the draft lives in the conversation |
 
    Use the feed the request or the calling skill names; with only one, use it; otherwise
-   ask. None fits: see *Add a feed*.
+   ask. None fits, or no `feeds.json` yet: see *Add a feed*. This skill writes the file
+   itself; the user never has to edit it.
 
 3. **Feed names are passwords.** Anyone who knows one can post to the feed and delete its
    notes. Never write `feed` or `drafts_feed` into a reply, a note, a commit or any file but
@@ -107,7 +108,11 @@ post again, which gives the note a new id and date and breaks links to the old o
 
 ## Add a feed
 
-Ask in one go: a short name for it (`blog`, `releases`), the instance, the read id (3 to 64
+**A feed the user already has:** ask for a short name, the feed name and the instance; get its
+read id with `get_feed`; ask whether they want a drafts feed (made as below). Write the entry
+into `feeds.json` and confirm with the read link, never by repeating the feed name.
+
+**A new feed:** ask in one go: a short name for it (`blog`, `releases`), the instance, the read id (3 to 64
 characters of `a-z`, `0-9`, `-`, `_`; the public part of the address), the feed's title and
 description, and whether they want a drafts feed.
 

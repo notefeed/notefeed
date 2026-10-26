@@ -4,7 +4,7 @@ A skill is a markdown file that tells an AI assistant how to do one job well. no
 
 | Skill | What it does |
 |---|---|
-| `post-with-review` | Writes a note for a feed (a blog post, release notes, a status update), shows it to you as a draft, changes it until you approve, then posts it. Nothing is posted without your go-ahead. Other skills can build on it: a website skill, for example, lets it write and post, then rebuilds the site that shows the feed. |
+| `post-to-notefeed` | Writes a note for a feed (a blog post, release notes, a status update), shows it to you as a draft, changes it until you approve, then posts it. Nothing is posted without your go-ahead. Other skills can build on it: a website skill, for example, lets it write and post, then rebuilds the site that shows the feed. |
 
 ## Claude Code
 
@@ -23,7 +23,7 @@ Each skill is one file, [`plugin/skills/<name>/SKILL.md`](https://github.com/not
 
 ## Drafts
 
-`post-with-review` can keep drafts in a second feed. Then you see a draft as readers will, and you can send its read link to someone else to review before anything reaches the real feed.
+`post-to-notefeed` can keep drafts in a second feed. Then you see a draft as readers will, and you can send its read link to someone else to review before anything reaches the real feed.
 
 !!! warning "The assistant sees the feed names"
     The skill keeps them out of replies and files, but they are part of the conversation. Give it only feeds you would give that service; see [MCP](mcp.md#telling-the-assistant-which-feed).
