@@ -33,7 +33,7 @@ Create the client with the server's URL and, usually, a default feed; every call
         print(created.id, created.url, created.read_url)
 
         for note in client.notes():  # newest first, fetched a page at a time
-            print(note.created_at, note.title)
+            print(note.date, note.title)
     except NotefeedError as e:
         print("notefeed failed:", e, e.status, e.code)
     ```
@@ -50,7 +50,7 @@ Create the client with the server's URL and, usually, a default feed; every call
       console.log(created.id, created.url, created.read_url);
 
       for await (const note of client.notes()) { // newest first, fetched a page at a time
-        console.log(note.created_at, note.title);
+        console.log(note.date, note.title);
       }
     } catch (e) {
       if (e instanceof NotefeedError) console.error("notefeed failed:", e.message, e.status, e.code);
@@ -60,18 +60,18 @@ Create the client with the server's URL and, usually, a default feed; every call
 
 | Python | Node | Does |
 |---|---|---|
-| `post(content, feed=, type=, title=, tags=, alt=, name=, read_id=, attachments=, license_key=)` | `post(content, { feed, type, title, tags, alt, name, readId, attachments, licenseKey })` | Posts a note. A string is markdown; bytes are a file of media type `type`. `attachments` posts [pictures with the note](../using/pictures.md#posting-a-note-with-its-pictures) in one request, `Attachment(name, content, type, alt)` in Python, `{ name, content, type, alt }` in Node; `content` may be empty to post only pictures. Returns `id`, `url`, `read_url`, `file`, `file_url` and, with attachments, `attachments`. `license_key` is the [license](../hosted/licenses.md#entering-the-key) key for notefeed.me. |
+| `post(content, feed=, type=, title=, tags=, alt=, name=, date=, read_id=, attachments=, license_key=)` | `post(content, { feed, type, title, tags, alt, name, date, readId, attachments, licenseKey })` | Posts a note, dated now unless `date` is given (a [date](../using/posting.md#a-notes-date), also in the future). A string is markdown; bytes are a file of media type `type`. `attachments` posts [pictures with the note](../using/pictures.md#posting-a-note-with-its-pictures) in one request, `Attachment(name, content, type, alt)` in Python, `{ name, content, type, alt }` in Node; `content` may be empty to post only pictures. Returns `id`, `url`, `read_url`, `file`, `file_url` and, with attachments, `attachments`. `license_key` is the [license](../hosted/licenses.md#entering-the-key) key for notefeed.me. |
 | `notes(feed=, page_size=, tag=)` | `notes({ feed, pageSize, tag })` | Every note in the feed, newest first; the next page is fetched as you iterate. |
 | `note(id, feed=)` | `note(id, { feed })` | One note. |
 | `edit(id, content, feed=, type=)` | `edit(id, content, { feed, type })` | Replaces a note's content; id, URLs and metadata stay. |
-| `update(id, title=, alt=, feed=)` | `update(id, { title, alt }, { feed })` | Sets a note's title or a picture's alt text; `""` removes one. |
+| `update(id, title=, alt=, date=, feed=)` | `update(id, { title, alt, date }, { feed })` | Sets a note's title, a picture's alt text or a note's date; `""` removes a title or alt text. |
 | `delete(id, feed=)` | `delete(id, { feed })` | Deletes a note for good. |
 | `feed_info(feed=)` | `feedInfo({ feed })` | The feed's `name`, `title`, `description`, `image_url`, `protected` and `read_url`. |
 | `update_feed(title, description, feed=, image=, read_id=)` | `updateFeed({ title, description, image, read_id }, { feed })` | Replaces the feed's title and description; `image` is the `file` of a picture for the title image. |
 | `delete_feed(feed=)` | `deleteFeed({ feed })` | Deletes the feed with everything in it, for good. |
 | `read_notes(read_id, page_size=)`, `read_note(read_id, id)` | `readNotes(readId, { pageSize })`, `readNote(readId, id)` | Like `notes()` and `note()`, by the feed's [read id](../using/read-links.md): public, no password, never the name. |
 
-A note has `id`, `type`, `title`, `content` (absent for a picture), `file`, `file_url`, `size`, `tags`, `created_at` and `url`, and optionally `alt`, `name` and `sender`. Timeouts default to 10 seconds. Feed names are checked on the client, so a typo fails with a `ConfigError` before any request.
+A note has `id`, `type`, `title`, `content` (absent for a picture), `file`, `file_url`, `size`, `tags`, `date`, `scheduled` (only for the owner, when the date is in the future) and `url`, and optionally `alt`, `name` and `sender`. Timeouts default to 10 seconds. Feed names are checked on the client, so a typo fails with a `ConfigError` before any request.
 
 ## Errors
 

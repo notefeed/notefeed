@@ -41,3 +41,5 @@ Chosen option: the third. One rule for every kind of note, and the content is ne
 * Bad, because the same picture posted twice is two notes and two files, where the hash named it once.
 * Bad, because `POST /<feed>` and `POST /api/v1/feeds/{feed}/images` both post a picture; the second exists so generated clients can type the body.
 * Bad, because dates for names we did not make are a fallback (sidecar, then modification time), so a file restored from a backup may sort by when it was restored.
+
+*Amended by ADR 0042: ids are 22 random characters and carry no time; a note is dated by the date stored with it, which hand-placed files take from their metadata, else their modification time.*

@@ -61,8 +61,16 @@ An image posted together with a text note in the same request and referred to fr
 _Avoid_: Upload, embed
 
 **Metadata**:
-What is known about a note besides its content: title, sender, tags, alt text, file name and creation time. It is never part of the content.
+What is known about a note besides its content: title, sender, tags, alt text, file name and date. It is never part of the content.
 _Avoid_: Front matter, properties, sidecar
+
+**Date**:
+When a note is placed in its feed. It is set when the note is posted and can be changed later. Readers see a note from its date on; the feed is ordered by it. It is not part of the note's id.
+_Avoid_: Created at, timestamp, publish date
+
+**Scheduled note**:
+A note whose date is after now. Readers do not see it until its date; the owner sees it, marked as scheduled.
+_Avoid_: Draft, queued post
 
 **Sender**:
 The verified identity of the person who posted a note. Present only when the note was posted by someone signed in.

@@ -11,9 +11,9 @@ data/
 │   ├── .readid                    # the feed's read id; don't edit it by hand
 │   ├── .feed.json                 # title, description, title image
 │   ├── .password                  # only on a protected feed
-│   ├── 20260929T140512Z-backup-finished.md
-│   ├── .20260929T140512Z-backup-finished.md.json
-│   └── 20261003T101010Z-01a1013e-….png
+│   ├── Vq3xH8mTn2KfLw0aZr9bYe.md
+│   ├── .Vq3xH8mTn2KfLw0aZr9bYe.md.json
+│   └── Hc4yP9sZt1NvKd6WoGx3Ab.png
 └── alerts-q9x2m7hd4k1pv/
 ```
 

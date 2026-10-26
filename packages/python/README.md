@@ -8,8 +8,8 @@ export NOTEFEED_URL=https://notes.example.com NOTEFEED_FEED=homelab-7f3k2q9x4m8w
 notefeed post "# Backup finished"
 backup.sh 2>&1 | notefeed post -
 notefeed notes --limit 5
-notefeed edit 20260929T140512Z-backup-finished "# Backup finished, verified"
-notefeed delete 20260929T140512Z-backup-finished
+notefeed edit Vq3xH8mTn2KfLw0aZr9bYe "# Backup finished, verified"
+notefeed delete Vq3xH8mTn2KfLw0aZr9bYe
 ```
 
 ```python

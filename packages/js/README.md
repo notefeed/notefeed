@@ -8,8 +8,8 @@ export NOTEFEED_URL=https://notes.example.com NOTEFEED_FEED=homelab-7f3k2q9x4m8w
 npx notefeed post "# Backup finished"
 backup.sh 2>&1 | npx notefeed post -
 npx notefeed notes --limit 5
-npx notefeed edit 20260929T140512Z-backup-finished "# Backup finished, verified"
-npx notefeed delete 20260929T140512Z-backup-finished
+npx notefeed edit Vq3xH8mTn2KfLw0aZr9bYe "# Backup finished, verified"
+npx notefeed delete Vq3xH8mTn2KfLw0aZr9bYe
 ```
 
 ```js

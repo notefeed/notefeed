@@ -72,3 +72,5 @@ Out of scope: undo or a trash, edit history, bulk delete, and per-note permissio
 ### Confirmation
 
 Vitest covers replacing and deleting a note's file (the id stays, a missing note, no temporary file left), the order in the write path (access before the body is read, which the API tests check with a body stream that must stay unread, the rate limit, the `404`), the API operations on open and protected feeds (`401` without the password, `404` for a missing note or a malformed id, an empty or oversize edit refused with the note unchanged, the read API and the RSS `guid` after an edit), the form routes (same-origin only, redirects, errors), the MCP tools with and without a password, and both client packages and their commands. Playwright edits a note in the browser and sees the new text, deletes it and sees it gone, and checks that the read-only view has no controls.
+
+*Amended by ADR 0042: a note's id is random and carries no time; the note has a date of its own, which an edit can change.*
