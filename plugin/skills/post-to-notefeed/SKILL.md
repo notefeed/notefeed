@@ -40,6 +40,7 @@ same whatever the note is: **draft, show, revise, post on approval.**
    | `url` | the instance, default `https://notefeed.me` |
    | `feed` | the feed name the note is posted to |
    | `read_id` | the feed's read id; readers see it at `<url>/r/<read_id>` |
+   | `password` | optional: the feed password of a protected feed; pass it as `password` on every call on that feed |
    | `drafts_feed` | optional: a second feed for drafts, so the user (or someone they send its read link to) sees a draft as readers will. Without it the draft lives in the conversation |
 
    Use the feed the request or the calling skill names; with only one, use it; otherwise
@@ -108,31 +109,14 @@ post again, which gives the note a new id and date and breaks links to the old o
 
 ## Add a feed
 
+**A new feed:** use the `create-notefeed-feed` skill; it saves the entry, and then come back
+here.
+
 **A feed the user already has:** ask for a short name, the feed name and the instance; get its
-read id with `get_feed`; ask whether they want a drafts feed (made as below). Write the entry
-into `feeds.json` and confirm with the read link, never by repeating the feed name.
-
-**A new feed:** ask in one go: a short name for it (`blog`, `releases`), the instance, the read id (3 to 64
-characters of `a-z`, `0-9`, `-`, `_`; the public part of the address), the feed's title and
-description, and whether they want a drafts feed.
-
-1. **Make the feed names yourself**, random, and write them into `feeds.json` **before**
-   posting anything, so a name is never lost:
-
-   ```bash
-   umask 077; mkdir -p ~/.config/notefeed
-   F="blog-$(openssl rand -hex 8)"; D="drafts-$(openssl rand -hex 8)"
-   ```
-
-   Merge into an existing file and keep it at mode 600. On claude.ai, give the user the names
-   for their password manager and the project instructions.
-2. A feed exists from its first note, posted through this skill with `read_id`. If the read id
-   is taken, ask for another. Then `update_feed` with the title and description.
-3. Tell the user the read link and its RSS (`<url>/r/<read_id>/feed.xml`), that feed names work
-   like passwords, and on notefeed.me that a feed without a license keeps its newest 100 notes.
-4. A website can show the feed without any secret through the read API:
-   `GET <url>/api/v1/read/<read_id>/notes?limit=100`, paged with `before=<next>`. Each note has
-   `title`, `content` (markdown), `tags`, `created_at` and `id`.
+read id with `get_feed`; ask whether they want a drafts feed (a random name,
+`drafts-$(openssl rand -hex 8)`, created by its first draft). Write the entry into
+`feeds.json` (merge, mode 600) and confirm with the read link, never by repeating the feed
+name. On claude.ai, the entry goes into the project instructions instead.
 
 ## Style
 

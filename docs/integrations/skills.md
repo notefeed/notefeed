@@ -4,6 +4,7 @@ A skill is a markdown file that tells an AI assistant how to do one job well. no
 
 | Skill | What it does |
 |---|---|
+| `create-notefeed-feed` | Creates a feed: makes a random feed name and saves it before the first note, sets the read id, title and description, and on notefeed.me puts your license on it at the start. |
 | `post-to-notefeed` | Writes a note for a feed (a blog post, release notes, a status update), shows it to you as a draft, changes it until you approve, then posts it. Nothing is posted without your go-ahead. Other skills can build on it: a website skill, for example, lets it write and post, then rebuilds the site that shows the feed. |
 
 ## Claude Code
@@ -15,7 +16,7 @@ claude plugin marketplace add notefeed/notefeed
 claude plugin install notefeed@notefeed
 ```
 
-Then add the [MCP endpoint](mcp.md#claude-code) if you haven't, and ask, for example: "write a blog post from this session". The first time, the skill asks which feed to post to and keeps it in `~/.config/notefeed/feeds.json` under a short name such as `blog`, readable only by you, because it holds [feed names](../using/feeds.md).
+Then add the [MCP endpoint](mcp.md#claude-code) if you haven't, and ask, for example: "write a blog post from this session". The first time, `post-to-notefeed` asks which feed to post to (or creates one with `create-notefeed-feed`) and keeps it in `~/.config/notefeed/feeds.json` under a short name such as `blog`, readable only by you, because it holds [feed names](../using/feeds.md).
 
 ## Other assistants
 
