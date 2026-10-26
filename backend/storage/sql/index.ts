@@ -12,7 +12,6 @@ import { IMAGE_EXTS } from "../../../shared/images";
 import { CipherError, open as openBytes, openText, seal, sealText, type FingerprintKind } from "../cipher";
 import type { KeyWrapper } from "../wrapper";
 import { KeyringError, openKeyring, type Keyring } from "./keyring";
-import { isOldId } from "../oldid";
 import { migrate, type Kind } from "./migrations";
 import type { Schema } from "./schema";
 
@@ -68,6 +67,8 @@ const log = logger("storage");
 // Thrown inside a transaction to roll it back when a row changed since it was read.
 const CHANGED = new Error("changed meanwhile");
 const EMPTY = Buffer.alloc(0);
+// The markers row the migration to opaque ids writes once a pass of it completed (backend/notemigration.ts).
+const NOTE_IDS = "note-ids";
 
 const NAME_RE = /^([A-Za-z0-9_-]{1,128})\.([A-Za-z0-9]{1,16})$/;
 const code = (e: unknown) => String((e as { code?: unknown })?.code ?? "");
@@ -537,12 +538,14 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     async listFeedNames() {
       return this.listFeeds();
     },
-    // Ids and dates are plain columns, so no key is needed: the `like` finds the candidates, the pattern decides.
+    // Plain rows and columns, so no key is needed.
     async migrationPending() {
       const db = await connected();
-      if (await db.selectFrom("notes").select("id").where("date", "=", 0).limit(1).executeTakeFirst()) return true;
-      const rows = await db.selectFrom("notes").select("id").where("id", "like", "________T______Z-%").execute();
-      return rows.some((r) => isOldId(r.id));
+      if (await db.selectFrom("markers").select("name").where("name", "=", NOTE_IDS).executeTakeFirst()) return false;
+      return !!(await db.selectFrom("notes").select("id").limit(1).executeTakeFirst());
+    },
+    async markMigrated() {
+      await (await connected()).insertInto("markers").values({ name: NOTE_IDS, at: Date.now() }).onConflict((c) => c.column("name").doNothing()).execute();
     },
     async feedCount() {
       const r = await (await open()).selectFrom("feeds").select(sql<number | string>`count(*)`.as("n")).executeTakeFirstOrThrow();

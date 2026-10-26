@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ensureFeed, resetFeedsForTests } from "./feeds";
+import { getSettings } from "./feedsettings";
 import { logsOf } from "./log";
 import { migratedId, migrateNoteIds } from "./notemigration";
 import { resetSecretForTests } from "./secret";
@@ -98,16 +99,50 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
     expect((await meta(late, "png"))?.of).toBeUndefined(); // over a minute before the text: not posted with it
   });
 
-  run("a second run changes nothing", async () => {
+  run("a second run changes nothing, and reads nothing: a completed pass is marked", async () => {
     const img = oldId(AT - 1), txt = oldId(AT);
     await put("one", img, "png", PNG);
     await put("one", txt, "md", `![](${img}.png)`);
+    expect(await storage().migrationPending()).toBe(true);
     await migrateNoteIds();
+    expect(await storage().migrationPending()).toBe(false);
     const before = await refs("one");
     const body = await text("one", migratedId("one", txt));
+    const reads = [vi.spyOn(storage(), "listFeeds"), vi.spyOn(storage(), "listNoteRefs"), vi.spyOn(storage(), "readNote")];
     expect(await migrateNoteIds()).toEqual({ feeds: 0, renamed: 0, rewritten: 0 });
+    for (const spy of reads) expect(spy).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
     expect(await refs("one")).toEqual(before);
     expect(await text("one", migratedId("one", txt))).toBe(body);
+  });
+
+  run("a note dated 0 after the migration keeps its date at every start", async () => {
+    await put("one", oldId(AT), "md", "before");
+    await migrateNoteIds();
+    await storage().writeNote("one", "epoch", "md", "posted with X-Note-Date: 1970-01-01", {}, 0);
+    await migrateNoteIds();
+    await migrateNoteIds();
+    expect((await refs("one")).find((r) => r.id === "epoch")?.date).toBe(0);
+  });
+
+  run("a store without notes is marked at its first start", async () => {
+    await ensureFeed("one");
+    expect(await storage().migrationPending()).toBe(false);
+    expect(await migrateNoteIds()).toEqual({ feeds: 0, renamed: 0, rewritten: 0 });
+    await storage().writeNote("one", "later", "md", "x", {}, 5);
+    expect(await storage().migrationPending()).toBe(false);
+  });
+
+  run("the feed's title image follows its note", async () => {
+    const img = oldId(AT - 1), other = oldId(AT);
+    await put("one", img, "png", PNG);
+    await put("one", other, "md", "x");
+    await storage().writeSettings("one", { title: "T", description: "D", image: `${img}.png`, showSender: false });
+    await put("two", other, "md", "a title image that is no note of the feed");
+    await storage().writeSettings("two", { title: "", description: "", image: `${img}.png`, showSender: true });
+    expect(await migrateNoteIds()).toEqual({ feeds: 2, renamed: 3, rewritten: 0 });
+    expect(await getSettings("one")).toEqual({ title: "T", description: "D", image: `${migratedId("one", img)}.png`, showSender: false });
+    expect((await storage().readSettings("two")).image).toBe(`${img}.png`); // not one of its notes: left as written
   });
 
   run("a run stopped halfway finishes", async () => {
@@ -148,6 +183,11 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
     expect(await text("one", migratedId("one", txt))).toBe(`![](${stuck}.png) ![](${migratedId("one", img)}.png)`);
     expect(logs).toContainEqual(expect.objectContaining({ level: "warn", stuck: 1, unreadable: 0 }));
     expect(JSON.stringify(logs)).not.toContain(stuck);
+    expect(await storage().migrationPending()).toBe(true); // not marked: the next start tries again
+    vi.restoreAllMocks();
+    expect(await migrateNoteIds()).toEqual({ feeds: 1, renamed: 1, rewritten: 1 });
+    expect(await text("one", migratedId("one", txt))).toBe(`![](${migratedId("one", stuck)}.png) ![](${migratedId("one", img)}.png)`);
+    expect(await storage().migrationPending()).toBe(false);
   });
 
   run("hand-placed ids stay", async () => {
@@ -180,11 +220,23 @@ test("a rename cut short after its new sidecar, before its link, is finished", a
 test("a note left under both ids by a rename cut short goes once, under its new id", async () => {
   const id = oldId(AT);
   await put("one", id, "md", "twice");
-  await migrateNoteIds();
   // The file system's rename links the new name, then removes the old: a crash in between leaves both.
   const now = migratedId("one", id);
+  expect(await storage().renameNote("one", id, "md", now)).toBe(true);
   await writeFile(join(dir, "one", `${id}.md`), "twice");
   expect((await refs("one")).length).toBe(2);
   expect(await migrateNoteIds()).toEqual({ feeds: 1, renamed: 1, rewritten: 0 });
   expect((await refs("one")).map((r) => r.id)).toEqual([now]);
+});
+
+test("a note placed by hand gets its date stored: a later write does not move it", async () => {
+  await ensureFeed("one");
+  await put("one", oldId(AT), "md", "x"); // something to migrate
+  await writeFile(join(dir, "one", "notes.md"), "by hand");
+  const at = new Date(Date.UTC(2025, 5, 1));
+  await utimes(join(dir, "one", "notes.md"), at, at);
+  await migrateNoteIds();
+  expect((await refs("one")).find((r) => r.id === "notes")?.date).toBe(at.getTime());
+  expect(await storage().replaceNote("one", "notes", ["md"], "edited")).toBe(true);
+  expect((await refs("one")).find((r) => r.id === "notes")?.date).toBe(at.getTime());
 });

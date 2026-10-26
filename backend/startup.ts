@@ -124,8 +124,9 @@ export async function logStartup(): Promise<void> {
     await openLicenses();
   });
   // Notes with ids from before ids were opaque move to their new ones before the first request, whatever the report did: a failure
-  // keeps the server from starting. Only a key service that is down while nothing waits to move gives the maintenance page, as above;
-  // with notes waiting the start fails, and is tried again until the key service answers.
+  // keeps the server from starting. Once a pass completed (the storage's mark), a start skips it. Only a key service that is down
+  // while no pass is pending gives the maintenance page, as above; with one pending the start fails, and is tried again until the key
+  // service answers.
   try {
     await migrateNoteIds();
   } catch (e) {

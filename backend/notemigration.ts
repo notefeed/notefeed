@@ -111,40 +111,72 @@ async function rewriteText(feed: string, t: NoteRef, names: Map<string, NoteRef>
   return wrote;
 }
 
-// One feed: how many notes got their new id and how many texts were rewritten.
-async function migrateFeed(feed: string, left: Left): Promise<{ renamed: number; rewritten: number }> {
+// A note without an old id gets a date of its own, the one it reads with now: a database row from before notes had a date reads as 0
+// and gets the time it was last written, as on the file system; a file placed by hand without a stored date reads with its mtime,
+// which its next write would move, so that date is stored. (On a database the same date is then written again: once, harmless.)
+async function keepDate(feed: string, ref: NoteRef, left: Left): Promise<void> {
+  const s = storage();
+  await unlessUnreadable(async () => {
+    const note = await s.readNote(feed, ref.id, [ref.ext], () => false);
+    if (!note) return;
+    if (ref.date === 0) await s.setDate(feed, ref.id, [ref.ext], note.mtime.getTime());
+    else if (note.date === Math.floor(note.mtime.getTime())) await s.setDate(feed, ref.id, [ref.ext], note.date);
+  }, left);
+}
+
+// The feed's title image is named in its settings by its file, `<old id>.<ext>`: it follows its note to the new name, if that is one
+// of the feed's notes. True when the settings changed.
+async function followTitleImage(feed: string, names: Map<string, NoteRef>, left: Left): Promise<boolean> {
+  const s = storage();
+  const changed = await unlessUnreadable(async () => {
+    const settings = await s.readSettings(feed);
+    const m = /^(.+)\.([A-Za-z0-9]{1,16})$/.exec(settings.image);
+    if (!m || oldDate(m[1]) === null) return false;
+    const image = `${migratedId(feed, m[1])}.${m[2]}`;
+    if (!names.has(image)) return false;
+    await s.writeSettings(feed, { ...settings, image });
+    return true;
+  }, left);
+  return !!changed;
+}
+
+// One feed: how many notes got their new id and how many texts were rewritten; `titled`: its title image was renamed.
+async function migrateFeed(feed: string, left: Left): Promise<{ renamed: number; rewritten: number; titled: boolean }> {
   const s = storage();
   let renamed = 0;
   for (const ref of await s.listNoteRefs(feed)) {
     const date = oldDate(ref.id);
-    if (date !== null) {
-      if (await move(feed, ref, date, left)) renamed++;
-    } else if (ref.date === 0) {
-      // A database row from before notes had a date reads as 0: it gets the time it was last written, as on the file system.
-      await unlessUnreadable(async () => {
-        const note = await s.readNote(feed, ref.id, [ref.ext], () => false);
-        if (note) await s.setDate(feed, ref.id, [ref.ext], note.mtime.getTime());
-      }, left);
-    }
+    if (date === null) await keepDate(feed, ref, left);
+    else if (await move(feed, ref, date, left)) renamed++;
   }
   const notes = await s.listNoteRefs(feed);
   left.stuck += notes.filter((r) => oldDate(r.id) !== null).length;
   const names = byName(notes);
+  const titled = await followTitleImage(feed, names, left);
   let rewritten = 0;
   for (const t of notes.filter((r) => isText(r.ext))) if (await rewriteText(feed, t, names, left)) rewritten++;
-  return { renamed, rewritten };
+  return { renamed, rewritten, titled };
 }
 
-/** Moves every feed's notes from old ids to derived ones (see above). `feeds`: those in which something changed. */
+/** Moves every feed's notes from old ids to derived ones (see above). `feeds`: those in which something changed. A pass that left no
+ *  note under its old id is marked in the storage, and from then on there is no pass: a start reads nothing. Without the mark (a
+ *  crash after the last rename, before the texts were rewritten; a note stuck) the next start makes the whole pass again. A store
+ *  without notes needs none and is marked at once. */
 export async function migrateNoteIds(): Promise<{ feeds: number; renamed: number; rewritten: number }> {
+  const s = storage();
   const total = { feeds: 0, renamed: 0, rewritten: 0 };
+  if (!(await s.migrationPending())) {
+    await s.markMigrated();
+    return total;
+  }
   const left: Left = { unreadable: 0, stuck: 0 };
-  for (const feed of await storage().listFeeds()) {
-    const { renamed, rewritten } = await migrateFeed(feed, left);
-    if (renamed || rewritten) total.feeds++;
+  for (const feed of await s.listFeeds()) {
+    const { renamed, rewritten, titled } = await migrateFeed(feed, left);
+    if (renamed || rewritten || titled) total.feeds++;
     total.renamed += renamed;
     total.rewritten += rewritten;
   }
+  if (left.stuck === 0) await s.markMigrated();
   try {
     if (total.feeds) logger("startup").info(total, "notes moved to ids of their own");
     if (left.stuck || left.unreadable) logger("startup").warn(left, "notes left under their old ids; references to them stay as written");

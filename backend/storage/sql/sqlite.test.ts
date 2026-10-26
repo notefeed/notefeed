@@ -110,6 +110,7 @@ describe.skipIf(!supported)("sqlite", () => {
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
     // Back to the schema of 001: the later migrations' columns and tables go, and so do their records, in order.
+    raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
     raw.exec("drop index notes_by_date; alter table notes drop column date; delete from kysely_migration where name = '005_note_date'");
     raw.exec("drop index notes_by_sealed; alter table notes drop column sealed; drop table keyring; alter table feeds drop column key_id; alter table feeds drop column data_key; alter table feeds drop column name_sealed; alter table feeds drop column read_id_sealed; delete from kysely_migration where name = '004_encryption'");
     raw.exec("alter table notes drop column blob_key; alter table notes drop column size; drop table tombstones; drop table blocked_images; delete from kysely_migration where name in ('002_image_store', '003_takedown')");
@@ -131,13 +132,14 @@ describe.skipIf(!supported)("sqlite", () => {
     await a.storage.close();
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
+    raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
     raw.exec("drop index notes_by_date; alter table notes drop column date; delete from kysely_migration where name = '005_note_date'");
     raw.close();
     const again = createSqlStorage(() => connect("sqlite", a.url));
     open.push({ storage: again, root: a.root });
     expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 0 }]);
     expect((await again.readNote("f", "t", ALL, () => true))?.meta).toEqual({ title: "T" });
-    expect(await again.migrationPending()).toBe(true); // dated 0: the migration gives it its mtime
+    expect(await again.migrationPending()).toBe(true); // stored before the migration ran: it gives the note its mtime
   });
 
   test("migrationPending answers while the key service is down; what needs a key does not", async () => {
@@ -151,6 +153,11 @@ describe.skipIf(!supported)("sqlite", () => {
     open.push({ storage: again, root: a.root });
     await expect(again.listNoteRefs("f")).rejects.toBeInstanceOf(KeyServiceUnavailableError);
     expect(await again.migrationPending()).toBe(true);
+    await again.markMigrated();
+    await again.close();
+    const third = createSqlStorage(() => connect("sqlite", a.url), "sqlite", undefined, down);
+    open.push({ storage: third, root: a.root });
+    expect(await third.migrationPending()).toBe(false); // the marker is kept, and read without a key too
   });
 
   describe("with an image store", () => {

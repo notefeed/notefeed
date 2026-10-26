@@ -130,10 +130,10 @@ test("a startup report that fails leaves an error line, and logStartup still res
 test("logStartup moves notes to their new ids first; a migration that fails keeps the server from starting", async () => {
   await ensureFeed("one");
   await storage().writeNote("one", OLD, "md", "x", {}, 0);
+  vi.spyOn(storage(), "listFeeds").mockRejectedValueOnce(new Error("disk gone"));
+  await expect(logStartup()).rejects.toThrow("disk gone");
   await logStartup();
   expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", OLD)]);
-  vi.spyOn(storage(), "listFeeds").mockRejectedValue(new Error("disk gone"));
-  await expect(logStartup()).rejects.toThrow("disk gone");
 });
 
 test("a reserved name that was already an open feed, or has another read id, is warned about by name only", async () => {
@@ -245,6 +245,23 @@ test("a key service that is down while notes wait to move to their new ids stops
   resetStorageForTests();
   resetFeedsForTests();
   await expect(logStartup()).rejects.toThrow("the key service is unreachable");
+  resetStorageForTests();
+});
+
+test("a key service that is down after the migration completed gives the maintenance page, even with notes stored", async () => {
+  const { resetStorageForTests } = await import("./storage");
+  stub({ NOTEFEED_STORAGE: "sqlite" });
+  resetStorageForTests();
+  await ensureFeed("one");
+  await storage().writeNote("one", OLD, "md", "x", {}, 0);
+  await logStartup();
+  await storage().writeNote("one", "epoch", "md", "dated 1970", {}, 0);
+  await (storage() as unknown as { close(): Promise<void> }).close();
+  stub({ NOTEFEED_KMS: "openbao", NOTEFEED_OPENBAO_ADDR: "http://127.0.0.1:9", NOTEFEED_OPENBAO_ROLE_ID: "role", NOTEFEED_OPENBAO_SECRET_ID: "secret" });
+  resetStorageForTests();
+  resetFeedsForTests();
+  const logs = await logsOf(logStartup);
+  expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
   resetStorageForTests();
 });
 

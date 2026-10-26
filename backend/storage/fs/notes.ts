@@ -9,7 +9,6 @@ import { link, lstat, readdir, readFile, rename, unlink, writeFile } from "node:
 import { join } from "node:path";
 import { countDir, countFile, noteFeedSize } from "../../metrics";
 import { applyPatch, hasMeta, parseMeta } from "../meta";
-import { isOldId } from "../oldid";
 import { FeedGoneError, type FeedUsage, type Meta, type NoteRef, type StoredNote } from "../types";
 import { feedDir, isErrno } from "./fs";
 
@@ -176,9 +175,9 @@ export async function listNoteRefs(feed: string, q: { upTo?: number; before?: st
   return q.limit === undefined ? refs : refs.slice(0, q.limit);
 }
 
-/** Whether the feed has a note under an id of the old form: a listing, no sidecar read. */
-export async function hasOldIds(feed: string): Promise<boolean> {
-  return (await namesIn(feed)).some((n) => isOldId(n.id));
+/** Whether the feed has a note: a listing, no sidecar read. */
+export async function hasNotes(feed: string): Promise<boolean> {
+  return (await namesIn(feed)).length > 0;
 }
 
 /** A feed's notes per extension, with their bytes and the newest write, for the operator's metrics: a listing and an lstat per note. */

@@ -47,6 +47,11 @@ export interface Schema {
     key_id: string;
     wrapped: string;
   };
+  // What was done once for the whole database: "note-ids", the migration to opaque ids completed a pass.
+  markers: {
+    name: string;
+    at: Time;
+  };
   blocked_images: {
     hash: string;
     added_at: Time;

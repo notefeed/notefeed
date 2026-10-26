@@ -71,9 +71,11 @@ export interface Storage {
   feedReadId(feed: string): Promise<string | null | undefined>;
   feedForReadId(readId: string): Promise<string | null>;
   listFeeds(): Promise<string[]>;
-  /** Whether any note still waits for the migration to opaque ids (backend/notemigration.ts): an id of the old form, or (SQL) a row
-   *  from before notes had a date. Needs no key, so it is answered while the key service is down. */
+  /** Whether the migration to opaque ids (backend/notemigration.ts) still has to run: notes are stored and no pass of it has completed
+   *  (`markMigrated`). Needs no key, so it is answered while the key service is down. */
   migrationPending(): Promise<boolean>;
+  /** Records that a pass of the migration completed, for good: from then on migrationPending is false. Needs no key either. */
+  markMigrated(): Promise<void>;
   /** Every stored feed name, valid or not, for the start-up warning about names that collide with routes. */
   listFeedNames(): Promise<string[]>;
   feedCount(): Promise<number>;
