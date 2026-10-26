@@ -98,6 +98,8 @@ curl -X DELETE "$URL"                                                           
 
 A note's id is 22 random characters, such as `Vq3xH8mTn2KfLw0aZr9bYe`: it has no time in it and nothing to read from it, so neither its file name nor its URLs carry its title or its date. The file is `<DATA_DIR>/<feed>/<id>.md` (or `.png`, `.jpg`, `.gif`, `.webp`), with the note's metadata in a small `.json` file next to it.
 
+From 0.28.0 a note's id is random and carries no time. On the first start after the update, existing notes get new ids and keep their dates. Old links to single notes and to files stop working. A note's references to its own feed's files are rewritten; links from one feed into another feed's notes are not. If the main key is in a key service and it is down while this migration is still pending, notefeed does not start.
+
 ## Errors
 
 Error responses are JSON, `{"error": "<reason>", "code": "<code>"}`: match on the status or the `code`. Every status and code of every endpoint is in the [REST API](../integrations/api.md). The ones scripts meet most: `401` a missing or wrong password, `402` a [license](../hosted/licenses.md) needed on notefeed.me, `415` a wrong or missing `Content-Type`, `429` too many requests this minute (`Retry-After` says how long to wait), `507` a [cap](../self-hosting/limits.md) is reached.
