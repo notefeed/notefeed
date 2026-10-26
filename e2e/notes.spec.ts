@@ -105,6 +105,26 @@ test("tags typed in the compose box show as links that filter the feed", async (
   await expect(page.getByRole("link", { name: "Tagged" })).toBeVisible();
 });
 
+test("a note's tags change in the edit form; the feed filters by the new ones (#244)", async ({ page }) => {
+  const name = feedName();
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill("# Retagged");
+  await page.getByLabel("Tags (optional, separated by commas)").fill("draft");
+  await page.getByRole("button", { name: "Post note" }).click();
+  await page.getByRole("link", { name: "Retagged" }).click();
+  const patched = page.waitForRequest((r) => r.method() === "PATCH");
+  await page.getByText("Edit", { exact: true }).click();
+  await expect(page.getByLabel("Tags (optional, separated by commas)")).toHaveValue("draft");
+  await page.getByLabel("Tags (optional, separated by commas)").fill("Published, ci");
+  await page.getByRole("button", { name: "Save" }).click();
+  expect((await patched).postDataJSON()).toEqual({ tags: ["Published", "ci"] }); // the server folds the case
+  await expect(page.getByRole("status")).toHaveText("Saved.");
+  await page.goto(`/${name}?tag=published`);
+  await expect(page.getByRole("link", { name: "Retagged" })).toBeVisible();
+  await page.goto(`/${name}?tag=draft`);
+  await expect(page.getByRole("link", { name: "Retagged" })).toHaveCount(0);
+});
+
 test("a note dated in the past in the compose box goes below the newer ones, at its time", async ({ page }) => {
   const name = feedName();
   await page.goto(`/${name}`);

@@ -14,6 +14,7 @@ import { MarkdownNote } from "./note/markdown";
 import { Note } from "./note/note";
 import { UnreadableNote } from "./note/unreadable";
 import { NOTE_TYPES, parseMediaType, typeForExt, type NoteType } from "./note/types";
+import { checkTags } from "./tags";
 
 export { checkMarkdown, MAX_BYTES } from "./note/markdown";
 export { ImageNote, MarkdownNote, Note };
@@ -222,15 +223,17 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
 }
 
 /** Sets the title and/or alt text of a note; "" removes one. At least one is needed; alt only for types that have it. null: no such note. */
-export async function changeMeta(feed: string, id: string, edit: { title?: string; alt?: string }): Promise<Note | null> {
-  if (edit.title === undefined && edit.alt === undefined) throw new InvalidBodyError("nothing to change: send title or alt");
+export async function changeMeta(feed: string, id: string, edit: { title?: string; alt?: string; tags?: string[] }): Promise<Note | null> {
+  if (edit.title === undefined && edit.alt === undefined && edit.tags === undefined) throw new InvalidBodyError("nothing to change: send title, alt or tags");
   const title = checkLine("title", edit.title, MAX_NOTE_TITLE);
   const alt = checkLine("alt", edit.alt, MAX_ALT);
+  const tags = edit.tags === undefined ? undefined : checkTags(edit.tags);
   if (checkFeed(feed) || !isValidId(id)) return null;
   const note = await getNote(feed, id);
   if (!note) return null;
   if (alt !== undefined && !typeForExt(note.ext)?.hasAlt) throw new InvalidBodyError("alt is for image notes");
-  const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }) };
+  // Tags are replaced as a whole list, an empty one removes them (#244).
+  const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }), ...(tags !== undefined && { tags: tags.length ? tags : null }) };
   if (!(await storage().updateMeta(feed, id, NOTE_EXTS, patch))) return null;
   noteEdited(typeForExt(note.ext)?.name ?? "unknown", "meta");
   return getNote(feed, id);

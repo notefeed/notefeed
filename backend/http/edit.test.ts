@@ -123,6 +123,34 @@ describe("PATCH changes metadata", () => {
   });
 });
 
+describe("PATCH changes the tags (#244)", () => {
+  test("tags replace the whole list, folded and deduplicated as on a post; id, date and the other metadata stay", async () => {
+    const made = await post("# x", "text/markdown", { "x-note-tags": "draft,ci", "x-note-title": "T" });
+    const before = await get(made.id);
+    const res = await patch(made.id, { tags: ["Published", "ci", "published"] });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: made.id, tags: ["published", "ci"], title: "T", date: before.date });
+    expect(await sidecar(made.file)).toEqual({ title: "T", tags: ["published", "ci"] });
+    const listed = await (await send("GET", "/feeds/f/notes?tag=published", null, null)).json();
+    expect(listed.notes.map((n: { id: string }) => n.id)).toEqual([made.id]);
+    expect((await (await send("GET", "/feeds/f/notes?tag=draft", null, null)).json()).notes).toEqual([]);
+  });
+  test("an empty list removes them; tags on a picture work the same", async () => {
+    const md = await post("# x", "text/markdown", { "x-note-tags": "a" });
+    expect((await (await patch(md.id, { tags: [] })).json()).tags).toEqual([]);
+    expect(await sidecar(md.file)).toEqual({});
+    const png = await post(PNG as BodyInit, "image/png");
+    expect((await (await patch(png.id, { tags: ["pets"], alt: "a cat" })).json())).toMatchObject({ tags: ["pets"], alt: "a cat" });
+  });
+  test("a bad tag, too many, or not a list of strings is 400 and changes nothing", async () => {
+    const made = await post("# x", "text/markdown", { "x-note-tags": "keep" });
+    for (const tags of [["has space"], ["x".repeat(33)], Array.from({ length: 11 }, (_, i) => `t${i}`), "a,b", [1]]) {
+      expect((await patch(made.id, { tags, title: "never" })).status, JSON.stringify(tags)).toBe(400);
+    }
+    expect(await get(made.id)).toMatchObject({ tags: ["keep"], title: "x" });
+  });
+});
+
 describe("PATCH changes the date", () => {
   test("PATCH { date } changes the date and returns it", async () => {
     const made = await post("# x", "text/markdown");
@@ -138,11 +166,11 @@ describe("PATCH changes the date", () => {
     const body = await (await patch(made.id, { date: "2099-01-01", title: "Later" })).json();
     expect(body).toMatchObject({ title: "Later", date: "2099-01-01T00:00:00.000Z", scheduled: true });
   });
-  test("PATCH {} is 400 and names title, alt or date; a bad date is 400 and changes nothing", async () => {
+  test("PATCH {} is 400 and names title, alt, tags or date; a bad date is 400 and changes nothing", async () => {
     const made = await post("# x", "text/markdown");
     const empty = await patch(made.id, {});
     expect(empty.status).toBe(400);
-    expect((await empty.json()).error).toContain("title, alt or date");
+    expect((await empty.json()).error).toContain("title, alt, tags or date");
     const before = (await get(made.id)).date;
     expect((await patch(made.id, { date: "2025-02-30" })).status).toBe(400);
     expect((await patch(made.id, { date: 5 })).status).toBe(400);

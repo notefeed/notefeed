@@ -232,6 +232,10 @@ export type NoteMeta = {
      */
     alt?: string;
     /**
+     * The note's tags, the whole new list (`["ci","done"]`): at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Empty removes them all; omitted leaves them as they are.
+     */
+    tags?: Array<string>;
+    /**
      * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. The note's attachments move with it.
      */
     date?: string;
@@ -636,7 +640,7 @@ export type PatchNoteData = {
 
 export type PatchNoteErrors = {
     /**
-     * Invalid or reserved feed name; nothing to change; a bad title, alt text or date; alt for a note that has none; bad JSON
+     * Invalid or reserved feed name; nothing to change; a bad title, alt text, tag or date; too many tags; alt for a note that has none; bad JSON
      */
     400: Error;
     /**

@@ -373,6 +373,13 @@ test("updateSetsTheDate", async () => {
   expect(JSON.parse(sent(0))).toEqual({ date: "2025-03-01" });
 });
 
+test("updateSetsTheTagsAsAWholeList", async () => {
+  server.reply(200, { ...NOTE, url: "https://n.example/inbox/i" });
+  expect(await main(["update", "i", "--tags", "done, ci", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect(await main(["update", "i", "--tags", "", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect([JSON.parse(sent(0)), JSON.parse(sent(1))]).toEqual([{ tags: ["done", "ci"] }, { tags: [] }]);
+});
+
 test("editSendsThePictureOfItsType", async () => {
   server.reply(200, NOTE);
   const f = join(mkdtempSync(join(tmpdir(), "nf-")), "x.webp");

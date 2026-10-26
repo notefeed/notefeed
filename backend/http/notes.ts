@@ -109,7 +109,7 @@ export async function readContent(req: Request): Promise<{ body: Uint8Array; med
 }
 
 // The JSON of a PATCH: a title, an alt text and/or a date.
-export async function readMetaPatch(req: Request): Promise<{ title?: string; alt?: string; date?: string }> {
+export async function readMetaPatch(req: Request): Promise<{ title?: string; alt?: string; tags?: string[]; date?: string }> {
   if (mediaType(req.headers) !== "application/json") throw new UnsupportedTypeError("send Content-Type: application/json");
   const bytes = await readCapped(req, MAX_BYTES);
   if (!bytes) throw new NoteTooLargeError();
@@ -120,7 +120,7 @@ export async function readMetaPatch(req: Request): Promise<{ title?: string; alt
     throw new InvalidBodyError("invalid JSON");
   }
   const parsed = MetaJson.safeParse(json);
-  if (!parsed.success) throw new InvalidBodyError('JSON may carry "title", "alt" and "date" strings');
+  if (!parsed.success) throw new InvalidBodyError('JSON may carry "title", "alt" and "date" strings and a "tags" list of strings');
   return parsed.data;
 }
 

@@ -82,7 +82,14 @@ const NoteAlt = z.string().describe("Alternative text of an image note, at most 
 const DATE_FORMAT = "An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). ";
 const DATE_RULE = "When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on.";
 const NoteDate = z.string().describe(`${DATE_FORMAT}${DATE_RULE} The note's attachments move with it.`);
-export const MetaJson = z.object({ title: NoteTitle.optional(), alt: NoteAlt.optional(), date: NoteDate.optional() }).meta({ id: "NoteMeta" });
+export const MetaJson = z
+  .object({
+    title: NoteTitle.optional(),
+    alt: NoteAlt.optional(),
+    tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list (\`["ci","done"]\`): ${TAG_RULE}. Empty removes them all; omitted leaves them as they are.`),
+    date: NoteDate.optional(),
+  })
+  .meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
 
 export const FeedPasswordHeader = z
