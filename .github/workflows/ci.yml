@@ -270,3 +270,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: gh release upload "$TAG" sbom/*.cdx.json --clobber
+      # One note per release on notefeed.me's reserved `releases` feed (https://notefeed.me/r/releases):
+      # the tag message without its first line, under a line with the date and the GitHub release.
+      # A re-run finds the note by its tag and posts nothing; without the secret (a fork) it is skipped.
+      - name: Post to the releases feed
+        env:
+          PASSWORD: ${{ secrets.NOTEFEED_RESERVED_PASSWORD }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$PASSWORD" ]; then echo "::notice::NOTEFEED_RESERVED_PASSWORD is not set: not posted"; exit 0; fi
+          found=$(curl -sf "https://notefeed.me/api/v1/read/releases/notes?tag=$TAG")
+          if [ "$(jq '.notes | length' <<< "$found")" != 0 ]; then echo "already posted"; exit 0; fi
+          git for-each-ref "refs/tags/$TAG" --format='%(contents)' | sed '1{/^notefeed /d}' | sed '/./,$!d' > post.md
+          printf '*Released %s · [on GitHub](https://github.com/%s/releases/tag/%s)*\n\n' "$(date -u +%F)" "$GITHUB_REPOSITORY" "$TAG" | cat - post.md > post-dated.md
+          curl -sf -X POST https://notefeed.me/api/v1/feeds/releases/notes -H "Content-Type: text/markdown" \
+            -H "X-Feed-Password: $PASSWORD" -H "X-Note-Title: notefeed ${TAG#v}" -H "X-Note-Tags: release,$TAG" \
+            --data-binary @post-dated.md -o /dev/null -w "posted: %{http_code}\n"
