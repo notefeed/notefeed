@@ -83,6 +83,9 @@ body {
 .md th, .md td { border: 1px solid var(--rule); padding: 0.25em 0.5em; text-align: left; }
 .md img { max-width: 100%; height: auto; }
 .md hr { border: 0; border-top: 1px solid var(--rule); }
+/* A heading's link to itself on a note's page (#243): shown on hover or focus. */
+.md .anchor { margin-left: 0.4em; color: var(--muted); font-weight: 400; text-decoration: none; opacity: 0; }
+.md :is(h1, h2, h3, h4, h5, h6):hover .anchor, .md .anchor:focus-visible { opacity: 1; }
 /* In a list's card a note's headings are no bigger than a title (ADR 0040). */
 .note-card .md :is(h1, h2) { font-size: 17px; letter-spacing: -0.01em; }
 

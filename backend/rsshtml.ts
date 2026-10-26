@@ -7,6 +7,7 @@ import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { isRelativeLink } from "../shared/links";
+import { imageSizes } from "../shared/markdown";
 
 type Node = { type: string; value?: string; tagName?: string; properties?: Record<string, unknown>; children?: Node[] };
 
@@ -36,6 +37,6 @@ export function markdownToHtml(markdown: string, base: string): { html: string; 
       n.properties.src = src;
       image ??= src;
     });
-  const html = String(unified().use(remarkParse).use(remarkGfm).use(htmlAsText).use(remarkRehype).use(pictures).use(rehypeStringify).processSync(markdown));
+  const html = String(unified().use(remarkParse).use(remarkGfm).use(htmlAsText).use(remarkRehype).use(imageSizes).use(pictures).use(rehypeStringify).processSync(markdown));
   return { html, image };
 }

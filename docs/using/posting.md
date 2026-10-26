@@ -38,6 +38,13 @@ A feed can have a password of its own as well: see [Feed passwords](feed-passwor
 
 A markdown note shows its text as written. Where a name is needed (RSS, the API, the browser's title) it is titled by its first heading, or else its first line. To set a title of your own, send `X-Note-Title` (at most 100 characters, one line), or fill in the **Title** field in the web UI; `PATCH` changes it later. The title is metadata, not part of the file: replacing the content keeps it, and an empty title makes the note follow its text again. A title of your own also shows as the heading above the text.
 
+## Long notes
+
+A note is GitHub-flavoured markdown: tables, task lists, strikethrough and autolinks work. Raw HTML stays text, on the page and in RSS. For a longer text, such as a blog post:
+
+- **A picture's size:** add `#width=480` (or `#height=270`, or both, `#width=480&height=270`) to its link: `![Screenshot](shot.png#width=480)`. The picture shows at that size in CSS pixels, never wider than the column, on the page and in RSS. Elsewhere the fragment is ignored and the picture shows at its own size.
+- **Headings:** on a note's own page each heading has an anchor (`#` on hover) to link to that part, and a note with three or more second- and third-level headings starts with a table of contents.
+
 ## Tags
 
 Tags are short labels, such as `ci`, `deploy` or `failed`, so readers and tools can tell notes apart:
