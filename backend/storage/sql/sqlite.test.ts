@@ -7,6 +7,7 @@ import { describeStorage } from "../contract";
 import { createFsImageStore } from "../images/fs";
 import type { ImageStore } from "../images/types";
 import { FeedGoneError } from "../types";
+import { KeyServiceUnavailableError } from "../../errors";
 import { logsOf } from "../../log";
 import { connect } from "./connect";
 import { createSqlStorage, type Images, type SqlStorage } from ".";
@@ -136,6 +137,20 @@ describe.skipIf(!supported)("sqlite", () => {
     open.push({ storage: again, root: a.root });
     expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 0 }]);
     expect((await again.readNote("f", "t", ALL, () => true))?.meta).toEqual({ title: "T" });
+    expect(await again.migrationPending()).toBe(true); // dated 0: the migration gives it its mtime
+  });
+
+  test("migrationPending answers while the key service is down; what needs a key does not", async () => {
+    const key = randomBytes(32).toString("hex");
+    const a = await fresh("test.db", undefined, createLocalWrapper(key));
+    await a.storage.createFeed("f", "rid-f");
+    await a.storage.writeNote("f", "20260401T120000Z-0196e8f0-1c2d-7abc-8def-0123456789ab", "md", "x", {}, 5);
+    await a.storage.close();
+    const down: KeyWrapper = { ...createLocalWrapper(key), wrap: () => Promise.reject(new KeyServiceUnavailableError()), unwrap: () => Promise.reject(new KeyServiceUnavailableError()) };
+    const again = createSqlStorage(() => connect("sqlite", a.url), "sqlite", undefined, down);
+    open.push({ storage: again, root: a.root });
+    await expect(again.listNoteRefs("f")).rejects.toBeInstanceOf(KeyServiceUnavailableError);
+    expect(await again.migrationPending()).toBe(true);
   });
 
   describe("with an image store", () => {

@@ -9,6 +9,7 @@ import { link, lstat, readdir, readFile, rename, unlink, writeFile } from "node:
 import { join } from "node:path";
 import { countDir, countFile, noteFeedSize } from "../../metrics";
 import { applyPatch, hasMeta, parseMeta } from "../meta";
+import { isOldId } from "../oldid";
 import { FeedGoneError, type FeedUsage, type Meta, type NoteRef, type StoredNote } from "../types";
 import { feedDir, isErrno } from "./fs";
 
@@ -175,6 +176,11 @@ export async function listNoteRefs(feed: string, q: { upTo?: number; before?: st
   return q.limit === undefined ? refs : refs.slice(0, q.limit);
 }
 
+/** Whether the feed has a note under an id of the old form: a listing, no sidecar read. */
+export async function hasOldIds(feed: string): Promise<boolean> {
+  return (await namesIn(feed)).some((n) => isOldId(n.id));
+}
+
 /** A feed's notes per extension, with their bytes and the newest write, for the operator's metrics: a listing and an lstat per note. */
 export async function noteUsage(feed: string): Promise<Pick<FeedUsage, "notes" | "lastWrite">> {
   const notes: FeedUsage["notes"] = {};
@@ -261,16 +267,21 @@ export async function setDate(feed: string, id: string, exts: readonly string[],
 
 // As writeNote: the new sidecar first (it claims the id, with the note's date written out), then a link of the content file to the
 // new name; then the old pair goes, content first, as in deleteNote. A crash in between leaves the note under both ids, never under none.
-// False when there is no such note, or the new id is taken (by a note of any extension, or a sidecar). ponytail: a note written
-// under the new id with another extension between the check and the link is not seen; only the migration renames, before requests.
+// False when there is no such note, or the new id is taken (by a note of any extension, or a sidecar with its content).
+// ponytail: a note written under the new id with another extension between the check and the link is not seen; only the migration
+// renames, before requests.
 export async function renameNote(feed: string, id: string, ext: string, newId: string): Promise<boolean> {
   const from = file(feed, id, ext);
   const info = await regular(from);
   if (!info || (await namesIn(feed)).some((n) => n.id === newId)) return false;
   const raw = await sidecarOf(feed, id, ext);
   const meta = raw === null ? {} : parseMeta(raw);
+  const json = JSON.stringify({ ...meta, date: dateOf(raw, meta, info.mtimeMs) });
+  let claimed: boolean;
   try {
-    if (!(await claim(feed, newId, ext, JSON.stringify({ ...meta, date: dateOf(raw, meta, info.mtimeMs) })))) return false;
+    claimed = await claim(feed, newId, ext, json);
+    // A sidecar under the new id without its content is a rename cut short before its link (only the migration renames): taken over.
+    if (!claimed && ((await regular(file(feed, newId, ext))) || !(await writeSidecar(feed, newId, ext, json)))) return false;
   } catch (e) {
     if (isErrno(e, "ENOENT")) return false; // the feed was deleted since the lookup
     throw e;
@@ -278,7 +289,8 @@ export async function renameNote(feed: string, id: string, ext: string, newId: s
   try {
     await link(/*turbopackIgnore: true*/ from, file(feed, newId, ext));
   } catch (e) {
-    await unlink(/*turbopackIgnore: true*/ sidecar(feed, newId, ext)).catch(() => {});
+    // A sidecar taken over may be another rename's of the same note, whose link came first: it stays with that content.
+    if (claimed) await unlink(/*turbopackIgnore: true*/ sidecar(feed, newId, ext)).catch(() => {});
     if (isErrno(e, "EEXIST") || isErrno(e, "ENOENT")) return false; // taken, or the note was deleted meanwhile
     throw e;
   }

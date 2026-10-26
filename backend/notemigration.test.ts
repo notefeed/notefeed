@@ -38,6 +38,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   resetFeedsForTests();
   resetStorageForTests();
   resetSecretForTests();
@@ -134,6 +135,21 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
     for (const id of imgs) expect((await storage().readMeta("one", { id: migratedId("one", id), ext: "png" }))?.of).toBe(migratedId("one", txt));
   });
 
+  run("a note that cannot move stays; references to the others follow all the same, and the log counts it", async () => {
+    const stuck = oldId(AT - 2), img = oldId(AT - 1), txt = oldId(AT);
+    await put("one", stuck, "png", PNG);
+    await put("one", img, "png", PNG);
+    await put("one", txt, "md", `![](${stuck}.png) ![](${img}.png)`);
+    const rename = storage().renameNote.bind(storage());
+    vi.spyOn(storage(), "renameNote").mockImplementation((feed, id, ext, newId) => (id === stuck ? Promise.resolve(false) : rename(feed, id, ext, newId)));
+    let counts;
+    const logs = await logsOf(async () => (counts = await migrateNoteIds()));
+    expect(counts).toEqual({ feeds: 1, renamed: 2, rewritten: 1 });
+    expect(await text("one", migratedId("one", txt))).toBe(`![](${stuck}.png) ![](${migratedId("one", img)}.png)`);
+    expect(logs).toContainEqual(expect.objectContaining({ level: "warn", stuck: 1, unreadable: 0 }));
+    expect(JSON.stringify(logs)).not.toContain(stuck);
+  });
+
   run("hand-placed ids stay", async () => {
     await put("one", "notes", "md", "by hand");
     expect(await migrateNoteIds()).toEqual({ feeds: 0, renamed: 0, rewritten: 0 });
@@ -150,6 +166,15 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
     const all = JSON.stringify(logs);
     for (const s of ["secret-feed", id, migratedId("secret-feed", id)]) expect(all).not.toContain(s);
   });
+});
+
+test("a rename cut short after its new sidecar, before its link, is finished", async () => {
+  const id = oldId(AT);
+  await put("one", id, "md", "half moved", { title: "T" });
+  await writeFile(join(dir, "one", `.${migratedId("one", id)}.md.json`), "{}");
+  expect(await migrateNoteIds()).toEqual({ feeds: 1, renamed: 1, rewritten: 0 });
+  expect(await refs("one")).toEqual([{ id: migratedId("one", id), ext: "md", date: AT }]);
+  expect(await storage().readNote("one", migratedId("one", id), ["md"], () => true)).toMatchObject({ meta: { title: "T" } });
 });
 
 test("a note left under both ids by a rename cut short goes once, under its new id", async () => {

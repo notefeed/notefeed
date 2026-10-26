@@ -177,6 +177,17 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect([...((await s.readFile("f", "q.png")) ?? [])]).toEqual([...bytes]);
         expect((await s.readNote("f", "q", ALL, () => false))?.meta).toEqual({ alt: "x" });
       });
+      t("migrationPending: true while a note has an id of the old form, false once it is renamed", async ({ storage: s }) => {
+        const old = "20260401T120000Z-0196e8f0-1c2d-7abc-8def-0123456789ab-2";
+        expect(await s.migrationPending()).toBe(false);
+        await s.writeNote("f", "notes", "md", "hand-placed", {}, 5);
+        await s.writeNote("f", "20260401T120000Z-not-a-uuid", "md", "looks like one, is not", {}, 5);
+        expect(await s.migrationPending()).toBe(false);
+        await s.writeNote("f", old, "png", new Uint8Array([1]), {}, 5);
+        expect(await s.migrationPending()).toBe(true);
+        expect(await s.renameNote("f", old, "png", "new")).toBe(true);
+        expect(await s.migrationPending()).toBe(false);
+      });
       t("writeNote to a feed deleted meanwhile throws FeedGoneError", async (h) => {
         await h.storage.deleteFeed("f");
         await expect(h.storage.writeNote("f", "a", "md", "x", {}, 0)).rejects.toBeInstanceOf(FeedGoneError);

@@ -22,6 +22,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
+const OLD = "20260401T120000Z-0196e8f0-1c2d-7abc-8def-0123456789ab"; // a note's id from before ids were opaque
 const stub = (vars: Record<string, string>) => Object.entries(vars).forEach(([k, v]) => vi.stubEnv(k, v));
 const FULL = { ISSUER: "https://idp.example", CLIENT_ID: "id", CLIENT_SECRET: "the-secret", ALLOW: "ann@x.com" };
 const provider = (name: string, vars: Partial<typeof FULL>) => stub(Object.fromEntries(Object.entries(vars).map(([k, v]) => [`NOTEFEED_OIDC_${name ? `${name}_` : ""}${k}`, v])));
@@ -109,6 +110,17 @@ test("logStartup never throws, and its info line comes first even when the outpu
   restore();
 });
 
+test("a report that fails before the migration does not skip it", async () => {
+  await ensureFeed("one");
+  await storage().writeNote("one", OLD, "md", "x", {}, 0);
+  await writeFile(join(dir, "file"), "");
+  await writeFile(join(dir, "license.md"), VALID_LICENSE);
+  stub({ NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "s", NOTEFEED_LICENSE_FILE: join(dir, "license.md"), NOTEFEED_LICENSE_DB: join(dir, "file", "licenses.db") });
+  const logs = await logsOf(logStartup); // the license store cannot be opened: a file where its folder should be
+  expect(logs).toContainEqual(expect.objectContaining({ level: "error", msg: "startup report failed" }));
+  expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", OLD)]);
+});
+
 test("a startup report that fails leaves an error line, and logStartup still resolves", async () => {
   vi.spyOn(storage(), "listFeedNames").mockRejectedValue(Object.assign(new Error("not a directory"), { code: "ENOTDIR" }));
   const logs = await logsOf(logStartup);
@@ -117,10 +129,9 @@ test("a startup report that fails leaves an error line, and logStartup still res
 
 test("logStartup moves notes to their new ids first; a migration that fails keeps the server from starting", async () => {
   await ensureFeed("one");
-  const old = "20260401T120000Z-0196e8f0-1c2d-7abc-8def-0123456789ab";
-  await storage().writeNote("one", old, "md", "x", {}, 0);
+  await storage().writeNote("one", OLD, "md", "x", {}, 0);
   await logStartup();
-  expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", old)]);
+  expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", OLD)]);
   vi.spyOn(storage(), "listFeeds").mockRejectedValue(new Error("disk gone"));
   await expect(logStartup()).rejects.toThrow("disk gone");
 });
@@ -221,6 +232,20 @@ test("a key service that is down at start is a warning, not a failure: notefeed 
   resetStorageForTests();
   const logs = await logsOf(logStartup);
   expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
+});
+
+test("a key service that is down while notes wait to move to their new ids stops the start", async () => {
+  const { resetStorageForTests } = await import("./storage");
+  stub({ NOTEFEED_STORAGE: "sqlite" });
+  resetStorageForTests();
+  await ensureFeed("one");
+  await storage().writeNote("one", OLD, "md", "x", {}, 5);
+  await (storage() as unknown as { close(): Promise<void> }).close();
+  stub({ NOTEFEED_KMS: "openbao", NOTEFEED_OPENBAO_ADDR: "http://127.0.0.1:9", NOTEFEED_OPENBAO_ROLE_ID: "role", NOTEFEED_OPENBAO_SECRET_ID: "secret" });
+  resetStorageForTests();
+  resetFeedsForTests();
+  await expect(logStartup()).rejects.toThrow("the key service is unreachable");
+  resetStorageForTests();
 });
 
 test("with a provider, a missing or broken license.md stops the start, naming the problem and not the text", async () => {

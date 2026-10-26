@@ -12,6 +12,7 @@ import { IMAGE_EXTS } from "../../../shared/images";
 import { CipherError, open as openBytes, openText, seal, sealText, type FingerprintKind } from "../cipher";
 import type { KeyWrapper } from "../wrapper";
 import { KeyringError, openKeyring, type Keyring } from "./keyring";
+import { isOldId } from "../oldid";
 import { migrate, type Kind } from "./migrations";
 import type { Schema } from "./schema";
 
@@ -87,6 +88,7 @@ type FeedKeys = { name: string; data_key: string | null; key_id: string | null }
 // `kind` picks the dialect-specific migration; `connect` is called once, on first use. With a `wrapper` (the main key) the database
 // is encrypted (issue #212): names and read ids are stored as fingerprints, a feed's values sealed with its own data key.
 export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: Kind = "sqlite", images?: Images, wrapper: KeyWrapper | null = null): SqlStorage {
+  let connecting: Promise<Kysely<Schema>> | undefined;
   let opened: Promise<Kysely<Schema>> | undefined;
   let ring: Keyring | null = null; // set by open(), before any query
   // What a name or a read id is stored as, and looked up by.
@@ -148,20 +150,41 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     return found;
   };
 
-  function open(): Promise<Kysely<Schema>> {
-    if (opened) return opened;
+  // The errors a caller sees as they are; any other is replaced, as the driver's names the address or the file (no `cause`: the log
+  // would carry it).
+  const known = (e: unknown) => {
+    const ok = e instanceof KeyringError || keyServiceDown(e) || (e instanceof Error && e.message.startsWith("the database was made by a newer notefeed"));
+    return ok ? e : new Error(`cannot use the database named by NOTEFEED_DATABASE_URL (${code(e) || (e as Error)?.name || "error"})`);
+  };
+
+  // The database, migrated, without its keys: enough for what is stored in plain columns (migrationPending, with the key service down).
+  function connected(): Promise<Kysely<Schema>> {
+    if (connecting) return connecting;
     const attempt = (async () => {
       let db: Kysely<Schema> | undefined;
       try {
         db = await connect();
         await migrate(db, kind);
-        ring = await openKeyring(db, kind, wrapper);
         return db;
       } catch (e) {
         await db?.destroy().catch(() => {});
-        const known = e instanceof KeyringError || keyServiceDown(e) || (e instanceof Error && e.message.startsWith("the database was made by a newer notefeed"));
-        // No `cause`: the driver's error names the address or the file, and the log would carry it.
-        throw known ? e : new Error(`cannot use the database named by NOTEFEED_DATABASE_URL (${code(e) || (e as Error)?.name || "error"})`);
+        throw known(e);
+      }
+    })();
+    connecting = attempt;
+    attempt.catch(() => connecting === attempt && (connecting = undefined)); // retry after a failure
+    return attempt;
+  }
+
+  function open(): Promise<Kysely<Schema>> {
+    if (opened) return opened;
+    const attempt = (async () => {
+      const db = await connected();
+      try {
+        ring = await openKeyring(db, kind, wrapper);
+        return db;
+      } catch (e) {
+        throw known(e);
       }
     })();
     opened = attempt;
@@ -514,6 +537,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     async listFeedNames() {
       return this.listFeeds();
     },
+    // Ids and dates are plain columns, so no key is needed: the `like` finds the candidates, the pattern decides.
+    async migrationPending() {
+      const db = await connected();
+      if (await db.selectFrom("notes").select("id").where("date", "=", 0).limit(1).executeTakeFirst()) return true;
+      const rows = await db.selectFrom("notes").select("id").where("id", "like", "________T______Z-%").execute();
+      return rows.some((r) => isOldId(r.id));
+    },
     async feedCount() {
       const r = await (await open()).selectFrom("feeds").select(sql<number | string>`count(*)`.as("n")).executeTakeFirstOrThrow();
       return Number(r.n);
@@ -775,9 +805,9 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     },
 
     async close() {
-      if (!opened) return;
-      const db = await opened.catch(() => undefined);
-      opened = undefined;
+      if (!connecting) return;
+      const db = await connecting.catch(() => undefined);
+      connecting = opened = undefined;
       await db?.destroy();
     },
   };

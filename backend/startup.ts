@@ -98,28 +98,45 @@ export async function logStartup(): Promise<void> {
   config.validateStorage(); // a wrong storage setting keeps the server from starting; with a database the main key does too, below
   await requireLicensePage(); // so does selling licenses without the license page's words
   const warn = (warnings: Warning[]) => warnings.forEach(([component, msg, f]) => logger(component).warn(f, msg));
-  let migrating = false;
-  try {
+  let keyServiceIsDown = false;
+  // The report is best effort: a failure is logged and the rest of it left out. False then.
+  const report = async (step: () => Promise<void>): Promise<boolean> => {
+    try {
+      await step();
+      return true;
+    } catch (e) {
+      // A database this main key cannot open (encryption at rest, issue #212) must not be served: every request would fail.
+      if (e instanceof KeyringError) throw e;
+      // The key service (#215) is down: each request tries again, and gets the maintenance page meanwhile.
+      if (keyServiceDown(e)) keyServiceIsDown = true;
+      else
+        try {
+          logger("startup").error({ err: e }, "startup report failed");
+        } catch {}
+      return false;
+    }
+  };
+  const reported = await report(async () => {
     const { fields, warnings } = startupReport();
     logger("startup").info(fields, "notefeed started");
     warn(warnings);
     // The license store comes to the main key now too: a key change re-wraps it in this start, not at its first use.
     await openLicenses();
-    // Notes with ids from before ids were opaque move to their new ones before the first request: a failure keeps the server from starting.
-    migrating = true;
+  });
+  // Notes with ids from before ids were opaque move to their new ones before the first request, whatever the report did: a failure
+  // keeps the server from starting. Only a key service that is down while nothing waits to move gives the maintenance page, as above;
+  // with notes waiting the start fails, and is tried again until the key service answers.
+  try {
     await migrateNoteIds();
-    migrating = false;
-    warn(await legalFileWarnings());
-    warn(await reservedFolderWarnings());
-    warn(await reservedFeedWarnings()); // loads the feed index, which creates missing reserved feeds
   } catch (e) {
-    // A database this main key cannot open (encryption at rest, issue #212) must not be served: every request would fail.
-    // So must data whose notes did not all move to their new ids; a key service that is down is the exception below, as for every start.
-    if (e instanceof KeyringError || (migrating && !keyServiceDown(e))) throw e;
-    // The key service (#215) is down: each request tries again, and gets the maintenance page meanwhile.
-    if (keyServiceDown(e)) return void logger("startup").warn("the key service is unreachable: serving the maintenance page until it answers");
-    try {
-      logger("startup").error({ err: e }, "startup report failed");
-    } catch {}
+    if (!keyServiceDown(e) || (await storage().migrationPending())) throw e;
+    keyServiceIsDown = true;
   }
+  if (reported && !keyServiceIsDown)
+    await report(async () => {
+      warn(await legalFileWarnings());
+      warn(await reservedFolderWarnings());
+      warn(await reservedFeedWarnings()); // loads the feed index, which creates missing reserved feeds
+    });
+  if (keyServiceIsDown) logger("startup").warn("the key service is unreachable: serving the maintenance page until it answers");
 }

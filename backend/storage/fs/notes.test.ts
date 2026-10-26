@@ -87,11 +87,18 @@ describe("readNote and listNoteRefs", () => {
     expect(await renameNote("f", "a", "md", "z")).toBe(true);
     expect(await files()).toEqual([".z.md.json", "z.md"]);
   });
-  test("renameNote onto an id whose sidecar is left over is false", async () => {
-    await writeNote("f", "a", "md", "x", {}, 5);
+  test("renameNote onto an id whose sidecar is left over without content takes it over (a rename cut short before its link)", async () => {
+    await writeNote("f", "a", "md", "x", { title: "T" }, 5);
     await writeFile(join(dir, ".z.md.json"), "{}");
+    expect(await renameNote("f", "a", "md", "z")).toBe(true);
+    expect(await files()).toEqual([".z.md.json", "z.md"]);
+    expect(await readNote("f", "z", EXTS, all)).toMatchObject({ meta: { title: "T" }, date: 5 });
+  });
+  test("renameNote onto an id with a sidecar and its content is false", async () => {
+    await writeNote("f", "a", "md", "x", {}, 5);
+    await writeNote("f", "z", "md", "y", {}, 5);
     expect(await renameNote("f", "a", "md", "z")).toBe(false);
-    expect(await files()).toEqual([".a.md.json", ".z.md.json", "a.md"]);
+    expect(await files()).toEqual([".a.md.json", ".z.md.json", "a.md", "z.md"]);
   });
   test("a note without a sidecar has empty meta", async () => {
     await writeFile(join(dir, "h.md"), "x");

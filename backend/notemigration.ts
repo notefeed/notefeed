@@ -8,10 +8,9 @@ import { typeForExt } from "./note/types";
 import { secret } from "./secret";
 import { storage } from "./storage";
 import { CipherError } from "./storage/cipher";
+import { OLD_ID } from "./storage/oldid";
 import type { NoteRef } from "./storage/types";
 
-// Group 7 is the uuid, 8 its version.
-const OLD_ID = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z-([0-9a-f]{8}-[0-9a-f]{4}-([0-9a-f])[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12})(?:-\d+)?$/i;
 // An old id as a file name in a text, `<old id>.<ext>`, not part of a longer name.
 const OLD_FILE = /(?<![A-Za-z0-9_-])(\d{8}T\d{6}Z-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:-\d+)?)\.([A-Za-z0-9]{1,16})(?![A-Za-z0-9])/gi;
 // A text's pictures were stored just before it, in the same post.
@@ -30,85 +29,125 @@ function oldDate(id: string): number | null {
 
 const isImage = (ext: string) => typeForExt(ext)?.name === "image";
 const isText = (ext: string) => typeForExt(ext)?.name === "markdown";
+// How often a text is read, rewritten and read back before it is left as it is: each round follows a run beside this one.
+const ROUNDS = 5;
 
-// A note sealed under a key this instance cannot open stays as it is: it cannot be shown either way, and must not stop the start.
-async function unlessUnreadable<T>(op: () => Promise<T>, skipped: { n: number }): Promise<T | null> {
+// What did not move, for the log. `unreadable`: notes sealed under a key this instance cannot open; `stuck`: notes still under their
+// old ids once a feed's notes are moved (unreadable, or moved by a run beside this one just then).
+type Left = { unreadable: number; stuck: number };
+
+// A note this instance cannot open stays as it is: it cannot be shown either way, and must not stop the start.
+async function unlessUnreadable<T>(op: () => Promise<T>, left: Left): Promise<T | null> {
   try {
     return await op();
   } catch (e) {
     if (!(e instanceof CipherError)) throw e;
-    skipped.n++;
+    left.unreadable++;
     return null;
   }
 }
 
-// One feed: returns how many notes got their new id and how many texts were rewritten.
-async function migrateFeed(feed: string, skipped: { n: number }): Promise<{ renamed: number; rewritten: number }> {
+const byName = (refs: NoteRef[]) => new Map(refs.map((r) => [`${r.id}.${r.ext}`, r]));
+
+// renameNote found the new id taken: by this very note, moved by a run beside this one (two database instances starting together),
+// or left under both ids by a file system rename cut short after its link. Either way the new one is it, and the old one goes if it
+// is still there. True when this call removed it. (A rename cut short before its link is renameNote's own: it takes the sidecar over.)
+async function settleTaken(feed: string, ref: NoteRef, newId: string, left: Left): Promise<boolean> {
+  const s = storage();
+  return !!(await unlessUnreadable(() => s.readNote(feed, newId, [ref.ext], () => false), left)) && (await s.deleteNote(feed, ref.id, [ref.ext]));
+}
+
+// A note with an old id: its date from the id, then its new id. True when it moved in this call.
+async function move(feed: string, ref: NoteRef, date: number, left: Left): Promise<boolean> {
+  const s = storage();
+  const newId = migratedId(feed, ref.id);
+  await s.setDate(feed, ref.id, [ref.ext], date);
+  const moved = await unlessUnreadable(() => s.renameNote(feed, ref.id, ref.ext, newId), left);
+  return moved === false ? settleTaken(feed, ref, newId, left) : !!moved;
+}
+
+// A text's references to its feed's files under their old ids, each that has its new name in `names` swapped for it. Only the feed's
+// own files: an old id that is not one of them (a link into another feed) stays as written. `pending`: the old names still listed.
+function follow(feed: string, text: string, names: Map<string, NoteRef>): { after: string; pictures: NoteRef[]; pending: string[] } {
+  const pictures: NoteRef[] = [];
+  const pending: string[] = [];
+  const after = text.replace(OLD_FILE, (whole, old: string, ext: string) => {
+    if (names.has(`${old}.${ext}`)) pending.push(`${old}.${ext}`);
+    const ref = names.get(`${migratedId(feed, old)}.${ext}`);
+    if (!ref) return whole;
+    if (isImage(ref.ext)) pictures.push(ref);
+    return `${ref.id}.${ref.ext}`;
+  });
+  return { after, pictures, pending };
+}
+
+// Rewrites one text, and reads it back: a run beside this one that read it earlier may write its own, older rewrite over this one,
+// and a file still under its old id may be moved by that run meanwhile. So: again, with a fresh listing, until the text holds still.
+// True when this call wrote it.
+async function rewriteText(feed: string, t: NoteRef, names: Map<string, NoteRef>, left: Left): Promise<boolean> {
+  const s = storage();
+  const read = async () => (await unlessUnreadable(() => s.readNote(feed, t.id, [t.ext], () => true), left))?.content.toString("utf8") ?? null;
+  let wrote = false;
+  for (let round = 0; round < ROUNDS; round++) {
+    const before = await read();
+    if (before === null) return wrote;
+    const { after, pictures, pending } = follow(feed, before, names);
+    if (after !== before) {
+      // The pictures first: once the text is rewritten, a rerun no longer finds them in it.
+      for (const p of pictures) {
+        if (p.date < t.date - POSTED_WITH || p.date >= t.date) continue;
+        const meta = await unlessUnreadable(() => s.readMeta(feed, p), left);
+        if (meta && meta.of !== t.id) await unlessUnreadable(() => s.updateMeta(feed, p.id, [p.ext], { of: t.id }), left);
+      }
+      if (!(await s.replaceNote(feed, t.id, [t.ext], after))) return wrote;
+      wrote = true;
+    }
+    if ((await read()) !== after) continue; // written over meanwhile
+    if (pending.length === 0) return wrote;
+    const fresh = byName(await s.listNoteRefs(feed));
+    if (pending.every((n) => fresh.has(n))) return wrote; // stuck: they stay under their old ids, and their references as written
+    names = fresh;
+  }
+  return wrote;
+}
+
+// One feed: how many notes got their new id and how many texts were rewritten.
+async function migrateFeed(feed: string, left: Left): Promise<{ renamed: number; rewritten: number }> {
   const s = storage();
   let renamed = 0;
   for (const ref of await s.listNoteRefs(feed)) {
     const date = oldDate(ref.id);
-    if (date === null) {
+    if (date !== null) {
+      if (await move(feed, ref, date, left)) renamed++;
+    } else if (ref.date === 0) {
       // A database row from before notes had a date reads as 0: it gets the time it was last written, as on the file system.
-      if (ref.date === 0) await unlessUnreadable(async () => {
+      await unlessUnreadable(async () => {
         const note = await s.readNote(feed, ref.id, [ref.ext], () => false);
         if (note) await s.setDate(feed, ref.id, [ref.ext], note.mtime.getTime());
-      }, skipped);
-      continue;
+      }, left);
     }
-    const newId = migratedId(feed, ref.id);
-    await s.setDate(feed, ref.id, [ref.ext], date);
-    const moved = await unlessUnreadable(() => s.renameNote(feed, ref.id, ref.ext, newId), skipped);
-    if (moved) renamed++;
-    // Taken: moved by a run beside this one (two database instances starting together), or a rename cut short that left the note
-    // under both ids (file system). Either way the new one is it; the old one goes, if it is still there.
-    else if (moved === false && (await unlessUnreadable(() => s.readNote(feed, newId, [ref.ext], () => false), skipped)) && (await s.deleteNote(feed, ref.id, [ref.ext]))) renamed++;
   }
-
   const notes = await s.listNoteRefs(feed);
-  const byName = new Map(notes.map((r) => [`${r.id}.${r.ext}`, r]));
+  left.stuck += notes.filter((r) => oldDate(r.id) !== null).length;
+  const names = byName(notes);
   let rewritten = 0;
-  for (const t of notes.filter((r) => isText(r.ext))) {
-    const note = await unlessUnreadable(() => s.readNote(feed, t.id, [t.ext], () => true), skipped);
-    if (!note) continue;
-    const before = note.content.toString("utf8");
-    const pictures: NoteRef[] = [];
-    let pending = false;
-    // Only the feed's own files: an old id that is not one of them (a link into another feed) stays as written.
-    const after = before.replace(OLD_FILE, (whole, old: string, ext: string) => {
-      pending ||= byName.has(`${old}.${ext}`);
-      const ref = byName.get(`${migratedId(feed, old)}.${ext}`);
-      if (!ref) return whole;
-      if (isImage(ref.ext)) pictures.push(ref);
-      return `${ref.id}.${ref.ext}`;
-    });
-    // A file still under its old id is being moved by a run beside this one: a text written now would miss it, and could land after
-    // that run's complete one. That run rewrites the text once it has moved them all.
-    if (pending || after === before) continue;
-    // The pictures first: once the text is rewritten, a rerun no longer finds them in it.
-    for (const p of pictures) {
-      if (p.date < t.date - POSTED_WITH || p.date >= t.date) continue;
-      const meta = await unlessUnreadable(() => s.readMeta(feed, p), skipped);
-      if (meta && meta.of !== t.id) await unlessUnreadable(() => s.updateMeta(feed, p.id, [p.ext], { of: t.id }), skipped);
-    }
-    if (await s.replaceNote(feed, t.id, [t.ext], after)) rewritten++;
-  }
+  for (const t of notes.filter((r) => isText(r.ext))) if (await rewriteText(feed, t, names, left)) rewritten++;
   return { renamed, rewritten };
 }
 
 /** Moves every feed's notes from old ids to derived ones (see above). `feeds`: those in which something changed. */
 export async function migrateNoteIds(): Promise<{ feeds: number; renamed: number; rewritten: number }> {
   const total = { feeds: 0, renamed: 0, rewritten: 0 };
-  const skipped = { n: 0 };
+  const left: Left = { unreadable: 0, stuck: 0 };
   for (const feed of await storage().listFeeds()) {
-    const { renamed, rewritten } = await migrateFeed(feed, skipped);
+    const { renamed, rewritten } = await migrateFeed(feed, left);
     if (renamed || rewritten) total.feeds++;
     total.renamed += renamed;
     total.rewritten += rewritten;
   }
   try {
     if (total.feeds) logger("startup").info(total, "notes moved to ids of their own");
-    if (skipped.n) logger("startup").warn({ notes: skipped.n }, "notes this instance cannot open keep their old ids");
+    if (left.stuck || left.unreadable) logger("startup").warn(left, "notes left under their old ids; references to them stay as written");
   } catch {}
   return total;
 }
