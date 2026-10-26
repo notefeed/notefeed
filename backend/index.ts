@@ -96,27 +96,31 @@ export async function getFeedPictures(feed: string): Promise<Note[]> {
   return checkFeed(feed) ? [] : listNotes(feed, PAGE, undefined, undefined, "image");
 }
 
-/** The same by the read id. */
-export async function getReadPictures(readId: string): Promise<Note[]> {
+/** The same by the read id: those a reader sees at `asOf` (the request's time, shared with getReadNote). */
+export async function getReadPictures(readId: string, asOf = new Date()): Promise<Note[]> {
   const feed = isReadId(readId) ? await feedForReadId(readId) : null;
-  return feed ? listNotes(feed, PAGE, undefined, undefined, "image") : [];
+  return feed ? listNotes(feed, PAGE, undefined, undefined, "image", false, asOf) : [];
 }
 
 export async function getFeedNote(feed: string, id: string): Promise<Note | null> {
   return getNote(feed, id); // null for an invalid or reserved feed name too
 }
 
+// Reader views show the notes dated up to the request's time: a scheduled note is a missing one until then.
+
 /** A feed by its read id: null for a malformed id; an unknown one is an empty feed, so ids can't be probed. */
 export async function getReadFeed(id: string, tag?: string): Promise<{ notes: Note[]; title: string; description: string; imageUrl: string | null } | null> {
   if (!isReadId(id)) return null;
+  const asOf = new Date();
   const feed = await feedForReadId(id);
-  const settings = feed ? await getSettings(feed) : { title: "", description: "", image: "", showSender: true };
+  const settings = feed ? await getSettings(feed, asOf) : { title: "", description: "", image: "", showSender: true };
   const { title, description, image } = settings;
-  return { notes: feed ? forReaders(await listNotes(feed, PAGE, undefined, tag, undefined, true), settings) : [], title, description, imageUrl: image ? imagePath(id, image) : null };
+  return { notes: feed ? forReaders(await listNotes(feed, PAGE, undefined, tag, undefined, true, asOf), settings) : [], title, description, imageUrl: image ? imagePath(id, image) : null };
 }
 
-export async function getReadNote(readId: string, id: string): Promise<Note | null> {
+/** `asOf`: the request's time (shared with getReadPictures). */
+export async function getReadNote(readId: string, id: string, asOf = new Date()): Promise<Note | null> {
   const feed = await feedForReadId(readId);
-  const note = feed ? await getNote(feed, id) : null;
+  const note = feed ? await getNote(feed, id, asOf) : null;
   return note && feed ? forReaders([note], await getSettings(feed))[0] : null;
 }

@@ -170,11 +170,20 @@ export async function countNotes(feed: string, typeName?: string, asOf?: Date): 
 /** Whether the note is dated after `now`: stored, but hidden from readers until then. */
 export const isScheduled = (n: Note, now = new Date()): boolean => n.date.getTime() > now.getTime();
 
-/** Whether `file` (`<id>.<ext>`) is an image note of this feed: the check before a title image points at it. */
-export async function hasImageNote(feed: string, file: string): Promise<boolean> {
-  const m = /^([A-Za-z0-9_-]{1,128})\.([A-Za-z0-9]{1,16})$/.exec(file);
-  const note = m && !checkFeed(feed) ? await getNote(feed, m[1]) : null;
+const FILE_RE = /^([A-Za-z0-9_-]{1,128})\.([A-Za-z0-9]{1,16})$/;
+
+/** Whether `file` (`<id>.<ext>`) is an image note of this feed: the check before a title image points at it. `asOf`: dated then or earlier. */
+export async function hasImageNote(feed: string, file: string, asOf?: Date): Promise<boolean> {
+  const m = FILE_RE.exec(file);
+  const note = m && !checkFeed(feed) ? await getNote(feed, m[1], asOf) : null;
   return note instanceof ImageNote && note.file === file;
+}
+
+/** Whether a reader may have `file` (`<id>.<ext>`) of the feed: its note is there and dated `asOf` or earlier. Reads no content. */
+export async function fileVisible(feed: string, file: string, asOf: Date): Promise<boolean> {
+  const m = FILE_RE.exec(file);
+  const stored = m && !checkFeed(feed) && isValidId(m[1]) ? await storage().readNote(feed, m[1], [m[2]], () => false) : null;
+  return stored !== null && stored.date <= asOf.getTime();
 }
 
 // The note, found by trying `exts` (a lookup by id alone) or the one extension a listing already knows.

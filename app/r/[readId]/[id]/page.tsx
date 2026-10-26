@@ -15,7 +15,8 @@ export const generateMetadata = (): Metadata => ({ title: { absolute: instanceTi
 
 export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[id]">) {
   const { readId, id } = await params;
-  const note = await orDamaged(getReadNote(readId, id));
+  const asOf = new Date(); // one time for the note and its pictures' links: a scheduled note is a missing one until then
+  const note = await orDamaged(getReadNote(readId, id, asOf));
   if (note === "damaged") {
     return (
       <AppShell>
@@ -39,7 +40,7 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
         back={readPath(readId)}
         imageBase={`${readPath(readId)}/`}
         report={reportTemplate() ? { template: reportTemplate(), readId } : undefined}
-        link={kindOf(note.type).attachments(note.content).length ? attachmentLinks(await getReadPictures(readId), readPath(readId)) : undefined}
+        link={kindOf(note.type).attachments(note.content).length ? attachmentLinks(await getReadPictures(readId, asOf), readPath(readId)) : undefined}
       />
     </AppShell>
   );

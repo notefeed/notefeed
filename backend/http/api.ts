@@ -507,7 +507,7 @@ const OPS: AnyOp[] = [
   }).handle(async ({ req, params }) => {
     if (!isReadId(params.readId)) throw new NotFoundError("malformed read id");
     const feed = await readFeed(params.readId);
-    const { title, description, image } = feed ? await getSettings(feed) : { title: "", description: "", image: "" };
+    const { title, description, image } = feed ? await getSettings(feed, new Date()) : { title: "", description: "", image: "" };
     return { status: 200, body: { title, description, image_url: image ? publicUrl(req.headers) + imagePath(params.readId, image) : null } };
   }),
 
@@ -532,8 +532,9 @@ const OPS: AnyOp[] = [
   }).handle(async ({ req, params, query }) => {
     if (!isReadId(params.readId)) throw new NotFoundError("malformed read id");
     const feed = await readFeed(params.readId);
-    const settings = feed ? await getSettings(feed) : null;
-    const notes = async (l: number, b?: string, t?: string) => (feed && settings ? forReaders(await listNotes(feed, l, b, t, undefined, true), settings) : []);
+    const asOf = new Date(); // readers see the notes dated up to now
+    const settings = feed ? await getSettings(feed, asOf) : null;
+    const notes = async (l: number, b?: string, t?: string) => (feed && settings ? forReaders(await listNotes(feed, l, b, t, undefined, true, asOf), settings) : []);
     return page(notes, query, publicUrl(req.headers) + readPath(params.readId), `${publicUrl(req.headers)}${readPath(params.readId)}/`);
   }),
 
@@ -553,9 +554,10 @@ const OPS: AnyOp[] = [
     },
   }).handle(async ({ req, params }) => {
     const feed = await readFeed(params.readId);
-    const found = feed ? await getNote(feed, params.id) : null;
+    const asOf = new Date(); // a scheduled note is a missing one to readers
+    const found = feed ? await getNote(feed, params.id, asOf) : null;
     if (!feed || !found) throw new NotFoundError("no such note");
-    const [note] = forReaders([found], await getSettings(feed));
+    const [note] = forReaders([found], await getSettings(feed, asOf));
     return { status: 200, body: noteJson(note, publicUrl(req.headers) + readPath(params.readId), `${publicUrl(req.headers)}${readPath(params.readId)}/`) };
   }),
 
