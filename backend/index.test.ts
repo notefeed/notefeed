@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { cookieValue, createProtected } from "./feedlock";
 import { readIdOf, resetFeedsForTests } from "./feeds";
-import { feedUnlocked, getFeed, getFeedImages, getFeedNote, getReadFeed, getReadNote, identitySender, passwordSet, signInProviders } from "./index";
+import { feedUnlocked, getFeed, reservedFeedLinks, getFeedImages, getFeedNote, getReadFeed, getReadNote, identitySender, passwordSet, signInProviders } from "./index";
 import { sign } from "./oauth/tokens";
 import { createImageNote, createNote, removeNote } from "./notes";
 import { saveSettings } from "./feedsettings";
@@ -113,5 +113,24 @@ test("identitySender names the signed-in person only while sign-in is on", () =>
   } finally {
     for (const k of Object.keys(vars)) delete process.env[k];
     delete process.env.NOTEFEED_PASSWORD;
+  }
+});
+
+test("reservedFeedLinks: the reserved feeds there are to read, as listed, by title or name; not one an ordinary feed had first", async () => {
+  await createNote("old", "# made before `old` was reserved: open, with a random read id");
+  process.env.NOTEFEED_RESERVED_FEEDS = "releases, old, blog";
+  try {
+    expect(await reservedFeedLinks()).toEqual([]); // no reserved password: they don't exist
+    process.env.NOTEFEED_RESERVED_PASSWORD = "operator-pass-1";
+    resetFeedsForTests();
+    expect(await readIdOf("blog")).toBe("blog"); // made now, at the first look
+    await saveSettings("blog", { title: "What I'm working on", description: "", image: "", showSender: false });
+    expect(await reservedFeedLinks()).toEqual([
+      { href: "/r/releases", label: "Releases" },
+      { href: "/r/blog", label: "What I'm working on" },
+    ]);
+  } finally {
+    delete process.env.NOTEFEED_RESERVED_FEEDS;
+    delete process.env.NOTEFEED_RESERVED_PASSWORD;
   }
 });

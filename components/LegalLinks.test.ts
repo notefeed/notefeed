@@ -45,3 +45,10 @@ test("a support address that is not one gives no link", async () => {
     expect((await footerLinks()).legal.find((l) => l.label === "Support")).toBeUndefined();
   }
 });
+
+test("the reserved feeds there are to read come after the product links", async () => {
+  vi.stubEnv("DATA_DIR", dir);
+  vi.stubEnv("NOTEFEED_RESERVED_FEEDS", "releases,blog");
+  vi.stubEnv("NOTEFEED_RESERVED_PASSWORD", "operator-pass-1");
+  expect((await footerLinks()).product.map((l) => l.label)).toEqual(["Docs", "GitHub", "Releases", "Blog"]);
+});
