@@ -8,6 +8,7 @@ import { checkFeedAccess } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson } from "./http/api";
 import { sender } from "./http/request";
+import { FeedJson, FreeTierJson } from "./http/schemas";
 import { clientIp } from "./limits";
 import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
@@ -172,12 +173,14 @@ function server(h: Headers): McpServer {
     }),
   );
 
-  const FeedOut = z.object({ name: z.string(), title: z.string(), description: z.string(), protected: z.boolean(), read_url: z.string().nullable(), image_url: z.string().nullable() });
+  // The API's Feed with its fields inlined: an id in .meta() turns into a top-level $ref, and an
+  // MCP output schema must be an object at its root. Built from FeedJson so a new field is declared here too (#245).
+  const FeedOut = z.object({ ...FeedJson.shape, free_tier: z.object(FreeTierJson.shape).nullable().describe(FeedJson.shape.free_tier.description ?? "") });
 
   s.registerTool(
     "get_feed",
     {
-      description: `Get a feed's title, description, title image, whether it is protected, and its read link (null while it has no notes). ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Get a feed's title, description, title image, whether it is protected, its read link (null while it has no notes), whether readers see who posted, and, on a free feed where licenses are sold, its notes against the free cap. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, password }),
       outputSchema: FeedOut,
       annotations: { readOnlyHint: true },
