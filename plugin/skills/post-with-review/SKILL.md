@@ -1,14 +1,12 @@
 ---
 name: post-with-review
-description: Write a note for a notefeed feed - a blog post, release notes, a status update, a newsletter, an announcement - show it as a draft, revise it until the user approves, and only then post it, optionally running a command afterwards (such as rebuilding a website that shows the feed). Use when the user asks to write, draft, post or publish something "on notefeed", "on my blog" or to a named feed, to turn a conversation, notes or a link into such a note, to show, revise or publish a draft, to fix a note already posted, or to set up where such notes go.
+description: Write a note for a notefeed feed - a blog post, release notes, a status update, a newsletter, an announcement - show it as a draft, revise it until the user approves, and only then post it. Use when the user asks to write, draft, post or publish something "on notefeed" or to one of their feeds, to turn a conversation, notes or a link into such a note, to show, revise or publish a draft, to fix a note already posted, or to set up which feeds to post to. Other skills can use it for the writing and posting and add their own steps.
 ---
 
 # Post with review
 
 A note is written for readers, so it goes out only after the user has read it. The flow is the
-same whatever the note is: **draft, show, revise, post on approval, then the follow-up.** The
-places the user posts to are *targets* in a small config file; one may be a blog, another a
-changelog or a team update feed.
+same whatever the note is: **draft, show, revise, post on approval.**
 
 ## Before anything
 
@@ -24,24 +22,15 @@ changelog or a team update feed.
    `--header "Authorization: Bearer <password>"`. On claude.ai it is a custom connector with
    the address `https://notefeed.me/mcp`.
 
-2. **Read the config**: `~/.config/notefeed/targets.json`, or the path in
-   `$NOTEFEED_TARGETS`. Without a file system (claude.ai), the same values come from the
-   project instructions. No config, or no target that fits: see *Set up a target*.
+2. **Find the feed.** The user's feeds are in `~/.config/notefeed/feeds.json` (or the path in
+   `$NOTEFEED_FEEDS`), each under a short name of the user's choosing. Without a file system
+   (claude.ai), they come from the project instructions in the same shape.
 
    ```json
    {
-     "targets": {
-       "blog": {
-         "url": "https://notefeed.me",
-         "feed": "blog-…",
-         "read_id": "you",
-         "drafts_feed": "drafts-…",
-         "link": "https://example.com/blog/{slug}",
-         "after_post": "gh workflow run pages.yml -R you/example-site",
-         "default_lang": "en",
-         "style": "~/notes/blog-style.md",
-         "tags": ["blog"]
-       }
+     "feeds": {
+       "blog": { "url": "https://notefeed.me", "feed": "blog-…", "read_id": "you", "drafts_feed": "drafts-…" },
+       "homelab": { "feed": "homelab-…", "read_id": "homelab-you" }
      }
    }
    ```
@@ -51,19 +40,19 @@ changelog or a team update feed.
    | `url` | the instance, default `https://notefeed.me` |
    | `feed` | the feed name the note is posted to |
    | `read_id` | the feed's read id; readers see it at `<url>/r/<read_id>` |
-   | `drafts_feed` | optional: a second feed for drafts, so the user (or someone they send the read link to) can review a draft as it will look. Without it the draft lives in the conversation |
-   | `link` | optional: where readers find a note when the feed is shown elsewhere, with `{slug}` and `{id}` |
-   | `after_post` | optional: a shell command to run after posting or editing, such as a website rebuild |
-   | `default_lang` | optional: the language notes are written in |
-   | `style` | optional: the user's style guide, a file or a few lines; it wins over the defaults below |
-   | `tags` | optional: tags every note of this target gets |
+   | `drafts_feed` | optional: a second feed for drafts, so the user (or someone they send its read link to) sees a draft as readers will. Without it the draft lives in the conversation |
 
-   With one target, use it. With several, pick the one the request names ("on my blog"), or
-   ask.
+   Use the feed the request or the calling skill names; with only one, use it; otherwise
+   ask. None fits: see *Add a feed*.
 
 3. **Feed names are passwords.** Anyone who knows one can post to the feed and delete its
-   notes. Never write `feed` or `drafts_feed` into a reply, a note, a commit or any file but the
-   config, unless the user asks for it. Links you show use the read link or `link`.
+   notes. Never write `feed` or `drafts_feed` into a reply, a note, a commit or any file but
+   `feeds.json`, unless the user asks for it. Links you show use the read link.
+
+4. **Other instructions add to this skill.** A skill that calls this one, or the user's own
+   instructions, may set the style, tags the note must carry, where readers find it (a website
+   that shows the feed) and what to do after posting (rebuild that website). Follow them; they
+   win over the defaults here.
 
 ## Write
 
@@ -98,49 +87,42 @@ not approval of the next, and changes after the approval need a new one.
 
 1. With a draft note, read it back with `get_note`, so what goes out is what they reviewed.
 2. **Choose the tags now: they can't be changed after posting.** Up to 10, lowercase letters,
-   digits, `-`, `_`, `.` and `:`. The target's `tags`, 2 to 4 topic tags (reuse the feed's
-   existing ones: `list_notes` on `feed` shows them), and `lang:<code>` when the note is not in
-   `default_lang`. When `link` uses `{slug}`: the slug is the title before its first `:`, in
-   lowercase with `-` between words; add `slug:<slug>` when that makes a bad address.
+   digits, `-`, `_`, `.` and `:`: the tags other instructions require, plus 2 to 4 topic tags,
+   reusing the feed's existing ones (`list_notes` on `feed` shows them).
 3. `post_note` on `feed` with the `title`, `markdown`, `tags` and attachments. On the feed's
    very first note, add `read_id` (the feed is created by its first note).
 4. Delete the draft note: `delete_note` on `drafts_feed`.
-5. Run `after_post` if set; report if it fails.
-6. Give the user the link: `link` filled in, else the read link `<url>/r/<read_id>/<id>`.
-   Offer the next step that fits, such as an announcement elsewhere that links to it (again
-   only with approval of that text).
+5. Give the user the read link `<url>/r/<read_id>/<id>`, then hand back to the calling skill
+   or the user's instructions for what comes after.
 
 ## Fix a note already posted
 
 The same review: show the change, then `edit_note` on `feed` once approved. The id, address and
-place in the feed stay. Run `after_post`. Tags can't be edited: if one is wrong, say so and
-offer to delete and post again, which gives the note a new id and date and breaks links to the
-old one.
+place in the feed stay. Tags can't be edited: if one is wrong, say so and offer to delete and
+post again, which gives the note a new id and date and breaks links to the old one.
 
 ## List
 
 `list_notes` on `feed` for what's posted, on `drafts_feed` for open drafts, newest first.
 
-## Set up a target
+## Add a feed
 
-Ask in one go only what you can't default: what the target is for (its key: `blog`,
-`releases`), the instance, the read id (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; it is
-the public part of the address), the feed's title and description, whether they want a drafts
-feed, and the optional keys.
+Ask in one go: a short name for it (`blog`, `releases`), the instance, the read id (3 to 64
+characters of `a-z`, `0-9`, `-`, `_`; the public part of the address), the feed's title and
+description, and whether they want a drafts feed.
 
-1. **Make the feed names yourself**, random, and write them into the config **before**
-   posting anything, so a name is never lost. With a file system:
+1. **Make the feed names yourself**, random, and write them into `feeds.json` **before**
+   posting anything, so a name is never lost:
 
    ```bash
    umask 077; mkdir -p ~/.config/notefeed
-   F="blog-$(openssl rand -hex 8)"; D="drafts-$(openssl rand -hex 8)"   # <key>-…, drafts-…
+   F="blog-$(openssl rand -hex 8)"; D="drafts-$(openssl rand -hex 8)"
    ```
 
-   Write `targets.json` (mode 600), merging into an existing one. On claude.ai, give the user
-   the names to keep in their password manager and the project instructions.
-2. A feed exists from its first note. It starts with the first note posted through this skill
-   (with `read_id`). If the read id is taken, ask for another. Then `update_feed` with the
-   title and description.
+   Merge into an existing file and keep it at mode 600. On claude.ai, give the user the names
+   for their password manager and the project instructions.
+2. A feed exists from its first note, posted through this skill with `read_id`. If the read id
+   is taken, ask for another. Then `update_feed` with the title and description.
 3. Tell the user the read link and its RSS (`<url>/r/<read_id>/feed.xml`), that feed names work
    like passwords, and on notefeed.me that a feed without a license keeps its newest 100 notes.
 4. A website can show the feed without any secret through the read API:
@@ -149,7 +131,7 @@ feed, and the optional keys.
 
 ## Style
 
-The default voice; the target's `style` wins where they differ.
+The default voice; other instructions win where they differ.
 
 - **Voice:** first person, a person talking to a peer. Plain words, short sentences; explain a
   term the first time or link it. Concrete over grand: what it does, with an example. No

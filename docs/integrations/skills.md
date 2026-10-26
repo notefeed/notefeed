@@ -4,7 +4,7 @@ A skill is a markdown file that tells an AI assistant how to do one job well. no
 
 | Skill | What it does |
 |---|---|
-| `post-with-review` | Writes a note for a feed (a blog post, release notes, a status update), shows it to you as a draft, changes it until you approve, then posts it and runs a follow-up command if you set one, such as rebuilding the website that shows the feed. Nothing is posted without your go-ahead. |
+| `post-with-review` | Writes a note for a feed (a blog post, release notes, a status update), shows it to you as a draft, changes it until you approve, then posts it. Nothing is posted without your go-ahead. Other skills can build on it: a website skill, for example, lets it write and post, then rebuilds the site that shows the feed. |
 
 ## Claude Code
 
@@ -15,11 +15,11 @@ claude plugin marketplace add notefeed/notefeed
 claude plugin install notefeed@notefeed
 ```
 
-Then add the [MCP endpoint](mcp.md#claude-code) if you haven't, and ask, for example: "write a blog post from this session". The first time, the skill asks where notes should go and keeps that in `~/.config/notefeed/targets.json`, readable only by you, because it holds [feed names](../using/feeds.md).
+Then add the [MCP endpoint](mcp.md#claude-code) if you haven't, and ask, for example: "write a blog post from this session". The first time, the skill asks which feed to post to and keeps it in `~/.config/notefeed/feeds.json` under a short name such as `blog`, readable only by you, because it holds [feed names](../using/feeds.md).
 
 ## Other assistants
 
-Each skill is one file, [`plugin/skills/<name>/SKILL.md`](https://github.com/notefeed/notefeed/tree/main/plugin/skills). Assistants that read skills take it as it is; for the others, paste it into the project or custom instructions together with where notes should go.
+Each skill is one file, [`plugin/skills/<name>/SKILL.md`](https://github.com/notefeed/notefeed/tree/main/plugin/skills). Assistants that read skills take it as it is; for the others, paste it into the project or custom instructions together with the feed to post to.
 
 ## Drafts
 
