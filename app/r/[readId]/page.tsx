@@ -6,6 +6,7 @@ import { FeedAbout } from "@/components/FeedAbout";
 import { NoteList } from "@/components/NoteList";
 import { Removed } from "@/components/Removed";
 import { getReadFeed, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
+import { sortTags } from "@/shared/tags";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/r/[
   }
   const { notes, title, description } = data;
   const all = tag ? await readFeed(readId) : data;
-  const tags = [...new Set((all ?? data).notes.flatMap((n) => n.tags))];
+  const tags = sortTags((all ?? data).notes);
 
   return (
     <AppShell about={<FeedAbout title={title || instanceTitle()} description={description} imageUrl={data.imageUrl} rssUrl={rssPath(readId)} tags={tags} tag={tag} base={readPath(readId)} />}>
