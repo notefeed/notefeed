@@ -106,7 +106,7 @@ test("read pages leave out a scheduled note, its pictures and a title image date
   const hour = 3_600_000;
   const v = (await createNote("sched", "# Visible", new Date(Date.now() - hour))).note;
   const s = (await createNote("sched", "# Scheduled", new Date(Date.now() + hour))).note;
-  const pic = (await createImageNote("sched", png, {}, new Date(Date.now() + hour))).note;
+  const pic = (await createImageNote("sched", png, {}, new Date(s.date.getTime() + 1000))).note; // after s, never in the same ms
   await saveSettings("sched", { title: "", description: "", image: pic.file, showSender: true });
   const rid = (await readIdOf("sched"))!;
   const read = (await getReadFeed(rid))!;
