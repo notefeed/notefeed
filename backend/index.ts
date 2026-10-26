@@ -4,9 +4,9 @@
 import { config } from "./config";
 import { identityOn, providers } from "./oidc/config";
 import { forReaders, getSettings } from "./feedsettings";
-import { isReadId, checkFeed, feedForReadId, hasFeed, readIdOf } from "./feeds";
+import { isReadId, checkFeed, feedForReadId, hasFeed, readableReservedFeeds, readIdOf } from "./feeds";
 import { countNotes, getNote, ImageNote, listNotes, MarkdownNote, type Note } from "./notes";
-import { imagePath } from "./urls";
+import { imagePath, readPath } from "./urls";
 
 // The notes the backend hands out; the classes are exported so a component test can build one.
 export { ImageNote, MarkdownNote };
@@ -44,6 +44,12 @@ export const supportEmail = config.supportEmail;
 
 /** The sign-in providers for the buttons, in order: id (for /api/oidc/start?provider=) and label; empty while identity is off. */
 export const signInProviders = (): { id: string; label: string }[] => providers().map(({ id, label }) => ({ id, label }));
+
+/** The reserved feeds there are to read (releases, a blog), for the footer and the ⓘ menu: the feed's title, else its name. */
+export async function reservedFeedLinks(): Promise<{ href: string; label: string }[]> {
+  const feeds = await readableReservedFeeds();
+  return Promise.all(feeds.map(async (feed) => ({ href: readPath(feed), label: (await getSettings(feed)).title || feed[0].toUpperCase() + feed.slice(1) })));
+}
 
 /** Whether the instance password is set (sign-in alone can lock an instance too). */
 export const passwordSet = () => config.password() !== "";
