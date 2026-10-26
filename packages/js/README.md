@@ -18,12 +18,12 @@ import { Client } from "notefeed";
 const client = new Client({ url: "https://notes.example.com", feed: "homelab-7f3k2q9x4m8wz" }); // password: "..." if the instance has one
 const created = await client.post("# Deploy done\nversion 1.4.2");
 console.log(created.url, created.read_url);
-for await (const note of client.notes()) console.log(note.created_at, note.title); // newest first, page by page
+for await (const note of client.notes()) console.log(note.date, note.title); // newest first, page by page
 ```
 
 `read_url` is `null` for a feed without a read link (rare; see the operations docs).
 
-To post a note in the past, give when it was written: `client.post(text, { createdAt: "2025-03-01T09:30:00Z" })` (a `Date`, an ISO 8601 date-time with its offset, or a date alone for midnight UTC; from 1970 to now), or `notefeed post "…" --created 2025-03-01`. The note takes its place in the feed by that time.
+Every note has a date, now unless you give one: `client.post(text, { date: "2025-03-01T09:30:00Z" })` (a `Date`, an ISO 8601 date-time with its offset, or a date alone for midnight UTC; any time from 1970 to 9999), or `notefeed post "…" --date 2025-03-01`. The note takes its place in the feed by that date. A date in the future schedules the note: readers see it from then on. `await client.update(id, { date })` (`notefeed update <id> --date …`) moves a note.
 
 `Client.fromEnv()` reads `NOTEFEED_URL` / `NOTEFEED_FEED` / `NOTEFEED_PASSWORD`; so does the `notefeed` command, unless given `--url` / `--feed` / `--password`.
 

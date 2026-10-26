@@ -82,9 +82,9 @@ describe("post", () => {
   test("title, tags, alt, name and read id go as headers, and nothing is sent for what is left out", async () => {
     server.reply(201, CREATED);
     const c = new Client({ url: server.url, feed: "inbox" });
-    await c.post("x", { title: "T", tags: ["ci", "deploy"], createdAt: "2025-03-01", readId: "my-feed", licenseKey: "k".repeat(22) });
+    await c.post("x", { title: "T", tags: ["ci", "deploy"], date: "2025-03-01", readId: "my-feed", licenseKey: "k".repeat(22) });
     await c.post("x", { tags: [] });
-    await c.post("x", { createdAt: new Date("2025-03-01T08:00:00+02:00") });
+    await c.post("x", { date: new Date("2025-03-01T08:00:00+02:00") });
     expect(server.requests[0].headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "ci,deploy", "x-note-date": "2025-03-01", "x-read-id": "my-feed", "x-license-key": "k".repeat(22) });
     expect(server.requests[2].headers["x-note-date"]).toBe("2025-03-01T06:00:00.000Z");
     for (const h of ["x-note-title", "x-note-tags", "x-note-alt", "x-note-name", "x-note-date", "x-read-id", "x-license-key"]) expect(server.requests[1].headers[h]).toBeUndefined();
@@ -140,6 +140,14 @@ describe("edit and delete", () => {
     expect(server.requests[1].path).toBe(`/api/v1/feeds/other/notes/${ID}`);
     expect(server.requests[1].headers["content-type"]).toBe("image/png");
     expect(server.requests[1].headers["x-feed-password"]).toBe("o");
+  });
+  test("update sends the date, a Date as ISO 8601", async () => {
+    server.reply(200, note(10));
+    const c = new Client({ url: server.url, feed: "inbox" });
+    await c.update(ID, { date: new Date("2025-03-01T08:00:00+02:00") });
+    await c.update(ID, { date: "2025-03-01" });
+    expect(JSON.parse(server.requests[0].body.toString())).toEqual({ date: "2025-03-01T06:00:00.000Z" });
+    expect(JSON.parse(server.requests[1].body.toString())).toEqual({ date: "2025-03-01" });
   });
   test("update PATCHes the title and alt text as JSON", async () => {
     server.reply(200, note(10));
@@ -506,7 +514,7 @@ describe("post with attachments", () => {
 
   test("null content sends no text part, title and tags go as headers, the answer is the server's", async () => {
     server.reply(201, { ...created(1), attachments: [created(1), created(2)] });
-    const r = await c().post(null, { attachments: [img("a.png"), img("b.png")], title: "T", tags: ["x"], createdAt: "2025-03-01" });
+    const r = await c().post(null, { attachments: [img("a.png"), img("b.png")], title: "T", tags: ["x"], date: "2025-03-01" });
     const q = server.requests[0];
     expect(q.headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "x", "x-note-date": "2025-03-01" });
     const form = await parse(q);

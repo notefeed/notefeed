@@ -82,7 +82,7 @@ type Result<T> = { data?: T; error?: unknown; response?: Response };
 // latin1 characters, which is what the server reads back.
 const headerValue = (text: string): string => Array.from(new TextEncoder().encode(text), (b) => String.fromCharCode(b)).join("");
 // X-Note-Date: a Date as its UTC time, a string as given (the server checks it).
-const createdHeader = (at: string | Date): string => (typeof at === "string" ? at : at.toISOString());
+const dateString = (at: string | Date): string => (typeof at === "string" ? at : at.toISOString());
 
 // What a post sends: a string is markdown; bytes and Blobs need a media type (a Blob's own, if it has one).
 function asFile(content: string | Uint8Array | Blob, type?: string): { body: Blob; type: string } {
@@ -131,22 +131,22 @@ export class Client {
    *
    * `feedPassword` overrides the client's, for a feed that has its own password. `tags` label the note (at most 10, each 1 to 32 characters of
    * letters, digits, `-`, `_`, `.`, `:`; not verified). `title` is its title (at most 100 characters, one line); left out, it is taken from the
-   * text. `alt` is a picture's alternative text, `name` the file's original name. `createdAt` posts the note in the past: when it was written, a
-   * Date or an ISO 8601 date-time with its offset (`2026-10-01T09:30:00Z`) or a date alone (midnight UTC), from 1970 to now. `readId` is the read id the feed gets when this post creates it
+   * text. `alt` is a picture's alternative text, `name` the file's original name. `date` is the note's date, if not now: a
+   * Date or an ISO 8601 date-time with its offset (`2026-10-01T09:30:00Z`) or a date alone (midnight UTC), from 1970 to 9999; a future date schedules the note: readers see it from then on. `readId` is the read id the feed gets when this post creates it
    * (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; random when left out; ignored for a feed that exists; a `taken` error when another feed has it).
    * `licenseKey` goes with `feedPassword` on the post that creates the feed, on an instance that sells licenses: a feed password is for
    * licensed feeds, and the new feed gets the license (a `license_required` error without the key; ignored on an existing feed).
    *
    * `attachments` are pictures posted with the note in one request: `![](name)` in the markdown shows one (a picture the text never refers to is
    * added at the end), and `Created.attachments` lists them in order. `tags` label the pictures too. `content` may be `null` when there are
-   * attachments: only the pictures are posted, `title`, `tags` and `createdAt` go on each, and the result is the first picture plus `attachments`. Checked
+   * attachments: only the pictures are posted, `title`, `tags` and `date` go on each, and the result is the first picture plus `attachments`. Checked
    * here, before anything is sent (ConfigError): a name given twice, an attachment that is not a picture, content that is not markdown, `alt` or
    * `name` with attachments. What a name may be is the server's rule (docs/using/pictures.md, "Posting a note with its pictures"): a name it refuses is an
    * InvalidRequestError, `attachment "<name>": ...`, and whenever the server refuses any part (its message names it) nothing is posted.
    */
   async post(
     content: string | Uint8Array | Blob | null,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; createdAt?: string | Date; readId?: string; licenseKey?: string; attachments?: Attachment[] } = {},
+    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; readId?: string; licenseKey?: string; attachments?: Attachment[] } = {},
   ): Promise<Created & { attachments: Created[] }> {
     const { attachments = [], ...own } = options;
     if (content === null && attachments.length === 0) throw new ConfigError("no content and no attachments");
@@ -168,7 +168,7 @@ export class Client {
       "Content-Type": null, // fetch sets multipart/form-data with its boundary
       ...(own.title && { "X-Note-Title": headerValue(own.title) }),
       ...(own.tags?.length && { "X-Note-Tags": own.tags.join(",") }),
-      ...(own.createdAt && { "X-Note-Date": createdHeader(own.createdAt) }),
+      ...(own.date && { "X-Note-Date": dateString(own.date) }),
       ...(own.readId && { "X-Read-Id": own.readId }),
       ...(own.licenseKey && { "X-License-Key": own.licenseKey }),
     };
@@ -178,7 +178,7 @@ export class Client {
 
   private async postOne(
     content: string | Uint8Array | Blob,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; createdAt?: string | Date; readId?: string; licenseKey?: string },
+    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; readId?: string; licenseKey?: string },
   ): Promise<Created> {
     const feed = this.feedFor(options.feed);
     const { body, type } = asFile(content, options.type);
@@ -189,7 +189,7 @@ export class Client {
       ...(options.tags?.length && { "X-Note-Tags": options.tags.join(",") }),
       ...(options.alt && { "X-Note-Alt": headerValue(options.alt) }),
       ...(options.name && { "X-Note-Name": headerValue(options.name) }),
-      ...(options.createdAt && { "X-Note-Date": createdHeader(options.createdAt) }),
+      ...(options.date && { "X-Note-Date": dateString(options.date) }),
       ...(options.readId && { "X-Read-Id": options.readId }),
       ...(options.licenseKey && { "X-License-Key": options.licenseKey }),
     };
@@ -204,10 +204,12 @@ export class Client {
     return this.call(editNote({ client: this.api, path: { feed, id }, body, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
-  /** Set a note's title and/or alt text (alt for pictures); `""` removes one, so a markdown note's title follows its text again. Same options as post(). */
-  async update(id: string, meta: { title?: string; alt?: string }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
+  /** Set a note's title, alt text (for pictures) and/or date (as in post(); a future one schedules the note); `""` removes a title or alt, so a markdown note's title follows its text again. Same options as post(). */
+  async update(id: string, meta: { title?: string; alt?: string; date?: string | Date }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
     const feed = this.feedFor(options.feed);
-    return this.call(patchNote({ client: this.api, path: { feed, id }, body: meta, ...this.opts(options.feedPassword) }));
+    const { date, ...rest } = meta;
+    const body = { ...rest, ...(date !== undefined && { date: dateString(date) }) };
+    return this.call(patchNote({ client: this.api, path: { feed, id }, body, ...this.opts(options.feedPassword) }));
   }
 
   /** Remove a note for good. The feed stays, even with no notes left. Same options as post(). */

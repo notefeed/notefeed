@@ -229,7 +229,7 @@ def test_notes_json_prints_exactly_the_documented_fields(server, capsys):
         {"notes": [{"id": "20260930T100000Z-a", "type": "text/markdown", "title": "A", "content": "# A", "file": "a.md", "file_url": None, "size": 3, "tags": ["x"], "date": "2026-09-30T10:00:00.000Z", "url": "https://n/a", "mood": "new"}], "next": None},
     )
     assert main(notes_args(server, "--json")) == 0
-    assert list(json.loads(capsys.readouterr().out)) == ["id", "type", "title", "content", "file", "file_url", "size", "tags", "created_at", "url"]  # the unknown "mood" is dropped
+    assert list(json.loads(capsys.readouterr().out)) == ["id", "type", "title", "content", "file", "file_url", "size", "tags", "date", "url"]  # the unknown "mood" is dropped
 
 
 def test_notes_stops_quietly_when_the_reader_goes_away(server, capsys, monkeypatch):
@@ -306,7 +306,7 @@ def test_post_a_picture_file_sends_its_bytes_as_its_type(server, capsys, tmp_pat
     png = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 255])
     f.write_bytes(png)
     server.reply(201, CREATED)
-    assert main(["post", "--file", str(f), "--title", "Café", "--tag", "pets", "--created", "2025-03-01", "--url", server.url, "--feed", "inbox"]) == 0
+    assert main(["post", "--file", str(f), "--title", "Café", "--tag", "pets", "--date", "2025-03-01", "--url", server.url, "--feed", "inbox"]) == 0
     assert capsys.readouterr().out == "https://n.example/inbox/a\n"
     q = server.requests[0]
     assert (q["body"], q["headers"]["Content-Type"], q["headers"]["X-Note-Tags"], q["headers"]["X-Note-Name"], q["headers"]["X-Note-Date"]) == (png, "image/png", "pets", "Photo.PNG", "2025-03-01")
@@ -339,6 +339,12 @@ def test_update_sets_title_and_alt(server, capsys):
     q = server.requests[0]
     assert (q["method"], q["path"], json.loads(q["body"])) == ("PATCH", "/api/v1/feeds/inbox/notes/i", {"title": "T", "alt": "A"})
     assert main(["update", "i", "--url", server.url, "--feed", "inbox"]) == 2  # nothing to change
+
+
+def test_update_sets_the_date(server):
+    server.reply(200, NOTE)
+    assert main(["update", "i", "--date", "2025-03-01", "--url", server.url, "--feed", "inbox"]) == 0
+    assert json.loads(server.requests[0]["body"]) == {"date": "2025-03-01"}
 
 
 def test_edit_a_picture_file_sends_it_as_its_type(server, tmp_path):

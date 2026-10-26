@@ -235,7 +235,7 @@ test("notesJson", async () => {
   const { out, io: x } = io();
   expect(await main(args("--json"), x)).toBe(0);
   expect(out.stdout.trim().split("\n").map((l) => JSON.parse(l).title)).toEqual(["Note 1", "Note 0"]);
-  expect(JSON.parse(out.stdout.split("\n")[0]).created_at).toBe("2026-09-30T10:01:00Z");
+  expect(JSON.parse(out.stdout.split("\n")[0]).date).toBe("2026-09-30T10:01:00Z");
 });
 
 test("notesWithoutFeedIsUsageError", async () => {
@@ -263,7 +263,7 @@ test("notesJsonPrintsExactlyTheDocumentedFields", async () => {
   ]);
   const { out, io: x } = io();
   expect(await main(args("--json"), x)).toBe(0);
-  expect(Object.keys(JSON.parse(out.stdout))).toEqual(["id", "type", "title", "content", "file", "file_url", "size", "tags", "created_at", "url"]);
+  expect(Object.keys(JSON.parse(out.stdout))).toEqual(["id", "type", "title", "content", "file", "file_url", "size", "tags", "date", "url"]);
 });
 
 const NOTE = { id: "i", type: "text/markdown", title: "T", content: "x", file: "i.md", file_url: "https://n.example/r/X/i.md", size: 1, tags: [], date: "2026-09-30T10:00:00.000Z", url: "https://n.example/inbox/i" };
@@ -327,7 +327,7 @@ test("postPictureFileSendsItsBytesAsItsType", async () => {
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 255]);
   writeFileSync(f, png);
   const t = io();
-  expect(await main(["post", "--file", f, "--title", "Café", "--tag", "pets", "--created", "2025-03-01", "--url", server.url, "--feed", "inbox"], t.io)).toBe(0);
+  expect(await main(["post", "--file", f, "--title", "Café", "--tag", "pets", "--date", "2025-03-01", "--url", server.url, "--feed", "inbox"], t.io)).toBe(0);
   expect(t.out.stdout.trim()).toBe(CREATED_REPLY.url);
   expect(typeOf(0)).toBe("image/png");
   expect([...server.requests[0].body]).toEqual([...png]);
@@ -365,6 +365,12 @@ test("updateSetsTitleAndAlt", async () => {
   expect([server.requests[0].method, server.requests[0].path]).toEqual(["PATCH", "/api/v1/feeds/inbox/notes/i"]);
   expect(JSON.parse(sent(0))).toEqual({ title: "T", alt: "A" });
   expect(await main(["update", "i", "--url", server.url, "--feed", "inbox"], io().io)).toBe(2); // nothing to change
+});
+
+test("updateSetsTheDate", async () => {
+  server.reply(200, { ...NOTE, url: "https://n.example/inbox/i" });
+  expect(await main(["update", "i", "--date", "2025-03-01", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect(JSON.parse(sent(0))).toEqual({ date: "2025-03-01" });
 });
 
 test("editSendsThePictureOfItsType", async () => {

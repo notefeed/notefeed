@@ -105,10 +105,21 @@ describe("tools", () => {
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
   });
 
-  test("post_note with created_at posts the note at that time; a bad one is an error", async () => {
-    const r = await call("post_note", { feed: "a", markdown: "# Old", created_at: "2025-03-01" });
+  test("post_note with a date posts the note at that time; a bad one is an error", async () => {
+    const r = await call("post_note", { feed: "a", markdown: "# Old", date: "2025-03-01" });
     expect((await getNote("a", r.structuredContent.id))?.date.toISOString()).toBe("2025-03-01T00:00:00.000Z");
-    expect((await call("post_note", { feed: "a", markdown: "x", created_at: "soon" })).isError).toBe(true);
+    expect((await call("post_note", { feed: "a", markdown: "x", date: "soon" })).isError).toBe(true);
+  });
+
+  test("post_note with a future date is listed with scheduled: true", async () => {
+    const future = new Date(Date.now() + 86400_000).toISOString();
+    const { id } = (await call("post_note", { feed: "a", markdown: "# Later", date: future })).structuredContent;
+    await call("post_note", { feed: "a", markdown: "# Now" });
+    const notes = (await call("list_notes", { feed: "a" })).structuredContent.notes;
+    const later = notes.find((n: { id: string }) => n.id === id);
+    expect(later).toMatchObject({ date: future, scheduled: true });
+    expect(notes.filter((n: { scheduled?: boolean }) => n.scheduled)).toHaveLength(1);
+    expect((await call("get_note", { feed: "a", id })).structuredContent).toMatchObject({ date: future, scheduled: true });
   });
 
   test("a refused input value is not echoed by an MCP error", async () => {
@@ -156,7 +167,7 @@ describe("tools", () => {
     const first = (await call("list_notes", { feed: "a", limit: 2 })).structuredContent;
     expect(first.notes).toHaveLength(2);
     expect(first.notes[0].id).toBe(ids[2]);
-    for (const n of first.notes) expect(Object.keys(n).sort()).toEqual(["created_at", "id", "tags", "title", "type", "url"]);
+    for (const n of first.notes) expect(Object.keys(n).sort()).toEqual(["date", "id", "tags", "title", "type", "url"]);
     expect(first.next).toBe(first.notes[1].id);
     const rest = (await call("list_notes", { feed: "a", limit: 2, before: first.next })).structuredContent;
     expect(rest.notes).toHaveLength(1);
@@ -175,7 +186,7 @@ describe("tools", () => {
   test("get_note", async () => {
     const { id } = (await call("post_note", { feed: "a", markdown: "# Hi\nbody" })).structuredContent;
     const n = (await call("get_note", { feed: "a", id })).structuredContent;
-    expect(n).toEqual({ id, type: "text/markdown", title: "Hi", content: "# Hi\nbody", created_at: expect.any(String), url: `http://localhost:3000/a/${id}`, tags: [] });
+    expect(n).toEqual({ id, type: "text/markdown", title: "Hi", content: "# Hi\nbody", date: expect.any(String), url: `http://localhost:3000/a/${id}`, tags: [] });
     const miss = await call("get_note", { feed: "a", id: "20260101T000000Z-nope" });
     expect(miss.isError).toBe(true);
     expect(miss.content[0].text).toBe("no such note");
@@ -362,6 +373,15 @@ describe("gate on a locked instance", () => {
 });
 
 describe("edit_note and delete_note", () => {
+  test("edit_note date moves the note", async () => {
+    const id = (await call("post_note", { feed: "o", markdown: "# Old" })).structuredContent.id;
+    const e = await call("edit_note", { feed: "o", id, date: "2025-03-01" });
+    expect(e.structuredContent).toMatchObject({ id, title: "Old", date: "2025-03-01T00:00:00.000Z" });
+    expect(e.structuredContent).not.toHaveProperty("scheduled");
+    expect((await call("edit_note", { feed: "o", id, markdown: "# New", date: "soon" })).isError).toBe(true);
+    expect((await call("get_note", { feed: "o", id })).structuredContent).toMatchObject({ title: "Old", date: "2025-03-01T00:00:00.000Z" });
+  });
+
   test("work on an open feed", async () => {
     const id = (await call("post_note", { feed: "o", markdown: "# Old" })).structuredContent.id;
     const e = await call("edit_note", { feed: "o", id, markdown: "# New" });

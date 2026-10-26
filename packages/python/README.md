@@ -19,12 +19,12 @@ client = Client("https://notes.example.com", feed="homelab-7f3k2q9x4m8wz")  # pa
 created = client.post("# Deploy done\nversion 1.4.2")
 print(created.url, created.read_url)
 for note in client.notes():  # newest first, page by page
-    print(note.created_at, note.title)
+    print(note.date, note.title)
 ```
 
 `read_url` is `None` for a feed without a read link (rare; see the operations docs).
 
-To post a note in the past, give when it was written: `client.post(text, created_at="2025-03-01T09:30:00Z")` (a timezone-aware `datetime`, a `date` for midnight UTC, or an ISO 8601 string; from 1970 to now), or `notefeed post "…" --created 2025-03-01`. The note takes its place in the feed by that time.
+Every note has a date, now unless you give one: `client.post(text, date="2025-03-01T09:30:00Z")` (a timezone-aware `datetime`, a `date` for midnight UTC, or an ISO 8601 string; any time from 1970 to 9999), or `notefeed post "…" --date 2025-03-01`. The note takes its place in the feed by that date. A date in the future schedules the note: readers see it from then on. `client.update(id, date=...)` (`notefeed update <id> --date …`) moves a note.
 
 `Client.from_env()` reads `NOTEFEED_URL` / `NOTEFEED_FEED` / `NOTEFEED_PASSWORD`; so does the `notefeed` command, unless given `--url` / `--feed` / `--password`.
 
