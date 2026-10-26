@@ -98,6 +98,7 @@ nav:
       - Command line: integrations/cli.md
       - REST API: integrations/api.md
       - MCP: integrations/mcp.md
+      - Agent skills: integrations/skills.md
   - notefeed.me:
       - hosted/index.md
       - Free tier and licenses: hosted/licenses.md
