@@ -84,4 +84,4 @@ a `400` that it is not a key.
 4. Offer the next step: the first note with `post-to-notefeed`. A website can show the feed
    without any secret through the read API, `GET <url>/api/v1/read/<read_id>/notes?limit=100`
    (paged with `before=<next>`; each note has `title`, `content` in markdown, `tags`,
-   `created_at` and `id`).
+   `date` and `id`).
