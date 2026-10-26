@@ -286,3 +286,16 @@ jobs:
           curl -sf -X POST https://notefeed.me/api/v1/feeds/releases/notes -H "Content-Type: text/markdown" \
             -H "X-Feed-Password: $PASSWORD" -H "X-Note-Title: notefeed ${TAG#v}" -H "X-Note-Tags: release,$TAG" \
             --data-binary @post-dated.md -o /dev/null -w "posted: %{http_code}\n"
+      # A short post about the release on the reserved `blog` feed (https://notefeed.me/r/blog), written by Claude from the
+      # tag message and the release's pull requests: only what users notice, no post when there is nothing of the kind.
+      # The release is out either way, so a failure here is a warning, not a failed release.
+      - name: Post to the blog
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTEFEED_RESERVED_PASSWORD: ${{ secrets.NOTEFEED_RESERVED_PASSWORD }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ] || [ -z "$NOTEFEED_RESERVED_PASSWORD" ]; then echo "::notice::a secret is not set: no blog post"; exit 0; fi
+          scripts/release-blog.sh "$TAG"

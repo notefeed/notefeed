@@ -37,7 +37,7 @@ CI is still the gate, and I decide when a branch is finished and when it is merg
 
 A `vX.Y.Z` tag is a release: see the `release` skill (`.claude/skills/release/SKILL.md`) before bumping versions or tagging.
 Every release's notes go onto notefeed.me's reserved `releases` feed (https://notefeed.me/r/releases): CI posts them once the GitHub release exists; check, and post by hand when it did not.
-When something changes for people who use notefeed (a release, a new plan, a change on notefeed.me), write a short post on the reserved `blog` feed (https://notefeed.me/r/blog), linking to the release; the skill says how.
+CI also writes a short post per release on the reserved `blog` feed (https://notefeed.me/r/blog) with Claude; check it. Other changes for people who use notefeed (a change on notefeed.me, a new plan) get a post written in a session; the skill says how.
 
 ## Agent skills
 
