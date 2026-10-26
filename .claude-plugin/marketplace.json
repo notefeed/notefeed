@@ -1,0 +1,11 @@
+{
+  "name": "notefeed",
+  "owner": { "name": "notefeed", "url": "https://notefeed.me" },
+  "plugins": [
+    {
+      "name": "notefeed",
+      "source": "./plugin",
+      "description": "Write a note, review it as a draft, post it to a notefeed feed on approval."
+    }
+  ]
+}
