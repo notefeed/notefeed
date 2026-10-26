@@ -70,6 +70,11 @@ describe("readNote and listNoteRefs", () => {
     expect((await readNote("f", "m", EXTS, all))?.date).toBe(1000);
     expect(await listNoteRefs("f")).toEqual([{ id: "c", ext: "md", date: Date.parse("2026-01-02T03:04:05Z") }, { id: "m", ext: "md", date: 1000 }]);
   });
+  test("a feed of more notes than are read at once lists every one, in order", async () => {
+    for (let i = 0; i < 130; i++) await writeNote("f", `n${i}`, "md", "x", {}, i);
+    const refs = await listNoteRefs("f");
+    expect(refs.map((r) => r.date)).toEqual([...Array(130).keys()].reverse());
+  });
   test("updateMeta and setDate keep a sidecar that holds only the date", async () => {
     await writeNote("f", "a", "md", "x", { title: "T" }, 5);
     expect(await updateMeta("f", "a", EXTS, { title: null })).toBe(true);

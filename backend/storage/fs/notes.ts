@@ -13,6 +13,7 @@ import { FeedGoneError, type FeedUsage, type Meta, type NoteRef, type StoredNote
 import { feedDir, isErrno } from "./fs";
 
 const NAME_RE = /^([A-Za-z0-9_-]{1,128})\.([A-Za-z0-9]{1,16})$/;
+const READS_AT_ONCE = 64;
 const file = (feed: string, id: string, ext: string) => join(feedDir(feed), `${id}.${ext}`);
 const sidecar = (feed: string, id: string, ext: string) => join(feedDir(feed), `.${id}.${ext}.json`);
 
@@ -155,15 +156,16 @@ async function namesIn(feed: string): Promise<{ id: string; ext: string }[]> {
 export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number } = {}): Promise<NoteRef[]> {
   const names = await namesIn(feed);
   noteFeedSize(names.length);
-  const dated = await Promise.all(
-    names.map(async ({ id, ext }): Promise<NoteRef | null> => {
-      const raw = await sidecarOf(feed, id, ext);
-      const stored = storedDate(raw);
-      if (stored !== undefined) return { id, ext, date: stored };
-      const info = await regular(file(feed, id, ext));
-      return info && { id, ext, date: dateOf(raw, raw === null ? {} : parseMeta(raw), info.mtimeMs) }; // null: gone since the listing
-    }),
-  );
+  const dateRef = async ({ id, ext }: { id: string; ext: string }): Promise<NoteRef | null> => {
+    const raw = await sidecarOf(feed, id, ext);
+    const stored = storedDate(raw);
+    if (stored !== undefined) return { id, ext, date: stored };
+    const info = await regular(file(feed, id, ext));
+    return info && { id, ext, date: dateOf(raw, raw === null ? {} : parseMeta(raw), info.mtimeMs) }; // null: gone since the listing
+  };
+  // READS_AT_ONCE sidecars at a time: a read per note under one Promise.all runs out of file descriptors on a large feed (as feedindex.ts).
+  const dated: (NoteRef | null)[] = [];
+  for (let i = 0; i < names.length; i += READS_AT_ONCE) dated.push(...(await Promise.all(names.slice(i, i + READS_AT_ONCE).map(dateRef))));
   let refs = dated.filter((r): r is NoteRef => r !== null && (q.upTo === undefined || r.date <= q.upTo));
   refs.sort((a, b) => b.date - a.date || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
   if (q.before !== undefined) {
