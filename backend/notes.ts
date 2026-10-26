@@ -179,6 +179,22 @@ export async function hasImageNote(feed: string, file: string, asOf?: Date): Pro
   return note instanceof ImageNote && note.file === file;
 }
 
+/** The file (`<id>.<ext>`) of the newest note named `name` and dated `asOf` or earlier, which /r/<read id>/<name> serves (#250); null
+ *  when there is none. Reads metadata only; a note whose metadata can't be read never matches. Deleting that note makes the one
+ *  before it of the same name the newest again. */
+export async function namedFile(feed: string, name: string, asOf: Date): Promise<string | null> {
+  if (checkFeed(feed) || cleanName(name) !== name) return null;
+  const refs = await noteRefs(feed, undefined, { upTo: asOf.getTime() });
+  // ponytail: reads sidecars newest first until one matches, as a rare tag does; a name index would fix it if feeds get large.
+  for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
+    const chunk = refs.slice(i, i + READS_AT_ONCE);
+    const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null))));
+    const j = metas.findIndex((m) => m?.name === name);
+    if (j >= 0) return `${chunk[j].id}.${chunk[j].ext}`;
+  }
+  return null;
+}
+
 /** Whether a reader may have `file` (`<id>.<ext>`) of the feed: its note is there and dated `asOf` or earlier. Reads no content. */
 export async function fileVisible(feed: string, file: string, asOf: Date): Promise<boolean> {
   const m = FILE_RE.exec(file);

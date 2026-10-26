@@ -235,7 +235,7 @@ export { MAX_ATTACHMENTS }; // defined in shared/links.ts: the web box holds to 
 // A picture sent with a markdown text: `name` is the file name the text refers to it by (`![](name)`), kept with the stored note.
 export type Picture = { name: string; body: Uint8Array; mediaType: string; alt?: string };
 // A post of a text and its pictures. No `text`: just the pictures, each with the title. `date`, `password`, `readId` and `licenseKey` as in PostInput.
-export type PostBundle = { text?: string; pictures: Picture[]; title?: string; tags?: string[]; date?: string; password?: string; readId?: string; licenseKey?: string };
+export type PostBundle = { text?: string; pictures: Picture[]; title?: string; tags?: string[]; date?: string; password?: string; readId?: string; licenseKey?: string; name?: string };
 
 const MARKDOWN_TYPE = "text/markdown";
 const IMAGE_TYPES = MEDIA_TYPES.filter((m) => m.mediaType.startsWith("image/")).map((m) => m.mediaType).join(", ");
@@ -331,7 +331,7 @@ export async function postWithPictures(
   const dateOf = (i: number) => new Date(Math.max(0, at.getTime() - pictures.length + i)); // never before 1970
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined, of: id }, dateOf, async (stored, sent, readId) => {
     if (text === undefined) return { note: stored[0], created, readId, pictures: stored };
-    const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title, id }, at);
+    const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title, id, name: input.name }, at);
     await trimToFreeCap(feed);
     return { ...made, created, pictures: stored };
   });

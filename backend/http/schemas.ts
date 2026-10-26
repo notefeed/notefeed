@@ -105,7 +105,12 @@ export const LicenseKeyHeader = z
     "Only on an instance that sells licenses, with `X-Feed-Password` on the post that creates the feed: the key of the license to put on the new feed, since a feed password is for licensed feeds (402 without one). " +
       "Ignored on an existing feed and without a password; 400 for a key that is none",
   );
-export const NoteNameHeader = z.string().describe("For an image body: the picture's original file name, kept with the note (at most 200 characters)");
+export const NoteNameHeader = z
+  .string()
+  .describe(
+    "The note's file name (at most 200 characters; `/`, `\\` and control characters are dropped): for a picture, its original name. The read link serves the newest note with that name at `/r/{readId}/{name}`, " +
+      "a stable address for a file that changes (a name ending in a lower-case extension, such as `post-to-notefeed.md`); a note's own file name (`<id>.<ext>`) comes first",
+  );
 export const CurrentPasswordHeader = z.string().describe("The feed's current password");
 
 const TITLE = z.string().describe("Display title, at most 100 characters, one line (control and text-direction override characters are refused); empty means none (the feed's name is shown)");

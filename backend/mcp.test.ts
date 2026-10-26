@@ -222,6 +222,13 @@ describe("tools", () => {
     expect((await call("list_notes", { feed: "p", password: "pw" })).structuredContent.notes).toHaveLength(1);
   });
 
+  test("post_note name: the read link serves the newest note with it (#250)", async () => {
+    for (const v of ["v1", "v2"]) expect((await call("post_note", { feed: "named", markdown: `# ${v}`, name: "skill.md" })).isError).toBeUndefined();
+    const { fileRoute } = await import("./http/files");
+    const res = await fileRoute((await readIdOf("named"))!, "skill.md");
+    expect([res.status, await res.text()]).toEqual([200, "# v2"]);
+  });
+
   test("calls without a password are refused but never counted as failed attempts", async () => {
     process.env.NOTEFEED_RATE_LIMIT = "2";
     await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });

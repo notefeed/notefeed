@@ -18,6 +18,20 @@ A read link that belongs to no feed answers with an empty feed, not an error, so
 
 `/r/<read id>` shows the notes without the compose box, under the feed's title, description and title image, with a **Subscribe** button for the RSS feed. Each note opens at `/r/<read id>/<id>`, which is also its link in RSS. With [sign-in](../self-hosting/sign-in/index.md) on, it shows who posted, unless the feed's **Show who posted** setting is off.
 
+## Files by name
+
+Every note's file is at `/r/<read id>/<file>`, its `file_url`, which changes with every new note. For a file that changes, such as a skill or a config, give the notes a name: `X-Note-Name` on the post (`name` in the clients and the MCP server's `post_note`). The read link then serves the newest note with that name at `/r/<read id>/<name>`:
+
+```sh
+curl -H "Content-Type: text/markdown" -H "X-Note-Name: post-to-notefeed.md" --data-binary @SKILL.md "$NOTEFEED_URL/$FEED"
+curl -O "$NOTEFEED_URL/r/$READ_ID/post-to-notefeed.md"   # always the newest version
+```
+
+- **Post again under the same name for a new version.** The earlier ones stay in the feed, each at its own `file_url`. Deleting the newest makes the one before it the current one again; an edit keeps the name.
+- **A name ending in a lower-case extension**, such as `.md` or `.png`, is served this way (`my%20file.md` for a space). The type comes from the note, not the name: markdown is served as text, a picture as its image type.
+- **A note's own file name comes first:** a name that is another note's `<id>.<ext>` never takes its address. A note dated later is served by its name from its date on.
+- Public like the read link, with no password, as every file is.
+
 ## Choosing a feed's read id
 
 The feed's name never changes, but its read id can be chosen: 3 to 64 characters of `a-z`, `0-9`, `-` and `_`.
