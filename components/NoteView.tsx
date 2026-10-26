@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
+import type { PluggableList } from "unified";
 import remarkGfm from "remark-gfm";
 import { isRelativeLink } from "@/shared/links";
 import { headingIds, imageSizes } from "@/shared/markdown";
@@ -21,12 +22,13 @@ const markPicturesInLinks = () => (tree: Hast) => {
 // shows the pictures waiting in it from their files, by the name the text calls them, issue #146); undefined falls through to `imageBase`.
 // `link` gives the page of the picture's own note (shared/notekinds.ts), which the picture then links to unless the text put it in a link.
 // `anchors` (a note's own page, #243): each heading gets an id and a link to itself. A picture's size comes from its link (shared/markdown.ts).
-export function NoteView({ markdown, imageBase, resolve, link, anchors = false }: { markdown: string; imageBase?: string; resolve?: (src: string) => string | undefined; link?: (src: string) => string | undefined; anchors?: boolean }) {
+// `plugins`: more rehype plugins, from a server component, so what they need stays out of the browser's bundle (code highlighting).
+export function NoteView({ markdown, imageBase, resolve, link, anchors = false, plugins = [] }: { markdown: string; imageBase?: string; resolve?: (src: string) => string | undefined; link?: (src: string) => string | undefined; anchors?: boolean; plugins?: PluggableList }) {
   return (
     <div className="md break-words">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[imageSizes, ...(link ? [markPicturesInLinks] : []), ...(anchors ? [headingIds] : [])]}
+        rehypePlugins={[imageSizes, ...(link ? [markPicturesInLinks] : []), ...(anchors ? [headingIds] : []), ...plugins]}
         components={{
           ...(anchors && Object.fromEntries(HEADINGS.map((H) => [H, (props: HeadingProps) => <AnchoredHeading as={H} {...props} />]))),
           // User-uploaded images from our own route: next/image's optimizer has nothing to add (max-width is in globals.css).

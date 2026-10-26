@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import rehypeHighlight from "rehype-highlight";
+import type { PluggableList } from "unified";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
 import { kindOf, type KindName } from "@/shared/notekinds";
@@ -27,6 +29,9 @@ function Picture({ note, imageBase, className }: { note: Note; imageBase?: strin
 // A stored title that is the text's first line already shows in the text.
 const ownTitle = (note: Note) => (note.meta.title !== undefined && note.title !== "" && note.title !== cleanLine(extractTitle(note.content ?? "")) ? note.title : undefined);
 
+// Rendered here, on the server: a code block with a language is highlighted (#243), with the colours in globals.css.
+const SERVER_PLUGINS: PluggableList = [rehypeHighlight];
+
 const markdown: Body = {
   heading: (note) => ownTitle(note),
   Content({ note, place, imageBase, attachmentLink }) {
@@ -35,14 +40,14 @@ const markdown: Body = {
       return (
         <>
           <Contents headings={headingsOf(text)} />
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} anchors />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} anchors plugins={SERVER_PLUGINS} />
         </>
       );
     }
     return (
       text.trim() && (
         <div className={`note-card text-[15px] ${ownTitle(note) ? "mt-1" : ""}`}>
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} plugins={SERVER_PLUGINS} />
         </div>
       )
     );

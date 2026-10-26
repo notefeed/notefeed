@@ -12,6 +12,10 @@
   --muted: #686d7a;
   --error: #b3261e;
   --on-carbon: #ffffff;
+  --code-keyword: #7d3a91;
+  --code-string: #2b6e38;
+  --code-number: #94540a;
+  --code-title: #1d5299;
   color-scheme: light;
 }
 
@@ -26,6 +30,10 @@
     --muted: #9a9eab;
     --error: #ff8a80;
     --on-carbon: #15161b;
+    --code-keyword: #d3a2e0;
+    --code-string: #9ccf8a;
+    --code-number: #e7b26a;
+    --code-title: #8fb8f0;
     color-scheme: dark;
   }
 }
@@ -83,6 +91,15 @@ body {
 .md th, .md td { border: 1px solid var(--rule); padding: 0.25em 0.5em; text-align: left; }
 .md img { max-width: 100%; height: auto; }
 .md hr { border: 0; border-top: 1px solid var(--rule); }
+/* Highlighted code (rehype-highlight's hljs classes, #243), in the page's own colours, light and dark. */
+.md .hljs-comment, .md .hljs-quote, .md .hljs-meta { color: var(--muted); font-style: italic; }
+.md .hljs-keyword, .md .hljs-selector-tag, .md .hljs-literal, .md .hljs-doctag, .md .hljs-section, .md .hljs-name { color: var(--code-keyword); }
+.md .hljs-string, .md .hljs-regexp, .md .hljs-addition, .md .hljs-template-tag { color: var(--code-string); }
+.md .hljs-number, .md .hljs-symbol, .md .hljs-bullet, .md .hljs-variable, .md .hljs-template-variable, .md .hljs-link { color: var(--code-number); }
+.md .hljs-title, .md .hljs-attr, .md .hljs-attribute, .md .hljs-built_in, .md .hljs-type, .md .hljs-selector-id, .md .hljs-selector-class, .md .hljs-property { color: var(--code-title); }
+.md .hljs-deletion { color: var(--error); }
+.md .hljs-emphasis { font-style: italic; }
+.md .hljs-strong { font-weight: 700; }
 /* A heading's link to itself on a note's page (#243): shown on hover or focus. */
 .md .anchor { margin-left: 0.4em; color: var(--muted); font-weight: 400; text-decoration: none; opacity: 0; }
 .md :is(h1, h2, h3, h4, h5, h6):hover .anchor, .md .anchor:focus-visible { opacity: 1; }

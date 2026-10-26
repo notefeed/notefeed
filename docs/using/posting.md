@@ -42,6 +42,7 @@ A markdown note shows its text as written. Where a name is needed (RSS, the API,
 
 A note is GitHub-flavoured markdown: tables, task lists, strikethrough and autolinks work. Raw HTML stays text, on the page and in RSS. For a longer text, such as a blog post:
 
+- **Code:** a fenced block with a language (` ```yaml `) is highlighted, on the page and as `hljs-` classes in RSS; one without a language, or with a language it doesn't know, stays plain.
 - **A picture's size:** add `#width=480` (or `#height=270`, or both, `#width=480&height=270`) to its link: `![Screenshot](shot.png#width=480)`. The picture shows at that size in CSS pixels, never wider than the column, on the page and in RSS. Elsewhere the fragment is ignored and the picture shows at its own size.
 - **Headings:** on a note's own page each heading has an anchor (`#` on hover) to link to that part, and a note with three or more second- and third-level headings starts with a table of contents.
 
