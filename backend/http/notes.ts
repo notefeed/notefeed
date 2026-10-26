@@ -130,6 +130,8 @@ export async function handlePostNote(req: Request, feed: string): Promise<PostRe
   const ip = clientIp(h);
   // Before anything touches the disk: a locked instance must not create the feed directory.
   authorize(h, ip);
+  // The header a post's date had before 0.28: refused, not ignored, so a client that still sends it learns of the new one.
+  if (h.has("x-note-created")) throw new InvalidBodyError("X-Note-Created is no longer read: send the note's date as X-Note-Date");
   const multipart = mediaType(h) === "multipart/form-data";
   const { note, created, readId, pictures } = multipart
     ? await postWithPictures(feed, ip, () => readMultipart(req, "post"), feedAccess(h, feed), sender(h))

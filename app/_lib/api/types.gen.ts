@@ -440,7 +440,7 @@ export type PostNoteData = {
 
 export type PostNoteErrors = {
     /**
-     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
+     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
      */
     400: Error;
     /**

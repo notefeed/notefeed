@@ -167,11 +167,12 @@ describe("metadata and creation settings are headers", () => {
     const got = await dispatch(new Request(`${BASE}${API_PREFIX}/feeds/f/notes/${id}`, { headers: { host: "localhost:3000" } }), ["feeds", "f", "notes", id]);
     expect(await got.json()).toMatchObject({ id, date: "2099-01-01T00:00:00.000Z", scheduled: true });
   });
-  test("X-Note-Created is ignored", async () => {
-    const before = Date.now();
-    const res = await post("# a", "text/markdown", { "x-note-created": "yesterday" });
-    expect(res.status).toBe(201);
-    expect((await getNote("f", (await res.json()).id))!.date.getTime()).toBeGreaterThanOrEqual(before - 1);
+  test("X-Note-Created, the header before X-Note-Date, is 400 naming X-Note-Date, and nothing is stored", async () => {
+    for (const res of [await post("# a", "text/markdown", { "x-note-created": "2025-03-01" }), await sendForm([["text", "a"]], { "x-note-created": "2025-03-01" })]) {
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/X-Note-Created.*X-Note-Date/);
+    }
+    expect(await countNotes("f")).toBe(0);
   });
   test("X-Note-Date on a multipart post: the pictures a millisecond apart before the text, which is at that date", async () => {
     const res = await sendForm([["text", "see ![](a.png)"], ["file", png("a.png")], ["file", png("b.png")]], { "x-note-date": "2025-03-01" });
