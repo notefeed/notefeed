@@ -100,6 +100,8 @@ body {
 .md .hljs-deletion { color: var(--error); }
 .md .hljs-emphasis { font-style: italic; }
 .md .hljs-strong { font-weight: 700; }
+/* A drawn ```mermaid block (#243): as wide as the column at most, centred. */
+.md .mermaid-diagram svg { max-width: 100%; height: auto; margin-inline: auto; }
 /* A heading's link to itself on a note's page (#243): shown on hover or focus. */
 .md .anchor { margin-left: 0.4em; color: var(--muted); font-weight: 400; text-decoration: none; opacity: 0; }
 .md :is(h1, h2, h3, h4, h5, h6):hover .anchor, .md .anchor:focus-visible { opacity: 1; }

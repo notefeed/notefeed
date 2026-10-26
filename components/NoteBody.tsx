@@ -40,7 +40,7 @@ const markdown: Body = {
       return (
         <>
           <Contents headings={headingsOf(text)} />
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} anchors plugins={SERVER_PLUGINS} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} anchors diagrams plugins={SERVER_PLUGINS} />
         </>
       );
     }
