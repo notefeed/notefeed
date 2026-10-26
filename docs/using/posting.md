@@ -51,6 +51,20 @@ curl -H "Content-Type: text/markdown" -H "X-Note-Tags: ci,deploy" --data-binary 
 - `?tag=ci` on the feed page, the read-only view, the note list of the API and the RSS feed (`/r/<read id>/feed.xml?tag=ci`) shows only notes with that tag.
 - Tags are set when a note is posted and cannot be changed afterwards.
 
+## Posting in the past
+
+A note is dated when it is posted. To post one that was written earlier, an old changelog entry for example, send `X-Note-Created`:
+
+```sh
+curl -H "Content-Type: text/markdown" -H "X-Note-Created: 2025-03-01T09:30:00+01:00" --data-binary @note.md "$NOTEFEED_URL/$FEED"
+```
+
+- An ISO 8601 date and time with its offset (`Z`, `+01:00`), or a date alone, which is midnight UTC.
+- From 1970 to now: a time in the future is refused (`400`).
+- The note takes its place in the feed, the read link and RSS by that time, as if it had been posted then. On a multipart post every note gets it, the pictures before the text.
+- A program that asks for the notes after the last one it has seen does not see a note posted in the past.
+- On a feed with a free note cap, a note older than the ones kept is the first to go.
+
 ## Editing and deleting notes
 
 All three use the note's API URL, `/api/v1/feeds/<feed>/notes/<id>`, and need what posting needs: the instance password, the feed's own password.

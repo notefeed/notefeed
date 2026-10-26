@@ -7,6 +7,7 @@ import os
 import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any, TypeVar
 
 import attrs
@@ -141,6 +142,15 @@ def _header_value(text: str) -> Any:
     return text.encode("utf-8")
 
 
+def _created(at: str | date | None) -> Any:
+    """X-Note-Created: a datetime with its offset, a date (midnight UTC) or a string as given (the server checks it)."""
+    if at is None or at == "":
+        return UNSET
+    if isinstance(at, datetime) and at.utcoffset() is None:
+        raise ConfigError("created_at: give the datetime a timezone (e.g. tzinfo=timezone.utc)")
+    return at if isinstance(at, str) else at.isoformat()
+
+
 class Client:
     """A notefeed server. The feed set here is the default for every call; each call can override it.
 
@@ -209,6 +219,7 @@ class Client:
         read_id: str | None = None,
         attachments: list[Attachment] | None = None,
         license_key: str | None = None,
+        created_at: str | date | None = None,
     ) -> Posted:
         """Post a note: a `str` is markdown, `bytes` are a file whose media type is `type` (`text/markdown`, `image/png`,
         `image/jpeg`, `image/gif` or `image/webp`; the server accepts nothing else and checks that the body is what the type
@@ -218,7 +229,8 @@ class Client:
         `feed_password` overrides the client's, for a feed that has its own password. `tags` label the note (at most 10,
         each 1 to 32 characters of letters, digits, `-`, `_`, `.`, `:`; not verified). `title` is its title (at most 100
         characters, one line); left out, it is taken from the text. `alt` is a picture's alternative text, `name` the
-        file's original name. `read_id` is the read id the feed gets when this post creates it (3 to 64 characters of
+        file's original name. `created_at` posts the note in the past: when it was written, a timezone-aware datetime, a date
+        (midnight UTC) or an ISO 8601 string (`2026-10-01T09:30:00Z`, `2026-10-01`), from 1970 to now. `read_id` is the read id the feed gets when this post creates it (3 to 64 characters of
         `a-z`, `0-9`, `-`, `_`; random when left out; ignored for a feed that exists; a `taken` error when another feed has it).
         `license_key` goes with `feed_password` on the post that creates the feed, on an instance that sells licenses: a feed
         password is for licensed feeds, and the new feed gets the license (a `license_required` error without the key; ignored
@@ -227,14 +239,15 @@ class Client:
         `attachments` (pictures, at most 10 by the server) go in the same request as the markdown, one note each: `![](name)` in the
         markdown shows one by its `name`, and `.attachments` of the result lists them. `content` may then be None: there is no text
         note, `title` goes on every picture, and the result is the first picture's `Created` (with `.attachments` all of them). `tags`
-        label every note; `alt` and `name` are not allowed with attachments (use `Attachment.alt`). Checked here, before anything
+        and `created_at` go on every note; `alt` and `name` are not allowed with attachments (use `Attachment.alt`). Checked here, before anything
         is sent (ConfigError): a name given twice, an attachment that is not a picture, content that is not markdown, `alt` or `name`
         with attachments. What a name may be is the server's rule (docs/using/pictures.md, "Posting a note with its pictures"): a name it refuses
         raises InvalidRequestError, `attachment "<name>": ...`. The server posts all or nothing: a refusal posts no note."""
+        created = _created(created_at)
         if not attachments:
             if content is None:
                 raise ConfigError("no content given")
-            return Posted(**attrs.asdict(self._post_one(content, feed, feed_password, type, title, tags, alt, name, read_id, license_key), recurse=False))
+            return Posted(**attrs.asdict(self._post_one(content, feed, feed_password, type, title, tags, alt, name, read_id, license_key, created), recurse=False))
         if (content is not None and not isinstance(content, str)) or (type or "text/markdown") != "text/markdown":
             raise ConfigError("attachments go with a markdown string")
         if alt or name:
@@ -262,6 +275,7 @@ class Client:
             x_license_key=license_key or UNSET,
             x_note_title=_header_value(title) if title else UNSET,
             x_note_tags=",".join(tags) if tags else UNSET,
+            x_note_created=created,
         )
         del kwargs["content"], kwargs["headers"]["Content-Type"]  # httpx writes the multipart body and its boundary
         kwargs["files"], kwargs["data"] = files, fields
@@ -273,7 +287,7 @@ class Client:
             raise NotefeedError(f"unexpected response from {self.url} (not a notefeed server?)") from None
         return Posted(**attrs.asdict(done, recurse=False), attachments=extra)
 
-    def _post_one(self, content, feed, feed_password, type, title, tags, alt, name, read_id, license_key) -> Created:
+    def _post_one(self, content, feed, feed_password, type, title, tags, alt, name, read_id, license_key, created) -> Created:
         payload, media = _as_file(content, type)
         kwargs = post_note._get_kwargs(
             feed=self._feed_for(feed),
@@ -283,6 +297,7 @@ class Client:
             x_license_key=license_key or UNSET,
             x_note_title=_header_value(title) if title else UNSET,
             x_note_tags=",".join(tags) if tags else UNSET,
+            x_note_created=created,
             x_note_alt=_header_value(alt) if alt else UNSET,
             x_note_name=_header_value(name) if name else UNSET,
         )

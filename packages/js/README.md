@@ -23,6 +23,8 @@ for await (const note of client.notes()) console.log(note.created_at, note.title
 
 `read_url` is `null` for a feed without a read link (rare; see the operations docs).
 
+To post a note in the past, give when it was written: `client.post(text, { createdAt: "2025-03-01T09:30:00Z" })` (a `Date`, an ISO 8601 date-time with its offset, or a date alone for midnight UTC; from 1970 to now), or `notefeed post "…" --created 2025-03-01`. The note takes its place in the feed by that time.
+
 `Client.fromEnv()` reads `NOTEFEED_URL` / `NOTEFEED_FEED` / `NOTEFEED_PASSWORD`; so does the `notefeed` command, unless given `--url` / `--feed` / `--password`.
 
 A feed can have its own password, which gates reading, listing and posting to it. Pass `feedPassword: "..."` to `new Client(...)` (or per call, e.g. `client.post(text, { feedPassword })`), or set `NOTEFEED_FEED_PASSWORD`, which `fromEnv()` and the `notefeed` command both read (there is deliberately no flag, so it stays out of shell history). It is sent as `X-Feed-Password`; `Authorization` stays the instance password. A feed password is 1 to 256 printable ASCII characters with no space at the start or end; an empty one is the same as none.
