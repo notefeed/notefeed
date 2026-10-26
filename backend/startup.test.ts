@@ -3,9 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { hashPassword } from "./feedlock";
-import { readIdOf, reservedFeedProblems, resetFeedsForTests } from "./feeds";
+import { ensureFeed, readIdOf, reservedFeedProblems, resetFeedsForTests } from "./feeds";
 import { logsOf, logTo } from "./log";
-import { resetStorageForTests } from "./storage";
+import { migratedId } from "./notemigration";
+import { resetStorageForTests, storage } from "./storage";
 import { createNote } from "./notes";
 import { VALID_LICENSE } from "./licensepage.fixture";
 import { legalFileWarnings, logStartup, requireLicensePage, reservedFeedWarnings, reservedFolderWarnings, reservedHint, startupReport } from "./startup";
@@ -17,7 +18,10 @@ beforeEach(async () => {
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   resetFeedsForTests();
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
 const stub = (vars: Record<string, string>) => Object.entries(vars).forEach(([k, v]) => vi.stubEnv(k, v));
 const FULL = { ISSUER: "https://idp.example", CLIENT_ID: "id", CLIENT_SECRET: "the-secret", ALLOW: "ann@x.com" };
 const provider = (name: string, vars: Partial<typeof FULL>) => stub(Object.fromEntries(Object.entries(vars).map(([k, v]) => [`NOTEFEED_OIDC_${name ? `${name}_` : ""}${k}`, v])));
@@ -106,11 +110,19 @@ test("logStartup never throws, and its info line comes first even when the outpu
 });
 
 test("a startup report that fails leaves an error line, and logStartup still resolves", async () => {
-  await writeFile(join(dir, "file"), "");
-  stub({ DATA_DIR: join(dir, "file"), NOTEFEED_RESERVED_FEEDS: "news", NOTEFEED_RESERVED_PASSWORD: "pw" }); // a file where the data directory should be
-  resetFeedsForTests();
+  vi.spyOn(storage(), "listFeedNames").mockRejectedValue(Object.assign(new Error("not a directory"), { code: "ENOTDIR" }));
   const logs = await logsOf(logStartup);
   expect(logs.at(-1)).toMatchObject({ level: "error", component: "startup", msg: "startup report failed", err: { code: "ENOTDIR" } });
+});
+
+test("logStartup moves notes to their new ids first; a migration that fails keeps the server from starting", async () => {
+  await ensureFeed("one");
+  const old = "20260401T120000Z-0196e8f0-1c2d-7abc-8def-0123456789ab";
+  await storage().writeNote("one", old, "md", "x", {}, 0);
+  await logStartup();
+  expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", old)]);
+  vi.spyOn(storage(), "listFeeds").mockRejectedValue(new Error("disk gone"));
+  await expect(logStartup()).rejects.toThrow("disk gone");
 });
 
 test("a reserved name that was already an open feed, or has another read id, is warned about by name only", async () => {
