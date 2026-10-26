@@ -206,13 +206,11 @@ describe("checkCreated", () => {
 describe("backdated posts", () => {
   test("postNote stores the note at that time", async () => {
     const { note } = await postNote("f", "ip", async () => ({ body: new TextEncoder().encode("# old"), mediaType: "text/markdown", created: "2025-03-01T08:00:00Z" }), {});
-    expect(note.createdAt.toISOString()).toBe("2025-03-01T08:00:00.000Z");
+    expect(note.date.toISOString()).toBe("2025-03-01T08:00:00.000Z");
   });
-  test("postWithPictures gives the pictures its first ms and the text the next, so the ids sort in that order", async () => {
+  test("postWithPictures gives the pictures its first ms and the text the next", async () => {
     const r = await post({ text: "![](a.png)", pictures: [pic("a.png"), pic("b.png")], created: "2025-03-01T08:00:00Z" });
-    const ids = [...r.pictures, r.note].map((n) => n.id);
-    expect(ids.every((id) => id.startsWith("20250301T080000Z-"))).toBe(true);
-    expect([...ids].sort()).toEqual(ids);
+    expect([...r.pictures, r.note].map((n) => n.date.toISOString())).toEqual(["2025-03-01T08:00:00.000Z", "2025-03-01T08:00:00.001Z", "2025-03-01T08:00:00.002Z"]);
   });
   test("a bad created stores nothing", async () => {
     await expect(post({ text: "x", pictures: [pic("a.png")], created: "2025-02-30" })).rejects.toThrow(InvalidBodyError);

@@ -9,7 +9,7 @@ import { reportUrl } from "@/shared/report";
 // which its time links to (ADR 0040), named by the note's title for a screen reader.
 export function Foot({ note, base, when, open, report }: { note: Note; base: string; when: string; open?: string; report?: Report }) {
   const at = (
-    <time dateTime={note.createdAt.toISOString()} className="tabular-nums">
+    <time dateTime={note.date.toISOString()} className="tabular-nums">
       {when}
     </time>
   );

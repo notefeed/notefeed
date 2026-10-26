@@ -56,7 +56,7 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
 
 function server(h: Headers): McpServer {
   const base = publicUrl(h);
-  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, created_at: n.createdAt.toISOString(), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }) });
+  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, created_at: n.date.toISOString(), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }) });
   // A reserved name must not reach the filesystem lookup, so it is checked first.
   const checkAccess = async (feed: string, password?: string) => {
     assertFeed(feed);

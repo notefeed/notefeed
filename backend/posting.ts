@@ -1,7 +1,6 @@
 // The one way a note gets posted, edited or deleted, for the HTTP API, MCP and the web UI alike. Credentials are the
 // caller's job (bearer vs. session cookie); everything after that is here, in this order.
 import { config } from "./config";
-import { idStamp } from "../shared/notes";
 import { applyImages, type ImagePlan } from "../shared/imagePlan.mjs";
 import { isAttachmentName, MAX_ATTACHMENTS, safeName } from "../shared/links";
 import { BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, ImagesOffError, ImageTooLargeError, InvalidBodyError, NotefeedError, NoteLimitError, NotFoundError, RateLimitedError, RemovedFeedError, UnsupportedTypeError } from "./errors";
@@ -17,7 +16,7 @@ import { MEDIA_TYPES } from "./note/media";
 import { planInWorker } from "./place";
 import { type NoteType, parseMediaType } from "./note/types";
 import { checkTags } from "./tags";
-import { checkLine, checkMarkdown, countNotes, createNoteOf, encoder, getNote, MARKDOWN, hasImageNote, MAX_ALT, MAX_NOTE_TITLE, removeNote, replaceContent, changeMeta, type NewNoteOptions, type Note } from "./notes";
+import { checkLine, checkMarkdown, countNotes, createNoteOf, encoder, getNote, MARKDOWN, hasImageNote, MAX_ALT, MAX_NOTE_TITLE, newNoteId, removeNote, replaceContent, changeMeta, type NewNoteOptions, type Note } from "./notes";
 
 const log = logger("posting");
 
@@ -259,9 +258,9 @@ function checkPictures(pictures: Picture[]): (Picture & { type: NoteType; ext: s
 
 // The text as it will be stored, checked before the pictures are: each picture's place holds a file name as long as its stored one will be.
 // The text is parsed once, here, in a worker (place.ts); the plan it returns is applied again with the stored file names.
-// ponytail: the length is that of today's ids (`<stamp>-<uuid>`); if they change, the write's own check refuses and the pictures are removed.
+// The length is that of a new id (newNoteId).
 async function checkText(text: string, pictures: { name: string; ext: string }[]): Promise<ImagePlan> {
-  const id = `${idStamp(new Date())}-${"0".repeat(36)}`;
+  const id = newNoteId();
   const plan = await planInWorker(text, new Set(pictures.map((p) => p.name)));
   checkMarkdown(applyImages(plan, new Map(pictures.map((p) => [p.name, `${id}.${p.ext}`]))));
   return plan;

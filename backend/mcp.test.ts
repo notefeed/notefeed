@@ -107,7 +107,7 @@ describe("tools", () => {
 
   test("post_note with created_at posts the note at that time; a bad one is an error", async () => {
     const r = await call("post_note", { feed: "a", markdown: "# Old", created_at: "2025-03-01" });
-    expect(r.structuredContent.id).toMatch(/^20250301T000000Z-/);
+    expect((await getNote("a", r.structuredContent.id))?.date.toISOString()).toBe("2025-03-01T00:00:00.000Z");
     expect((await call("post_note", { feed: "a", markdown: "x", created_at: "soon" })).isError).toBe(true);
   });
 

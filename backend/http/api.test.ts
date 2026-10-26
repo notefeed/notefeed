@@ -142,7 +142,7 @@ describe("GET /read/{readId}/notes", () => {
     const res = await call("GET", `/read/${rid}/notes`);
     const text = await res.clone().text();
     expect(text).not.toContain("secretname");
-    expect((await json(res)).notes[0].url).toMatch(new RegExp(`^${BASE}/r/${rid}/\\d{8}T\\d{6}Z-[0-9a-f-]{36}$`));
+    expect((await json(res)).notes[0].url).toMatch(new RegExp(`^${BASE}/r/${rid}/[A-Za-z0-9_-]{22}$`));
   });
   test("an unknown read id is an empty list; a malformed one 404", async () => {
     expect(await json(await call("GET", `/read/${"A".repeat(22)}/notes`))).toEqual({ notes: [], next: null });

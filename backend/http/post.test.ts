@@ -6,7 +6,7 @@ import { encodeHeaderValue } from "../../shared/headers";
 import { protectedFeed } from "../feedlock";
 import { hasFeed, readIdOf, resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
-import { countNotes } from "../notes";
+import { countNotes, getNote } from "../notes";
 import { API_PREFIX, dispatch } from "./api";
 import { readMultipart } from "./notes";
 
@@ -150,10 +150,10 @@ describe("metadata and creation settings are headers", () => {
     expect((await post("# a", "text/markdown", { "x-note-tags": "bad tag" })).status).toBe(400);
     expect((await post(PNG as BodyInit, "image/png", { "x-note-alt": "x".repeat(501) })).status).toBe(400);
   });
-  test("X-Note-Created dates the note: its id starts with that time; a bad one is 400 and creates nothing", async () => {
+  test("X-Note-Created dates the note; a bad one is 400 and creates nothing", async () => {
     const res = await post("# old", "text/markdown", { "x-note-created": "2025-03-01T10:30:00+02:00" });
     expect(res.status).toBe(201);
-    expect((await res.json()).id).toMatch(/^20250301T083000Z-/);
+    expect((await getNote("f", (await res.json()).id))?.date.toISOString()).toBe("2025-03-01T08:30:00.000Z");
     expect((await post("# a", "text/markdown", { "x-note-created": "yesterday" }, "g")).status).toBe(400);
     expect(await hasFeed("g")).toBe(false);
   });
@@ -161,8 +161,8 @@ describe("metadata and creation settings are headers", () => {
     const res = await sendForm([["text", "see ![](a.png)"], ["file", png("a.png")], ["file", png("b.png")]], { "x-note-created": "2025-03-01" });
     expect(res.status).toBe(201);
     const { id, attachments } = await res.json();
-    expect([...attachments.map((a: { id: string }) => a.id), id].every((i: string) => i.startsWith("20250301T000000Z-"))).toBe(true);
-    expect([...attachments.map((a: { id: string }) => a.id), id]).toEqual([...attachments.map((a: { id: string }) => a.id), id].sort());
+    const dates = await Promise.all([...attachments.map((a: { id: string }) => a.id), id].map(async (i: string) => (await getNote("f", i))?.date.toISOString()));
+    expect(dates).toEqual(["2025-03-01T00:00:00.000Z", "2025-03-01T00:00:00.001Z", "2025-03-01T00:00:00.002Z"]);
   });
   test("X-Feed-Password and X-Read-Id make the post that creates the feed protected, with that read id", async () => {
     const res = await post("# Locked", "text/markdown", { "x-feed-password": "hunter22", "x-read-id": "my-feed" });

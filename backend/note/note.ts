@@ -8,20 +8,21 @@ import { mediaTypeOf } from "./media";
 /** `description` is HTML; `image` a picture the item shows, for a reader's thumbnail (a picture note has its enclosure instead). */
 export type RssContent = { description?: string; enclosure?: { url: string; length: number; type: string }; image?: { url: string; type: string } };
 
-export type NoteInit = { id: string; ext: string; meta: Meta; createdAt: Date; size: number };
+export type NoteInit = { id: string; ext: string; meta: Meta; date: Date; size: number };
 
 export abstract class Note {
   readonly id: string;
   readonly ext: string;
   readonly meta: Meta;
-  readonly createdAt: Date;
+  /** Where the note is placed in its feed; a time still to come makes it scheduled, hidden from readers until then. */
+  readonly date: Date;
   readonly size: number;
 
-  constructor({ id, ext, meta, createdAt, size }: NoteInit) {
+  constructor({ id, ext, meta, date, size }: NoteInit) {
     this.id = id;
     this.ext = ext;
     this.meta = meta;
-    this.createdAt = createdAt;
+    this.date = date;
     this.size = size;
   }
 
@@ -41,6 +42,10 @@ export abstract class Note {
   }
   get tags(): string[] {
     return this.meta.tags ?? [];
+  }
+  /** On an attachment, the id of the text note it was posted with. */
+  get of(): string | undefined {
+    return this.meta.of;
   }
   get alt(): string | undefined {
     return this.meta.alt === undefined ? undefined : cleanLine(this.meta.alt);

@@ -20,7 +20,7 @@ export function NoteArticle({ note, back, imageBase, report, backInBar = false, 
         <div>
           <PageContent note={note} imageBase={imageBase} attachments={link} />
         </div>
-        <Foot note={note} base={back} when={note.createdAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} report={report} />
+        <Foot note={note} base={back} when={note.date.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} report={report} />
       </article>
     </>
   );

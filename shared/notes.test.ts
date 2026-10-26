@@ -1,7 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { extractTitle, idStamp } from "./notes";
-
-const at = (iso: string) => new Date(iso);
+import { extractTitle } from "./notes";
 
 describe("extractTitle of a note that starts with a picture", () => {
   test("the title is the picture's alt text, or empty: never the raw ![](file)", () => {
@@ -33,10 +31,6 @@ describe("extractTitle", () => {
   test("ignores BOM and CRLF", () => {
     expect(extractTitle("﻿# Title\r\nbody")).toBe("Title");
   });
-});
-
-test("idStamp formats UTC to the second", () => {
-  expect(idStamp(at("2026-09-29T14:05:12.345Z"))).toBe("20260929T140512Z");
 });
 
 describe("extractTitle skips fenced code", () => {

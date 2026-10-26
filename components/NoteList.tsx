@@ -27,7 +27,7 @@ function dayLabel(d: Date): string {
 function groupByDay(notes: Note[]): [string, Note[]][] {
   const groups = new Map<string, Note[]>();
   for (const n of notes) {
-    const label = dayLabel(n.createdAt);
+    const label = dayLabel(n.date);
     groups.set(label, [...(groups.get(label) ?? []), n]);
   }
   return [...groups];
@@ -37,8 +37,8 @@ function groupByDay(notes: Note[]): [string, Note[]][] {
 // An attachment that a note in the list shows is left out (shared/notekinds.ts).
 export function NoteList({ notes, base, imageBase, posted, report }: { notes: Note[]; base: string; imageBase?: string; posted?: string; report?: Report }) {
   return groupByDay(withoutAttachments(notes)).map(([day, items]) => (
-    <section key={day} aria-labelledby={`day-${dayKey(items[0].createdAt)}`} className="mb-6">
-      <h2 id={`day-${dayKey(items[0].createdAt)}`} className={`${sectionLabel} sticky top-14 z-10 -mx-4 bg-paper/90 px-4 py-1.5 backdrop-blur-sm lg:top-0 lg:-mx-6 lg:px-6`}>
+    <section key={day} aria-labelledby={`day-${dayKey(items[0].date)}`} className="mb-6">
+      <h2 id={`day-${dayKey(items[0].date)}`} className={`${sectionLabel} sticky top-14 z-10 -mx-4 bg-paper/90 px-4 py-1.5 backdrop-blur-sm lg:top-0 lg:-mx-6 lg:px-6`}>
         {day}
       </h2>
       <ol className="mt-2 space-y-3">
@@ -55,7 +55,7 @@ export function NoteList({ notes, base, imageBase, posted, report }: { notes: No
             ) : (
               <CardContent note={n} imageBase={imageBase} />
             )}
-            <Foot note={n} base={base} when={time(n.createdAt)} open={`${base}/${n.id}`} report={report} />
+            <Foot note={n} base={base} when={time(n.date)} open={`${base}/${n.id}`} report={report} />
           </NoteCard>
         ))}
       </ol>

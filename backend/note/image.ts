@@ -19,6 +19,6 @@ export class ImageNote extends Note {
     return { enclosure: { url: `${base}/${this.file}`, length: this.size, type: this.type } };
   }
   withMeta(meta: Meta): ImageNote {
-    return new ImageNote({ id: this.id, ext: this.ext, meta, createdAt: this.createdAt, size: this.size } satisfies NoteInit);
+    return new ImageNote({ id: this.id, ext: this.ext, meta, date: this.date, size: this.size } satisfies NoteInit);
   }
 }

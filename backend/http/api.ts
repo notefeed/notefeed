@@ -91,7 +91,7 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   ...(n.content !== undefined && { content: n.content }),
   ...(n.alt !== undefined && { alt: n.alt }),
   ...("name" in n && typeof n.name === "string" && { name: n.name }),
-  created_at: n.createdAt.toISOString(),
+  created_at: n.date.toISOString(),
   url: `${base}/${n.id}`,
   ...(n.sender !== undefined && { sender: n.sender }),
   tags: n.tags,
