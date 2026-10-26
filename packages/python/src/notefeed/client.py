@@ -143,7 +143,7 @@ def _header_value(text: str) -> Any:
 
 
 def _created(at: str | date | None) -> Any:
-    """X-Note-Created: a datetime with its offset, a date (midnight UTC) or a string as given (the server checks it)."""
+    """X-Note-Date: a datetime with its offset, a date (midnight UTC) or a string as given (the server checks it)."""
     if at is None or at == "":
         return UNSET
     if isinstance(at, datetime) and at.utcoffset() is None:
@@ -275,7 +275,7 @@ class Client:
             x_license_key=license_key or UNSET,
             x_note_title=_header_value(title) if title else UNSET,
             x_note_tags=",".join(tags) if tags else UNSET,
-            x_note_created=created,
+            x_note_date=created,
         )
         del kwargs["content"], kwargs["headers"]["Content-Type"]  # httpx writes the multipart body and its boundary
         kwargs["files"], kwargs["data"] = files, fields
@@ -297,7 +297,7 @@ class Client:
             x_license_key=license_key or UNSET,
             x_note_title=_header_value(title) if title else UNSET,
             x_note_tags=",".join(tags) if tags else UNSET,
-            x_note_created=created,
+            x_note_date=created,
             x_note_alt=_header_value(alt) if alt else UNSET,
             x_note_name=_header_value(name) if name else UNSET,
         )

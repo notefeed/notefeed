@@ -50,7 +50,7 @@ describe("GET /feeds/{feed}/notes", () => {
     const body = await json(await call("GET", "/feeds/backups/notes"));
     expect(body.next).toBeNull();
     expect(body.notes).toEqual([
-      expect.objectContaining({ id: two.id, title: "Two", created_at: "2026-09-29T11:00:00.000Z" }),
+      expect.objectContaining({ id: two.id, title: "Two", date: "2026-09-29T11:00:00.000Z" }),
       {
         type: "text/markdown",
         file: `${one.id}.md`,
@@ -59,7 +59,7 @@ describe("GET /feeds/{feed}/notes", () => {
         id: one.id,
         title: "One",
         content: "# One\nbody",
-        created_at: "2026-09-29T10:00:00.000Z",
+        date: "2026-09-29T10:00:00.000Z",
         url: `${BASE}/backups/${one.id}`,
         tags: [],
       },
@@ -314,7 +314,7 @@ describe("editing and deleting notes", () => {
   const make = async (feed = "backups", headers: Record<string, string> = {}) => (await json(await post(feed, "# Old", headers))).id as string;
   const markdownOf = async (feed: string, id: string, headers: Record<string, string> = {}) => (await json(await call("GET", `/feeds/${feed}/notes/${id}`, { headers }))).content;
 
-  test("PUT with markdown: 200, same id and created_at, new title, readable everywhere", async () => {
+  test("PUT with markdown: 200, same id and date, new title, readable everywhere", async () => {
     const id = await make();
     const before = await json(await call("GET", `/feeds/backups/notes/${id}`));
     const res = await put(`/feeds/backups/notes/${id}`, "# New");

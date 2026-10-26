@@ -8,9 +8,10 @@ import { hasFeed, resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
 import { logsOf } from "./log";
 import * as notes from "./notes";
-import { countNotes, createImageNote, createNote, getNote, MarkdownNote } from "./notes";
+import { countNotes, createImageNote, createNote, getNote, isScheduled, listNotes, MarkdownNote } from "./notes";
+import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
-import { checkCreated, deleteFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
+import { checkDate, deleteFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
 
 // The text's write is the call after the pictures: a test makes it fail to see the pictures removed again.
 vi.mock("./notes", async (original) => {
@@ -187,34 +188,74 @@ describe("postWithPictures", () => {
   });
 });
 
-describe("checkCreated", () => {
+describe("checkDate", () => {
   const now = new Date("2026-10-26T12:00:00Z");
   test("a date-time with an offset, a date alone (midnight UTC), none", () => {
-    expect(checkCreated("2026-10-01T11:30:00+02:00", now)?.toISOString()).toBe("2026-10-01T09:30:00.000Z");
-    expect(checkCreated("2026-10-01T09:30Z", now)?.toISOString()).toBe("2026-10-01T09:30:00.000Z");
-    expect(checkCreated("2026-10-01T09:30:00.25-01:00", now)?.toISOString()).toBe("2026-10-01T10:30:00.250Z");
-    expect(checkCreated("2026-10-01", now)?.toISOString()).toBe("2026-10-01T00:00:00.000Z");
-    expect(checkCreated("1970-01-01T00:00:00Z", now)?.getTime()).toBe(0);
-    expect(checkCreated(undefined, now)).toBeUndefined();
+    expect(checkDate("2026-10-01T11:30:00+02:00")?.toISOString()).toBe("2026-10-01T09:30:00.000Z");
+    expect(checkDate("2026-10-01T09:30Z")?.toISOString()).toBe("2026-10-01T09:30:00.000Z");
+    expect(checkDate("2026-10-01T09:30:00.25-01:00")?.toISOString()).toBe("2026-10-01T10:30:00.250Z");
+    expect(checkDate("2026-10-01")?.toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    expect(checkDate("1970-01-01T00:00:00Z")?.getTime()).toBe(0);
+    expect(checkDate("2027-10-27")?.toISOString()).toBe("2027-10-27T00:00:00.000Z");
+    expect(checkDate(undefined)).toBeUndefined();
   });
-  test.each(["yesterday", "2026-10-01T09:30:00", "2026-10-01 09:30Z", "2026-02-30", "2026-13-01", "2026-10-01T24:00:00Z", "2026-10-01T09:60Z", "2026-10-01T09:30+24:00", "1969-12-31T23:59:59Z", "1970-01-01T00:30+01:00", "2026-10-26T12:00:01Z", "2026-10-27"])(
+  test("checkDate takes 9999-12-31T23:59:59Z and refuses 10000-01-01", () => {
+    expect(checkDate("9999-12-31T23:59:59Z")?.toISOString()).toBe("9999-12-31T23:59:59.000Z");
+    for (const v of ["10000-01-01", "+010000-01-01T00:00:00Z", "9999-12-31T23:59:59-01:00"]) expect(() => checkDate(v), v).toThrow(InvalidBodyError);
+  });
+  test("checkDate refuses 1969-12-31T23:59:59Z", () => {
+    expect(() => checkDate("1969-12-31T23:59:59Z")).toThrow("date must be an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date (2026-10-01), from 1970 to 9999");
+  });
+  test.each(["yesterday", "2026-10-01T09:30:00", "2026-10-01 09:30Z", "2026-02-30", "2026-13-01", "2026-10-01T24:00:00Z", "2026-10-01T09:60Z", "2026-10-01T09:30+24:00", "1970-01-01T00:30+01:00"])(
     "refuses %s",
-    (v) => expect(() => checkCreated(v, now)).toThrow(InvalidBodyError),
+    (v) => expect(() => checkDate(v)).toThrow(InvalidBodyError),
   );
+  test("a time after now is taken", () => expect(checkDate("2026-10-26T12:00:01Z")?.getTime()).toBeGreaterThan(now.getTime()));
 });
 
-describe("backdated posts", () => {
+describe("dated posts", () => {
   test("postNote stores the note at that time", async () => {
-    const { note } = await postNote("f", "ip", async () => ({ body: new TextEncoder().encode("# old"), mediaType: "text/markdown", created: "2025-03-01T08:00:00Z" }), {});
+    const { note } = await postNote("f", "ip", async () => ({ body: new TextEncoder().encode("# old"), mediaType: "text/markdown", date: "2025-03-01T08:00:00Z" }), {});
     expect(note.date.toISOString()).toBe("2025-03-01T08:00:00.000Z");
   });
-  test("postWithPictures gives the pictures its first ms and the text the next", async () => {
-    const r = await post({ text: "![](a.png)", pictures: [pic("a.png"), pic("b.png")], created: "2025-03-01T08:00:00Z" });
-    expect([...r.pictures, r.note].map((n) => n.date.toISOString())).toEqual(["2025-03-01T08:00:00.000Z", "2025-03-01T08:00:00.001Z", "2025-03-01T08:00:00.002Z"]);
+  test("a future date posts a scheduled note", async () => {
+    const { note } = await postNote("f", "ip", async () => ({ body: new TextEncoder().encode("# soon"), mediaType: "text/markdown", date: "2099-01-01T00:00:00Z" }), {});
+    expect(note.date.toISOString()).toBe("2099-01-01T00:00:00.000Z");
+    expect(isScheduled(note)).toBe(true);
+    expect((await getNote("f", note.id))?.date.toISOString()).toBe("2099-01-01T00:00:00.000Z");
   });
-  test("a bad created stores nothing", async () => {
-    await expect(post({ text: "x", pictures: [pic("a.png")], created: "2025-02-30" })).rejects.toThrow(InvalidBodyError);
+  test("attachments record their text note and sort before it", async () => {
+    const r = await post({ text: "![](a.png)", pictures: [pic("a.png"), pic("b.png")], date: "2025-03-01T08:00:00Z" });
+    const stored = await Promise.all(r.pictures.map((p) => getNote("f", p.id)));
+    expect(stored.map((p) => p?.of)).toEqual([r.note.id, r.note.id]);
+    expect([...r.pictures, r.note].map((n) => n.date.toISOString())).toEqual(["2025-03-01T07:59:59.998Z", "2025-03-01T07:59:59.999Z", "2025-03-01T08:00:00.000Z"]);
+    expect((await listNotes("f")).map((n) => n.id)).toEqual([r.note.id, r.pictures[1].id, r.pictures[0].id]);
+  });
+  test("pictures without a text record no text note", async () => {
+    const r = await post({ pictures: [pic("a.png")] });
+    expect((await getNote("f", r.note.id))?.of).toBeUndefined();
+  });
+  test("a bad date stores nothing", async () => {
+    await expect(post({ text: "x", pictures: [pic("a.png")], date: "2025-02-30" })).rejects.toThrow(InvalidBodyError);
     expect(await hasFeed("f")).toBe(false);
+  });
+  test("the free cap drops the oldest by date, not a scheduled note", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    vi.stubEnv("NOTEFEED_FREE_NOTE_CAP", "2");
+    try {
+      const day = 86_400_000;
+      const at = (offset: number) => new Date(Date.now() + offset).toISOString();
+      const text = (body: string, date?: string) => postNote("f", "ip", async () => ({ body: new TextEncoder().encode(body), mediaType: "text/markdown", date }), {});
+      const old = (await text("# -2d", at(-2 * day))).note;
+      await text("# -1d", at(-day));
+      const later = (await text("# +1y", at(365 * day))).note;
+      await text("# now");
+      expect(await getNote("f", old.id)).toBeNull();
+      expect(await getNote("f", later.id)).not.toBeNull();
+    } finally {
+      await resetLicensesForTests();
+    }
   });
 });
 
@@ -272,6 +313,14 @@ describe("editWithPictures", () => {
     expect([r.note.title, r.note.sender, r.note.tags]).toEqual(["Title", "Ann", ["keep"]]);
     expect(await markdownOf(note.id)).toBe(`new ![x](${r.pictures[0].file})`);
     expect([r.pictures[0].sender, r.pictures[0].tags, r.pictures[0].alt, r.pictures[0].meta.name]).toEqual(["Bob", ["t"], "alt", "a.png"]);
+  });
+
+  test("an edit's new attachment follows the note", async () => {
+    const { note } = await createNote("f", "old", new Date("2025-03-01T08:00:00Z"));
+    const r = await edit(note.id, { text: "new ![](a.png)", pictures: [pic("a.png")] });
+    const stored = await getNote("f", r.pictures[0].id);
+    expect(stored?.of).toBe(note.id);
+    expect(stored?.date.toISOString()).toBe("2025-03-01T07:59:59.999Z");
   });
 
   test("NotFoundError for a missing note, with nothing stored", async () => {

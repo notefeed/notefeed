@@ -37,7 +37,7 @@ const note = (h: number): Note => ({
   title: `N${h}`,
   content: `# N${h}`,
   tags: [],
-  created_at: `2026-09-30T${String(h).padStart(2, "0")}:00:00.000Z`,
+  date: `2026-09-30T${String(h).padStart(2, "0")}:00:00.000Z`,
   url: `https://n.example/inbox/n${h}`,
 });
 const collect = async <T>(it: AsyncIterable<T>) => {
@@ -85,9 +85,9 @@ describe("post", () => {
     await c.post("x", { title: "T", tags: ["ci", "deploy"], createdAt: "2025-03-01", readId: "my-feed", licenseKey: "k".repeat(22) });
     await c.post("x", { tags: [] });
     await c.post("x", { createdAt: new Date("2025-03-01T08:00:00+02:00") });
-    expect(server.requests[0].headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "ci,deploy", "x-note-created": "2025-03-01", "x-read-id": "my-feed", "x-license-key": "k".repeat(22) });
-    expect(server.requests[2].headers["x-note-created"]).toBe("2025-03-01T06:00:00.000Z");
-    for (const h of ["x-note-title", "x-note-tags", "x-note-alt", "x-note-name", "x-note-created", "x-read-id", "x-license-key"]) expect(server.requests[1].headers[h]).toBeUndefined();
+    expect(server.requests[0].headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "ci,deploy", "x-note-date": "2025-03-01", "x-read-id": "my-feed", "x-license-key": "k".repeat(22) });
+    expect(server.requests[2].headers["x-note-date"]).toBe("2025-03-01T06:00:00.000Z");
+    for (const h of ["x-note-title", "x-note-tags", "x-note-alt", "x-note-name", "x-note-date", "x-read-id", "x-license-key"]) expect(server.requests[1].headers[h]).toBeUndefined();
   });
   test("a title, alt text or name that is not ASCII goes as its UTF-8 bytes, which fetch can send", async () => {
     server.reply(201, CREATED);
@@ -508,7 +508,7 @@ describe("post with attachments", () => {
     server.reply(201, { ...created(1), attachments: [created(1), created(2)] });
     const r = await c().post(null, { attachments: [img("a.png"), img("b.png")], title: "T", tags: ["x"], createdAt: "2025-03-01" });
     const q = server.requests[0];
-    expect(q.headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "x", "x-note-created": "2025-03-01" });
+    expect(q.headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "x", "x-note-date": "2025-03-01" });
     const form = await parse(q);
     expect(form.has("text")).toBe(false);
     expect(form.getAll("file")).toHaveLength(2);

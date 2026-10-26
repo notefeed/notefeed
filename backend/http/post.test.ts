@@ -150,19 +150,35 @@ describe("metadata and creation settings are headers", () => {
     expect((await post("# a", "text/markdown", { "x-note-tags": "bad tag" })).status).toBe(400);
     expect((await post(PNG as BodyInit, "image/png", { "x-note-alt": "x".repeat(501) })).status).toBe(400);
   });
-  test("X-Note-Created dates the note; a bad one is 400 and creates nothing", async () => {
-    const res = await post("# old", "text/markdown", { "x-note-created": "2025-03-01T10:30:00+02:00" });
+  test("X-Note-Date dates the note; a bad one is 400 and creates nothing", async () => {
+    const res = await post("# old", "text/markdown", { "x-note-date": "2025-03-01T10:30:00+02:00" });
     expect(res.status).toBe(201);
     expect((await getNote("f", (await res.json()).id))?.date.toISOString()).toBe("2025-03-01T08:30:00.000Z");
-    expect((await post("# a", "text/markdown", { "x-note-created": "yesterday" }, "g")).status).toBe(400);
+    const bad = await post("# a", "text/markdown", { "x-note-date": "yesterday" }, "g");
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).error).toContain("date must be an ISO 8601 date");
     expect(await hasFeed("g")).toBe(false);
   });
-  test("X-Note-Created on a multipart post: the pictures first, then the text, a millisecond apart", async () => {
-    const res = await sendForm([["text", "see ![](a.png)"], ["file", png("a.png")], ["file", png("b.png")]], { "x-note-created": "2025-03-01" });
+  test("X-Note-Date in the future is 201 with scheduled: true", async () => {
+    const res = await post("# soon", "text/markdown", { "x-note-date": "2099-01-01T00:00:00Z" });
+    expect(res.status).toBe(201);
+    const { id } = await res.json();
+    expect((await getNote("f", id))?.date.toISOString()).toBe("2099-01-01T00:00:00.000Z");
+    const got = await dispatch(new Request(`${BASE}${API_PREFIX}/feeds/f/notes/${id}`, { headers: { host: "localhost:3000" } }), ["feeds", "f", "notes", id]);
+    expect(await got.json()).toMatchObject({ id, date: "2099-01-01T00:00:00.000Z", scheduled: true });
+  });
+  test("X-Note-Created is ignored", async () => {
+    const before = Date.now();
+    const res = await post("# a", "text/markdown", { "x-note-created": "yesterday" });
+    expect(res.status).toBe(201);
+    expect((await getNote("f", (await res.json()).id))!.date.getTime()).toBeGreaterThanOrEqual(before - 1);
+  });
+  test("X-Note-Date on a multipart post: the pictures a millisecond apart before the text, which is at that date", async () => {
+    const res = await sendForm([["text", "see ![](a.png)"], ["file", png("a.png")], ["file", png("b.png")]], { "x-note-date": "2025-03-01" });
     expect(res.status).toBe(201);
     const { id, attachments } = await res.json();
     const dates = await Promise.all([...attachments.map((a: { id: string }) => a.id), id].map(async (i: string) => (await getNote("f", i))?.date.toISOString()));
-    expect(dates).toEqual(["2025-03-01T00:00:00.000Z", "2025-03-01T00:00:00.001Z", "2025-03-01T00:00:00.002Z"]);
+    expect(dates).toEqual(["2025-02-28T23:59:59.998Z", "2025-02-28T23:59:59.999Z", "2025-03-01T00:00:00.000Z"]);
   });
   test("X-Feed-Password and X-Read-Id make the post that creates the feed protected, with that read id", async () => {
     const res = await post("# Locked", "text/markdown", { "x-feed-password": "hunter22", "x-read-id": "my-feed" });
@@ -229,8 +245,8 @@ describe("multipart: a text with its pictures", () => {
     expect((await stored(body.file)).toString()).toBe(`# Report\n\n![Chart](${chart.file} "Q3")\n\n![logo][l]\n\n[l]: ${logo.file}\n`.replace(/\n/g, "\r\n"));
     expect([...(await stored(chart.file))]).toEqual([...PNG]);
     expect(await sidecarOf(body.file)).toEqual({ title: "T", tags: ["ci"] });
-    expect(await sidecarOf(chart.file)).toEqual({ alt: "A chart", name: "chart.png", tags: ["ci"] });
-    expect(await sidecarOf(logo.file)).toEqual({ name: "logo.png", tags: ["ci"] });
+    expect(await sidecarOf(chart.file)).toEqual({ alt: "A chart", name: "chart.png", tags: ["ci"], of: body.id });
+    expect(await sidecarOf(logo.file)).toEqual({ name: "logo.png", tags: ["ci"], of: body.id });
   });
   test("file names survive the multipart encoding: spaces, non-ASCII, a reference percent-encoded", async () => {
     const res = await sendForm([

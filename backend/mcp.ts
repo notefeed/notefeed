@@ -101,7 +101,7 @@ function server(h: Headers): McpServer {
         if (body.toString("base64").replace(/=+$/, "") !== clean.replace(/=+$/, "")) throw new InvalidBodyError(`attachment "${safeName(a.name)}": data is not valid base64`);
         return { name: a.name, body, mediaType: a.type, alt: a.alt };
       });
-      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, tags, created: created_at, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
+      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, tags, date: created_at, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
       const feedUrl = base + feedPath(feed);
       return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
     }),

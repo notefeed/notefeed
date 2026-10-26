@@ -8,7 +8,7 @@ import { changePassword, checkFeedAccess, protectedFeed, removePassword } from "
 import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf } from "../feeds";
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
-import { MAX_BYTES, countNotes, getNote, listNotes, type Note } from "../notes";
+import { MAX_BYTES, countNotes, getNote, isScheduled, listNotes, type Note } from "../notes";
 import { freeTier } from "../licensing";
 import { PASSWORD_RULE } from "../../shared/password";
 import { TAG_RULE } from "../tags";
@@ -33,7 +33,7 @@ import {
   NoteAltHeader,
   NoteNameHeader,
   NoteTitleHeader,
-  NoteCreatedHeader,
+  NoteDateHeader,
   ReadIdHeader,
   NoteIdParam,
   NoteEdited,
@@ -91,7 +91,8 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   ...(n.content !== undefined && { content: n.content }),
   ...(n.alt !== undefined && { alt: n.alt }),
   ...("name" in n && typeof n.name === "string" && { name: n.name }),
-  created_at: n.date.toISOString(),
+  date: n.date.toISOString(),
+  ...(isScheduled(n) && { scheduled: true as const }),
   url: `${base}/${n.id}`,
   ...(n.sender !== undefined && { sender: n.sender }),
   tags: n.tags,
@@ -154,9 +155,9 @@ const OPS: AnyOp[] = [
       "Where licenses are sold, a feed password needs one: the post that creates the feed protected brings the license key in `X-License-Key`, or is refused with `402`. " +
       "Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. " +
       "The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). " +
-      `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Created\` (when it was written, to post it in the past). ` +
+      `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Date\` (where it is placed in the feed: a past date backdates it, a future one schedules it). ` +
       MULTIPART +
-      "The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` and `X-Note-Created` on every note; with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. " +
+      "The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. " +
       "A refused multipart post that would have created a protected feed creates nothing.",
     tags: ["Feeds"],
     password: true,
@@ -169,13 +170,13 @@ const OPS: AnyOp[] = [
       "X-Note-Tags": NoteTagsHeader,
       "X-Note-Alt": NoteAltHeader,
       "X-Note-Name": NoteNameHeader,
-      "X-Note-Created": NoteCreatedHeader,
+      "X-Note-Date": NoteDateHeader,
     },
     body: { ...Object.fromEntries(MEDIA_TYPES.map((m) => [m.mediaType, FileBody])), "multipart/form-data": MultipartNote },
     responses: {
       201: { description: "Stored: the note, and with a multipart body its pictures", schema: Posted },
       400: err(
-        "Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Created`; a new password that is not printable ASCII; a license key that is none; " +
+        "Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; a new password that is not printable ASCII; a license key that is none; " +
           `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad or repeated file name, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
@@ -292,9 +293,10 @@ const OPS: AnyOp[] = [
     method: "PATCH",
     path: `${API_PREFIX}/feeds/{feed}/notes/{id}`,
     operationId: "patchNote",
-    summary: "Change a note's title or alt text",
+    summary: "Change a note's title, alt text or date",
     description:
-      "Sets the note's title and/or alt text (alt only for images). An empty string removes one: a markdown note's title follows its text again. " +
+      "Sets the note's title, alt text (only for images) and/or date. An empty title or alt removes it: a markdown note's title follows its text again. " +
+      "A new date moves the note in the feed, with its attachments; a date after now schedules it. Id and links stay. " +
       "At least one is needed. Needs the feed's password if it has one, and counts against the post rate limit. Read links can't change notes.",
     tags: ["Feeds"],
     password: true,
@@ -303,7 +305,7 @@ const OPS: AnyOp[] = [
     body: { "application/json": MetaJson },
     responses: {
       200: { description: "The note as it is now", schema: NoteJson },
-      400: err("Invalid or reserved feed name; nothing to change; a bad title or alt text; alt for a note that has none; bad JSON"),
+      400: err("Invalid or reserved feed name; nothing to change; a bad title, alt text or date; alt for a note that has none; bad JSON"),
       401: UNAUTHORIZED,
       404: err("No such note"),
       415: err("Content-Type is not application/json"),

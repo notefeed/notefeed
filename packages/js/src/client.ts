@@ -81,7 +81,7 @@ type Result<T> = { data?: T; error?: unknown; response?: Response };
 // A header holds bytes, and fetch refuses a character above U+00FF: text that may not be ASCII goes as its UTF-8 bytes written as
 // latin1 characters, which is what the server reads back.
 const headerValue = (text: string): string => Array.from(new TextEncoder().encode(text), (b) => String.fromCharCode(b)).join("");
-// X-Note-Created: a Date as its UTC time, a string as given (the server checks it).
+// X-Note-Date: a Date as its UTC time, a string as given (the server checks it).
 const createdHeader = (at: string | Date): string => (typeof at === "string" ? at : at.toISOString());
 
 // What a post sends: a string is markdown; bytes and Blobs need a media type (a Blob's own, if it has one).
@@ -168,7 +168,7 @@ export class Client {
       "Content-Type": null, // fetch sets multipart/form-data with its boundary
       ...(own.title && { "X-Note-Title": headerValue(own.title) }),
       ...(own.tags?.length && { "X-Note-Tags": own.tags.join(",") }),
-      ...(own.createdAt && { "X-Note-Created": createdHeader(own.createdAt) }),
+      ...(own.createdAt && { "X-Note-Date": createdHeader(own.createdAt) }),
       ...(own.readId && { "X-Read-Id": own.readId }),
       ...(own.licenseKey && { "X-License-Key": own.licenseKey }),
     };
@@ -189,7 +189,7 @@ export class Client {
       ...(options.tags?.length && { "X-Note-Tags": options.tags.join(",") }),
       ...(options.alt && { "X-Note-Alt": headerValue(options.alt) }),
       ...(options.name && { "X-Note-Name": headerValue(options.name) }),
-      ...(options.createdAt && { "X-Note-Created": createdHeader(options.createdAt) }),
+      ...(options.createdAt && { "X-Note-Date": createdHeader(options.createdAt) }),
       ...(options.readId && { "X-Read-Id": options.readId }),
       ...(options.licenseKey && { "X-License-Key": options.licenseKey }),
     };

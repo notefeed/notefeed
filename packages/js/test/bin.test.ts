@@ -17,7 +17,7 @@ test("notefeed notes | head -1: stops quietly when the reader goes away", async 
     id: `20260930T10${String(i).padStart(2, "0")}00Z-n${i}`,
     title: `Note ${i}`,
     markdown: "# x".repeat(2000),
-    created_at: `2026-09-30T10:${String(i).padStart(2, "0")}:00.000Z`,
+    date: `2026-09-30T10:${String(i).padStart(2, "0")}:00.000Z`,
     url: `https://n/${i}`,
   }));
   server.route(() => [200, { notes, next: null }]);

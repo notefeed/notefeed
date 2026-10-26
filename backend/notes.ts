@@ -214,7 +214,7 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
 
 /** Sets the title and/or alt text of a note; "" removes one. At least one is needed; alt only for types that have it. null: no such note. */
 export async function changeMeta(feed: string, id: string, edit: { title?: string; alt?: string }): Promise<Note | null> {
-  if (edit.title === undefined && edit.alt === undefined) throw new InvalidBodyError("nothing to change: send title or alt");
+  if (edit.title === undefined && edit.alt === undefined) throw new InvalidBodyError("nothing to change: send title, alt or date");
   const title = checkLine("title", edit.title, MAX_NOTE_TITLE);
   const alt = checkLine("alt", edit.alt, MAX_ALT);
   if (checkFeed(feed) || !isValidId(id)) return null;
@@ -228,18 +228,23 @@ export async function changeMeta(feed: string, id: string, edit: { title?: strin
 }
 
 /**
- * Gives a note a new date, and every note posted with it (an attachment, whose `of` is its id) that date minus 1 ms, so the text still
- * sorts after its pictures. Id, content and metadata stay. null: invalid feed or id, or no such note.
+ * Gives a note a new date, and moves every note posted with it (an attachment, whose `of` is its id) by as much, so the attachments keep
+ * their place just before the text. Id, content and metadata stay. InvalidBodyError for an invalid date. null: invalid feed or id, or no
+ * such note.
  */
 export async function changeDate(feed: string, id: string, date: Date): Promise<Note | null> {
+  if (Number.isNaN(date.getTime())) throw new InvalidBodyError("date is not a valid date");
   if (checkFeed(feed) || !isValidId(id)) return null;
+  const note = await getNote(feed, id);
+  if (!note) return null;
   if (!(await storage().setDate(feed, id, NOTE_EXTS, date.getTime()))) return null;
+  const shift = date.getTime() - note.date.getTime();
   // ponytail: reads every sidecar of the feed to find the attachments, as a rare tag does; an index of `of` would fix it if feeds get large.
   const refs = (await noteRefs(feed)).filter((r) => r.id !== id);
   for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
     const chunk = refs.slice(i, i + READS_AT_ONCE);
     const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null))));
-    await Promise.all(chunk.filter((_, j) => metas[j]?.of === id).map((ref) => storage().setDate(feed, ref.id, [ref.ext], date.getTime() - 1)));
+    await Promise.all(chunk.filter((_, j) => metas[j]?.of === id).map((ref) => storage().setDate(feed, ref.id, [ref.ext], ref.date + shift)));
   }
   return getNote(feed, id);
 }

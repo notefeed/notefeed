@@ -82,7 +82,7 @@ export function Compose({
       ...(password && { "X-Feed-Password": password }),
       ...(password && licenseKey && { "X-License-Key": licenseKey }),
       ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
-      ...(written && { "X-Note-Created": new Date(written).toISOString() }),
+      ...(written && { "X-Note-Date": new Date(written).toISOString() }),
     };
     return run(
       e,

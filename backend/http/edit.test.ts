@@ -123,6 +123,35 @@ describe("PATCH changes metadata", () => {
   });
 });
 
+describe("PATCH changes the date", () => {
+  test("PATCH { date } changes the date and returns it", async () => {
+    const made = await post("# x", "text/markdown");
+    const res = await patch(made.id, { date: "2025-03-01T10:30:00+02:00" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ id: made.id, date: "2025-03-01T08:30:00.000Z" });
+    expect(body.scheduled).toBeUndefined();
+    expect((await get(made.id)).date).toBe("2025-03-01T08:30:00.000Z");
+  });
+  test("a future date makes it scheduled; with a title both change", async () => {
+    const made = await post("# x", "text/markdown");
+    const body = await (await patch(made.id, { date: "2099-01-01", title: "Later" })).json();
+    expect(body).toMatchObject({ title: "Later", date: "2099-01-01T00:00:00.000Z", scheduled: true });
+  });
+  test("PATCH {} is 400 and names title, alt or date; a bad date is 400 and changes nothing", async () => {
+    const made = await post("# x", "text/markdown");
+    const empty = await patch(made.id, {});
+    expect(empty.status).toBe(400);
+    expect((await empty.json()).error).toContain("title, alt or date");
+    const before = (await get(made.id)).date;
+    expect((await patch(made.id, { date: "2025-02-30" })).status).toBe(400);
+    expect((await patch(made.id, { date: 5 })).status).toBe(400);
+    expect((await patch(made.id, { date: "2025-03-01", alt: "no" })).status).toBe(400);
+    expect((await get(made.id)).date).toBe(before);
+    expect((await patch("nope", { date: "2025-03-01" })).status).toBe(404);
+  });
+});
+
 test("a read link can neither put nor patch", async () => {
   const made = await post("# x", "text/markdown");
   const res = await send("PUT", `/read/anything/notes/${made.id}`, "# y", "text/markdown");
@@ -147,7 +176,7 @@ describe("multipart PUT: a markdown note's new text with its pictures", () => {
     const [c] = note.attachments;
     expect(c.file).toBe(`${c.id}.png`);
     expect(note).toMatchObject({ id: made.id, type: "text/markdown", content: `# New ![](${c.file})`, title: "Kept", tags: ["a"] });
-    expect(await sidecar(c.file)).toEqual({ alt: "C", name: "c.png", tags: ["pics"] });
+    expect(await sidecar(c.file)).toEqual({ alt: "C", name: "c.png", tags: ["pics"], of: made.id });
     expect((await content(made.file)).toString()).toBe(`# New ![](${c.file})`);
   });
   test("the text as a file part works the same, byte for byte", async () => {

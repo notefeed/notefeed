@@ -114,7 +114,7 @@ test("a note dated in the past in the compose box goes below the newer ones, at 
   await page.getByLabel("Note in markdown").fill("# Long ago");
   await page.getByLabel("Written (optional, to post it in the past; empty is now)").fill("2025-03-01T09:30");
   await page.getByRole("button", { name: "Post note" }).click();
-  expect((await sent).headers()["x-note-created"]).toMatch(/^2025-03-0[12]T\d\d:30:00\.000Z$/); // the browser's time zone, as UTC
+  expect((await sent).headers()["x-note-date"]).toMatch(/^2025-03-0[12]T\d\d:30:00\.000Z$/); // the browser's time zone, as UTC
   await expect(page.getByRole("link", { name: "Long ago" })).toBeVisible();
   const top = async (title: string) => (await page.getByRole("link", { name: title }).boundingBox())!.y;
   expect(await top("Today")).toBeLessThan(await top("Long ago")); // newest first: the older note goes below

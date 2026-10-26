@@ -161,7 +161,7 @@ def serve_notes(server, count):
             "id": f"20260930T10{i:02d}00Z-n{i}",
             "title": f"Note {i}",
             "content": f"# Note {i}",
-            "created_at": f"2026-09-30T10:{i:02d}:00.000Z",
+            "date": f"2026-09-30T10:{i:02d}:00.000Z",
             "url": f"https://n.example/inbox/n{i}",
             "type": "text/markdown",
             "file_url": f"https://n.example/r/X/20260930T10{i:02d}00Z-n{i}.md",
@@ -226,7 +226,7 @@ def test_notes_rejects_a_bad_limit(server, capsys):
 def test_notes_json_prints_exactly_the_documented_fields(server, capsys):
     server.route = lambda method, path: (
         200,
-        {"notes": [{"id": "20260930T100000Z-a", "type": "text/markdown", "title": "A", "content": "# A", "file": "a.md", "file_url": None, "size": 3, "tags": ["x"], "created_at": "2026-09-30T10:00:00.000Z", "url": "https://n/a", "mood": "new"}], "next": None},
+        {"notes": [{"id": "20260930T100000Z-a", "type": "text/markdown", "title": "A", "content": "# A", "file": "a.md", "file_url": None, "size": 3, "tags": ["x"], "date": "2026-09-30T10:00:00.000Z", "url": "https://n/a", "mood": "new"}], "next": None},
     )
     assert main(notes_args(server, "--json")) == 0
     assert list(json.loads(capsys.readouterr().out)) == ["id", "type", "title", "content", "file", "file_url", "size", "tags", "created_at", "url"]  # the unknown "mood" is dropped
@@ -245,7 +245,7 @@ def test_notes_stops_quietly_when_the_reader_goes_away(server, capsys, monkeypat
     assert capsys.readouterr().err == ""
 
 
-NOTE = {"id": "i", "type": "text/markdown", "title": "T", "content": "x", "file": "i.md", "file_url": "https://n.example/r/X/i.md", "size": 1, "tags": [], "created_at": "2026-09-30T10:00:00.000Z", "url": "https://n.example/inbox/i"}
+NOTE = {"id": "i", "type": "text/markdown", "title": "T", "content": "x", "file": "i.md", "file_url": "https://n.example/r/X/i.md", "size": 1, "tags": [], "date": "2026-09-30T10:00:00.000Z", "url": "https://n.example/inbox/i"}
 CREATED = {"id": "a", "url": "https://n.example/inbox/a", "feed_url": "https://n.example/inbox", "read_url": None, "file": "a.png", "file_url": "https://n.example/r/X/a.png"}
 
 
@@ -309,7 +309,7 @@ def test_post_a_picture_file_sends_its_bytes_as_its_type(server, capsys, tmp_pat
     assert main(["post", "--file", str(f), "--title", "Café", "--tag", "pets", "--created", "2025-03-01", "--url", server.url, "--feed", "inbox"]) == 0
     assert capsys.readouterr().out == "https://n.example/inbox/a\n"
     q = server.requests[0]
-    assert (q["body"], q["headers"]["Content-Type"], q["headers"]["X-Note-Tags"], q["headers"]["X-Note-Name"], q["headers"]["X-Note-Created"]) == (png, "image/png", "pets", "Photo.PNG", "2025-03-01")
+    assert (q["body"], q["headers"]["Content-Type"], q["headers"]["X-Note-Tags"], q["headers"]["X-Note-Name"], q["headers"]["X-Note-Date"]) == (png, "image/png", "pets", "Photo.PNG", "2025-03-01")
     assert q["headers"]["X-Note-Title"].encode("latin-1").decode("utf-8") == "Café"
 
 

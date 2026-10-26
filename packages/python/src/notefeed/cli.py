@@ -106,7 +106,7 @@ def _client(args: argparse.Namespace) -> Client:
 
 def _line(note: Note, as_json: bool) -> str:
     # The same form as the JS CLI, so scripts read either the same way.
-    when = note.created_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    when = note.date.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     if as_json:
         keys = ("id", "type", "title", "content", "file", "file_url", "size", "tags", "created_at", "url")
         fields = {**note.to_dict(), "created_at": when}

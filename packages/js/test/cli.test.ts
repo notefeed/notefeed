@@ -197,7 +197,7 @@ function serveNotes(count: number) {
     id: `20260930T10${String(i).padStart(2, "0")}00Z-n${i}`,
     title: `Note ${i}`,
     markdown: `# Note ${i}`,
-    created_at: `2026-09-30T10:${String(i).padStart(2, "0")}:00.000Z`,
+    date: `2026-09-30T10:${String(i).padStart(2, "0")}:00.000Z`,
     url: `https://n.example/inbox/n${i}`,
   })).reverse();
   server.route((r) => {
@@ -259,14 +259,14 @@ test("notesRejectsBadLimit", async () => {
 test("notesJsonPrintsExactlyTheDocumentedFields", async () => {
   server.route(() => [
     200,
-    { notes: [{ id: "20260930T100000Z-a", type: "text/markdown", title: "A", content: "# A", file: "a.md", file_url: null, size: 3, tags: ["x"], created_at: "2026-09-30T10:00:00.000Z", url: "https://n/a", mood: "new" }], next: null },
+    { notes: [{ id: "20260930T100000Z-a", type: "text/markdown", title: "A", content: "# A", file: "a.md", file_url: null, size: 3, tags: ["x"], date: "2026-09-30T10:00:00.000Z", url: "https://n/a", mood: "new" }], next: null },
   ]);
   const { out, io: x } = io();
   expect(await main(args("--json"), x)).toBe(0);
   expect(Object.keys(JSON.parse(out.stdout))).toEqual(["id", "type", "title", "content", "file", "file_url", "size", "tags", "created_at", "url"]);
 });
 
-const NOTE = { id: "i", type: "text/markdown", title: "T", content: "x", file: "i.md", file_url: "https://n.example/r/X/i.md", size: 1, tags: [], created_at: "2026-09-30T10:00:00.000Z", url: "https://n.example/inbox/i" };
+const NOTE = { id: "i", type: "text/markdown", title: "T", content: "x", file: "i.md", file_url: "https://n.example/r/X/i.md", size: 1, tags: [], date: "2026-09-30T10:00:00.000Z", url: "https://n.example/inbox/i" };
 const CREATED_REPLY = { id: "i", url: "https://n.example/inbox/i", feed_url: "https://n.example/inbox", read_url: "https://n.example/r/x/feed.xml", file: "i.md", file_url: "https://n.example/r/x/i.md" };
 
 test("editTextPrintsUrl", async () => {
@@ -333,7 +333,7 @@ test("postPictureFileSendsItsBytesAsItsType", async () => {
   expect([...server.requests[0].body]).toEqual([...png]);
   expect(Buffer.from(String(server.requests[0].headers["x-note-title"]), "latin1").toString("utf8")).toBe("Café");
   expect(server.requests[0].headers["x-note-tags"]).toBe("pets");
-  expect(server.requests[0].headers["x-note-created"]).toBe("2025-03-01");
+  expect(server.requests[0].headers["x-note-date"]).toBe("2025-03-01");
   expect(server.requests[0].headers["x-note-name"]).toBe("Photo.PNG");
 });
 

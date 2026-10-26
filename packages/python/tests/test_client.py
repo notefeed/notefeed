@@ -35,7 +35,7 @@ def note(h):
         "id": f"20260930T{h:02d}0000Z-n{h}",
         "title": f"N{h}",
         "content": f"# N{h}",
-        "created_at": f"2026-09-30T{h:02d}:00:00.000Z",
+        "date": f"2026-09-30T{h:02d}:00:00.000Z",
         "url": f"https://n.example/inbox/n{h}",
         "type": "text/markdown",
         "file": f"20260930T{h:02d}0000Z-n{h}.md",
@@ -88,7 +88,7 @@ def test_title_tags_alt_name_and_read_id_go_as_headers_and_nothing_is_sent_for_w
     Client(server.url, "inbox").post("x", tags=[])
     h = server.requests[0]["headers"]
     assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Read-Id"], h["X-License-Key"]) == ("T", "ci,deploy", "my-feed", "k" * 22)
-    for k in ("X-Note-Title", "X-Note-Tags", "X-Note-Alt", "X-Note-Name", "X-Note-Created", "X-Read-Id", "X-License-Key"):
+    for k in ("X-Note-Title", "X-Note-Tags", "X-Note-Alt", "X-Note-Name", "X-Note-Date", "X-Read-Id", "X-License-Key"):
         assert k not in server.requests[1]["headers"]
 
 def test_created_at_goes_as_x_note_created_a_naive_datetime_is_refused(server):
@@ -96,7 +96,7 @@ def test_created_at_goes_as_x_note_created_a_naive_datetime_is_refused(server):
     c.post("x", created_at="2025-03-01")
     c.post("x", created_at=date(2025, 3, 1))
     c.post("x", created_at=datetime(2025, 3, 1, 8, 0, tzinfo=timezone(timedelta(hours=2))))
-    assert [q["headers"]["X-Note-Created"] for q in server.requests] == ["2025-03-01", "2025-03-01", "2025-03-01T08:00:00+02:00"]
+    assert [q["headers"]["X-Note-Date"] for q in server.requests] == ["2025-03-01", "2025-03-01", "2025-03-01T08:00:00+02:00"]
     with pytest.raises(ConfigError):
         c.post("x", created_at=datetime(2025, 3, 1, 8, 0))
     assert len(server.requests) == 3
@@ -248,7 +248,7 @@ def test_a_2xx_that_isnt_a_created_note_is_a_notefeed_error(server, body):
 
 
 def test_a_note_with_a_bad_date_is_a_notefeed_error(server):
-    server.route = lambda method, path: (200, {"notes": [{**note(10), "created_at": "garbage"}], "next": None})
+    server.route = lambda method, path: (200, {"notes": [{**note(10), "date": "garbage"}], "next": None})
     with pytest.raises(NotefeedError, match="unexpected response"):
         list(Client(server.url, "inbox").notes())
 
@@ -538,7 +538,7 @@ def test_no_text_with_attachments_sends_no_text_part_and_returns_the_servers_ans
     r = Client(server.url, "inbox").post(None, title="T", tags=["x"], created_at="2025-03-01", attachments=[Attachment("a.png", PNG, "image/png"), Attachment("b.png", PNG, "image/png")])
     q = server.requests[0]
     assert [p[:3] for p in parts(q)] == [("file", "a.png", "image/png"), ("file", "b.png", "image/png")]
-    assert (q["headers"]["X-Note-Title"], q["headers"]["X-Note-Tags"], q["headers"]["X-Note-Created"]) == ("T", "x", "2025-03-01")
+    assert (q["headers"]["X-Note-Title"], q["headers"]["X-Note-Tags"], q["headers"]["X-Note-Date"]) == ("T", "x", "2025-03-01")
     assert (r.id, [a.id for a in r.attachments]) == ("I1", ["I1", "I2"])
 
 

@@ -12,7 +12,7 @@ export const MAX_LIMIT = 100;
 
 export const NoteJson = z
   .object({
-    id: z.string().regex(NOTE_ID).describe("The note's id: a UTC time to the second plus a random UUID for notes made here; any name without a dot for a file placed by hand"),
+    id: z.string().regex(NOTE_ID).describe("The note's id: 22 random characters (base64url) for notes made here, older notes may have another form; any name without a dot for a file placed by hand. It says nothing about the note's date"),
     type: z.string().describe("The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`"),
     file: z.string().describe("The note's file name, `<id>.<extension>`"),
     file_url: z.url().nullable().describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
@@ -21,7 +21,8 @@ export const NoteJson = z
     content: z.string().optional().describe("The note's text, byte-for-byte as posted: for a text type (markdown) only; absent for a picture"),
     alt: z.string().optional().describe("Alternative text of an image note, when it has one"),
     name: z.string().optional().describe("The file name an image was posted with, when it came with one"),
-    created_at: z.iso.datetime().describe("When the note was posted (UTC)"),
+    date: z.iso.datetime().describe("Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it"),
+    scheduled: z.literal(true).optional().describe("Present, and true, when the note's date is after now: it is stored, and readers see it from its date on. Absent for every other note"),
     url: z.url().describe("The note's page in the web UI"),
     sender: z.string().nullable().optional().describe("Verified sign-in name of the poster; absent when the note was posted without a sign-in"),
     tags: z.array(z.string()).describe("Labels the poster gave the note (not verified, and shown to readers like the note itself); empty when none"),
@@ -78,7 +79,10 @@ export const ErrorJson = z
 
 const NoteTitle = z.string().describe("The note's title, at most 100 characters, one line (control and text-direction override characters are refused); empty or left out means the title is taken from the text (a markdown note) or there is none (an image)");
 const NoteAlt = z.string().describe("Alternative text of an image note, at most 500 characters, one line (control and text-direction override characters are refused)");
-export const MetaJson = z.object({ title: NoteTitle.optional(), alt: NoteAlt.optional() }).meta({ id: "NoteMeta" });
+const DATE_FORMAT = "An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). ";
+const DATE_RULE = "When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on.";
+const NoteDate = z.string().describe(`${DATE_FORMAT}${DATE_RULE} The note's attachments move with it.`);
+export const MetaJson = z.object({ title: NoteTitle.optional(), alt: NoteAlt.optional(), date: NoteDate.optional() }).meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
 
 export const FeedPasswordHeader = z
@@ -92,12 +96,7 @@ export const NoteTagsHeader = z
   .string()
   .describe(`Tags for the note, comma-separated (\`ci,deploy\`): ${TAG_RULE}. For a raw markdown body; a JSON or form body's own \`tags\` wins. Empty is none.`);
 export const NoteTitleHeader = NoteTitle.describe("The note's title, for a raw body; a JSON or form body's own `title` wins. At most 100 characters, one line, with no control or text-direction override characters.");
-export const NoteCreatedHeader = z
-  .string()
-  .describe(
-    "When the note was written, if not now: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). " +
-      "Not in the future, not before 1970. The note takes its place in the feed by this time, as if posted then. Empty is now.",
-  );
+export const NoteDateHeader = z.string().describe(`${DATE_FORMAT}${DATE_RULE} Empty is now.`);
 export const NoteAltHeader = NoteAlt.describe("For an image body: its alternative text; a form's own `alt` wins.");
 export const ReadIdHeader = z.string().describe("The read id the feed gets when this post creates it: 3 to 64 characters (a-z, 0-9, - and _), random when left out or empty, ignored for a feed that exists. A short readable one is guessable: protect the feed with a password if that matters. 409 when it is taken");
 export const LicenseKeyHeader = z

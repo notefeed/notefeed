@@ -66,7 +66,7 @@ function storedDate(raw: string | null): number | undefined {
 // A note's date: the sidecar's, else the metadata's `created`, else when the content was last written.
 function dateOf(raw: string | null, meta: Meta, mtime: number): number {
   const created = meta.created === undefined ? NaN : Date.parse(meta.created);
-  return storedDate(raw) ?? (Number.isNaN(created) ? mtime : created);
+  return storedDate(raw) ?? (Number.isNaN(created) ? Math.floor(mtime) : created);
 }
 
 // Writes the sidecar atomically (temp file, then rename over it). False when the feed is gone.

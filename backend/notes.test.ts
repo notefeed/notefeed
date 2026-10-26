@@ -2,9 +2,10 @@ import { mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
-import { EmptyNoteError, InvalidFeedError, NoteTooLargeError, ReservedFeedError } from "./errors";
+import { EmptyNoteError, InvalidBodyError, InvalidFeedError, NoteTooLargeError, ReservedFeedError } from "./errors";
 import { hasFeed } from "./feeds";
 import { changeDate, cleanName, countNotes, type ImageNote, createImageNote, createNote, createNoteOf, getNote, MARKDOWN, isValidId, listNotes, removeNote, replaceContent } from "./notes";
+import { storage } from "./storage";
 
 let root: string;
 let dir: string; // the "test" feed's directory
@@ -62,12 +63,13 @@ describe("hand-placed notes", () => {
     expect((await getNote("test", "a"))?.date).toEqual(at("2021-05-06T07:08:09Z"));
     await writeFile(join(dir, "b.md"), "y");
     const mtime = (await stat(join(dir, "b.md"))).mtimeMs;
-    expect((await getNote("test", "b"))?.date.getTime()).toBe(Math.trunc(mtime));
+    expect((await getNote("test", "b"))?.date.getTime()).toBe(Math.floor(mtime));
+    expect((await storage().listNoteRefs("test", {})).find((r) => r.id === "b")?.date).toBe(Math.floor(mtime));
   });
   test("an unreadable created falls back to the mtime", async () => {
     await place("c.md", "x", { created: "nope" });
     const mtime = (await stat(join(dir, "c.md"))).mtimeMs;
-    expect((await getNote("test", "c"))?.date.getTime()).toBe(Math.trunc(mtime));
+    expect((await getNote("test", "c"))?.date.getTime()).toBe(Math.floor(mtime));
   });
   test("a name with a dot is not a note", async () => {
     await place("a.b.md");
@@ -184,17 +186,23 @@ describe("listNotes", () => {
 
 describe("changeDate", () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
-  test("changeDate moves the note and its attachments", async () => {
+  test("changeDate moves the note and its attachments, keeping their offsets", async () => {
     const id = "text-note-id";
-    const { note: i } = await createImageNote("test", png, { of: id }, at("2026-01-01T09:59:59.999Z"));
+    const { note: i1 } = await createImageNote("test", png, { of: id }, at("2026-01-01T09:59:59.998Z"));
+    const { note: i2 } = await createImageNote("test", png, { of: id }, at("2026-01-01T09:59:59.999Z"));
     const { note: other } = await createImageNote("test", png, {}, at("2026-01-01T08:00:00Z"));
     const { note: t } = await createNoteOf("test", MARKDOWN, "md", new TextEncoder().encode("# Text"), { id }, at("2026-01-01T10:00:00Z"));
     expect(t.id).toBe(id);
     const D = at("2026-06-01T12:00:00Z");
     expect((await changeDate("test", id, D))?.date).toEqual(D);
     expect((await getNote("test", id))?.date).toEqual(D);
-    expect((await getNote("test", i.id))?.date).toEqual(new Date(D.getTime() - 1));
+    expect((await getNote("test", i1.id))?.date).toEqual(new Date(D.getTime() - 2));
+    expect((await getNote("test", i2.id))?.date).toEqual(new Date(D.getTime() - 1));
     expect((await getNote("test", other.id))?.date).toEqual(at("2026-01-01T08:00:00Z"));
+  });
+  test("changeDate refuses an invalid date", async () => {
+    const { note } = await createNote("test", "# Seed");
+    await expect(changeDate("test", note.id, new Date(NaN))).rejects.toBeInstanceOf(InvalidBodyError);
   });
   test("changeDate of a missing note is null", async () => {
     await createNote("test", "# Seed");
