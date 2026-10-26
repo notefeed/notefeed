@@ -62,8 +62,9 @@ curl -H "Content-Type: text/markdown" -H "X-Note-Date: 2025-03-01T09:30:00+01:00
 - An ISO 8601 date and time with its offset (`Z`, `+01:00`), or a date alone, which is midnight UTC. Any time from 1970 to the end of 9999.
 - **In the past:** the note takes its place by that date, as if it had been posted then. An old changelog entry is one example.
 - **In the future:** the note is scheduled. Readers do not see it (not on the read link, in RSS or in the read API; its address answers `404`) until its date. You see it on the feed page and in the API, marked as scheduled. Nothing runs at that time: the note is there when the next request comes after it.
-- On a multipart post every note gets the date, the pictures a millisecond before the text. A picture follows its text: when the text's date changes, the pictures' dates change with it.
+- On a multipart post every note gets the date, the images a millisecond before the text. Images posted with a note move with it: when the note's date changes, theirs change with it. An image posted on its own and only linked from a note keeps its own date: schedule it too if it must not be seen before the note.
 - On a feed with a free note cap, the oldest notes by date go first. A scheduled note counts.
+- Until 0.28.0 the header was `X-Note-Created`. A post that still sends it gets `400`, naming `X-Note-Date`.
 
 ### Changing the date
 
