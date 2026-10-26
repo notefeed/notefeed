@@ -99,12 +99,13 @@ test("reading a feed's notes reports its size and its directory and file reads t
   const root = await mkdtemp(join(tmpdir(), "notefeed-"));
   process.env.DATA_DIR = root;
   await mkdir(join(root, "f"));
-  for (const t of ["a", "b", "c"]) await writeNote("f", `20260101T000000Z-${t}`, "md", t, {}); // ids with a time are placed without a read
+  for (const t of ["a", "b", "c"]) await writeNote("f", `20260101T000000Z-${t}`, "md", t, {}, 0); // ids with a time are placed without a read
   await measured("listNotes", () => listNotes("f", 50), () => 200);
   expect(await sample("notefeed_request_duration_seconds_count", { kind: "listNotes", feed_size: "lt10" })).toBe(1);
-  // One listing of the folder, whatever the number of notes (#96: it used to be one more per note), and one read per note's text.
+  // One listing of the folder, whatever the number of notes (#96: it used to be one more per note); per note, a read of its sidecar
+  // for its date, then of its text and its sidecar.
   expect(await sample("notefeed_request_dir_reads_sum", { kind: "listNotes" })).toBe(1);
-  expect(await sample("notefeed_request_file_reads_sum", { kind: "listNotes" })).toBe(3);
+  expect(await sample("notefeed_request_file_reads_sum", { kind: "listNotes" })).toBe(9);
 });
 
 test("a file of a feed read by name counts as one file read", async () => {

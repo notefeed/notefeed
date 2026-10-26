@@ -168,7 +168,7 @@ describe("per-feed read ids", () => {
     const [x, y] = await Promise.all([ensureFeed("race"), ensureFeed("race")]);
     await Promise.all([createNote("race", "a"), createNote("race", "b")]);
     expect(x).toBe(y);
-    expect((await readdir(join(dir, "race"))).filter((n) => n.startsWith("."))).toEqual([".readid"]);
+    expect((await readdir(join(dir, "race"))).filter((n) => n.startsWith(".") && !n.endsWith(".md.json"))).toEqual([".readid"]); // and the notes' sidecars
     expect((await readid("race")).trim()).toBe(x);
     expect(await readIdOf("race")).toBe(x);
   });

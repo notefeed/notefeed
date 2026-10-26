@@ -2,7 +2,7 @@
 import { config } from "../../config";
 import type { Storage } from "../types";
 import { createFeedMethods, type FeedDeps } from "./feedindex";
-import { deleteNote, listNoteRefs, noteUsage, readFeedFile, readMeta, readNote, replaceNote, updateMeta, writeNote } from "./notes";
+import { deleteNote, listNoteRefs, noteUsage, readFeedFile, readMeta, readNote, renameNote, replaceNote, setDate, updateMeta, writeNote } from "./notes";
 import { readHash, removeHash, writeHash } from "./password";
 import { readSettings, writeSettings } from "./settings";
 
@@ -10,7 +10,7 @@ export function createFsStorage(deps: FeedDeps): Storage {
   const feeds = createFeedMethods(deps, config.dataDir);
   return {
     ...feeds,
-    writeNote, listNoteRefs, readNote, readMeta, replaceNote, updateMeta, deleteNote, readFile: readFeedFile,
+    writeNote, listNoteRefs, readNote, readMeta, replaceNote, updateMeta, setDate, renameNote, deleteNote, readFile: readFeedFile,
     readSettings, writeSettings, readHash, writeHash, removeHash,
     // One feed after the other: a pass over every note folder, which is what the caller's cache is for.
     async usage() {

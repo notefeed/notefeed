@@ -138,7 +138,7 @@ describe("metadata and creation settings are headers", () => {
       "x-note-tags": "CI, deploy",
     });
     const { file } = await res.json();
-    expect(JSON.parse((await readFile(join(dir, "f", `.${file}.json`))).toString())).toEqual({ title: "Café 日本語", alt: "Größe", name: "Größe.png", tags: ["ci", "deploy"] });
+    expect(JSON.parse((await readFile(join(dir, "f", `.${file}.json`))).toString())).toEqual({ title: "Café 日本語", alt: "Größe", name: "Größe.png", tags: ["ci", "deploy"], date: expect.any(Number) });
   });
   test("alt on a markdown note is 400, and nothing is created", async () => {
     const res = await post("# a", "text/markdown", { "x-note-alt": "text" });
@@ -201,7 +201,8 @@ function form(parts: [string, string | File][]): FormData {
   return f;
 }
 const sendForm = (parts: [string, string | File][], headers: Record<string, string> = {}, feed = "f") => post(form(parts), null, headers, feed);
-const sidecarOf = async (file: string, feed = "f") => JSON.parse((await readFile(join(dir, feed, `.${file}.json`))).toString());
+// The metadata in a note's sidecar; the note's date beside it is left out (toEqual ignores an undefined field).
+const sidecarOf = async (file: string, feed = "f") => ({ ...JSON.parse((await readFile(join(dir, feed, `.${file}.json`))).toString()), date: undefined });
 
 describe("multipart: a text with its pictures", () => {
   test("pictures then text: the answer is the text note plus every picture in part order, the text refers to the stored files", async () => {

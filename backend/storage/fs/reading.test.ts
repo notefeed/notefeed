@@ -1,5 +1,5 @@
 // What reading costs on disk (#96), and that a stray entry in a feed folder cannot break it.
-import { mkdir, mkdtemp, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -68,5 +68,6 @@ describe("hand-placed oddities are not notes, and never an error", () => {
 
 // The sidecar of `id` becomes a folder: its metadata reads as none.
 async function rmSidecarAsFolder(id: string) {
+  await rm(join(root, "f", `.${id}.md.json`));
   await mkdir(join(root, "f", `.${id}.md.json`));
 }

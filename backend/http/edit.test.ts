@@ -32,7 +32,8 @@ const post = async (body: BodyInit, type: string, headers: Record<string, string
 const put = (id: string, body: BodyInit | null, type: string | null) => send("PUT", `/feeds/f/notes/${id}`, body, type);
 const patch = (id: string, body: unknown, type: string | null = "application/json") => send("PATCH", `/feeds/f/notes/${id}`, typeof body === "string" ? body : JSON.stringify(body), type);
 const get = async (id: string) => (await send("GET", `/feeds/f/notes/${id}`, null, null)).json();
-const sidecar = async (file: string) => JSON.parse(await readFile(join(dir, "f", `.${file}.json`), "utf8"));
+// The metadata in a note's sidecar; the note's date beside it is left out (toEqual ignores an undefined field).
+const sidecar = async (file: string) => ({ ...JSON.parse(await readFile(join(dir, "f", `.${file}.json`), "utf8")), date: undefined });
 const content = (file: string) => readFile(join(dir, "f", file));
 
 describe("PUT replaces the content", () => {
@@ -91,10 +92,10 @@ describe("PATCH changes metadata", () => {
     expect(await res.json()).toMatchObject({ title: "Set", content: "# Old\nbody" });
     expect(await sidecar(made.file)).toEqual({ title: "Set" });
   });
-  test("an empty title removes it, the title follows the text again, and no empty sidecar is left", async () => {
+  test("an empty title removes it, the title follows the text again, and the sidecar keeps only the date", async () => {
     const made = await post("# Old", "text/markdown", { "x-note-title": "Set" });
     expect((await (await patch(made.id, { title: "" })).json()).title).toBe("Old");
-    await expect(readFile(join(dir, "f", `.${made.file}.json`))).rejects.toThrow();
+    expect(JSON.parse(await readFile(join(dir, "f", `.${made.file}.json`), "utf8"))).toEqual({ date: expect.any(Number) });
   });
   test("title and alt on a picture", async () => {
     const made = await post(PNG as BodyInit, "image/png");

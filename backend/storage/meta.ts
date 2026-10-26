@@ -1,7 +1,7 @@
 // A note's metadata as stored by every backend: JSON text. Hand-edited or damaged text reads as less, never as an error.
 import type { Meta } from "./types";
 
-const STRINGS = ["title", "sender", "alt", "name", "created"] as const;
+const STRINGS = ["title", "sender", "alt", "name", "created", "of"] as const;
 
 // Only the known fields with the right type count; anything unreadable is no metadata.
 export function parseMeta(raw: string): Meta {

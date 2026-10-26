@@ -84,7 +84,7 @@ test("failed attempts are limited like failed passwords", async () => {
 test.skipIf(!node22)("GET reports what no note names and removes nothing; DELETE removes exactly that", async () => {
   const s = storage();
   await s.createFeed("f", "rid-f");
-  await s.writeNote("f", "p", "png", Buffer.from("a note's image"), {});
+  await s.writeNote("f", "p", "png", Buffer.from("a note's image"), {}, 0);
   const [kept] = await files();
   const old = new Date(Date.now() - 2 * 3_600_000);
   await utimes(join(root, "images", kept.slice(0, 2), kept), old, old);
@@ -146,8 +146,8 @@ test.skipIf(!node22)("an image folder that cannot be read: 502 and a log line, w
 test.skipIf(!node22)("takedown: removes the rows and the image objects, names the keys, blocks the image", async () => {
   const s = storage();
   await s.createFeed("bad", "rid-bad");
-  await s.writeNote("bad", "t", "md", "# text", {});
-  await s.writeNote("bad", "p", "png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]), {});
+  await s.writeNote("bad", "t", "md", "# text", {}, 0);
+  await s.writeNote("bad", "p", "png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]), {}, 0);
   const [key] = await files();
   const res = await takedownRoute(new Request("http://localhost:3000/api/operator/takedown", { method: "POST", body: JSON.stringify({ target: "https://x.test/r/rid-bad/p.png" }), headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` } }));
   expect(res.status).toBe(200);
@@ -175,7 +175,7 @@ test.skipIf(!node22)("move: a body that names no source is 400; the rows go into
   resetStorageForTests();
   const plain = storage();
   await plain.createFeed("f", "rid-f");
-  const id = await plain.writeNote("f", "p", "png", Buffer.from("picture bytes"), {});
+  const id = await plain.writeNote("f", "p", "png", Buffer.from("picture bytes"), {}, 0);
   await (plain as Partial<SqlStorage>).close?.();
   vi.stubEnv("NOTEFEED_IMAGES", "fs");
   resetStorageForTests();
@@ -214,7 +214,7 @@ test.skipIf(!node22)("reseal: 400 for a bad limit, 409 without a key, 200 with t
   expect((await reseal("not json")).status).toBe(400);
   const plain = storage();
   await plain.createFeed("f", "rid-f");
-  await plain.writeNote("f", "n", "md", "plain text", {});
+  await plain.writeNote("f", "n", "md", "plain text", {}, 0);
   expect((await reseal({})).status).toBe(409);
   await (plain as Partial<SqlStorage>).close?.();
   vi.stubEnv("NOTEFEED_ENCRYPTION_KEY", "k".repeat(64));
@@ -222,7 +222,7 @@ test.skipIf(!node22)("reseal: 400 for a bad limit, 409 without a key, 200 with t
   const empty = await resealRoute(new Request("http://localhost:3000/api/operator/reseal", { method: "POST", headers: { authorization: `Bearer ${TOKEN}` } }));
   expect(empty.status).toBe(200); // no body: the defaults
   expect((await empty.json()).resealed).toBe(1);
-  await storage().writeNote("f", "m", "md", "more", {});
+  await storage().writeNote("f", "m", "md", "more", {}, 0);
   const res = await reseal({ limit: 5 });
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ resealed: 0, skipped: 0, failed: 0, left: 0, next: null }); // written sealed already

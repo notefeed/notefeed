@@ -45,17 +45,17 @@ describe("posting tags", () => {
     expect(res.status).toBe(201);
     const { id } = await res.json();
     expect(await readFile(join(dir, "t", `${id}.md`), "utf8")).toBe("# Hi");
-    expect(JSON.parse(await readFile(join(dir, "t", `.${id}.md.json`), "utf8"))).toEqual({ tags: ["ci", "env:prod"] });
+    expect(JSON.parse(await readFile(join(dir, "t", `.${id}.md.json`), "utf8"))).toEqual({ tags: ["ci", "env:prod"], date: expect.any(Number) });
     expect((await getNote("t", id))!.tags).toEqual(["ci", "env:prod"]);
   });
   test("X-Note-Tags header on a raw body", async () => {
     await post("# Raw", { "x-note-tags": "ci,Deploy" });
     expect((await list())[0].tags).toEqual(["ci", "deploy"]);
   });
-  test("no tags is an empty list and no sidecar", async () => {
+  test("no tags is an empty list, and the sidecar holds only the date", async () => {
     const { id } = await (await post("# Plain")).json();
     expect(await readFile(join(dir, "t", `${id}.md`), "utf8")).toBe("# Plain");
-    await expect(readFile(join(dir, "t", `.${id}.md.json`), "utf8")).rejects.toThrow();
+    expect(JSON.parse(await readFile(join(dir, "t", `.${id}.md.json`), "utf8"))).toEqual({ date: expect.any(Number) });
     expect((await list())[0].tags).toEqual([]);
   });
   test("an invalid tag is a 400 and posts nothing", async () => {

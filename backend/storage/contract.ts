@@ -29,7 +29,7 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
 
     describe("notes", () => {
       t("writeNote returns the id and readNote gives the note back byte for byte", async ({ storage: s }) => {
-        const id = await s.writeNote("f", "a", "md", "# T\r\nx", { sender: "Ann", tags: ["ci"] });
+        const id = await s.writeNote("f", "a", "md", "# T\r\nx", { sender: "Ann", tags: ["ci"] }, 0);
         expect(id).toBe("a");
         const n = await s.readNote("f", id, MD, () => true);
         expect(text(n?.content)).toBe("# T\r\nx");
@@ -38,29 +38,29 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect(n?.mtime).toBeInstanceOf(Date);
       });
       t("a note without metadata reads as {}", async ({ storage: s }) => {
-        const id = await s.writeNote("f", "a", "md", "x", {});
+        const id = await s.writeNote("f", "a", "md", "x", {}, 0);
         expect((await s.readNote("f", id, MD, () => true))?.meta).toEqual({});
       });
       t("a taken id gets -2, -3 and never overwrites", async ({ storage: s }) => {
-        expect(await s.writeNote("f", "a", "md", "one", {})).toBe("a");
-        expect(await s.writeNote("f", "a", "md", "two", { sender: "S" })).toBe("a-2");
-        expect(await s.writeNote("f", "a", "md", "three", {})).toBe("a-3");
+        expect(await s.writeNote("f", "a", "md", "one", {}, 0)).toBe("a");
+        expect(await s.writeNote("f", "a", "md", "two", { sender: "S" }, 0)).toBe("a-2");
+        expect(await s.writeNote("f", "a", "md", "three", {}, 0)).toBe("a-3");
         expect(text((await s.readNote("f", "a", MD, () => true))?.content)).toBe("one");
       });
       t("concurrent writes with one base get different ids and lose nothing", async ({ storage: s }) => {
-        const ids = await Promise.all([1, 2, 3, 4, 5].map((i) => s.writeNote("f", "a", "md", `n${i}`, {})));
+        const ids = await Promise.all([1, 2, 3, 4, 5].map((i) => s.writeNote("f", "a", "md", `n${i}`, {}, 0)));
         expect(new Set(ids).size).toBe(5);
         const bodies = await Promise.all(ids.map(async (id) => text((await s.readNote("f", id, MD, () => true))?.content)));
         expect(bodies.sort()).toEqual(["n1", "n2", "n3", "n4", "n5"]);
       });
       t("binary content that is not UTF-8 and holds NUL bytes round-trips", async ({ storage: s }) => {
         const bytes = new Uint8Array([0x89, 0, 0xff, 0xfe, 0, 0x50]);
-        const id = await s.writeNote("f", "a", "png", bytes, {});
+        const id = await s.writeNote("f", "a", "png", bytes, {}, 0);
         expect([...((await s.readNote("f", id, ALL, () => true))?.content ?? [])]).toEqual([...bytes]);
         expect([...((await s.readFile("f", `${id}.png`)) ?? [])]).toEqual([...bytes]);
       });
       t("withContent false gives the size and empty content", async ({ storage: s }) => {
-        const id = await s.writeNote("f", "a", "png", new Uint8Array(1000), {});
+        const id = await s.writeNote("f", "a", "png", new Uint8Array(1000), {}, 0);
         const full = await s.readNote("f", id, ALL, () => true);
         expect([full?.size, full?.content.length]).toEqual([1000, 1000]);
         const lean = await s.readNote("f", id, ALL, () => false);
@@ -68,33 +68,33 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect((await s.readNote("f", id, ALL, (ext) => ext === "md"))?.content.length).toBe(0);
       });
       t("readNote only finds the accepted extensions, and a missing note is null", async ({ storage: s }) => {
-        const id = await s.writeNote("f", "a", "png", new Uint8Array([1]), {});
+        const id = await s.writeNote("f", "a", "png", new Uint8Array([1]), {}, 0);
         expect(await s.readNote("f", id, MD, () => true)).toBeNull();
         expect(await s.readNote("f", "nope", ALL, () => true)).toBeNull();
         expect(await s.readNote("missing", "a", ALL, () => true)).toBeNull();
       });
       t("listNoteRefs lists every note once, and a missing feed as empty", async ({ storage: s }) => {
-        await s.writeNote("f", "a", "md", "x", { sender: "S" });
-        await s.writeNote("f", "b", "png", new Uint8Array([1]), {});
+        await s.writeNote("f", "a", "md", "x", { sender: "S" }, 0);
+        await s.writeNote("f", "b", "png", new Uint8Array([1]), {}, 0);
         const refs = (await s.listNoteRefs("f")).sort((x, y) => x.id.localeCompare(y.id));
-        expect(refs).toEqual([{ id: "a", ext: "md" }, { id: "b", ext: "png" }]);
+        expect(refs).toEqual([{ id: "a", ext: "md", date: 0 }, { id: "b", ext: "png", date: 0 }]);
         expect(await s.listNoteRefs("missing")).toEqual([]);
       });
       t("readMeta reads only the metadata", async ({ storage: s }) => {
-        await s.writeNote("f", "a", "md", "x", { title: "T", tags: ["a"] });
+        await s.writeNote("f", "a", "md", "x", { title: "T", tags: ["a"] }, 0);
         expect(await s.readMeta("f", { id: "a", ext: "md" })).toEqual({ title: "T", tags: ["a"] });
         expect(await s.readMeta("f", { id: "nope", ext: "md" })).toBeNull();
       });
       t("replaceNote changes the content, keeps the metadata, and is false for a missing note", async ({ storage: s }) => {
-        const id = await s.writeNote("f", "a", "md", "old", { sender: "S" });
+        const id = await s.writeNote("f", "a", "md", "old", { sender: "S" }, 0);
         expect(await s.replaceNote("f", id, MD, "new")).toBe(true);
         const n = await s.readNote("f", id, MD, () => true);
         expect([text(n?.content), n?.meta]).toEqual(["new", { sender: "S" }]);
         expect(await s.replaceNote("f", "nope", MD, "x")).toBe(false);
-        expect(await s.listNoteRefs("f")).toEqual([{ id, ext: "md" }]);
+        expect(await s.listNoteRefs("f")).toEqual([{ id, ext: "md", date: 0 }]);
       });
       t("updateMeta sets, removes with null, and is false for a missing note", async ({ storage: s }) => {
-        const id = await s.writeNote("f", "a", "md", "x", { sender: "S", title: "T" });
+        const id = await s.writeNote("f", "a", "md", "x", { sender: "S", title: "T" }, 0);
         expect(await s.updateMeta("f", id, MD, { title: "U", sender: null })).toBe(true);
         expect((await s.readNote("f", id, MD, () => true))?.meta).toEqual({ title: "U" });
         expect(await s.updateMeta("f", id, MD, { title: "" })).toBe(true);
@@ -102,20 +102,84 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect(await s.updateMeta("f", "nope", MD, { title: "x" })).toBe(false);
       });
       t("deleteNote removes the note, a second delete is false", async ({ storage: s }) => {
-        const id = await s.writeNote("f", "a", "md", "x", { sender: "S" });
+        const id = await s.writeNote("f", "a", "md", "x", { sender: "S" }, 0);
         expect(await s.deleteNote("f", id, MD)).toBe(true);
         expect(await s.listNoteRefs("f")).toEqual([]);
         expect(await s.readMeta("f", { id, ext: "md" })).toBeNull();
         expect(await s.deleteNote("f", id, MD)).toBe(false);
       });
       t("readFile gives a note's bytes by name, and null for any other name", async ({ storage: s }) => {
-        const id = await s.writeNote("f", "a", "md", "hello", {});
+        const id = await s.writeNote("f", "a", "md", "hello", {}, 0);
         expect(text((await s.readFile("f", `${id}.md`)) ?? undefined)).toBe("hello");
         for (const n of ["nope.md", ".readid", "../x.md", "a", "a.b.md", ""]) expect(await s.readFile("f", n)).toBeNull();
       });
+      t("writeNote stores the date and readNote and listNoteRefs give it back", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "x", { of: "t" }, 1000);
+        const n = await s.readNote("f", "a", MD, () => true);
+        expect([n?.date, n?.meta]).toEqual([1000, { of: "t" }]);
+        expect(await s.listNoteRefs("f")).toEqual([{ id: "a", ext: "md", date: 1000 }]);
+      });
+      // a=1000, b=3000, c=2000, d=2000
+      const dated = async (s: Storage) => {
+        for (const [id, date] of [["a", 1000], ["b", 3000], ["c", 2000], ["d", 2000]] as const) await s.writeNote("f", id, "md", id, {}, date);
+      };
+      const ids = async (s: Storage, q?: Parameters<Storage["listNoteRefs"]>[1]) => (await s.listNoteRefs("f", q)).map((r) => r.id);
+      t("listNoteRefs is newest first, ties by id descending", async ({ storage: s }) => {
+        await dated(s);
+        expect(await ids(s)).toEqual(["b", "d", "c", "a"]);
+      });
+      t("upTo leaves out later notes", async ({ storage: s }) => {
+        await dated(s);
+        expect(await ids(s, { upTo: 2000 })).toEqual(["d", "c", "a"]);
+      });
+      t("before and limit page", async ({ storage: s }) => {
+        await dated(s);
+        expect(await ids(s, { before: "d", limit: 2 })).toEqual(["c", "a"]);
+        expect(await ids(s, { before: "zz" })).toEqual([]);
+        expect(await ids(s, { upTo: 2000, before: "b" })).toEqual([]);
+      });
+      t("setDate moves a note in the order", async ({ storage: s }) => {
+        await dated(s);
+        expect(await s.setDate("f", "a", MD, 4000)).toBe(true);
+        expect(await s.listNoteRefs("f", { limit: 1 })).toEqual([{ id: "a", ext: "md", date: 4000 }]);
+        expect((await s.readNote("f", "a", MD, () => true))?.date).toBe(4000);
+        expect(await s.setDate("f", "nope", MD, 4000)).toBe(false);
+      });
+      t("setDate keeps the metadata, and updateMeta keeps the date", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "x", { title: "T" }, 5);
+        expect(await s.setDate("f", "a", MD, 6)).toBe(true);
+        expect(await s.updateMeta("f", "a", MD, { title: null })).toBe(true);
+        const n = await s.readNote("f", "a", MD, () => true);
+        expect([n?.meta, n?.date]).toEqual([{}, 6]);
+      });
+      t("renameNote keeps content, metadata and date", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "text", { title: "T" }, 5);
+        expect(await s.renameNote("f", "a", "md", "z")).toBe(true);
+        expect(await s.readNote("f", "a", MD, () => true)).toBeNull();
+        const n = await s.readNote("f", "z", MD, () => true);
+        expect([text(n?.content), n?.meta, n?.date, n?.size]).toEqual(["text", { title: "T" }, 5, 4]);
+        expect(await s.listNoteRefs("f")).toEqual([{ id: "z", ext: "md", date: 5 }]);
+        expect(await s.renameNote("f", "nope", "md", "y")).toBe(false);
+      });
+      t("renameNote onto a taken id is false and both notes stay", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "one", { title: "A" }, 1);
+        await s.writeNote("f", "b", "png", new Uint8Array([1, 2]), { alt: "B" }, 2);
+        expect(await s.renameNote("f", "a", "md", "b")).toBe(false);
+        const [a, b] = await Promise.all(["a", "b"].map((id) => s.readNote("f", id, ALL, () => true)));
+        expect([text(a?.content), a?.meta, a?.date]).toEqual(["one", { title: "A" }, 1]);
+        expect([[...(b?.content ?? [])], b?.meta, b?.date]).toEqual([[1, 2], { alt: "B" }, 2]);
+      });
+      t("renameNote of an image keeps its bytes, and readFile finds them under the new name", async ({ storage: s }) => {
+        const bytes = new Uint8Array([0x89, 0x50, 0, 7]);
+        await s.writeNote("f", "p", "png", bytes, { alt: "x" }, 9);
+        expect(await s.renameNote("f", "p", "png", "q")).toBe(true);
+        expect(await s.readFile("f", "p.png")).toBeNull();
+        expect([...((await s.readFile("f", "q.png")) ?? [])]).toEqual([...bytes]);
+        expect((await s.readNote("f", "q", ALL, () => false))?.meta).toEqual({ alt: "x" });
+      });
       t("writeNote to a feed deleted meanwhile throws FeedGoneError", async (h) => {
         await h.storage.deleteFeed("f");
-        await expect(h.storage.writeNote("f", "a", "md", "x", {})).rejects.toBeInstanceOf(FeedGoneError);
+        await expect(h.storage.writeNote("f", "a", "md", "x", {}, 0)).rejects.toBeInstanceOf(FeedGoneError);
       });
     });
 
@@ -188,7 +252,7 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         await expect(s.setReadId("nope", "whatever-1")).rejects.toBeInstanceOf(NotFoundError);
       });
       t("deleteFeed removes the notes, the hash and the settings, and frees the read id", async ({ storage: s }) => {
-        await s.writeNote("f", "a", "md", "x", {});
+        await s.writeNote("f", "a", "md", "x", {}, 0);
         await s.writeHash("f", "h");
         await s.writeSettings("f", { title: "T", description: "", image: "", showSender: true });
         expect(await s.deleteFeed("f")).toBe(true);
@@ -211,9 +275,9 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
       t("usage counts every feed's notes and bytes per extension, and nothing that names a feed", async ({ storage: s }) => {
         const before = Date.now() - 1000;
         await s.createFeed("g", "gid-123", "hash");
-        await s.writeNote("f", "a", "md", "hello", {});
-        await s.writeNote("f", "b", "md", "hi", { title: "T" });
-        await s.writeNote("f", "c", "png", new Uint8Array(10), {});
+        await s.writeNote("f", "a", "md", "hello", {}, 0);
+        await s.writeNote("f", "b", "md", "hi", { title: "T" }, 0);
+        await s.writeNote("f", "c", "png", new Uint8Array(10), {}, 0);
         await s.deleteNote("f", "b", MD);
         const usage = await s.usage();
         expect(JSON.stringify(usage)).not.toMatch(/"f"|"g"|rid-f|gid-123/);
@@ -231,12 +295,12 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         const id = "r".repeat(64);
         await s.createFeed(name, id);
         expect(await s.feedForReadId(id)).toBe(name);
-        await s.writeNote(name, "a", "md", "x", {});
-        expect(await s.listNoteRefs(name)).toEqual([{ id: "a", ext: "md" }]);
+        await s.writeNote(name, "a", "md", "x", {}, 0);
+        expect(await s.listNoteRefs(name)).toEqual([{ id: "a", ext: "md", date: 0 }]);
       });
       t("takedown (#155): the tombstone keeps the name and the read id out of use, the content goes, the blocklist holds", async ({ storage: s }) => {
-        await s.writeNote("f", "a", "md", "x", {});
-        await s.writeNote("f", "p", "png", new Uint8Array([0x89, 0x50, 1]), {});
+        await s.writeNote("f", "a", "md", "x", {}, 0);
+        await s.writeNote("f", "p", "png", new Uint8Array([0x89, 0x50, 1]), {}, 0);
         expect(await s.isRemoved({ feed: "f" })).toBe(false);
         const gone = await s.takedownFeed("f", "rid-f");
         expect(gone.removed).toBe(true);
@@ -267,10 +331,10 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect(await s.isBlockedImage("c".repeat(64))).toBe(false);
       });
       t("forgetFeed never removes a feed that is still there under another id", async ({ storage: s }) => {
-        await s.writeNote("f", "a", "md", "x", {});
+        await s.writeNote("f", "a", "md", "x", {}, 0);
         await s.forgetFeed("f", "not-its-id");
         expect(await s.feedReadId("f")).toBe("rid-f");
-        expect(await s.listNoteRefs("f")).toEqual([{ id: "a", ext: "md" }]);
+        expect(await s.listNoteRefs("f")).toEqual([{ id: "a", ext: "md", date: 0 }]);
       });
     });
   });

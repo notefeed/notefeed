@@ -119,7 +119,7 @@ describe("createNote", () => {
     const { note: c } = await createNote("test", "# Same\nthird", now);
     expect(new Set([a.id, b.id, c.id]).size).toBe(3);
     expect(await readFile(join(dir, `${a.id}.md`), "utf8")).toBe("# Same\nfirst");
-    expect((await files()).every((f) => f.endsWith(".md"))).toBe(true);
+    expect((await files()).every((f) => /\.md(\.json)?$/.test(f))).toBe(true);
   });
 
   test("keeps CRLF bytes", async () => {
@@ -202,7 +202,7 @@ describe("sender", () => {
     const { note } = await createNote("test", "# Hi", undefined, "Ann");
     expect(note.sender).toBe("Ann");
     expect(await readFile(join(dir, `${note.id}.md`), "utf8")).toBe("# Hi");
-    expect(JSON.parse(await readFile(join(dir, `.${note.id}.md.json`), "utf8"))).toEqual({ sender: "Ann" });
+    expect(JSON.parse(await readFile(join(dir, `.${note.id}.md.json`), "utf8"))).toEqual({ sender: "Ann", date: expect.any(Number) });
     const got = await getNote("test", note.id);
     expect(got?.content).toBe("# Hi");
     expect(got?.sender).toBe("Ann");
@@ -287,13 +287,13 @@ describe("updateNote and removeNote", () => {
   test("a missing note is null and creates no file", async () => {
     await createNote("test", "# Old", now);
     expect(await replaceContent("test", "20260101T000000Z-x", new TextEncoder().encode("# New"), "text/markdown")).toBeNull();
-    expect(await files()).toHaveLength(1);
+    expect(await files()).toHaveLength(2); // the note and its sidecar
   });
   test("a refused edit leaves the file and no temp file", async () => {
     const { note: n } = await createNote("test", "# Old", now);
     await expect(replaceContent("test", n.id, new TextEncoder().encode("  "), "text/markdown")).rejects.toThrow(EmptyNoteError);
     expect(await readFile(join(dir, `${n.id}.md`), "utf8")).toBe("# Old");
-    expect(await files()).toEqual([`${n.id}.md`]);
+    expect((await files()).sort()).toEqual([`.${n.id}.md.json`, `${n.id}.md`]);
   });
   test("removeNote is true once, then false", async () => {
     const { note: n } = await createNote("test", "# Old", now);
@@ -307,7 +307,7 @@ describe("updateNote and removeNote", () => {
     expect(await replaceContent("test", id, new TextEncoder().encode("# New"), "text/markdown")).toBeNull();
     expect(await removeNote("test", id)).toBe(false);
     expect(await readFile(join(dir, ".password"), "utf8")).toBe("hash");
-    expect(await files()).toHaveLength(2);
+    expect(await files()).toHaveLength(3); // the note, its sidecar and .password
   });
 });
 

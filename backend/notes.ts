@@ -77,7 +77,7 @@ async function store(feed: string, { ext, content, meta }: NewNote, now: Date, w
   for (let retried = false; ; retried = true) {
     const readId = await ensureFeed(feed, wantedReadId);
     try {
-      return { id: await storage().writeNote(feed, base, ext, content, meta), readId };
+      return { id: await storage().writeNote(feed, base, ext, content, meta, now.getTime()), readId };
     } catch (e) {
       // The listed feed is gone (deleted since ensureFeed, or its directory removed by hand): this is a new
       // feed. Once only: gone again means another delete, and that is an error.

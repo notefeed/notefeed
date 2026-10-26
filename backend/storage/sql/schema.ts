@@ -29,6 +29,8 @@ export interface Schema {
     metadata: string | null;
     created_at: Time;
     updated_at: Time;
+    // The note's own date, which orders the feed (not when the row was written: that is created_at).
+    date: Time;
     // 1: the bytes and the metadata are sealed with the feed's data key.
     sealed: ColumnType<number, number | undefined, number>;
   };

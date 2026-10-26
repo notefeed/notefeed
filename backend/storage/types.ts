@@ -2,15 +2,17 @@
 // (storage/fs), SQLite and PostgreSQL (storage/sql); backend/storage/contract.ts is the suite every one must pass.
 // Names are checked by backend/feeds.ts and backend/notes.ts first; nothing here validates them.
 
-export type Meta = { title?: string; sender?: string; tags?: string[]; alt?: string; name?: string; created?: string };
+/** `of`: on an attachment, the id of the text note it was posted with. */
+export type Meta = { title?: string; sender?: string; tags?: string[]; alt?: string; name?: string; created?: string; of?: string };
 
 export type Settings = { title: string; description: string; image: string; showSender: boolean };
 
-/** A note as listed: which note, and the extension its file has. */
-export type NoteRef = { id: string; ext: string };
+/** A note as listed: which note, the extension its file has, and its date (ms since the epoch). */
+export type NoteRef = { id: string; ext: string; date: number };
 
-/** `content` is empty when `withContent` said no; `size` is right either way. `mtime` is when the content was last written. */
-export type StoredNote = { ext: string; content: Buffer; size: number; meta: Meta; mtime: Date };
+/** `content` is empty when `withContent` said no; `size` is right either way. `mtime` is when the content was last written; `date` is
+ *  the note's own (ms), which orders the feed. */
+export type StoredNote = { ext: string; content: Buffer; size: number; meta: Meta; mtime: Date; date: number };
 
 /** One feed as the operator's metrics count it (ADR 0039): flags and numbers, never its name, read id or anything in it.
  *  `notes`: per extension, how many and their bytes; `lastWrite`: when the newest content was written (ms), null for no notes. */
@@ -26,15 +28,24 @@ export class FeedGoneError extends Error {
 
 export interface Storage {
   // Notes. `exts` are the extensions that count as notes, in the order to try; a missing, unreadable or non-regular entry is "not a note".
-  /** Stores `content` under `<base>`, or `<base>-2`, `-3`, … if taken; returns the id used. Never overwrites. Throws FeedGoneError. */
-  writeNote(feed: string, base: string, ext: string, content: string | Uint8Array, meta: Meta): Promise<string>;
-  /** Every stored note of the feed, once; the caller filters by type. An unknown feed lists as empty. */
-  listNoteRefs(feed: string): Promise<NoteRef[]>;
+  /** Stores `content` under `<base>`, or `<base>-2`, `-3`, … if taken, dated `date` (ms); returns the id used. Never overwrites. Throws FeedGoneError. */
+  writeNote(feed: string, base: string, ext: string, content: string | Uint8Array, meta: Meta, date: number): Promise<string>;
+  /**
+   * The stored notes of the feed, each once, newest first by `(date, id)`; the caller filters by type. An unknown feed lists as empty.
+   * `upTo`: only notes dated then or earlier. `before`: only the notes after that one in this order; one that is not in the list (gone,
+   * or past `upTo`) gives none. `limit`: at most that many.
+   * A note stored before notes had a date has the metadata's `created`, else its mtime (file system), or 0 (SQL).
+   */
+  listNoteRefs(feed: string, q?: { upTo?: number; before?: string; limit?: number }): Promise<NoteRef[]>;
   readNote(feed: string, id: string, exts: readonly string[], withContent: (ext: string) => boolean): Promise<StoredNote | null>;
-  readMeta(feed: string, ref: NoteRef): Promise<Meta | null>;
+  readMeta(feed: string, ref: Pick<NoteRef, "id" | "ext">): Promise<Meta | null>;
   replaceNote(feed: string, id: string, exts: readonly string[], content: string | Uint8Array): Promise<boolean>;
   /** A string or list sets a field, null (or an empty value) removes it. False when there is no such note. */
   updateMeta(feed: string, id: string, exts: readonly string[], patch: { [K in keyof Meta]?: Meta[K] | null }): Promise<boolean>;
+  /** Gives the note a new date (ms); content and metadata stay. False when there is no such note. */
+  setDate(feed: string, id: string, exts: readonly string[], date: number): Promise<boolean>;
+  /** Moves the note `<id>.<ext>` to `newId`; content, metadata, date and size stay. False when there is no such note or `newId` is taken. */
+  renameNote(feed: string, id: string, ext: string, newId: string): Promise<boolean>;
   deleteNote(feed: string, id: string, exts: readonly string[]): Promise<boolean>;
   /** The bytes of a note's file by its name (`<id>.<ext>`), for /r/<read id>/<file>; null for anything else. */
   readFile(feed: string, name: string): Promise<Buffer | null>;
