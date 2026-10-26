@@ -20,7 +20,7 @@ The release job refuses a tag that doesn't match both. npm and PyPI refuse a ver
 
 After the release:
 
-3. Post the release notes to notefeed.me's `releases` feed (a reserved feed, read link https://notefeed.me/r/releases), one note per release: title `notefeed X.Y.Z`, the text the annotated tag message without its first line, tags `release` and `vX.Y.Z`. Post through the API, the password read from the server's notefeed settings and never written into a file or commit:
+3. The release notes go onto notefeed.me's `releases` feed (a reserved feed, read link https://notefeed.me/r/releases) by themselves: the `release` job in `ci.yml` posts one note per release (title `notefeed X.Y.Z`, the annotated tag message without its first line under a line with the date and the GitHub release, tags `release` and `vX.Y.Z`) with the repository secret `NOTEFEED_RESERVED_PASSWORD`, and a re-run posts nothing twice. Check https://notefeed.me/r/releases afterwards. When the step was skipped or failed, post it by hand, late rather than not at all, the password read from the server's notefeed settings and never written into a file or commit:
 
    ```sh
    P=$(cd ../notefeed-ansible && ansible notefeed-1 -m shell -a "grep '^NOTEFEED_RESERVED_PASSWORD=' {{ stacks_dir }}/notefeed/.env | cut -d= -f2-" 2>/dev/null | tail -1)
@@ -29,4 +29,5 @@ After the release:
      | curl -sf -X POST https://notefeed.me/api/v1/feeds/releases/notes -H "Content-Type: text/markdown" \
          -H "X-Feed-Password: $P" -H "X-Note-Title: notefeed X.Y.Z" -H "X-Note-Tags: release,vX.Y.Z" --data-binary @-
    ```
- Do it once the GitHub release exists; a release that was not posted is posted late rather than not at all.
+
+4. CI also writes the short post on notefeed.me's `blog` feed (also reserved, https://notefeed.me/r/blog): `scripts/release-blog.sh` asks Claude (secret `ANTHROPIC_API_KEY`) for a post from the tag message and the release's pull requests, only what users notice, and posts it with tags `release` and `vX.Y.Z` and a link to the release's note; a release with nothing users notice gets none. Check it afterwards: a post can be edited (`PUT`) or deleted on the feed. When the step failed, run it by hand with both secrets in the environment (`DRY_RUN=1` prints the post instead). Other changes worth telling (a change on notefeed.me, a new plan, how something came about) are written by hand in a session: plain words, a few sentences, tags of your choosing, posted to `feeds/blog/notes` with the same password.
