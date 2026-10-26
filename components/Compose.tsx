@@ -68,7 +68,7 @@ export function Compose({
   const licenseRefused = code === "license_required";
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState(initialTitle);
-  const [written, setWritten] = useState(""); // a datetime-local value, the browser's time: empty is now
+  const [date, setDate] = useState(""); // a datetime-local value, the browser's time: empty is now, a later time schedules the note
 
   const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
   // The page remounts this box empty. With pictures only, the answer is the first picture's.
@@ -82,7 +82,7 @@ export function Compose({
       ...(password && { "X-Feed-Password": password }),
       ...(password && licenseKey && { "X-License-Key": licenseKey }),
       ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
-      ...(written && { "X-Note-Date": new Date(written).toISOString() }),
+      ...(date && { "X-Note-Date": new Date(date).toISOString() }),
     };
     return run(
       e,
@@ -273,12 +273,12 @@ export function Compose({
                 </label>
                 <input id="note-tags" name="tags" type="text" autoComplete="off" placeholder="Tags, e.g. ci, deploy" pattern={TAGS_PATTERN} title={TAGS_HINT} value={tags} onChange={(e) => setTags(e.target.value)} className={`${bare} text-[13px]`} />
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1" title="When it was written, to post it in the past; empty is now">
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1" title="The note's date: an earlier time backdates it, a later one schedules it; empty is now">
                 <CalendarClock aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
-                <label htmlFor="note-written" className="sr-only">
-                  Written (optional, to post it in the past; empty is now)
+                <label htmlFor="note-date" className="sr-only">
+                  Date (optional; empty is now, a later time schedules the note)
                 </label>
-                <input id="note-written" name="written" type="datetime-local" value={written} onChange={(e) => setWritten(e.target.value)} className={`${bare} text-[13px] ${written ? "" : "text-muted"}`} />
+                <input id="note-date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={`${bare} text-[13px] ${date ? "" : "text-muted"}`} />
               </div>
             </div>
           }

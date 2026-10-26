@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const DATE_LABEL = "Date (optional; empty is now, a later time schedules the note)";
 const feedName = () => `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 async function postAndOpen(page: Page, name: string, markdown: string) {
@@ -112,7 +113,7 @@ test("a note dated in the past in the compose box goes below the newer ones, at 
   await expect(page.getByRole("link", { name: "Today" })).toBeVisible();
   const sent = page.waitForRequest((r) => r.method() === "POST");
   await page.getByLabel("Note in markdown").fill("# Long ago");
-  await page.getByLabel("Written (optional, to post it in the past; empty is now)").fill("2025-03-01T09:30");
+  await page.getByLabel(DATE_LABEL).fill("2025-03-01T09:30");
   await page.getByRole("button", { name: "Post note" }).click();
   expect((await sent).headers()["x-note-date"]).toMatch(/^2025-03-0[12]T\d\d:30:00\.000Z$/); // the browser's time zone, as UTC
   await expect(page.getByRole("link", { name: "Long ago" })).toBeVisible();
@@ -183,4 +184,63 @@ test("on a phone, the bar at the bottom takes the note: Send posts it, + opens t
   await page.getByRole("button", { name: "Send note" }).click();
   await expect(page.getByRole("link", { name: "From the bar" })).toBeVisible();
   await expect(page.getByLabel("Quick note in markdown")).toHaveValue("");
+});
+
+// A datetime-local value in the browser's time, `days` from now.
+const localIn = (page: Page, days: number) =>
+  page.evaluate((d) => {
+    const t = new Date(Date.now() + d * 86_400_000);
+    t.setMinutes(t.getMinutes() - t.getTimezoneOffset());
+    return t.toISOString().slice(0, 16);
+  }, days);
+
+test("a note dated tomorrow shows as scheduled on the feed page and not on the read page", async ({ page }) => {
+  const name = feedName();
+  await page.goto(`/${name}`);
+  const first = page.waitForResponse((r) => r.request().method() === "POST" && r.ok());
+  await page.getByLabel("Note in markdown").fill("# Out now");
+  await page.getByRole("button", { name: "Post note" }).click();
+  const readUrl: string = (await (await first).json()).read_url;
+  await expect(page.getByRole("link", { name: "Out now" })).toBeVisible();
+  await page.getByLabel("Note in markdown").fill("# Coming tomorrow");
+  await page.getByLabel(DATE_LABEL).fill(await localIn(page, 1));
+  await page.getByRole("button", { name: "Post note" }).click();
+  const card = page.getByRole("listitem").filter({ hasText: "Coming tomorrow" });
+  await expect(card).toContainText("Scheduled for");
+  await expect(page.getByRole("listitem").filter({ hasText: "Out now" })).not.toContainText("Scheduled");
+  await card.getByRole("link", { name: /Coming tomorrow/ }).first().click();
+  await expect(page.getByRole("article")).toContainText("Scheduled for");
+
+  await page.goto(new URL(readUrl).pathname.replace(/\/[^/]*$/, ""));
+  await expect(page.getByText("Out now")).toBeVisible();
+  await expect(page.getByText("Coming tomorrow")).toHaveCount(0);
+  await expect(page.getByText("Scheduled for")).toHaveCount(0);
+});
+
+test("changing a note's date in the edit form moves it in the list", async ({ page }) => {
+  const name = feedName();
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill("# Older");
+  await page.getByRole("button", { name: "Post note" }).click();
+  await expect(page.getByRole("link", { name: "Older" })).toBeVisible();
+  await page.getByLabel("Note in markdown").fill("# Newer");
+  await page.getByRole("button", { name: "Post note" }).click();
+  const top = async (title: string) => (await page.getByRole("link", { name: title }).boundingBox())!.y;
+  await expect(page.getByRole("link", { name: "Newer" })).toBeVisible();
+  expect(await top("Newer")).toBeLessThan(await top("Older"));
+
+  await page.getByRole("link", { name: "Newer" }).click();
+  const sent: string[] = [];
+  page.on("request", (r) => r.method() === "PATCH" && sent.push(r.postData() ?? ""));
+  await page.getByText("Edit", { exact: true }).click();
+  const date = page.getByLabel("Date (in your time; a later one schedules the note)");
+  await expect(date).toHaveValue(/^\d{4}-\d\d-\d\dT\d\d:\d\d$/); // the note's date, prefilled
+  await date.fill("2025-03-01T09:30");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved.");
+  expect(JSON.parse(sent[0]).date).toMatch(/^2025-03-0[12]T\d\d:30:00\.000Z$/); // the browser's time, as UTC
+  await expect(page.getByRole("article").locator("time")).toContainText("2025");
+  await page.getByRole("navigation", { name: "Note actions" }).getByRole("link", { name: "All notes" }).click();
+  await expect(page.getByRole("link", { name: "Newer" })).toBeVisible();
+  expect(await top("Older")).toBeLessThan(await top("Newer"));
 });

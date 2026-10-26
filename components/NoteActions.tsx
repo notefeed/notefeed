@@ -15,13 +15,19 @@ import { NOTE_KINDS, type KindName } from "@/shared/notekinds";
 // Edit and delete for a note, through the generated API client, with refusals shown inline (`error` is a first message to show).
 // The state of the note page's actions, for the two places they show: the bar (NoteActionsBar, in the shell's right column)
 // and the forms (NoteActionsPanel, under the note). `reportHref`: the note's Report link, in the bar (the note shows none).
-export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, error: initialError, images: imagesOn = true, imageBase, reportHref, children }: { feed: string; id: string; kind: KindName; markdown: string; title: string; alt: string; error?: string; images?: boolean; imageBase?: string; reportHref?: string; children: ReactNode }) {
+// `date`: the note's date, an ISO string.
+export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, date: savedDate, error: initialError, images: imagesOn = true, imageBase, reportHref, children }: { feed: string; id: string; kind: KindName; markdown: string; title: string; alt: string; date: string; error?: string; images?: boolean; imageBase?: string; reportHref?: string; children: ReactNode }) {
   const page = `/${feed}`;
   const images = usePendingImages();
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, withPictures(noteErrorMessage, images.pending.length > 0));
   const [text, setText] = useState(markdown);
   const [title, setTitle] = useState(savedTitle); // the title set by hand: empty means the one the text gives
   const [alt, setAlt] = useState(savedAlt);
+  // The date field holds the browser's time, which the server can't know: until the field is changed it shows the note's
+  // date once hydrated (empty in the server's render, so both renders agree), and only a changed date is sent.
+  const [changedDate, setDate] = useState<string | null>(null);
+  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const date = changedDate ?? (hydrated ? localDateTime(new Date(savedDate)) : "");
   const { text: hasText, alt: hasAlt } = NOTE_KINDS[kind]; // what the edit form offers: a text, an alternative text
   const [mode, setMode] = useState<"edit" | "delete" | null>(initialError ? "edit" : null);
   const base = `${page}/${id}`;
@@ -30,12 +36,13 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
   function save(e: FormEvent) {
     e.preventDefault();
     // Only what changed is sent: a text note's content is replaced (PUT, the text and the added pictures in one multipart request:
-    // the text part goes even when it holds only the pictures' references, a PUT needs it) when its text changed or pictures were added, and its title set (PATCH)
-    // when that changed; a picture has no text, only a title and an alt text. Nothing changed: nothing is sent.
+    // the text part goes even when it holds only the pictures' references, a PUT needs it) when its text changed or pictures were added, and its title,
+    // alt text and date set (PATCH) when they changed; a picture has no text, only a title, an alt text and a date. Nothing changed: nothing is sent.
     // The PATCH goes first: it can be sent twice, the PUT can't (it stores the pictures). So a refused PATCH sent nothing else,
     // and saving again after a refused PUT repeats the harmless PATCH and stores the pictures once.
     const textChanged = hasText && (text !== markdown || images.pending.length > 0);
-    const meta = { ...(title !== savedTitle && { title }), ...(hasAlt && alt !== savedAlt && { alt }) };
+    const dateChanged = changedDate !== null && changedDate !== "" && changedDate !== localDateTime(new Date(savedDate)); // emptied: kept
+    const meta = { ...(title !== savedTitle && { title }), ...(hasAlt && alt !== savedAlt && { alt }), ...(dateChanged && { date: new Date(changedDate).toISOString() }) };
     const metaChanged = Object.keys(meta).length > 0;
     if (!textChanged && !metaChanged) return setMode(null);
     const call = async () => {
@@ -59,10 +66,15 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
 
   const [copied, setCopied] = useState(false);
   const copyLink = () => copyText(window.location.href).then(() => setCopied(true), () => {});
-  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
 
-  const value = { back: page, mode, setMode, text, setText, title, setTitle, alt, setAlt, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
+  const value = { back: page, mode, setMode, text, setText, title, setTitle, alt, setAlt, date, setDate, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
   return <Actions.Provider value={value}>{children}</Actions.Provider>;
+}
+
+// A datetime-local value for `d` in the browser's time, to the minute as the field shows it.
+function localDateTime(d: Date): string {
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }
 
 type ActionsState = {
@@ -75,6 +87,8 @@ type ActionsState = {
   setTitle: (t: string) => void;
   alt: string;
   setAlt: (t: string) => void;
+  date: string;
+  setDate: (d: string) => void;
   hasText: boolean;
   hasAlt: boolean;
   images: ReturnType<typeof usePendingImages>;
@@ -95,7 +109,7 @@ const useActions = () => useContext(Actions)!;
 
 // Edit opens its form under the note: a sheet on a phone, a card from lg. Delete asks in a dialog (DeleteDialog).
 export function NoteActionsPanel() {
-  const { mode, setMode, text, setText, title, setTitle, alt, setAlt, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
+  const { mode, setMode, text, setText, title, setTitle, alt, setAlt, date, setDate, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
   return (
     <section aria-label="Edit or delete this note" className="mt-4 text-sm">
       {mode === "delete" && <DeleteDialog onSubmit={remove} onClose={() => setMode(null)} pending={pending} error={error} />}
@@ -133,6 +147,10 @@ export function NoteActionsPanel() {
                     <input id="edit-alt" name="alt" maxLength={500} autoComplete="off" value={alt} onChange={(e) => setAlt(e.target.value)} className={`${field} mt-1 max-w-md`} />
                   </>
                 )}
+                <label htmlFor="edit-date" className="mt-3 block text-muted">
+                  Date (in your time; a later one schedules the note)
+                </label>
+                <input id="edit-date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} mt-1 max-w-md`} />
                 <div className="mt-4 flex gap-2">
                   <button type="submit" disabled={pending} className={primary}>
                     <Check aria-hidden className="h-4 w-4" />

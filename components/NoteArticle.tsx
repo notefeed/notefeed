@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { card } from "@/components/styles";
 import { PageContent } from "@/components/NoteBody";
-import { Foot, type Report } from "@/components/NoteFoot";
+import { Foot, fullDate, type Report } from "@/components/NoteFoot";
 import type { Note } from "@/backend";
 
 // One note on its own page, as a card, under the way back to the list. `report` false: the page shows the Report link elsewhere (the note's action bar).
@@ -20,7 +20,7 @@ export function NoteArticle({ note, back, imageBase, report, backInBar = false, 
         <div>
           <PageContent note={note} imageBase={imageBase} attachments={link} />
         </div>
-        <Foot note={note} base={back} when={note.date.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} report={report} />
+        <Foot note={note} base={back} when={fullDate(note.date)} report={report} />
       </article>
     </>
   );

@@ -5,7 +5,7 @@ import { config } from "./config";
 import { identityOn, providers } from "./oidc/config";
 import { forReaders, getSettings } from "./feedsettings";
 import { isReadId, checkFeed, feedForReadId, hasFeed, readableReservedFeeds, readIdOf } from "./feeds";
-import { countNotes, getNote, ImageNote, listNotes, MarkdownNote, type Note } from "./notes";
+import { countNotes, getNote, ImageNote, isScheduled, listNotes, MarkdownNote, type Note } from "./notes";
 import { imagePath, readPath } from "./urls";
 
 // The notes the backend hands out; the classes are exported so a component test can build one.
@@ -13,6 +13,8 @@ export { ImageNote, MarkdownNote };
 export { UnreadableNote } from "./note/unreadable";
 export { UnreadableNoteError } from "./errors";
 export type { Note };
+// Dated after now: only its owner sees it, marked "Scheduled for" (components/NoteFoot.tsx).
+export { isScheduled };
 export { IDENTITY_COOKIE, SESSION_COOKIE, identitySender, locked, sessionOk } from "./auth";
 export { checkFeed, isHeldBack as isReservedFeed, isRemovedFeed, isRemovedReadId, readIdOf } from "./feeds";
 export { identityOn };

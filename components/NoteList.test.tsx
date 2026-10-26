@@ -91,3 +91,15 @@ test("a picture a markdown note in the list shows is not listed again; in the li
   expect(html.match(/src="\/r\/rid\/p1\.png"/g)).toHaveLength(1);
   expect(html).toMatch(/src="\/r\/rid\/p2\.png"/);
 });
+
+test("a scheduled note's card says Scheduled for", () => {
+  const later = new Date(Date.now() + 86_400_000);
+  const when = later.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+  const html = list([mdNote({ id: "s1", markdown: "# Later", date: later }), mdNote({ id: "p1", markdown: "# Earlier", date: new Date("2026-09-30T10:00:00Z") })]);
+  expect(html.match(/Scheduled for/g)).toHaveLength(1);
+  expect(html).toContain(`Scheduled for ${when}`);
+  expect(html.indexOf("Scheduled for")).toBeLessThan(html.indexOf("Earlier")); // on the scheduled note's card, the first
+  const page = renderToStaticMarkup(<NoteArticle note={mdNote({ id: "s1", markdown: "# Later", date: later })} back="/feed" />);
+  expect(page).toContain(`Scheduled for ${when}`);
+  expect(renderToStaticMarkup(<NoteArticle note={mdNote({ id: "p1", markdown: "# Earlier" })} back="/feed" />)).not.toContain("Scheduled");
+});
