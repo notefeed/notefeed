@@ -14,7 +14,7 @@ test("a failure after the sidecar leaves no sidecar, no temp file, and nothing l
   const root = await mkdtemp(join(tmpdir(), "notefeed-fail-"));
   process.env.DATA_DIR = root;
   await mkdir(join(root, "f"));
-  await expect(writeNote("f", "a", "md", "x", { sender: "S" })).rejects.toThrow("io");
+  await expect(writeNote("f", "a", "md", "x", { sender: "S" }, 0)).rejects.toThrow("io");
   expect(await readdir(join(root, "f"))).toEqual([]);
   expect(await listNoteRefs("f")).toEqual([]);
 });

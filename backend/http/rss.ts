@@ -16,10 +16,11 @@ async function feedXml(req: Request, readId: string): Promise<Response> {
   const tag = new URL(req.url).searchParams.get("tag")?.toLowerCase(); // an unknown tag is an empty feed, like an unknown read id
   const feed = await feedForReadId(readId);
   if (!feed && (await isRemovedReadId(readId))) return new Response("removed by the operator", { status: 410 });
-  const settings = feed ? await getSettings(feed) : { title: "", description: "", image: "", showSender: true };
+  const asOf = new Date(); // a reader's view: no note dated later
+  const settings = feed ? await getSettings(feed, asOf) : { title: "", description: "", image: "", showSender: true };
   const title = settings.title || config.title();
   // An attachment a note in the feed shows is not an item of its own (shared/notekinds.ts).
-  const xml = renderFeed(feed ? forReaders(withoutAttachments(await listNotes(feed, 50, undefined, tag)), settings) : [], {
+  const xml = renderFeed(feed ? forReaders(withoutAttachments(await listNotes(feed, 50, undefined, tag, undefined, false, asOf)), settings) : [], {
     title,
     description: settings.description || title,
     baseUrl: publicUrl(req.headers),

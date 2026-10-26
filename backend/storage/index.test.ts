@@ -93,9 +93,9 @@ test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("with NOTEFEED_IMA
   const s = storage() as SqlStorage;
   try {
     await s.createFeed("f", "rid-f");
-    await s.writeNote("f", "t", "md", "text", {});
+    await s.writeNote("f", "t", "md", "text", {}, 0);
     await expect(readdir(join(root, "images"))).rejects.toThrow();
-    for (const ext of ["png", "jpg", "gif", "webp"]) await s.writeNote("f", `p-${ext}`, ext, Buffer.from(ext), {});
+    for (const ext of ["png", "jpg", "gif", "webp"]) await s.writeNote("f", `p-${ext}`, ext, Buffer.from(ext), {}, 0);
     expect((await readdir(join(root, "images"), { recursive: true })).filter((n) => /^..\/[0-9a-f]{32}$/.test(n.replaceAll("\\", "/")))).toHaveLength(4);
     expect((await s.readFile("f", "p-png.png"))?.toString()).toBe("png");
     expect((await s.readFile("f", "t.md"))?.toString()).toBe("text");

@@ -102,11 +102,13 @@ def sync_detailed(
     body: NoteMeta,
     x_feed_password: str | Unset = UNSET,
 ) -> Response[Error | Note]:
-    """Change a note's title or alt text
+    """Change a note's title, alt text or date
 
-     Sets the note's title and/or alt text (alt only for images). An empty string removes one: a markdown
-    note's title follows its text again. At least one is needed. Needs the feed's password if it has
-    one, and counts against the post rate limit. Read links can't change notes.
+     Sets the note's title, alt text (only for images) and/or date. An empty title or alt removes it: a
+    markdown note's title follows its text again. A new date moves the note in the feed, with its
+    attachments; a date after now schedules it. Id and links stay. At least one is needed. Needs the
+    feed's password if it has one, and counts against the post rate limit. Read links can't change
+    notes.
 
     Args:
         feed (str):
@@ -144,11 +146,13 @@ def sync(
     body: NoteMeta,
     x_feed_password: str | Unset = UNSET,
 ) -> Error | Note | None:
-    """Change a note's title or alt text
+    """Change a note's title, alt text or date
 
-     Sets the note's title and/or alt text (alt only for images). An empty string removes one: a markdown
-    note's title follows its text again. At least one is needed. Needs the feed's password if it has
-    one, and counts against the post rate limit. Read links can't change notes.
+     Sets the note's title, alt text (only for images) and/or date. An empty title or alt removes it: a
+    markdown note's title follows its text again. A new date moves the note in the feed, with its
+    attachments; a date after now schedules it. Id and links stay. At least one is needed. Needs the
+    feed's password if it has one, and counts against the post rate limit. Read links can't change
+    notes.
 
     Args:
         feed (str):
@@ -181,11 +185,13 @@ async def asyncio_detailed(
     body: NoteMeta,
     x_feed_password: str | Unset = UNSET,
 ) -> Response[Error | Note]:
-    """Change a note's title or alt text
+    """Change a note's title, alt text or date
 
-     Sets the note's title and/or alt text (alt only for images). An empty string removes one: a markdown
-    note's title follows its text again. At least one is needed. Needs the feed's password if it has
-    one, and counts against the post rate limit. Read links can't change notes.
+     Sets the note's title, alt text (only for images) and/or date. An empty title or alt removes it: a
+    markdown note's title follows its text again. A new date moves the note in the feed, with its
+    attachments; a date after now schedules it. Id and links stay. At least one is needed. Needs the
+    feed's password if it has one, and counts against the post rate limit. Read links can't change
+    notes.
 
     Args:
         feed (str):
@@ -221,11 +227,13 @@ async def asyncio(
     body: NoteMeta,
     x_feed_password: str | Unset = UNSET,
 ) -> Error | Note | None:
-    """Change a note's title or alt text
+    """Change a note's title, alt text or date
 
-     Sets the note's title and/or alt text (alt only for images). An empty string removes one: a markdown
-    note's title follows its text again. At least one is needed. Needs the feed's password if it has
-    one, and counts against the post rate limit. Read links can't change notes.
+     Sets the note's title, alt text (only for images) and/or date. An empty title or alt removes it: a
+    markdown note's title follows its text again. A new date moves the note in the feed, with its
+    attachments; a date after now schedules it. Id and links stay. At least one is needed. Needs the
+    feed's password if it has one, and counts against the post rate limit. Read links can't change
+    notes.
 
     Args:
         feed (str):

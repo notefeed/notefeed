@@ -1,5 +1,6 @@
-// A note on disk is a content file `<DATA_DIR>/<feed>/<id>.<ext>`, stored exactly as posted, and an optional sidecar with
-// its metadata, `.<id>.<ext>.json` (the content file's complete name plus `.json`). Dot files are never notes. Which
+// A note on disk is a content file `<DATA_DIR>/<feed>/<id>.<ext>`, stored exactly as posted, and a sidecar with its metadata and
+// its date, `.<id>.<ext>.json` (the content file's complete name plus `.json`; `{ ...meta, date }`). A note placed by hand, or
+// stored before notes had a date, may have no sidecar or one without a date. Dot files are never notes. Which
 // extensions are notes is the caller's business (backend/note/types.ts); nothing here knows about types.
 // Only regular files count: a folder, a symbolic link or an unreadable entry in a feed folder is "not a note", never an error.
 import { randomBytes } from "node:crypto";
@@ -12,6 +13,7 @@ import { FeedGoneError, type FeedUsage, type Meta, type NoteRef, type StoredNote
 import { feedDir, isErrno } from "./fs";
 
 const NAME_RE = /^([A-Za-z0-9_-]{1,128})\.([A-Za-z0-9]{1,16})$/;
+const READS_AT_ONCE = 64;
 const file = (feed: string, id: string, ext: string) => join(feedDir(feed), `${id}.${ext}`);
 const sidecar = (feed: string, id: string, ext: string) => join(feedDir(feed), `.${id}.${ext}.json`);
 
@@ -40,9 +42,46 @@ async function readRegular(path: string): Promise<Buffer | null> {
   }
 }
 
+// The sidecar's text, null when there is none.
+async function sidecarOf(feed: string, id: string, ext: string): Promise<string | null> {
+  return (await readRegular(sidecar(feed, id, ext)))?.toString("utf8") ?? null;
+}
+
 async function metaOf(feed: string, id: string, ext: string): Promise<Meta> {
-  const raw = await readRegular(sidecar(feed, id, ext));
-  return raw ? parseMeta(raw.toString("utf8")) : {};
+  const raw = await sidecarOf(feed, id, ext);
+  return raw === null ? {} : parseMeta(raw);
+}
+
+// The date the sidecar holds, undefined when it holds none (or no sidecar).
+function storedDate(raw: string | null): number | undefined {
+  if (raw === null) return undefined;
+  try {
+    const date = (JSON.parse(raw) as { date?: unknown } | null)?.date;
+    return typeof date === "number" && Number.isFinite(date) ? date : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// A note's date: the sidecar's, else the metadata's `created`, else when the content was last written.
+function dateOf(raw: string | null, meta: Meta, mtime: number): number {
+  const created = meta.created === undefined ? NaN : Date.parse(meta.created);
+  return storedDate(raw) ?? (Number.isNaN(created) ? Math.floor(mtime) : created);
+}
+
+// Writes the sidecar atomically (temp file, then rename over it). False when the feed is gone.
+async function writeSidecar(feed: string, id: string, ext: string, json: string): Promise<boolean> {
+  const tmp = join(feedDir(feed), `.${randomBytes(6).toString("hex")}.tmp`);
+  try {
+    await writeFile(/*turbopackIgnore: true*/ tmp, json);
+    await rename(/*turbopackIgnore: true*/ tmp, sidecar(feed, id, ext));
+    return true;
+  } catch (e) {
+    if (isErrno(e, "ENOENT")) return false; // the feed was deleted since the read
+    throw e;
+  } finally {
+    await unlink(/*turbopackIgnore: true*/ tmp).catch(() => {});
+  }
 }
 
 // The content file of a note, whichever of the accepted extensions it has: a few lstat calls, never a listing of the folder.
@@ -56,31 +95,24 @@ async function find(feed: string, id: string, exts: readonly string[]): Promise<
 }
 
 // Stores `content` as `<base>.<ext>`, or `<base>-2.<ext>`, `-3`, … if taken; returns the id used. The sidecar is written
-// first, so a listed note always has its metadata; a failure removes it again. The feed directory must exist (ensureFeed
+// first, so a listed note always has its metadata and date; a failure removes it again. The feed directory must exist (ensureFeed
 // creates it): a feed deleted meanwhile is FeedGoneError, never a directory made again without its `.readid`.
 // Never overwrites, never leaves a partial content file behind.
-export async function writeNote(feed: string, base: string, ext: string, content: string | Uint8Array, meta: Meta): Promise<string> {
+export async function writeNote(feed: string, base: string, ext: string, content: string | Uint8Array, meta: Meta, date: number): Promise<string> {
   const dir = feedDir(feed);
   const tmp = join(dir, `.${randomBytes(6).toString("hex")}.tmp`);
-  const json = hasMeta(meta) ? JSON.stringify(meta) : undefined;
+  const json = JSON.stringify({ ...meta, date });
   try {
     await writeFile(/*turbopackIgnore: true*/ tmp, content);
     for (let n = 1; ; n++) {
       const id = n === 1 ? base : `${base}-${n}`;
-      if (json !== undefined) {
-        try {
-          await writeFile(/*turbopackIgnore: true*/ sidecar(feed, id, ext), json, { flag: "wx" });
-        } catch (e) {
-          if (isErrno(e, "EEXIST")) continue; // a sidecar already claims this id
-          throw e;
-        }
-      }
+      if (!(await claim(feed, id, ext, json))) continue;
       try {
         // link() fails with EEXIST instead of overwriting, so the final name appears atomically and exclusively.
         await link(/*turbopackIgnore: true*/ tmp, file(feed, id, ext));
         return id;
       } catch (e) {
-        if (json !== undefined) await unlink(/*turbopackIgnore: true*/ sidecar(feed, id, ext)).catch(() => {});
+        await unlink(/*turbopackIgnore: true*/ sidecar(feed, id, ext)).catch(() => {});
         if (!isErrno(e, "EEXIST")) throw e;
       }
     }
@@ -91,8 +123,19 @@ export async function writeNote(feed: string, base: string, ext: string, content
   }
 }
 
-// Every regular file of the feed that could be a note: `<id>.<ext>`, no dot at the start, one dot. The caller filters by type.
-export async function listNoteRefs(feed: string): Promise<NoteRef[]> {
+// A new note's sidecar, written only if none is there: it claims the id. False when one already does.
+async function claim(feed: string, id: string, ext: string, json: string): Promise<boolean> {
+  try {
+    await writeFile(/*turbopackIgnore: true*/ sidecar(feed, id, ext), json, { flag: "wx" });
+    return true;
+  } catch (e) {
+    if (isErrno(e, "EEXIST")) return false;
+    throw e;
+  }
+}
+
+// Every regular file of the feed that could be a note: `<id>.<ext>`, no dot at the start, one dot.
+async function namesIn(feed: string): Promise<{ id: string; ext: string }[]> {
   countDir();
   let entries;
   try {
@@ -102,19 +145,46 @@ export async function listNoteRefs(feed: string): Promise<NoteRef[]> {
     throw e;
   }
   // Dirent.isFile() is false for a folder and for a symbolic link.
-  const found = entries.flatMap((e) => {
+  return entries.flatMap((e) => {
     const m = e.isFile() ? NAME_RE.exec(e.name) : null;
     return m ? [{ id: m[1], ext: m[2] }] : [];
   });
-  noteFeedSize(found.length);
-  return found;
+}
+
+// The caller filters by type. Each note's sidecar is read for its date (a note without one, its content file's mtime); the order,
+// `upTo`, `before` and `limit` are then applied here, in memory.
+export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number } = {}): Promise<NoteRef[]> {
+  const names = await namesIn(feed);
+  noteFeedSize(names.length);
+  const dateRef = async ({ id, ext }: { id: string; ext: string }): Promise<NoteRef | null> => {
+    const raw = await sidecarOf(feed, id, ext);
+    const stored = storedDate(raw);
+    if (stored !== undefined) return { id, ext, date: stored };
+    const info = await regular(file(feed, id, ext));
+    return info && { id, ext, date: dateOf(raw, raw === null ? {} : parseMeta(raw), info.mtimeMs) }; // null: gone since the listing
+  };
+  // READS_AT_ONCE sidecars at a time: a read per note under one Promise.all runs out of file descriptors on a large feed (as feedindex.ts).
+  const dated: (NoteRef | null)[] = [];
+  for (let i = 0; i < names.length; i += READS_AT_ONCE) dated.push(...(await Promise.all(names.slice(i, i + READS_AT_ONCE).map(dateRef))));
+  let refs = dated.filter((r): r is NoteRef => r !== null && (q.upTo === undefined || r.date <= q.upTo));
+  refs.sort((a, b) => b.date - a.date || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  if (q.before !== undefined) {
+    const at = refs.findIndex((r) => r.id === q.before);
+    refs = at < 0 ? [] : refs.slice(at + 1);
+  }
+  return q.limit === undefined ? refs : refs.slice(0, q.limit);
+}
+
+/** Whether the feed has a note: a listing, no sidecar read. */
+export async function hasNotes(feed: string): Promise<boolean> {
+  return (await namesIn(feed)).length > 0;
 }
 
 /** A feed's notes per extension, with their bytes and the newest write, for the operator's metrics: a listing and an lstat per note. */
 export async function noteUsage(feed: string): Promise<Pick<FeedUsage, "notes" | "lastWrite">> {
   const notes: FeedUsage["notes"] = {};
   let lastWrite: number | null = null;
-  for (const { id, ext } of await listNoteRefs(feed)) {
+  for (const { id, ext } of await namesIn(feed)) {
     const info = await regular(file(feed, id, ext));
     if (!info) continue;
     const n = (notes[ext] ??= { count: 0, bytes: 0 });
@@ -132,11 +202,13 @@ export async function readNote(feed: string, id: string, exts: readonly string[]
   if (!found) return null;
   const content = withContent(found.ext) ? await readRegular(found.path) : Buffer.alloc(0);
   if (content === null) return null;
-  return { ext: found.ext, content, size: found.info.size, meta: await metaOf(feed, id, found.ext), mtime: found.info.mtime };
+  const raw = await sidecarOf(feed, id, found.ext);
+  const meta = raw === null ? {} : parseMeta(raw);
+  return { ext: found.ext, content, size: found.info.size, meta, mtime: found.info.mtime, date: dateOf(raw, meta, found.info.mtimeMs) };
 }
 
 // Only the sidecar: what the tag filter needs. null when the note itself is not there.
-export async function readMeta(feed: string, ref: NoteRef): Promise<Meta | null> {
+export async function readMeta(feed: string, ref: Pick<NoteRef, "id" | "ext">): Promise<Meta | null> {
   return (await regular(file(feed, ref.id, ref.ext))) ? metaOf(feed, ref.id, ref.ext) : null;
 }
 
@@ -166,31 +238,63 @@ export async function replaceNote(feed: string, id: string, exts: readonly strin
 }
 
 // Changes some fields of an existing note's metadata: a string or list sets one, null (or an empty value) removes it. The sidecar is
-// replaced atomically (temp file, then rename) and removed when nothing is left. False when there is no such note.
+// replaced atomically (temp file, then rename), its date kept; it is removed when nothing is left, not even a date. False when there
+// is no such note.
 export async function updateMeta(feed: string, id: string, exts: readonly string[], patch: { [K in keyof Meta]?: Meta[K] | null }): Promise<boolean> {
   const found = await find(feed, id, exts);
   if (!found) return false;
-  const merged = applyPatch(await metaOf(feed, id, found.ext), patch);
-  const path = sidecar(feed, id, found.ext);
-  if (!hasMeta(merged)) {
+  const raw = await sidecarOf(feed, id, found.ext);
+  const merged = applyPatch(raw === null ? {} : parseMeta(raw), patch);
+  const date = storedDate(raw);
+  if (!hasMeta(merged) && date === undefined) {
     try {
-      await unlink(/*turbopackIgnore: true*/ path);
+      await unlink(/*turbopackIgnore: true*/ sidecar(feed, id, found.ext));
     } catch (e) {
       if (!isErrno(e, "ENOENT")) throw e;
     }
     return true;
   }
-  const tmp = join(feedDir(feed), `.${randomBytes(6).toString("hex")}.tmp`);
+  return writeSidecar(feed, id, found.ext, JSON.stringify(date === undefined ? merged : { ...merged, date }));
+}
+
+// Rewrites the sidecar with the new date, its metadata kept, as updateMeta does. False when there is no such note.
+export async function setDate(feed: string, id: string, exts: readonly string[], date: number): Promise<boolean> {
+  const found = await find(feed, id, exts);
+  if (!found) return false;
+  return writeSidecar(feed, id, found.ext, JSON.stringify({ ...(await metaOf(feed, id, found.ext)), date }));
+}
+
+// As writeNote: the new sidecar first (it claims the id, with the note's date written out), then a link of the content file to the
+// new name; then the old pair goes, content first, as in deleteNote. A crash in between leaves the note under both ids, never under none.
+// False when there is no such note, or the new id is taken (by a note of any extension, or a sidecar with its content).
+// ponytail: a note written under the new id with another extension between the check and the link is not seen; only the migration
+// renames, before requests.
+export async function renameNote(feed: string, id: string, ext: string, newId: string): Promise<boolean> {
+  const from = file(feed, id, ext);
+  const info = await regular(from);
+  if (!info || (await namesIn(feed)).some((n) => n.id === newId)) return false;
+  const raw = await sidecarOf(feed, id, ext);
+  const meta = raw === null ? {} : parseMeta(raw);
+  const json = JSON.stringify({ ...meta, date: dateOf(raw, meta, info.mtimeMs) });
+  let claimed: boolean;
   try {
-    await writeFile(/*turbopackIgnore: true*/ tmp, JSON.stringify(merged));
-    await rename(/*turbopackIgnore: true*/ tmp, path);
-    return true;
+    claimed = await claim(feed, newId, ext, json);
+    // A sidecar under the new id without its content is a rename cut short before its link (only the migration renames): taken over.
+    if (!claimed && ((await regular(file(feed, newId, ext))) || !(await writeSidecar(feed, newId, ext, json)))) return false;
   } catch (e) {
-    if (isErrno(e, "ENOENT")) return false; // the feed was deleted since the read
+    if (isErrno(e, "ENOENT")) return false; // the feed was deleted since the lookup
     throw e;
-  } finally {
-    await unlink(/*turbopackIgnore: true*/ tmp).catch(() => {});
   }
+  try {
+    await link(/*turbopackIgnore: true*/ from, file(feed, newId, ext));
+  } catch (e) {
+    // A sidecar taken over may be another rename's of the same note, whose link came first: it stays with that content.
+    if (claimed) await unlink(/*turbopackIgnore: true*/ sidecar(feed, newId, ext)).catch(() => {});
+    if (isErrno(e, "EEXIST") || isErrno(e, "ENOENT")) return false; // taken, or the note was deleted meanwhile
+    throw e;
+  }
+  await deleteNote(feed, id, [ext]);
+  return true;
 }
 
 // Content first, then the sidecar: a sidecar left behind is ignored, content without its metadata would be shown bare.

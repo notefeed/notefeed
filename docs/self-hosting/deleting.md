@@ -5,7 +5,7 @@ A feed's owner deletes it from the web UI or the [API](../using/feeds.md#feed-se
 With file storage you can also delete a note's file, or a feed's whole folder, by hand; it disappears at once. A feed removed by hand is still listed as empty until a restart.
 
 ```sh
-rm data/homelab-7f3k2q9x4m8wz/20260929T140512Z-backup-finished.md
+rm data/homelab-7f3k2q9x4m8wz/Vq3xH8mTn2KfLw0aZr9bYe.md
 rm -r data/homelab-7f3k2q9x4m8wz
 ```
 
@@ -17,7 +17,7 @@ When reported content must go, the operator has a read link or an image URL from
 
 ```sh
 curl -X POST -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -H "Content-Type: application/json" \
-  -d '{"target": "https://notes.example.com/r/q2Zc9kD0bTnVx4LmAe7sWp/20260929T140512Z-3f2b8c1e.png"}' \
+  -d '{"target": "https://notes.example.com/r/q2Zc9kD0bTnVx4LmAe7sWp/Qw8nR2dLm5XaTc1VbJ7kUe.png"}' \
   https://notes.example.com/api/operator/takedown
 ```
 

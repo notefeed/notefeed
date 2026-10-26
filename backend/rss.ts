@@ -15,7 +15,7 @@ const cdata = (s: string) => `<![CDATA[${xmlSafe(s).replaceAll("]]>", "]]]]><![C
 
 // An item's title: the note's, else a picture's alternative text or the name it was posted with, else what it is and when, never its id.
 function itemTitle(n: Note): string {
-  const when = n.createdAt.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+  const when = n.date.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
   return n.title || n.alt || (n instanceof ImageNote ? n.name : undefined) || `${n instanceof ImageNote ? "Picture" : "Note"}, ${when}`;
 }
 
@@ -29,7 +29,7 @@ export function renderFeed(notes: Note[], opts: { title: string; description: st
 <title>${escapeXml(itemTitle(n))}</title>
 <link>${url}</link>
 <guid isPermaLink="true">${url}</guid>
-<pubDate>${n.createdAt.toUTCString()}</pubDate>
+<pubDate>${n.date.toUTCString()}</pubDate>
 ${description === undefined ? "" : `<description>${cdata(description)}</description>\n`}${enclosure ? `<enclosure url="${escapeXml(enclosure.url)}" length="${enclosure.length}" type="${enclosure.type}"/>\n` : ""}${image ? `<media:content url="${escapeXml(image.url)}" type="${image.type}" medium="image"/>\n<media:thumbnail url="${escapeXml(image.url)}"/>\n` : ""}${n.sender ? `<dc:creator>${escapeXml(n.sender)}</dc:creator>\n` : ""}${n.tags.map((t) => `<category>${escapeXml(t)}</category>\n`).join("")}</item>`;
   });
   const media = items.some((i) => i.includes("<media:"));

@@ -78,6 +78,25 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
       await db.schema.alterTable("tombstones").addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0)).execute();
     },
   },
+  // A note's date (ms), its own and not its id's: the feed is ordered by it, newest first, ties by id. Readable without decrypting.
+  // Notes from before read as 0 until the start-up migration fills it from their ids.
+  "005_note_date": {
+    async up(db: Kysely<any>) {
+      await db.schema.alterTable("notes").addColumn("date", "bigint", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema.createIndex("notes_by_date").on("notes").columns(["feed", "date", "id"]).execute();
+    },
+  },
+  // What has been done once for the whole database, by name, in plain columns (readable without a key): "note-ids", the start-up
+  // migration to opaque ids completed a pass.
+  "006_markers": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .createTable("markers")
+        .addColumn("name", "text", (c) => c.primaryKey())
+        .addColumn("at", "bigint", (c) => c.notNull())
+        .execute();
+    },
+  },
 });
 
 /** Every migration's name, in order; the tests check the count the migrator recorded against it, so a new one changes no test. */

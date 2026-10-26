@@ -5,6 +5,7 @@ import { keyServiceDown } from "./errors";
 import { reservedFeedProblems, RESERVED_FEEDS } from "./feeds";
 import { licensePageProblem, unreadableLegalSettings } from "./legal";
 import { logger } from "./log";
+import { migrateNoteIds } from "./notemigration";
 import { missingVars, providers } from "./oidc/config";
 import { licensingOn, openLicenses } from "./licensing";
 import { storage } from "./storage";
@@ -97,22 +98,46 @@ export async function logStartup(): Promise<void> {
   config.validateStorage(); // a wrong storage setting keeps the server from starting; with a database the main key does too, below
   await requireLicensePage(); // so does selling licenses without the license page's words
   const warn = (warnings: Warning[]) => warnings.forEach(([component, msg, f]) => logger(component).warn(f, msg));
-  try {
+  let keyServiceIsDown = false;
+  // The report is best effort: a failure is logged and the rest of it left out. False then.
+  const report = async (step: () => Promise<void>): Promise<boolean> => {
+    try {
+      await step();
+      return true;
+    } catch (e) {
+      // A database this main key cannot open (encryption at rest, issue #212) must not be served: every request would fail.
+      if (e instanceof KeyringError) throw e;
+      // The key service (#215) is down: each request tries again, and gets the maintenance page meanwhile.
+      if (keyServiceDown(e)) keyServiceIsDown = true;
+      else
+        try {
+          logger("startup").error({ err: e }, "startup report failed");
+        } catch {}
+      return false;
+    }
+  };
+  const reported = await report(async () => {
     const { fields, warnings } = startupReport();
     logger("startup").info(fields, "notefeed started");
     warn(warnings);
     // The license store comes to the main key now too: a key change re-wraps it in this start, not at its first use.
     await openLicenses();
-    warn(await legalFileWarnings());
-    warn(await reservedFolderWarnings());
-    warn(await reservedFeedWarnings()); // loads the feed index, which creates missing reserved feeds
+  });
+  // Notes with ids from before ids were opaque move to their new ones before the first request, whatever the report did: a failure
+  // keeps the server from starting. Once a pass completed (the storage's mark), a start skips it. Only a key service that is down
+  // while no pass is pending gives the maintenance page, as above; with one pending the start fails, and is tried again until the key
+  // service answers.
+  try {
+    await migrateNoteIds();
   } catch (e) {
-    // A database this main key cannot open (encryption at rest, issue #212) must not be served: every request would fail.
-    if (e instanceof KeyringError) throw e;
-    // The key service (#215) is down: each request tries again, and gets the maintenance page meanwhile.
-    if (keyServiceDown(e)) return void logger("startup").warn("the key service is unreachable: serving the maintenance page until it answers");
-    try {
-      logger("startup").error({ err: e }, "startup report failed");
-    } catch {}
+    if (!keyServiceDown(e) || (await storage().migrationPending())) throw e;
+    keyServiceIsDown = true;
   }
+  if (reported && !keyServiceIsDown)
+    await report(async () => {
+      warn(await legalFileWarnings());
+      warn(await reservedFolderWarnings());
+      warn(await reservedFeedWarnings()); // loads the feed index, which creates missing reserved feeds
+    });
+  if (keyServiceIsDown) logger("startup").warn("the key service is unreachable: serving the maintenance page until it answers");
 }

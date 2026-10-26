@@ -6,7 +6,7 @@ export type ClientOptions = {
 
 export type Note = {
     /**
-     * The note's id: a UTC time to the second plus a random UUID for notes made here; any name without a dot for a file placed by hand
+     * The note's id: 22 random characters (base64url) for notes made here, older notes may have another form; any name without a dot for a file placed by hand. It says nothing about the note's date
      */
     id: string;
     /**
@@ -42,9 +42,13 @@ export type Note = {
      */
     name?: string;
     /**
-     * When the note was posted (UTC)
+     * Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it
      */
-    created_at: string;
+    date: string;
+    /**
+     * Present, and true, when the note's date is after now: it is stored, and readers see it from its date on. Absent for every other note
+     */
+    scheduled?: true;
     /**
      * The note's page in the web UI
      */
@@ -131,7 +135,7 @@ export type Posted = {
 
 export type NoteEdited = {
     /**
-     * The note's id: a UTC time to the second plus a random UUID for notes made here; any name without a dot for a file placed by hand
+     * The note's id: 22 random characters (base64url) for notes made here, older notes may have another form; any name without a dot for a file placed by hand. It says nothing about the note's date
      */
     id: string;
     /**
@@ -167,9 +171,13 @@ export type NoteEdited = {
      */
     name?: string;
     /**
-     * When the note was posted (UTC)
+     * Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it
      */
-    created_at: string;
+    date: string;
+    /**
+     * Present, and true, when the note's date is after now: it is stored, and readers see it from its date on. Absent for every other note
+     */
+    scheduled?: true;
     /**
      * The note's page in the web UI
      */
@@ -223,6 +231,10 @@ export type NoteMeta = {
      * Alternative text of an image note, at most 500 characters, one line (control and text-direction override characters are refused)
      */
     alt?: string;
+    /**
+     * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. The note's attachments move with it.
+     */
+    date?: string;
 };
 
 export type PasswordJson = {
@@ -412,9 +424,9 @@ export type PostNoteData = {
          */
         'X-Note-Name'?: string;
         /**
-         * When the note was written, if not now: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). Not in the future, not before 1970. The note takes its place in the feed by this time, as if posted then. Empty is now.
+         * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. Empty is now.
          */
-        'X-Note-Created'?: string;
+        'X-Note-Date'?: string;
     };
     path: {
         /**
@@ -428,7 +440,7 @@ export type PostNoteData = {
 
 export type PostNoteErrors = {
     /**
-     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Created`; a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
+     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
      */
     400: Error;
     /**
@@ -624,7 +636,7 @@ export type PatchNoteData = {
 
 export type PatchNoteErrors = {
     /**
-     * Invalid or reserved feed name; nothing to change; a bad title or alt text; alt for a note that has none; bad JSON
+     * Invalid or reserved feed name; nothing to change; a bad title, alt text or date; alt for a note that has none; bad JSON
      */
     400: Error;
     /**

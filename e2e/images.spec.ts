@@ -99,7 +99,7 @@ test("only images, no text: posts the image notes and nothing else", async ({ pa
   await expect(page.locator("ol > li img")).toHaveCount(1);
   await expect(page.locator(".md")).toHaveCount(0);
   // The answer was the first picture's: ?posted= carries its note id, and that note is the picture.
-  await expect(page).toHaveURL(/\?posted=\d{8}T\d{6}Z-[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(/\?posted=[A-Za-z0-9_-]{22}$/);
   await page.goto(`/${name}/${new URL(page.url()).searchParams.get("posted")}`);
   await expect(page.locator("article img")).toBeVisible();
 });
@@ -186,7 +186,7 @@ test("a note's text replaced by just a new picture's reference stays a text note
   await loaded(page.locator(".md img")).toBeGreaterThan(0);
   await page.goto(url); // the same note, read again: still a text to edit, its reference now the stored file
   await page.getByText("Edit", { exact: true }).click();
-  await expect(note(page)).toHaveValue(/^!\[\]\(\d{8}T\d{6}Z-[0-9a-f-]{36}\.png\)$/);
+  await expect(note(page)).toHaveValue(/^!\[\]\([A-Za-z0-9_-]{22}\.png\)$/);
   await page.goto(`/${name}`);
   await expect(page.locator("ol > li")).toHaveCount(1); // the text note, holding the picture
   expect((await (await request.get(`/api/v1/feeds/${name}/notes`)).json()).notes).toHaveLength(2); // the text note and the picture

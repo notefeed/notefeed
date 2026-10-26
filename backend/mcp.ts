@@ -12,11 +12,11 @@ import { clientIp } from "./limits";
 import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
 import { logger } from "./log";
-import { checkLine, getNote, listNotes, MAX_NOTE_TITLE, type Note } from "./notes";
+import { checkLine, getNote, isScheduled, listNotes, MAX_NOTE_TITLE, type Note } from "./notes";
 import { verify } from "./oauth/tokens";
 import { isAttachmentName, safeName } from "../shared/links";
 import { TAG_RULE } from "./tags";
-import { deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, updateFeed } from "./posting";
+import { checkDate, deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, updateFeed } from "./posting";
 import { feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
 const log = logger("mcp");
@@ -29,7 +29,8 @@ const NoteSummary = z.object({
   id: z.string(),
   type: z.string(),
   title: z.string(),
-  created_at: z.string(),
+  date: z.string().describe("The note's date: where it sits in the feed, and when readers see it"),
+  scheduled: z.literal(true).optional().describe("Only present for a note dated in the future: readers do not see it until then"),
   url: z.string(),
   sender: z.string().optional(),
   tags: z.array(z.string()),
@@ -56,7 +57,7 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
 
 function server(h: Headers): McpServer {
   const base = publicUrl(h);
-  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, created_at: n.createdAt.toISOString(), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }) });
+  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, date: n.date.toISOString(), ...(isScheduled(n) && { scheduled: true as const }), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }) });
   // A reserved name must not reach the filesystem lookup, so it is checked first.
   const checkAccess = async (feed: string, password?: string) => {
     assertFeed(feed);
@@ -84,7 +85,7 @@ function server(h: Headers): McpServer {
         title: z.string().optional().describe("The note's title (at most 100 characters, one line; control and text-direction override characters are refused); left out, it is taken from the text"),
         password,
         tags: z.array(z.string()).optional().describe(`Labels for the note, e.g. ["ci","deploy"]: ${TAG_RULE}. Not verified; readers see them.`),
-        created_at: z.string().optional().describe("When the note was written, if not now, to post it in the past: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC); from 1970 to now. The note takes its place in the feed by this time."),
+        date: z.string().optional().describe("The note's date, if not now: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC), any time from 1970 to 9999. The note takes its place in the feed by this time. A future time schedules the note: readers see it from then on."),
         read_id: z.string().optional().describe("Only when this post creates the feed: its read id (3 to 64 characters of a-z, 0-9, - and _), random when left out. A short readable one is guessable. Fails if taken."),
         license_key: z.string().optional().describe("Only on an instance that sells licenses, with a password when this post creates the feed: the key of the license the password needs (a feed password is for licensed feeds; without the key the post fails with license_required). Ignored on an existing feed and without a password."),
         attachments: z
@@ -93,7 +94,7 @@ function server(h: Headers): McpServer {
       }),
       outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
     },
-    guard(async ({ feed, markdown, title, password, tags, created_at, read_id, license_key, attachments = [] }) => {
+    guard(async ({ feed, markdown, title, password, tags, date, read_id, license_key, attachments = [] }) => {
       // Buffer.from skips what is not base64, so the data is checked here; the rest of the checks are postWithPictures's.
       const pictures = attachments.map((a) => {
         const clean = a.data.replace(/\s/g, "");
@@ -101,7 +102,7 @@ function server(h: Headers): McpServer {
         if (body.toString("base64").replace(/=+$/, "") !== clean.replace(/=+$/, "")) throw new InvalidBodyError(`attachment "${safeName(a.name)}": data is not valid base64`);
         return { name: a.name, body, mediaType: a.type, alt: a.alt };
       });
-      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, tags, created: created_at, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
+      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, tags, date, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
       const feedUrl = base + feedPath(feed);
       return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
     }),
@@ -142,16 +143,17 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "edit_note",
     {
-      description: `Replace a note's markdown, set its title, or both (an empty title removes it: the title follows the text again); its id stays. At least one of markdown and title. ${PROTECTED} ${SECRET_NOTE}`,
-      inputSchema: z.object({ feed, id: z.string(), markdown: z.string().optional(), title: z.string().optional(), password }),
+      description: `Replace a note's markdown, set its title or its date, or any of them (an empty title removes it: the title follows the text again; a future date schedules the note); its id stays. At least one of markdown, title and date. ${PROTECTED} ${SECRET_NOTE}`,
+      inputSchema: z.object({ feed, id: z.string(), markdown: z.string().optional(), title: z.string().optional(), date: z.string().optional().describe("The note's new date: an ISO 8601 date and time with its offset or a date alone (midnight UTC), any time from 1970 to 9999. A future time schedules the note."), password }),
       outputSchema: NoteFull,
       annotations: { destructiveHint: true, idempotentHint: true },
     },
-    guard(async ({ feed, id, markdown, title, password }) => {
-      if (markdown === undefined && title === undefined) throw new InvalidBodyError("nothing to change: send markdown, title or both");
-      checkLine("title", title, MAX_NOTE_TITLE); // before the content is replaced: a bad title must not leave a half edit
+    guard(async ({ feed, id, markdown, title, date, password }) => {
+      if (markdown === undefined && title === undefined && date === undefined) throw new InvalidBodyError("nothing to change: send markdown, title, date or several");
+      checkLine("title", title, MAX_NOTE_TITLE);
+      checkDate(date); // before the content is replaced: a bad title must not leave a half edit
       let note = markdown === undefined ? undefined : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), { password });
-      if (title !== undefined) note = await editMeta(feed, id, clientIp(h), async () => ({ title }), { password });
+      if (title !== undefined || date !== undefined) note = await editMeta(feed, id, clientIp(h), async () => ({ title, date }), { password });
       return ok({ ...summary(feed, note!), ...(note!.content !== undefined && { content: note!.content }) });
     }),
   );

@@ -32,7 +32,8 @@ const postJson = ({ markdown, title, tags }: { markdown: string; title?: string;
     headers: { "content-type": "text/markdown", ...(title !== undefined && { "x-note-title": encodeHeaderValue(title) }), ...(tags && { "x-note-tags": tags.join(",") }) },
   });
 const getNote = async (id: string) => (await call("GET", `/feeds/f/notes/${id}`)).json();
-const sidecar = async (file: string) => JSON.parse(await readFile(join(dir, "f", `.${file}.json`), "utf8"));
+// The metadata in a note's sidecar; the note's date beside it is left out (toEqual ignores an undefined field).
+const sidecar = async (file: string) => ({ ...JSON.parse(await readFile(join(dir, "f", `.${file}.json`), "utf8")), date: undefined });
 const postImage = (headers: Record<string, string> = {}) => call("POST", "/feeds/f/notes", { body: PNG, headers: { "content-type": "image/png", ...headers } });
 
 describe("title and alt on a post", () => {

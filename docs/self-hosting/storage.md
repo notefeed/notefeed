@@ -11,11 +11,13 @@ data/
 │   ├── .readid                    # the feed's read id; don't edit it by hand
 │   ├── .feed.json                 # title, description, title image
 │   ├── .password                  # only on a protected feed
-│   ├── 20260929T140512Z-backup-finished.md
-│   ├── .20260929T140512Z-backup-finished.md.json
-│   └── 20261003T101010Z-01a1013e-….png
+│   ├── Vq3xH8mTn2KfLw0aZr9bYe.md
+│   ├── .Vq3xH8mTn2KfLw0aZr9bYe.md.json
+│   └── Hc4yP9sZt1NvKd6WoGx3Ab.png
 └── alerts-q9x2m7hd4k1pv/
 ```
+
+From 0.28.0 a note's id is random and carries no time. On the first start after the update, existing notes get new ids and keep their dates. Old links to single notes and to files stop working. A note's references to its own feed's files are rewritten; links from one feed into another feed's notes are not. If the main key is in a key service and it is down while this migration is still pending, notefeed does not start.
 
 You can read, grep, copy or delete the files directly; a file you put in a feed's folder is a note too. notefeed writes as the owner of the data folder, so create it yourself (`mkdir data`); `PUID` and `PGID` choose another owner. Symlinks and anything that isn't a feed folder are ignored. If you copy a feed's folder to make another feed, remove `.readid` from the copy: two feeds can't share a read link.
 

@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { feedForReadId, isRemovedReadId } from "../feeds";
 import { measured } from "../metrics";
 import { noteRoute } from "../requestscope";
-import { unreadableNote } from "../notes";
+import { fileVisible, unreadableNote } from "../notes";
 import { storage } from "../storage";
 import { IMAGE_EXTS, contentTypeOf } from "../../shared/images";
 
@@ -33,7 +33,8 @@ async function serveFile(readId: string, file: string, ifNoneMatch?: string | nu
   const ext = NAME_RE.exec(file)?.[1];
   let bytes: Buffer | null;
   try {
-    bytes = feed && ext ? await storage().readFile(feed, file) : null;
+    // A note dated after now (scheduled) is a missing one to a reader, its file too; asked before any bytes are read.
+    bytes = feed && ext && (await fileVisible(feed, file, new Date())) ? await storage().readFile(feed, file) : null;
   } catch (e) {
     unreadableNote(file.slice(0, file.indexOf(".")), e); // throws anything but a stored copy that does not decrypt
     return damaged(ext!);

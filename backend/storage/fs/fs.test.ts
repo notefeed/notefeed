@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -21,5 +21,20 @@ test("fs: forgetFeed with the feed's own id drops its index entry, e.g. after it
   await s.createFeed("f", "rid-f");
   await s.forgetFeed("f", "rid-f");
   expect(await s.feedReadId("f")).toBeUndefined();
+  await rm(root, { recursive: true, force: true });
+});
+
+test("fs: the migration's marker is a dot file in DATA_DIR, kept for the next instance, and no feed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "notefeed-"));
+  process.env.DATA_DIR = root;
+  const make = () => createFsStorage({ derivedReadId: (feed) => `derived-${feed}`, isReadId: () => true, isFeedName: () => true });
+  const s = make();
+  await s.createFeed("f", "rid-f");
+  await s.writeNote("f", "a", "md", "x", {}, 1);
+  await s.markMigrated();
+  expect(await readdir(root)).toContain(".note-ids-migrated");
+  const again = make();
+  expect(await again.migrationPending()).toBe(false);
+  expect(await again.listFeedNames()).toEqual(["f"]);
   await rm(root, { recursive: true, force: true });
 });

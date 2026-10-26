@@ -89,7 +89,7 @@ describe.skipIf(!base || !supported)("postgres", () => {
       const s = fresh({ store, external: (ext) => ext === "png" });
       await s.sweepImages({ remove: true, olderThanMs: 0 }); // what an earlier run left
       await s.createFeed("f", "rid-f");
-      await s.writeNote("f", "p", "png", Buffer.from("kept"), {});
+      await s.writeNote("f", "p", "png", Buffer.from("kept"), {}, 0);
       const orphan = newKey();
       await store.put(orphan, Buffer.from("12345"));
       expect(await s.sweepImages({ remove: false, olderThanMs: 0 })).toMatchObject({ unreferenced: { count: 1, bytes: 5 }, deleted: { count: 0 }, missing: 0 });
@@ -134,7 +134,7 @@ describe.skipIf(!base || !supported)("postgres", () => {
     await resetSchema();
     const plain = fresh();
     for (const n of ["a", "b", "c"]) await plain.createFeed(n, `rid-${n}`);
-    await plain.writeNote("a", "n", "md", "x", {});
+    await plain.writeNote("a", "n", "md", "x", {}, 0);
     await plain.close();
     const w = createLocalWrapper(randomBytes(32).toString("hex"));
     const [one, two] = [fresh(undefined, w), fresh(undefined, w)];
@@ -157,7 +157,7 @@ describe.skipIf(!base || !supported)("postgres", () => {
     await resetSchema();
     const plain = fresh();
     await plain.createFeed("f", "rid-f");
-    await plain.writeNote("f", "n", "md", "text", { title: "old" });
+    await plain.writeNote("f", "n", "md", "text", { title: "old" }, 0);
     await plain.close();
     const w = createLocalWrapper(randomBytes(32).toString("hex"));
     const other = fresh(undefined, w);

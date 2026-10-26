@@ -8,8 +8,8 @@ export NOTEFEED_URL=https://notes.example.com NOTEFEED_FEED=homelab-7f3k2q9x4m8w
 npx notefeed post "# Backup finished"
 backup.sh 2>&1 | npx notefeed post -
 npx notefeed notes --limit 5
-npx notefeed edit 20260929T140512Z-backup-finished "# Backup finished, verified"
-npx notefeed delete 20260929T140512Z-backup-finished
+npx notefeed edit Vq3xH8mTn2KfLw0aZr9bYe "# Backup finished, verified"
+npx notefeed delete Vq3xH8mTn2KfLw0aZr9bYe
 ```
 
 ```js
@@ -18,12 +18,12 @@ import { Client } from "notefeed";
 const client = new Client({ url: "https://notes.example.com", feed: "homelab-7f3k2q9x4m8wz" }); // password: "..." if the instance has one
 const created = await client.post("# Deploy done\nversion 1.4.2");
 console.log(created.url, created.read_url);
-for await (const note of client.notes()) console.log(note.created_at, note.title); // newest first, page by page
+for await (const note of client.notes()) console.log(note.date, note.title); // newest first, page by page
 ```
 
 `read_url` is `null` for a feed without a read link (rare; see the operations docs).
 
-To post a note in the past, give when it was written: `client.post(text, { createdAt: "2025-03-01T09:30:00Z" })` (a `Date`, an ISO 8601 date-time with its offset, or a date alone for midnight UTC; from 1970 to now), or `notefeed post "…" --created 2025-03-01`. The note takes its place in the feed by that time.
+Every note has a date, now unless you give one: `client.post(text, { date: "2025-03-01T09:30:00Z" })` (a `Date`, an ISO 8601 date-time with its offset, or a date alone for midnight UTC; any time from 1970 to 9999), or `notefeed post "…" --date 2025-03-01`. The note takes its place in the feed by that date. A date in the future schedules the note: readers see it from then on. `await client.update(id, { date })` (`notefeed update <id> --date …`) moves a note.
 
 `Client.fromEnv()` reads `NOTEFEED_URL` / `NOTEFEED_FEED` / `NOTEFEED_PASSWORD`; so does the `notefeed` command, unless given `--url` / `--feed` / `--password`.
 
@@ -33,6 +33,6 @@ A posted note can be changed or removed: `await client.edit(id, content)` replac
 
 A feed can have a title and a description, and can be deleted: `await client.feedInfo()` returns `{ name, title, description, protected, read_url }`, `await client.updateFeed({ title, description })` replaces both (an empty string clears one) and returns the feed, and `await client.deleteFeed()` removes the feed with all its notes for good. All three take the same `{ feed, feedPassword }` options as `post`, and a feed that doesn't exist is a `NotFoundError`. Anyone who can post to a feed can do this, and deleting is permanent; there are no `notefeed` commands for it.
 
-A picture is a note of its own: `await client.post(bytes, { type: "image/png", alt: "…" })` takes a `Uint8Array` or a `Blob` (PNG, JPEG, GIF or WebP; a Blob's own type is used if you leave `type` out) and returns what a markdown post returns, with the picture's `file` and `file_url` added. Write `![](file)` in a markdown note to show it; the feed is created by its first note, a picture that is too large is a `NoteTooLargeError`, and an instance that takes no pictures (`NOTEFEED_IMAGE_UPLOADS=0`) answers every picture with an `ImagesOffError`. The server checks the bytes against the declared type. `await client.update(id, { title, alt })` changes a note's title or a picture's alt text, and `await client.edit(id, content)` replaces its content. `await client.updateFeed({ title, description, image: file })` makes a picture the feed's title image (`image: ""` removes it; leaving `image` out keeps it). `notefeed post --file photo.png` posts a file (the type comes from the extension, or `--type`). To post a note with its pictures in one call, `await client.post(text, { attachments: [{ name: "chart.png", content: bytes, type: "image/png" }] })` posts them with the text in one request, and the server swaps `![](chart.png)` for each file name (`null` content posts only the pictures) (`notefeed post "…" --attach chart.png` does the same); nothing is posted when one is refused. Pictures are public to anyone with the feed's read link, and metadata such as EXIF is not removed.
+A picture is a note of its own: `await client.post(bytes, { type: "image/png", alt: "…" })` takes a `Uint8Array` or a `Blob` (PNG, JPEG, GIF or WebP; a Blob's own type is used if you leave `type` out) and returns what a markdown post returns, with the picture's `file` and `file_url` added. Write `![](file)` in a markdown note to show it; the feed is created by its first note, a picture that is too large is a `NoteTooLargeError`, and an instance that takes no pictures (`NOTEFEED_IMAGE_UPLOADS=0`) answers every picture with an `ImagesOffError`. The server checks the bytes against the declared type. `await client.update(id, { title, alt, date })` changes a note's title, a picture's alt text or a note's date, and `await client.edit(id, content)` replaces its content. `await client.updateFeed({ title, description, image: file })` makes a picture the feed's title image (`image: ""` removes it; leaving `image` out keeps it). `notefeed post --file photo.png` posts a file (the type comes from the extension, or `--type`). To post a note with its pictures in one call, `await client.post(text, { attachments: [{ name: "chart.png", content: bytes, type: "image/png" }] })` posts them with the text in one request, and the server swaps `![](chart.png)` for each file name (`null` content posts only the pictures) (`notefeed post "…" --attach chart.png` does the same); nothing is posted when one is refused. Pictures are public to anyone with the feed's read link, and metadata such as EXIF is not removed.
 
 Full documentation: https://docs.notefeed.me/integrations/clients/

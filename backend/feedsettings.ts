@@ -41,11 +41,12 @@ export const forReaders = (notes: Note[], s: { showSender: boolean }): Note[] =>
 // What is stored, whatever has become of the image file (the save path in posting.ts keeps it as it is).
 export const getStoredSettings = (feed: string): Promise<FeedSettings> => storage().readSettings(feed);
 
-// What is shown: a title image whose file is gone (removed by hand) counts as none, so nothing points at a 404.
-export async function getSettings(feed: string): Promise<FeedSettings> {
+// What is shown: a title image whose file is gone (removed by hand) counts as none, so nothing points at a 404. `asOf`: a reader's
+// view, where an image note dated later is gone too.
+export async function getSettings(feed: string, asOf?: Date): Promise<FeedSettings> {
   const stored = await storage().readSettings(feed);
   const s = { ...stored, title: cleanLine(stored.title), description: cleanLine(stored.description) }; // stored before the rule, or edited by hand
-  return s.image && !(await hasImageNote(feed, s.image)) ? { ...s, image: "" } : s;
+  return s.image && !(await hasImageNote(feed, s.image, asOf)) ? { ...s, image: "" } : s;
 }
 
 export async function saveSettings(feed: string, s: FeedSettings): Promise<void> {

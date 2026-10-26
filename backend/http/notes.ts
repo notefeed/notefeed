@@ -22,7 +22,7 @@ type PostReply = { status: 201; body: Posted; headers?: HeadersInit };
 const headerOf = (req: Request) => (name: string) => decodeHeaderValue(req.headers.get(name) ?? "").trim() || undefined; // an empty header is none
 
 // What a post carries: the body is the file, `Content-Type` says which type (exactly one the registry accepts: no guessing, no lenient
-// defaults), and everything else is a header: X-Note-Title, -Tags, -Alt, -Name, -Created; X-Feed-Password, X-Read-Id and X-License-Key for the post
+// defaults), and everything else is a header: X-Note-Title, -Tags, -Alt, -Name, -Date; X-Feed-Password, X-Read-Id and X-License-Key for the post
 // that creates the feed. The type decides the size limit (100 KB of markdown, NOTEFEED_MAX_IMAGE_BYTES for an image) before the body is read.
 export async function readPost(req: Request): Promise<PostInput> {
   const parsed = parseMediaType(req.headers.get("content-type"));
@@ -38,7 +38,7 @@ export async function readPost(req: Request): Promise<PostInput> {
     alt: header("x-note-alt"),
     name: header("x-note-name"), // cleaned where the note is made (cleanName)
     tags: tagsFromHeader(req.headers.get("x-note-tags")),
-    created: header("x-note-created"),
+    date: header("x-note-date"),
     readId: header("x-read-id"),
     licenseKey: header("x-license-key"),
   };
@@ -62,7 +62,7 @@ async function textFile(file: File): Promise<string> {
 
 // A multipart/form-data post or PUT: a `text` part (a field or a file part; at most one; required on a PUT), `file` parts (pictures, each with its file
 // name) and `alt.<file name>` fields; anything else is 400. The pictures themselves are checked in postWithPictures. Title, tags,
-// X-Note-Created (a post's only) and the read id are the headers a raw post has; X-Note-Alt and X-Note-Name have their place in the
+// X-Note-Date (a post's only) and the read id are the headers a raw post has; X-Note-Alt and X-Note-Name have their place in the
 // form instead, so they are 400.
 export async function readMultipart(req: Request, kind: "edit"): Promise<PostBundle & { text: string }>;
 export async function readMultipart(req: Request, kind: "post"): Promise<PostBundle>;
@@ -86,7 +86,7 @@ export async function readMultipart(req: Request, kind: "post" | "edit"): Promis
   for (const name of alts.keys()) if (!pictures.some((p) => p.name === name)) throw new InvalidBodyError(`alt.${safeName(name)}: no file of that name`);
   for (const p of pictures) p.alt = alts.get(p.name) || undefined;
   if (kind === "edit" && text === undefined) throw new InvalidBodyError("send the note's new text as a text field");
-  return { text, pictures, title: header("x-note-title"), tags: tagsFromHeader(req.headers.get("x-note-tags")), created: header("x-note-created"), readId: header("x-read-id"), licenseKey: header("x-license-key") };
+  return { text, pictures, title: header("x-note-title"), tags: tagsFromHeader(req.headers.get("x-note-tags")), date: header("x-note-date"), readId: header("x-read-id"), licenseKey: header("x-license-key") };
 }
 
 // The answer for one stored note; `readId` is its feed's.
@@ -108,8 +108,8 @@ export async function readContent(req: Request): Promise<{ body: Uint8Array; med
   return { body, mediaType };
 }
 
-// The JSON of a PATCH: a title and/or an alt text.
-export async function readMetaPatch(req: Request): Promise<{ title?: string; alt?: string }> {
+// The JSON of a PATCH: a title, an alt text and/or a date.
+export async function readMetaPatch(req: Request): Promise<{ title?: string; alt?: string; date?: string }> {
   if (mediaType(req.headers) !== "application/json") throw new UnsupportedTypeError("send Content-Type: application/json");
   const bytes = await readCapped(req, MAX_BYTES);
   if (!bytes) throw new NoteTooLargeError();
@@ -120,7 +120,7 @@ export async function readMetaPatch(req: Request): Promise<{ title?: string; alt
     throw new InvalidBodyError("invalid JSON");
   }
   const parsed = MetaJson.safeParse(json);
-  if (!parsed.success) throw new InvalidBodyError('JSON may carry "title" and "alt" strings');
+  if (!parsed.success) throw new InvalidBodyError('JSON may carry "title", "alt" and "date" strings');
   return parsed.data;
 }
 
@@ -130,6 +130,8 @@ export async function handlePostNote(req: Request, feed: string): Promise<PostRe
   const ip = clientIp(h);
   // Before anything touches the disk: a locked instance must not create the feed directory.
   authorize(h, ip);
+  // The header a post's date had before 0.28: refused, not ignored, so a client that still sends it learns of the new one.
+  if (h.has("x-note-created")) throw new InvalidBodyError("X-Note-Created is no longer read: send the note's date as X-Note-Date");
   const multipart = mediaType(h) === "multipart/form-data";
   const { note, created, readId, pictures } = multipart
     ? await postWithPictures(feed, ip, () => readMultipart(req, "post"), feedAccess(h, feed), sender(h))

@@ -44,7 +44,7 @@ test("201 with markdown body; file equals body; response links", async () => {
   const res = await post("# Hi\nthere", { "content-type": "text/markdown" });
   expect(res.status).toBe(201);
   const body = await res.json();
-  expect(body.id).toMatch(/^\d{8}T\d{6}Z-[a-z0-9-]+$/);
+  expect(body.id).toMatch(/^[A-Za-z0-9_-]{22}$/);
   expect(body).toEqual({
     id: body.id,
     url: `${BASE}/test/${body.id}`,

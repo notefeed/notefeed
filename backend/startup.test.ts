@@ -3,9 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { hashPassword } from "./feedlock";
-import { readIdOf, reservedFeedProblems, resetFeedsForTests } from "./feeds";
+import { ensureFeed, readIdOf, reservedFeedProblems, resetFeedsForTests } from "./feeds";
 import { logsOf, logTo } from "./log";
-import { resetStorageForTests } from "./storage";
+import { migratedId } from "./notemigration";
+import { resetStorageForTests, storage } from "./storage";
 import { createNote } from "./notes";
 import { VALID_LICENSE } from "./licensepage.fixture";
 import { legalFileWarnings, logStartup, requireLicensePage, reservedFeedWarnings, reservedFolderWarnings, reservedHint, startupReport } from "./startup";
@@ -17,7 +18,11 @@ beforeEach(async () => {
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   resetFeedsForTests();
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+const OLD = "20260401T120000Z-0196e8f0-1c2d-7abc-8def-0123456789ab"; // a note's id from before ids were opaque
 const stub = (vars: Record<string, string>) => Object.entries(vars).forEach(([k, v]) => vi.stubEnv(k, v));
 const FULL = { ISSUER: "https://idp.example", CLIENT_ID: "id", CLIENT_SECRET: "the-secret", ALLOW: "ann@x.com" };
 const provider = (name: string, vars: Partial<typeof FULL>) => stub(Object.fromEntries(Object.entries(vars).map(([k, v]) => [`NOTEFEED_OIDC_${name ? `${name}_` : ""}${k}`, v])));
@@ -105,12 +110,30 @@ test("logStartup never throws, and its info line comes first even when the outpu
   restore();
 });
 
-test("a startup report that fails leaves an error line, and logStartup still resolves", async () => {
+test("a report that fails before the migration does not skip it", async () => {
+  await ensureFeed("one");
+  await storage().writeNote("one", OLD, "md", "x", {}, 0);
   await writeFile(join(dir, "file"), "");
-  stub({ DATA_DIR: join(dir, "file"), NOTEFEED_RESERVED_FEEDS: "news", NOTEFEED_RESERVED_PASSWORD: "pw" }); // a file where the data directory should be
-  resetFeedsForTests();
+  await writeFile(join(dir, "license.md"), VALID_LICENSE);
+  stub({ NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "s", NOTEFEED_LICENSE_FILE: join(dir, "license.md"), NOTEFEED_LICENSE_DB: join(dir, "file", "licenses.db") });
+  const logs = await logsOf(logStartup); // the license store cannot be opened: a file where its folder should be
+  expect(logs).toContainEqual(expect.objectContaining({ level: "error", msg: "startup report failed" }));
+  expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", OLD)]);
+});
+
+test("a startup report that fails leaves an error line, and logStartup still resolves", async () => {
+  vi.spyOn(storage(), "listFeedNames").mockRejectedValue(Object.assign(new Error("not a directory"), { code: "ENOTDIR" }));
   const logs = await logsOf(logStartup);
   expect(logs.at(-1)).toMatchObject({ level: "error", component: "startup", msg: "startup report failed", err: { code: "ENOTDIR" } });
+});
+
+test("logStartup moves notes to their new ids first; a migration that fails keeps the server from starting", async () => {
+  await ensureFeed("one");
+  await storage().writeNote("one", OLD, "md", "x", {}, 0);
+  vi.spyOn(storage(), "listFeeds").mockRejectedValueOnce(new Error("disk gone"));
+  await expect(logStartup()).rejects.toThrow("disk gone");
+  await logStartup();
+  expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", OLD)]);
 });
 
 test("a reserved name that was already an open feed, or has another read id, is warned about by name only", async () => {
@@ -209,6 +232,37 @@ test("a key service that is down at start is a warning, not a failure: notefeed 
   resetStorageForTests();
   const logs = await logsOf(logStartup);
   expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
+});
+
+test("a key service that is down while notes wait to move to their new ids stops the start", async () => {
+  const { resetStorageForTests } = await import("./storage");
+  stub({ NOTEFEED_STORAGE: "sqlite" });
+  resetStorageForTests();
+  await ensureFeed("one");
+  await storage().writeNote("one", OLD, "md", "x", {}, 5);
+  await (storage() as unknown as { close(): Promise<void> }).close();
+  stub({ NOTEFEED_KMS: "openbao", NOTEFEED_OPENBAO_ADDR: "http://127.0.0.1:9", NOTEFEED_OPENBAO_ROLE_ID: "role", NOTEFEED_OPENBAO_SECRET_ID: "secret" });
+  resetStorageForTests();
+  resetFeedsForTests();
+  await expect(logStartup()).rejects.toThrow("the key service is unreachable");
+  resetStorageForTests();
+});
+
+test("a key service that is down after the migration completed gives the maintenance page, even with notes stored", async () => {
+  const { resetStorageForTests } = await import("./storage");
+  stub({ NOTEFEED_STORAGE: "sqlite" });
+  resetStorageForTests();
+  await ensureFeed("one");
+  await storage().writeNote("one", OLD, "md", "x", {}, 0);
+  await logStartup();
+  await storage().writeNote("one", "epoch", "md", "dated 1970", {}, 0);
+  await (storage() as unknown as { close(): Promise<void> }).close();
+  stub({ NOTEFEED_KMS: "openbao", NOTEFEED_OPENBAO_ADDR: "http://127.0.0.1:9", NOTEFEED_OPENBAO_ROLE_ID: "role", NOTEFEED_OPENBAO_SECRET_ID: "secret" });
+  resetStorageForTests();
+  resetFeedsForTests();
+  const logs = await logsOf(logStartup);
+  expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
+  resetStorageForTests();
 });
 
 test("with a provider, a missing or broken license.md stops the start, naming the problem and not the text", async () => {

@@ -41,6 +41,19 @@ test("a feed with notes fits the screen", async ({ page }) => {
   await expectNoSideScroll(page);
 });
 
+test("a note's edit form, with its date field, fits the screen", async ({ page }) => {
+  const feed = feedName();
+  await post(page, feed, "# Dated");
+  await page.goto(`/${feed}`);
+  await page.getByRole("link", { name: "Dated" }).click();
+  await page.getByText("Edit", { exact: true }).click();
+  const date = page.getByLabel("Date (in your time; a later one schedules the note)");
+  await expect(date).not.toHaveValue("");
+  await expectInsideViewport(page, "date field", await date.boundingBox());
+  await expectInsideViewport(page, "save", await page.getByRole("button", { name: "Save" }).boundingBox());
+  await expectNoSideScroll(page);
+});
+
 test("a long feed name fits the screen", async ({ page }) => {
   // 64 characters, the longest a name can be, with no hyphen to break at.
   const feed = `e2e_${Date.now()}_${"x".repeat(64)}`.slice(0, 64);

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { cookieValue, createProtected } from "./feedlock";
 import { readIdOf, resetFeedsForTests } from "./feeds";
-import { feedUnlocked, getFeed, reservedFeedLinks, getFeedImages, getFeedNote, getReadFeed, getReadNote, identitySender, passwordSet, signInProviders } from "./index";
+import { feedUnlocked, getFeed, reservedFeedLinks, getFeedImages, getFeedNote, getReadFeed, getReadNote, getReadPictures, identitySender, passwordSet, signInProviders } from "./index";
 import { sign } from "./oauth/tokens";
 import { createImageNote, createNote, removeNote } from "./notes";
 import { saveSettings } from "./feedsettings";
@@ -98,6 +98,35 @@ test("read pages hide the sender when the feed says so; getFeed never does", asy
   expect((await getReadNote(rid, note.id))!.sender).toBeUndefined();
   expect((await getFeed("s"))!.notes[0].sender).toBe("Ann");
   expect((await getFeedNote("s", note.id))!.sender).toBe("Ann");
+});
+
+// A scheduled note (dated after now) is a reader's missing note; the owner's pages list it.
+test("read pages leave out a scheduled note, its pictures and a title image dated later; getFeed lists it", async () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+  const hour = 3_600_000;
+  const v = (await createNote("sched", "# Visible", new Date(Date.now() - hour))).note;
+  const s = (await createNote("sched", "# Scheduled", new Date(Date.now() + hour))).note;
+  const pic = (await createImageNote("sched", png, {}, new Date(s.date.getTime() + 1000))).note; // after s, never in the same ms
+  await saveSettings("sched", { title: "", description: "", image: pic.file, showSender: true });
+  const rid = (await readIdOf("sched"))!;
+  const read = (await getReadFeed(rid))!;
+  expect(read.notes.map((n) => n.id)).toEqual([v.id]);
+  expect(read.imageUrl).toBeNull();
+  expect(await getReadNote(rid, s.id)).toBeNull();
+  expect(await getReadNote(rid, pic.id)).toBeNull();
+  expect(await getReadPictures(rid)).toEqual([]);
+  expect((await getReadNote(rid, v.id))!.id).toBe(v.id);
+  const own = (await getFeed("sched"))!;
+  expect(own.notes.map((n) => n.id)).toEqual([pic.id, s.id, v.id]);
+  expect((await getFeedNote("sched", s.id))!.id).toBe(s.id);
+});
+
+test("getFeed shows the owner the read link of a feed whose only note is scheduled", async () => {
+  await createNote("onlylater", "# Soon", new Date(Date.now() + 3_600_000));
+  const own = (await getFeed("onlylater"))!;
+  expect(own.readId).toBe((await readIdOf("onlylater"))!);
+  expect(own.notes).toHaveLength(1);
+  expect((await getReadFeed(own.readId!))!.notes).toEqual([]);
 });
 
 // The compose box says "your name is shown" only to someone signed in through the provider.

@@ -3,8 +3,8 @@ import { renderFeed } from "./rss";
 import { imgNote, mdNote } from "./note/testing";
 
 const notes = [
-  mdNote({ id: "20260929T140512Z-a-b", markdown: "# A & <B>\ncode: a]]>b ]]> end", createdAt: new Date("2026-09-29T14:05:12Z"), tags: ["env:prod", "a&b"] }),
-  mdNote({ id: "20260928T090000Z-plain", markdown: "Plain", createdAt: new Date("2026-09-28T09:00:00Z") }),
+  mdNote({ id: "20260929T140512Z-a-b", markdown: "# A & <B>\ncode: a]]>b ]]> end", date: new Date("2026-09-29T14:05:12Z"), tags: ["env:prod", "a&b"] }),
+  mdNote({ id: "20260928T090000Z-plain", markdown: "Plain", date: new Date("2026-09-28T09:00:00Z") }),
 ];
 const xml = renderFeed(notes, { title: "my feed", description: "about it", baseUrl: "https://x.test", readId: "AbCdEfGhIjKlMnOpQrSt_-" });
 
@@ -60,7 +60,7 @@ test("lists tags as category elements", () => {
 
 test("strips XML-forbidden control characters", () => {
   const out = renderFeed(
-    [mdNote({ id: "20260929T140512Z-red", title: "\x1b[31mred", markdown: "\x1b[31mred\x1b[0m\ttab\r\nok", createdAt: new Date() })],
+    [mdNote({ id: "20260929T140512Z-red", title: "\x1b[31mred", markdown: "\x1b[31mred\x1b[0m\ttab\r\nok", date: new Date() })],
     { title: "t", description: "t", baseUrl: "https://x.test", readId: "AbCdEfGhIjKlMnOpQrSt_-" },
   );
   expect(out).not.toMatch(/[\x00-\x08\x0B\x0C\x0E-\x1F￾￿]/);
@@ -79,7 +79,7 @@ test("a sender becomes an escaped dc:creator and declares the namespace; none, n
 const photoOpts = { title: "t", description: "t", baseUrl: "https://x.test", readId: "AbCdEfGhIjKlMnOpQrSt_-" };
 
 test("an image note is an item with an enclosure and no description, titled by its alt text, its file's name, else what and when", () => {
-  const out = renderFeed([imgNote({ id: "20260930T100000Z-pic", ext: "jpg", size: 2048, createdAt: new Date("2026-09-30T10:00:00Z") })], photoOpts);
+  const out = renderFeed([imgNote({ id: "20260930T100000Z-pic", ext: "jpg", size: 2048, date: new Date("2026-09-30T10:00:00Z") })], photoOpts);
   expect(out).toMatch(/<title>Picture, 30 Sept? 2026, \d\d:00<\/title>/); // never its id
   expect(out).not.toContain("<title>20260930T100000Z-pic</title>");
   expect(renderFeed([imgNote({ id: "p", alt: "A cat", name: "IMG_1.jpg" })], photoOpts)).toContain("<title>A cat</title>");

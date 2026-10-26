@@ -1,4 +1,4 @@
-// Pure helpers shared by the backend (note titles and ids) and the compose box preview. No Node APIs:
+// Pure helpers shared by the backend (note titles) and the compose box preview. No Node APIs:
 // this runs in the browser too.
 
 const lines = (markdown: string) => markdown.replace(/^﻿/, "").split(/\r?\n/);
@@ -23,9 +23,4 @@ export function extractTitle(markdown: string): string {
   const picture = /^!\[([^\]]*)\]\([^)]*\)$/.exec(text);
   if (picture) return picture[1].trim().slice(0, 100);
   return text.replace(/[*_`]/g, "").trim().slice(0, 100);
-}
-
-/** UTC timestamp to the second: 20260929T140512Z */
-export function idStamp(now: Date): string {
-  return now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
 }

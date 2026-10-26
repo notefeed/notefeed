@@ -51,38 +51,55 @@ curl -H "Content-Type: text/markdown" -H "X-Note-Tags: ci,deploy" --data-binary 
 - `?tag=ci` on the feed page, the read-only view, the note list of the API and the RSS feed (`/r/<read id>/feed.xml?tag=ci`) shows only notes with that tag.
 - Tags are set when a note is posted and cannot be changed afterwards.
 
-## Posting in the past
+## A note's date
 
-A note is dated when it is posted. To post one that was written earlier, an old changelog entry for example, send `X-Note-Created`:
+Every note has a date: when it is placed in its feed, the read link and RSS. It is the time of posting unless you send `X-Note-Date`:
 
 ```sh
-curl -H "Content-Type: text/markdown" -H "X-Note-Created: 2025-03-01T09:30:00+01:00" --data-binary @note.md "$NOTEFEED_URL/$FEED"
+curl -H "Content-Type: text/markdown" -H "X-Note-Date: 2025-03-01T09:30:00+01:00" --data-binary @note.md "$NOTEFEED_URL/$FEED"
 ```
 
-- An ISO 8601 date and time with its offset (`Z`, `+01:00`), or a date alone, which is midnight UTC.
-- From 1970 to now: a time in the future is refused (`400`).
-- The note takes its place in the feed, the read link and RSS by that time, as if it had been posted then. On a multipart post every note gets it, the pictures before the text.
-- A program that asks for the notes after the last one it has seen does not see a note posted in the past.
-- On a feed with a free note cap, a note older than the ones kept is the first to go.
+- An ISO 8601 date and time with its offset (`Z`, `+01:00`), or a date alone, which is midnight UTC. Any time from 1970 to the end of 9999.
+- **In the past:** the note takes its place by that date, as if it had been posted then. An old changelog entry is one example.
+- **In the future:** the note is scheduled. Readers do not see it (not on the read link, in RSS or in the read API; its address answers `404`) until its date. You see it on the feed page and in the API, marked as scheduled. Nothing runs at that time: the note is there when the next request comes after it.
+- On a multipart post every note gets the date, the images a millisecond before the text. Images posted with a note move with it: when the note's date changes, theirs change with it. An image posted on its own and only linked from a note keeps its own date: schedule it too if it must not be seen before the note.
+- On a feed with a free note cap, the oldest notes by date go first. A scheduled note counts.
+- Until 0.28.0 the header was `X-Note-Created`. A post that still sends it gets `400`, naming `X-Note-Date`.
+
+### Changing the date
+
+A note's date can be changed at any time, also after it is published. Its id, URLs and RSS `guid` stay.
+
+```sh
+curl -X PATCH -H "Content-Type: application/json" -d '{"date": "2026-12-01T09:00:00Z"}' "$NOTEFEED_URL/api/v1/feeds/$FEED/notes/$ID"
+```
+
+In the web UI it is a field in the compose box (to schedule) and in a note's edit form. The [clients](../integrations/clients.md) take `date` when posting and updating, the CLI `--date`, MCP `post_note` and `edit_note` `date`.
+
+### Polling
+
+A note's id is random: it carries no time and no order, and a date can move into the past. A program that wants new notes asks for the newest page and looks for ids it has not seen before. A scheduled note shows up there when its time comes.
 
 ## Editing and deleting notes
 
 All three use the note's API URL, `/api/v1/feeds/<feed>/notes/<id>`, and need what posting needs: the instance password, the feed's own password.
 
 ```sh
-URL=https://notes.example.com/api/v1/feeds/homelab-7f3k2q9x4m8wz/notes/20260929T140512Z-backup-finished
+URL=https://notes.example.com/api/v1/feeds/homelab-7f3k2q9x4m8wz/notes/Vq3xH8mTn2KfLw0aZr9bYe
 curl -X PUT -H "Content-Type: text/markdown" --data-binary @note.md "$URL"          # replace the content
-curl -X PATCH -H "Content-Type: application/json" -d '{"title": "Backup finished"}' "$URL"   # title, or alt text of a picture
+curl -X PATCH -H "Content-Type: application/json" -d '{"title": "Backup finished"}' "$URL"   # title, alt text of a picture or date
 curl -X DELETE "$URL"                                                                  # gone for good
 ```
 
-- **The id stays.** A `PUT` keeps the note's id, URLs and time, so its RSS item keeps its `guid`; a reader that already fetched it may keep showing the old text. There is no history.
+- **The id stays.** A `PUT` keeps the note's id, URLs and date, so its RSS item keeps its `guid`; a reader that already fetched it may keep showing the old text. There is no history.
 - **A note keeps its type:** a markdown note takes markdown, a PNG another PNG. A `PUT` with `multipart/form-data` adds [pictures](pictures.md#posting-a-note-with-its-pictures).
 - **No undo and no trash.** Anyone who can post to a feed can edit and delete its notes; the read link cannot. Deleting the last note leaves the feed, empty.
 
 ## Ids and filenames
 
-A note's id is the UTC time to the second plus a random UUID, such as `20261002T091400Z-3f2b8c1e-7d4a-4e6b-9a15-c0d2e8f41b73`, so neither its file name nor its URLs carry its title. The file is `<DATA_DIR>/<feed>/<id>.md` (or `.png`, `.jpg`, `.gif`, `.webp`), with the note's metadata in a small `.json` file next to it.
+A note's id is 22 random characters, such as `Vq3xH8mTn2KfLw0aZr9bYe`: it has no time in it and nothing to read from it, so neither its file name nor its URLs carry its title or its date. The file is `<DATA_DIR>/<feed>/<id>.md` (or `.png`, `.jpg`, `.gif`, `.webp`), with the note's metadata in a small `.json` file next to it.
+
+From 0.28.0 a note's id is random and carries no time. On the first start after the update, existing notes get new ids and keep their dates. Old links to single notes and to files stop working. A note's references to its own feed's files are rewritten; links from one feed into another feed's notes are not. If the main key is in a key service and it is down while this migration is still pending, notefeed does not start.
 
 ## Errors
 

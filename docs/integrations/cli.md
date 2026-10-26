@@ -17,13 +17,15 @@ backup.sh 2>&1 | notefeed post -           # from stdin
 notefeed post --file report.md             # from a file
 notefeed post "# Deployed" --tag ci --tag deploy   # with tags
 notefeed post "# Disk at 91%" --feed alerts-q9x2m7hd4k1pv
-notefeed edit 20260929T140512Z-backup-finished "# Backup finished, verified"
-notefeed edit 20260929T140512Z-backup-finished --file report.md   # or "-" for stdin
-notefeed delete 20260929T140512Z-backup-finished
+notefeed edit Vq3xH8mTn2KfLw0aZr9bYe "# Backup finished, verified"
+notefeed edit Vq3xH8mTn2KfLw0aZr9bYe --file report.md   # or "-" for stdin
+notefeed delete Vq3xH8mTn2KfLw0aZr9bYe
 notefeed post --file photo.png --title Cat # a picture is a note too (the type comes from the extension)
 notefeed post "Result: ![](chart.png)" --attach out/chart.png   # a note with its pictures, in one request
 notefeed post --attach out/a.png --attach out/b.png   # only pictures, no text
-notefeed update 20260929T140512Z-backup-finished --title "Backup" --alt "…"
+notefeed update Vq3xH8mTn2KfLw0aZr9bYe --title "Backup" --alt "…"
+notefeed post "# Old entry" --date 2025-03-01   # dated in the past; a future date schedules the note
+notefeed update Vq3xH8mTn2KfLw0aZr9bYe --date 2026-12-01T09:00:00+01:00   # move a note
 notefeed notes                             # the newest 20: time, title, URL
 notefeed notes --limit 100 --json          # one JSON object per line
 notefeed notes --tag ci                     # only notes with this tag

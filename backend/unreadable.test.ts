@@ -53,7 +53,7 @@ test("a list shows a damaged note in its place, or leaves it out when asked to",
     [good.id, false],
   ]);
   const placeholder = listed[0];
-  expect(placeholder.createdAt.toISOString()).toBe("2026-09-29T11:00:00.000Z");
+  expect(placeholder.date.toISOString()).toBe("2026-09-29T11:00:00.000Z");
   expect(placeholder.file).toBe(`${bad.id}.md`);
   expect([placeholder.title, placeholder.content, placeholder.tags]).toEqual(["", undefined, []]);
   expect((await listNotes("test")).map((n) => n.id)).toEqual([good.id]);

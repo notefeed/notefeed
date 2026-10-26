@@ -15,8 +15,8 @@ T = TypeVar("T", bound="Note")
 class Note:
     """
     Attributes:
-        id (str): The note's id: a UTC time to the second plus a random UUID for notes made here; any name without a dot
-            for a file placed by hand
+        id (str): The note's id: 22 random characters (base64url) for notes made here, older notes may have another
+            form; any name without a dot for a file placed by hand. It says nothing about the note's date
         type_ (str): The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or
             `image/webp`
         file (str): The note's file name, `<id>.<extension>`
@@ -25,7 +25,8 @@ class Note:
         size (int): The size of the note's file in bytes
         title (str): The title set for the note, else the first heading or the first non-empty line of a markdown note,
             else the picture's alt text; may be empty
-        created_at (datetime.datetime): When the note was posted (UTC)
+        date (datetime.datetime): Where the note is placed in the feed (UTC): when it was posted, unless a date was
+            given or changed; lists are ordered by it
         url (str): The note's page in the web UI
         tags (list[str]): Labels the poster gave the note (not verified, and shown to readers like the note itself);
             empty when none
@@ -33,6 +34,8 @@ class Note:
             picture
         alt (str | Unset): Alternative text of an image note, when it has one
         name (str | Unset): The file name an image was posted with, when it came with one
+        scheduled (bool | Unset): Present, and true, when the note's date is after now: it is stored, and readers see it
+            from its date on. Absent for every other note
         sender (None | str | Unset): Verified sign-in name of the poster; absent when the note was posted without a
             sign-in
         unreadable (bool | Unset): Present, and true, for a damaged note: its stored copy can't be decrypted. A list
@@ -47,12 +50,13 @@ class Note:
     file_url: None | str
     size: int
     title: str
-    created_at: datetime.datetime
+    date: datetime.datetime
     url: str
     tags: list[str]
     content: str | Unset = UNSET
     alt: str | Unset = UNSET
     name: str | Unset = UNSET
+    scheduled: bool | Unset = UNSET
     sender: None | str | Unset = UNSET
     unreadable: bool | Unset = UNSET
 
@@ -70,7 +74,7 @@ class Note:
 
         title = self.title
 
-        created_at = self.created_at.isoformat()
+        date = self.date.isoformat()
 
         url = self.url
 
@@ -81,6 +85,8 @@ class Note:
         alt = self.alt
 
         name = self.name
+
+        scheduled = self.scheduled
 
         sender: None | str | Unset
         if isinstance(self.sender, Unset):
@@ -100,7 +106,7 @@ class Note:
                 "file_url": file_url,
                 "size": size,
                 "title": title,
-                "created_at": created_at,
+                "date": date,
                 "url": url,
                 "tags": tags,
             }
@@ -111,6 +117,8 @@ class Note:
             field_dict["alt"] = alt
         if name is not UNSET:
             field_dict["name"] = name
+        if scheduled is not UNSET:
+            field_dict["scheduled"] = scheduled
         if sender is not UNSET:
             field_dict["sender"] = sender
         if unreadable is not UNSET:
@@ -138,7 +146,7 @@ class Note:
 
         title = d.pop("title")
 
-        created_at = datetime.datetime.fromisoformat(d.pop("created_at"))
+        date = datetime.datetime.fromisoformat(d.pop("date"))
 
         url = d.pop("url")
 
@@ -149,6 +157,8 @@ class Note:
         alt = d.pop("alt", UNSET)
 
         name = d.pop("name", UNSET)
+
+        scheduled = d.pop("scheduled", UNSET)
 
         def _parse_sender(data: object) -> None | str | Unset:
             if data is None:
@@ -168,12 +178,13 @@ class Note:
             file_url=file_url,
             size=size,
             title=title,
-            created_at=created_at,
+            date=date,
             url=url,
             tags=tags,
             content=content,
             alt=alt,
             name=name,
+            scheduled=scheduled,
             sender=sender,
             unreadable=unreadable,
         )

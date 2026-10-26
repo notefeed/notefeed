@@ -64,7 +64,7 @@ describe("protected feed", () => {
 
   test("createProtected on a feed with notes throws FeedExistsError", async () => {
     await ensureFeed("notes");
-    await writeNote("notes", "n1", "md", "hi", {});
+    await writeNote("notes", "n1", "md", "hi", {}, 0);
     await expect(createProtected("notes", "pw")).rejects.toBeInstanceOf(FeedExistsError);
   });
 
@@ -118,7 +118,7 @@ describe("protected feed", () => {
 
   test("change and remove on an open feed throw FeedExistsError", async () => {
     await ensureFeed("open");
-    await writeNote("open", "n1", "md", "hi", {});
+    await writeNote("open", "n1", "md", "hi", {}, 0);
     await expect(changePassword("open", "", "x", IP)).rejects.toBeInstanceOf(FeedExistsError);
     await expect(removePassword("open", "", IP)).rejects.toBeInstanceOf(FeedExistsError);
   });
