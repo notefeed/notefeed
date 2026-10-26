@@ -240,3 +240,58 @@ test("a note placed by hand gets its date stored: a later write does not move it
   expect(await storage().replaceNote("one", "notes", ["md"], "edited")).toBe(true);
   expect((await refs("one")).find((r) => r.id === "notes")?.date).toBe(at.getTime());
 });
+
+// As on notefeed.me: an encrypted database, images in an S3 store, notes from 0.27 (old ids, dated 0).
+(supported ? test : test.skip)("an encrypted database with images in a store: everything moves, and the next start does nothing", async () => {
+  const { startFakeS3 } = await import("./storage/images/fake-s3");
+  const s3 = await startFakeS3("access-a", ["images"]);
+  try {
+    vi.stubEnv("NOTEFEED_STORAGE", "sqlite");
+    vi.stubEnv("NOTEFEED_ENCRYPTION_KEY", "k".repeat(64));
+    for (const [k, v] of Object.entries({ IMAGES: "s3", S3_ENDPOINT: s3.endpoint, S3_BUCKET: "images", S3_ACCESS_KEY: "access-a", S3_SECRET_KEY: "secret-a" })) vi.stubEnv(`NOTEFEED_${k}`, v);
+    resetStorageForTests();
+    const [a, b, title, txt] = [oldId(AT - 2), oldId(AT - 1), oldId(AT - 600_000), oldId(AT)];
+    const bytes = (n: number) => Buffer.concat([PNG, Buffer.from([n])]);
+    await put("one", a, "png", bytes(1), { alt: "A" });
+    await put("one", b, "jpg", bytes(2));
+    await put("one", title, "png", bytes(3));
+    await put("one", txt, "md", `# Two\n\n![A](${a}.png)\n![](${b}.jpg)`, { title: "Two" });
+    await storage().writeSettings("one", { title: "Feed", description: "", image: `${title}.png`, showSender: true });
+    const before = new Set(s3.objects.keys());
+    expect(before.size).toBe(3);
+    expect(await storage().migrationPending()).toBe(true);
+
+    expect(await migrateNoteIds()).toEqual({ feeds: 1, renamed: 4, rewritten: 1 });
+
+    const id = (old: string) => migratedId("one", old);
+    expect((await refs("one")).map((r) => [r.id, r.date])).toEqual([[id(txt), AT], [id(b), AT - 1], [id(a), AT - 2], [id(title), AT - 600_000]]);
+    expect(await text("one", id(txt))).toBe(`# Two\n\n![A](${id(a)}.png)\n![](${id(b)}.jpg)`);
+    expect((await storage().readNote("one", id(txt), ["md"], () => false))?.meta).toEqual({ title: "Two" });
+    expect(await storage().readFile("one", `${id(a)}.png`)).toEqual(bytes(1));
+    expect(await storage().readFile("one", `${id(b)}.jpg`)).toEqual(bytes(2));
+    expect(await storage().readFile("one", `${id(title)}.png`)).toEqual(bytes(3));
+    expect(await storage().readFile("one", `${a}.png`)).toBeNull();
+    expect(await storage().readMeta("one", { id: id(a), ext: "png" })).toEqual({ alt: "A", of: id(txt) });
+    expect((await storage().readMeta("one", { id: id(b), ext: "jpg" }))?.of).toBe(id(txt));
+    expect((await storage().readMeta("one", { id: id(title), ext: "png" }))?.of).toBeUndefined();
+    expect((await getSettings("one")).image).toBe(`${id(title)}.png`);
+    const after = new Set(s3.objects.keys());
+    expect(after.size).toBe(3);
+    for (const k of before) expect(after.has(k)).toBe(false); // the old objects are gone
+    expect(await storage().migrationPending()).toBe(false);
+
+    // The next start: a new process on the same database and store.
+    await (storage() as unknown as { close(): Promise<void> }).close();
+    resetStorageForTests();
+    const requests = s3.requests.length;
+    const reads = vi.spyOn(storage(), "listFeeds");
+    expect(await migrateNoteIds()).toEqual({ feeds: 0, renamed: 0, rewritten: 0 });
+    expect(reads).not.toHaveBeenCalled();
+    expect(s3.requests.length).toBe(requests);
+    expect(new Set(s3.objects.keys())).toEqual(after);
+    await (storage() as unknown as { close(): Promise<void> }).close();
+  } finally {
+    resetStorageForTests();
+    await s3.close();
+  }
+});
