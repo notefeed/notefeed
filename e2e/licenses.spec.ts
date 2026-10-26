@@ -153,6 +153,25 @@ test("a lost feed password is set anew with the feed's license key", async ({ pa
   expect((await request.post(`/${feed}`, { data: "# New", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
 });
 
+// An open feed gets a password later (ADR 0044): whoever knows its name may set one in its settings; on notefeed.me the feed needs a
+// license for it, as at creation.
+test("an open feed gets a password in its settings once it is licensed", async ({ page, request }) => {
+  const feed = feedName();
+  expect((await request.post(`/${feed}`, { data: "# Open", headers: text })).status()).toBe(201);
+  await page.goto(`/${feed}/settings`);
+  await page.getByText("Feed password", { exact: true }).click();
+  await page.getByLabel("Password", { exact: true }).fill("N3wPassw0rd!");
+  await page.getByRole("button", { name: "Set password" }).click();
+  await expect(page.getByText(/^A feed password needs a license/)).toBeVisible();
+  const key = await buy(request, `sub_${feed}`);
+  expect((await request.post(`/api/licenses/attach`, { data: { feed, key } })).status()).toBe(200);
+  await page.getByLabel("Password", { exact: true }).fill("N3wPassw0rd!");
+  await page.getByRole("button", { name: "Set password" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${feed}/settings\\?saved=1$`));
+  expect((await request.post(`/${feed}`, { data: "# Stranger", headers: text })).status()).toBe(401);
+  expect((await request.post(`/${feed}`, { data: "# Owner", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
+});
+
 // The tiles share their rows (notefeed/notefeed#223): a plan's badge or a longer name made its price, its first feature and its
 // button sit lower than the free tile's.
 test("the license tiles line up: prices and first features at the same height", async ({ page }) => {

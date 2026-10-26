@@ -3,7 +3,7 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, updateFeed } from "./generated/sdk.gen.js";
+import { changeFeedPassword, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, updateFeed } from "./generated/sdk.gen.js";
 import type { Created, Error as ApiError, Feed, FeedSettings, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
@@ -241,6 +241,12 @@ export class Client {
   async detachLicense(options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
     const feed = this.feedFor(options.feed);
     return this.call(deleteFeedLicense({ client: this.api, path: { feed }, ...this.opts(options.feedPassword) }));
+  }
+
+  /** Set the feed's password. On a protected feed it changes it: `feedPassword` (or the client's) is the current one. An open feed takes one without, which claims it: its name was all that protected it. Every request for the feed then needs the new password; its read link stays open. Same options as post(). */
+  async setFeedPassword(password: string, options: { feed?: string; feedPassword?: string } = {}): Promise<void> {
+    const feed = this.feedFor(options.feed);
+    await this.call(changeFeedPassword({ client: this.api, path: { feed }, body: { password }, ...this.opts(options.feedPassword) }));
   }
 
   /** Delete the feed with all its notes, settings and password, for good; its name is free again. Same options as post(). */

@@ -1,4 +1,5 @@
-// Optional per-feed password: DATA_DIR/<feed>/.password holds a scrypt hash, set only when the feed is created.
+// Optional per-feed password: DATA_DIR/<feed>/.password holds a scrypt hash, set when the feed is created, or later by whoever has
+// access to the open feed (changePassword, ADR 0044).
 // Unprotected feeds (no file) pass every check. The file is read per request, so deleting it unlocks at once.
 import { createHmac, randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from "node:crypto";
 import { promisify } from "node:util";
@@ -6,7 +7,7 @@ import { PASSWORD_PATTERN, PASSWORD_RULE } from "../shared/password";
 import { storage } from "./storage";
 import { FeedGoneError } from "./storage/types";
 import { AuthError, FeedExistsError, InvalidBodyError, NotFoundError, TooManyAttemptsError } from "./errors";
-import { checkFeed, createProtectedFeed, secret } from "./feeds";
+import { checkFeed, createProtectedFeed, hasFeed, secret } from "./feeds";
 import { authAttempt } from "./limits";
 import { licenses, licensingOn, requireLicense } from "./licensing";
 import { hashKey } from "./licenseflow";
@@ -113,21 +114,16 @@ async function currentHash(feed: string, current: string, ip: string): Promise<s
   return hash;
 }
 
-// Returns the unlock cookie for the new password; every earlier cookie stops working.
+// Sets the feed's password, or changes it; returns the unlock cookie for the new one, and every earlier cookie stops working. A
+// protected feed needs the current password. An open feed takes one from whoever has access to it, which is whoever knows its
+// name: the name is all that protects an open feed, and setting a password claims it (ADR 0044).
 export async function changePassword(feed: string, current: string, next: string, ip: string): Promise<string> {
   checkNewPassword(next);
+  const hash = await storage().readHash(feed);
+  if (hash === null && !(await hasFeed(feed))) throw new NotFoundError("no such feed");
   await requireLicense(feed); // setting or changing a password is for licensed feeds; removing one is not (ADR 0029)
-  await currentHash(feed, current, ip);
-  const hash = await hashPassword(next);
-  // ponytail: checked, not locked. The write is by path after the scrypt wait, so a feed deleted and
-  // re-created meanwhile (same name) gets this password; a per-feed lock would close it.
-  try {
-    await storage().writeHash(feed, hash);
-  } catch (e) {
-    if (e instanceof FeedGoneError) throw new NotFoundError("no such feed"); // deleted meanwhile
-    throw e;
-  }
-  return cookieOf(feed, hash);
+  if (hash !== null) await checkPassword(current, hash, ip);
+  return writeNewHash(feed, next);
 }
 
 export async function removePassword(feed: string, current: string, ip: string): Promise<void> {
@@ -154,6 +150,19 @@ export async function recoverPassword(feed: string, key: string, next: string, i
   }
   await requireLicense(feed);
   const hash = await hashPassword(next);
+  try {
+    await storage().writeHash(feed, hash);
+  } catch (e) {
+    if (e instanceof FeedGoneError) throw new NotFoundError("no such feed"); // deleted meanwhile
+    throw e;
+  }
+  return cookieOf(feed, hash);
+}
+
+async function writeNewHash(feed: string, next: string): Promise<string> {
+  const hash = await hashPassword(next);
+  // ponytail: checked, not locked. The write is by path after the scrypt wait, so a feed deleted and re-created meanwhile (same
+  // name) gets this password; a per-feed lock would close it.
   try {
     await storage().writeHash(feed, hash);
   } catch (e) {

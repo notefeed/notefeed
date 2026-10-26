@@ -447,6 +447,18 @@ def test_attach_license_puts_the_key_and_detach_license_deletes_it(server):
     assert (delete["method"], delete["path"]) == ("DELETE", "/api/v1/feeds/other/license")
 
 
+def test_set_feed_password_puts_it_with_the_current_one_for_a_protected_feed(server):
+    server.reply(204, "")
+    server.reply(204, "")
+    c = Client(server.url, "inbox")
+    assert c.set_feed_password("N3wPassw0rd!") is None
+    c.set_feed_password("Other!pass1", feed_password="N3wPassw0rd!")
+    first, second = server.requests
+    assert (first["method"], first["path"], json.loads(first["body"])) == ("PUT", "/api/v1/feeds/inbox/password", {"password": "N3wPassw0rd!"})
+    assert "X-Feed-Password" not in first["headers"]
+    assert (json.loads(second["body"]), second["headers"]["X-Feed-Password"]) == ({"password": "Other!pass1"}, "N3wPassw0rd!")
+
+
 def test_delete_feed_sends_delete_and_returns_none(server):
     server.reply(204, "")
     with Client(server.url, "inbox", feed_password="fp") as c:

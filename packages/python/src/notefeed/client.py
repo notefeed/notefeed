@@ -15,9 +15,9 @@ import httpx
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
-from ._generated.api.feeds import delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, update_feed
+from ._generated.api.feeds import change_feed_password, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, update_feed
 from ._generated.api.read import get_read_note, list_read_notes
-from ._generated.models import Created, Feed, FeedSettings, LicenseKey, Note, NoteList, NoteMeta
+from ._generated.models import Created, Feed, FeedSettings, LicenseKey, Note, NoteList, NoteMeta, PasswordJson
 from ._generated.types import UNSET, File
 
 
@@ -362,6 +362,11 @@ class Client:
         """Take the feed's license off: it is a free feed again, and the key can go on another feed. Same options as post()."""
         kwargs = delete_feed_license._get_kwargs(feed=self._feed_for(feed), x_feed_password=self._fp(feed_password))
         return self._parse(Feed, self._call(kwargs))
+
+    def set_feed_password(self, password: str, feed: str | None = None, feed_password: str | None = None) -> None:
+        """Set the feed's password. On a protected feed it changes it: `feed_password` (or the client's) is the current one. An open feed takes one without, which claims it: its name was all that protected it. Every request for the feed then needs the new password; its read link stays open. Same options as post()."""
+        body = PasswordJson(password=password)
+        self._call(change_feed_password._get_kwargs(feed=self._feed_for(feed), body=body, x_feed_password=self._fp(feed_password)))
 
     def delete_feed(self, feed: str | None = None, feed_password: str | None = None) -> None:
         """Delete the feed with all its notes, settings and password, for good; its name is free again. Same options as post()."""

@@ -1010,9 +1010,9 @@ export type ChangeFeedPasswordErrors = {
      */
     402: Error;
     /**
-     * The feed has no password
+     * No such feed
      */
-    409: Error;
+    404: Error;
     /**
      * Too many wrong passwords from this client
      */
@@ -1027,7 +1027,7 @@ export type ChangeFeedPasswordError = ChangeFeedPasswordErrors[keyof ChangeFeedP
 
 export type ChangeFeedPasswordResponses = {
     /**
-     * Changed; the old password and unlock cookies stop working
+     * Set or changed; the old password and unlock cookies stop working
      */
     204: void;
 };

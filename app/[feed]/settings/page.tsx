@@ -5,10 +5,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowUpRight, Bot, Braces, ChevronLeft, Link2, Package, Rss, Terminal } from "lucide-react";
 import { claudeMcpFor, curlFor } from "@/app/_lib/curl";
-import { feedDetailsErrorMessage, feedErrorMessage } from "@/app/_lib/messages";
+import { feedDetailsErrorMessage, feedErrorMessage, protectErrorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
 import { FeedDetails } from "@/components/FeedDetails";
-import { FeedSettings } from "@/components/FeedSettings";
+import { FeedSettings, ProtectFeed } from "@/components/FeedSettings";
 import { LicenseSection } from "@/components/LicenseSection";
 import { AppShell } from "@/components/AppShell";
 import { FeedAbout } from "@/components/FeedAbout";
@@ -112,6 +112,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
       >
         {licensingOn() && <LicenseSection feed={feed} freeTier={await freeTier(feed)} licensePage={await licensePageOn()} />}
         {access === "unlocked" && <FeedSettings feed={feed} error={passwordError ? feedErrorMessage(error, retry) : undefined} />}
+        {access === "open" && <ProtectFeed feed={feed} error={form === "protect" ? protectErrorMessage(error, retry) : undefined} />}
       </FeedDetails>
     </AppShell>
   );
