@@ -116,7 +116,8 @@ type ActionsState = {
 const Actions = createContext<ActionsState | null>(null);
 const useActions = () => useContext(Actions)!;
 
-// Edit opens its form under the note: a sheet on a phone, a card from lg. Delete asks in a dialog (DeleteDialog).
+// Edit opens its form under the note: a sheet on a phone, a card from lg. On a phone the text box is shorter, so the fields below it and
+// Save fit on the screen without scrolling the sheet. Delete asks in a dialog (DeleteDialog).
 export function NoteActionsPanel() {
   const { mode, setMode, text, setText, title, setTitle, alt, setAlt, tags, setTags, date, setDate, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
   return (
@@ -136,7 +137,7 @@ export function NoteActionsPanel() {
                     onChange={setText}
                     rows={10}
                     describedBy="note-actions-error"
-                    className="font-mono"
+                    className="font-mono max-lg:h-44"
                     pending={images.pending}
                     onPendingChange={images.setPending}
                     onMessage={setError}
