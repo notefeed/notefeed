@@ -1,4 +1,4 @@
-import { KeyRound, Lock } from "lucide-react";
+import { KeyRound, Lock, ShieldCheck } from "lucide-react";
 import { DisclosureRow, Group, Row } from "@/components/SettingsRows";
 import { field, primary, secondary } from "@/components/styles";
 import { PASSWORD_HINT } from "@/app/_lib/messages";
@@ -54,6 +54,46 @@ export function FeedSettings({ feed, error }: { feed: string; error?: string }) 
           </button>
         </form>
       </Row>
+    </Group>
+  );
+}
+
+// Shown on an open feed (ADR 0044): whoever has access to it, which is whoever knows its name, may give it a password, and so claim
+// it. Plain form to POST /<feed>/access. `error` opens the row.
+export function ProtectFeed({ feed, error }: { feed: string; error?: string }) {
+  return (
+    <Group id="access" label="Privacy & access">
+      <DisclosureRow icon={<ShieldCheck />} label="Feed password" value="Off" open={!!error}>
+        <form method="post" action={`/${feed}/access`} className="max-w-sm">
+          <p className="mb-3 text-muted">
+            Anyone who knows this feed&apos;s name can read, post to and change it, and set this password too. A password stops that: from then on everyone who posts, scripts included, needs it, and so does this page. The read link and RSS stay open.
+          </p>
+          <label htmlFor="protect-password" className="mb-1 block text-muted">
+            Password
+          </label>
+          <input
+            id="protect-password"
+            name="next"
+            type="password"
+            autoComplete="new-password"
+            required
+            maxLength={256}
+            pattern={PASSWORD_PATTERN}
+            title={PASSWORD_HINT}
+            aria-describedby="protect-password-hint protect-error"
+            className={field}
+          />
+          <p id="protect-password-hint" className="mt-1 text-muted">
+            {PASSWORD_HINT}
+          </p>
+          <p id="protect-error" role="alert" className="mt-2 text-error empty:hidden">
+            {error}
+          </p>
+          <button type="submit" name="action" value="protect" className={`${primary} mt-3`}>
+            Set password
+          </button>
+        </form>
+      </DisclosureRow>
     </Group>
   );
 }

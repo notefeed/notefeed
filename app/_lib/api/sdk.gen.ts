@@ -145,9 +145,9 @@ export const removeFeedPassword = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * Change a feed's password
+ * Set or change a feed's password
  *
- * Needs the current password in `X-Feed-Password`. A feed can only get a password when it is created, so an open feed answers 409.
+ * On a protected feed: changes the password, with the current one in `X-Feed-Password`. On an open feed: sets one, with no current password, for whoever calls it. An open feed's name is all that protects it, so whoever knows the name may claim the feed this way. From then on everyone who posts to the feed, reads it by its name or changes it needs the password; the read link and RSS stay open.
  */
 export const changeFeedPassword = <ThrowOnError extends boolean = false>(options: Options<ChangeFeedPasswordData, ThrowOnError>): RequestResult<ChangeFeedPasswordResponses, ChangeFeedPasswordErrors, ThrowOnError> => (options.client ?? client).put<ChangeFeedPasswordResponses, ChangeFeedPasswordErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

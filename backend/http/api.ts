@@ -438,19 +438,22 @@ const OPS: AnyOp[] = [
     method: "PUT",
     path: `${API_PREFIX}/feeds/{feed}/password`,
     operationId: "changeFeedPassword",
-    summary: "Change a feed's password",
-    description: "Needs the current password in `X-Feed-Password`. A feed can only get a password when it is created, so an open feed answers 409.",
+    summary: "Set or change a feed's password",
+    description:
+      "On a protected feed: changes the password, with the current one in `X-Feed-Password`. " +
+      "On an open feed: sets one, with no current password, for whoever calls it. An open feed's name is all that protects it, so whoever knows the name may claim the feed this way. " +
+      "From then on everyone who posts to the feed, reads it by its name or changes it needs the password; the read link and RSS stay open.",
     tags: ["Feeds"],
     password: true,
     params: { feed: FeedParam },
     headers: { "X-Feed-Password": CurrentPasswordHeader },
     body: { "application/json": PasswordJson },
     responses: {
-      204: { description: "Changed; the old password and unlock cookies stop working" },
+      204: { description: "Set or changed; the old password and unlock cookies stop working" },
       400: err(`Invalid or reserved feed name, bad JSON, or a new password that is not ${PASSWORD_RULE}`),
       401: UNAUTHORIZED,
       402: LICENSE_REQUIRED,
-      409: err("The feed has no password"),
+      404: err("No such feed"),
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
       503: UNAVAILABLE,
     },

@@ -8,7 +8,7 @@ Every feed on notefeed.me starts on the free tier, with nothing to sign up for:
 
 - **It keeps its newest 100 notes.** At the cap, each new note drops the oldest one; a post is never refused for it.
 - **No pictures.** A picture, posted on its own or with a note, is refused with `402` (`license_required`).
-- **No feed password.** A [feed password](../using/feed-passwords.md) is set when the feed is created, and on notefeed.me that first post needs a license key next to the password (below). Without one it is refused with `402`. A license needs no password, though: an open feed can be licensed too.
+- **No feed password.** A [feed password](../using/feed-passwords.md) needs a license: on the post that creates the feed, with the key next to the password (below), or later, once the feed has one ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)). Without one it is refused with `402`. A license needs no password, though: an open feed can be licensed too.
 
 The feed's settings show the tier under **License**, as *Free tier · N of 100 notes*, with a meter. From 90 % of the cap on, the feed's page tells whoever can post to it; readers, the read-only view and RSS never see it. Scripts read the same from the [Feeds API](../integrations/api.md): `GET /api/v1/feeds/<feed>` answers `free_tier` as `{ "notes": N, "cap": 100 }`, or `null` for a licensed feed.
 
@@ -23,7 +23,7 @@ There are no accounts. A license is a **key** you keep: notefeed stores only a h
 A key works on one feed at a time, and can be moved:
 
 - **In the feed's settings:** open the **License** row and enter the key under *Use key*. Entering it on another feed later moves the license there. *Take the license off this feed* frees the key without moving it.
-- **When creating a protected feed:** a new feed's **Protect this feed** section has a **License key** field under the password, so the first note creates the feed protected and licensed in one go. A feed can only get a password when it is created, so this is the only way to a protected feed. Without the key, the compose box says so and links to the license page.
+- **When creating a protected feed:** a new feed's **Protect this feed** section has a **License key** field under the password, so the first note creates the feed protected and licensed in one go. Without the key, the compose box says so and links to the license page. An open feed with a license gets a password later in its settings ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)).
 - **From a script, on the post that creates the feed:** send `X-License-Key`, with `X-Feed-Password` for a protected feed or without it for an open one. The [client libraries](../integrations/clients.md) take it as `license_key` (Python) or `licenseKey` (Node), and the [MCP server](../integrations/mcp.md)'s `post_note` as `license_key`. A password without a key is `402` (`license_required`); a key notefeed does not know is `400`, one whose license has lapsed `402`, and then nothing is created. On a feed that exists already, a key on a post is not used.
 
 ```sh

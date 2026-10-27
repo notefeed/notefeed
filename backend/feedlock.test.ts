@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { storage } from "./storage";
 
 const writeNote = (...a: Parameters<ReturnType<typeof storage>["writeNote"]>) => storage().writeNote(...a);
-import { AuthError, FeedExistsError, InvalidBodyError, TooManyAttemptsError } from "./errors";
+import { AuthError, FeedExistsError, InvalidBodyError, NotFoundError, TooManyAttemptsError } from "./errors";
 import {
   changePassword,
   checkFeedAccess,
@@ -116,11 +116,16 @@ describe("protected feed", () => {
     await expect(ok("a", {})).resolves.toBe(false);
   });
 
-  test("change and remove on an open feed throw FeedExistsError", async () => {
+  // An open feed's name is all that protects it, so whoever has it may set a password, and so claim the feed (ADR 0044).
+  test("an open feed takes a password with no current one; there is none to remove; a feed that does not exist gets none", async () => {
     await ensureFeed("open");
     await writeNote("open", "n1", "md", "hi", {}, 0);
-    await expect(changePassword("open", "", "x", IP)).rejects.toBeInstanceOf(FeedExistsError);
     await expect(removePassword("open", "", IP)).rejects.toBeInstanceOf(FeedExistsError);
+    await expect(changePassword("missing", "", "x", IP)).rejects.toBeInstanceOf(NotFoundError);
+    await changePassword("open", "anything", "x", IP); // a password sent along is ignored
+    await expect(ok("open", {})).rejects.toBeInstanceOf(AuthError);
+    await expect(ok("open", { password: "x" })).resolves.toBe(true);
+    await expect(changePassword("open", "", "y", IP)).rejects.toBeInstanceOf(AuthError); // now it is a change
   });
 
   test("changePassword with an invalid new password keeps the old one", async () => {

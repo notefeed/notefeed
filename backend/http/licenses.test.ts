@@ -349,3 +349,58 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
     expect((await recover({ key, next: "" })).headers.get("location")).toMatch(/^\/p\?form=recover&error=too_many_attempts&retry=\d+$/);
   });
 });
+
+// An open feed gets a password later (ADR 0044, #248). Its name is all that protects it, so whoever has the name may set one, and so
+// claim the feed; where licenses are sold, a password needs a licensed feed, as at creation.
+describe.skipIf(!supported)("giving an open feed a password", () => {
+  const putPassword = (body: unknown, headers: Record<string, string> = {}) =>
+    dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/o/password`, { method: "PUT", headers: { host: "notefeed.test", "content-type": "application/json", ...headers }, body: JSON.stringify(body) }), ["feeds", "o", "password"]);
+  const opens = async (password: string) => {
+    const { unlock } = await import("../feedlock");
+    return unlock("o", password, "1.2.3.4").then(
+      () => true,
+      () => false,
+    );
+  };
+
+  test("a licensed open feed takes one with no current password; afterwards the feed needs it, its read link does not", async () => {
+    const { readIdOf } = await import("../feeds");
+    await createNote("o", "# hi");
+    expect((await putPassword({ password: "N3wPassw0rd!" })).status).toBe(402); // a password needs a license
+    const key = await buy();
+    expect((await attachRoute(post("/api/licenses/attach", { feed: "o", key }))).status).toBe(200);
+    expect((await putPassword({ password: " padded " })).status).toBe(400);
+    expect((await putPassword({ password: "N3wPassw0rd!" })).status).toBe(204);
+    expect(await opens("N3wPassw0rd!")).toBe(true);
+    const list = (headers: Record<string, string> = {}) => dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/o/notes`, { headers: { host: "notefeed.test", ...headers } }), ["feeds", "o", "notes"]);
+    expect((await list()).status).toBe(401);
+    expect((await list({ "x-feed-password": "N3wPassw0rd!" })).status).toBe(200);
+    const readId = (await readIdOf("o"))!;
+    expect((await dispatch(new Request(`https://notefeed.test${API_PREFIX}/read/${readId}/notes`, { headers: { host: "notefeed.test" } }), ["read", readId, "notes"])).status).toBe(200);
+    // Now it is a change, which needs the current password.
+    expect((await putPassword({ password: "Other!pass1" })).status).toBe(401);
+    expect((await putPassword({ password: "Other!pass1" }, { "x-feed-password": "N3wPassw0rd!" })).status).toBe(204);
+  });
+
+  test("without licenses on the instance, an open feed takes one too; a feed that does not exist is 404", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "");
+    await createNote("o", "# hi");
+    expect((await putPassword({ password: "N3wPassw0rd!" })).status).toBe(204);
+    expect(await opens("N3wPassw0rd!")).toBe(true);
+    const missing = await dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/missing/password`, { method: "PUT", headers: { host: "notefeed.test", "content-type": "application/json" }, body: JSON.stringify({ password: "N3wPassw0rd!" }) }), ["feeds", "missing", "password"]);
+    expect(missing.status).toBe(404);
+  });
+
+  test("the settings page's form sets it and unlocks this browser; a refusal goes back to that form", async () => {
+    const { feedAccessRoute } = await import("./feedsession");
+    await createNote("o", "# hi");
+    const form = (fields: Record<string, string>) =>
+      feedAccessRoute(new Request("https://notefeed.test/o/access", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://notefeed.test" }, body: new URLSearchParams({ action: "protect", ...fields }) }), "o");
+    expect((await form({ next: "N3wPassw0rd!" })).headers.get("location")).toBe("/o/settings?form=protect&error=license_required");
+    expect((await attachRoute(post("/api/licenses/attach", { feed: "o", key: await buy() }))).status).toBe(200);
+    const ok = await form({ next: "N3wPassw0rd!" });
+    expect(ok.headers.get("location")).toBe("/o/settings?saved=1");
+    expect(ok.headers.getSetCookie()).toHaveLength(2);
+    expect(await opens("N3wPassw0rd!")).toBe(true);
+  });
+});

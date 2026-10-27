@@ -1,4 +1,5 @@
-// POST /<feed>/access: the web UI's plain forms for a feed password (unlock, lock, change, remove).
+// POST /<feed>/access: the web UI's plain forms for a feed password (unlock, lock, change, remove, recover, and protect: an open
+// feed gets one, ADR 0044).
 // Always answers with a redirect back to the feed page (unlock, lock) or the settings page (change, remove); the cookie is the feed's unlock cookie.
 import { AuthError, InvalidRequestError, NotefeedError } from "../errors";
 import { changePassword, feedCookieName, protectedFeed, recoverPassword, removePassword, unlock } from "../feedlock";
@@ -33,8 +34,9 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
     const form = bytes ? await parseForm(bytes, h).catch(() => null) : null;
     const field = (name: string) => String(form?.get(name) ?? "");
     const action = field("action");
-    if (!["unlock", "lock", "change", "remove", "recover"].includes(action)) throw new InvalidRequestError("unknown action");
+    if (!["unlock", "lock", "change", "remove", "recover", "protect"].includes(action)) throw new InvalidRequestError("unknown action");
     if (action === "change" || action === "remove") back = settingsPath(feed);
+    if (action === "protect") back = `${settingsPath(feed)}?form=protect`; // the settings page opens its "protect this feed" part
     if (action === "recover") back = `${page}?form=recover`; // the unlock screen opens its "forgot the password" part
     // Only this instance's own pages may send these: they set, use or drop the cookie's session, and another
     // site's form must not spend a visitor's password attempts either.
@@ -44,6 +46,7 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
       return seeOther(page, set(await unlock(feed, field("password"), clientIp(h))));
     }
     if (action === "lock") return seeOther(page, clear());
+    if (action === "protect") return seeOther(`${settingsPath(feed)}?saved=1`, set(await changePassword(feed, "", field("next"), clientIp(h))));
     if (action === "recover") {
       const cookie = await recoverPassword(feed, field("key").trim(), field("next"), clientIp(h));
       return cookie === null ? seeOther(page, clear()) : seeOther(`${settingsPath(feed)}?saved=1`, set(cookie));

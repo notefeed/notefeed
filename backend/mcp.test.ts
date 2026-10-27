@@ -278,6 +278,20 @@ describe("tools", () => {
     expect(await isLicensed("other")).toBe(false);
   });
 
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("update_feed new_password: an open feed takes it, with license_key where licenses are sold; a protected one changes it (#248)", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    await call("post_note", { feed: "o", markdown: "# Hi" });
+    expect((await call("update_feed", { feed: "o", new_password: "N3wPassw0rd!" })).content[0].text).toBe("a license is needed for this feed");
+    const set = await call("update_feed", { feed: "o", new_password: "N3wPassw0rd!", license_key: key, title: "Mine" });
+    expect(set.structuredContent).toMatchObject({ protected: true, title: "Mine", free_tier: null });
+    expect((await call("list_notes", { feed: "o" })).content[0].text).toBe("missing or wrong password");
+    expect((await call("update_feed", { feed: "o", new_password: "Other!pass1", password: "N3wPassw0rd!" })).isError).toBeUndefined();
+    expect((await call("list_notes", { feed: "o", password: "Other!pass1" })).isError).toBeUndefined();
+  });
+
   test("calls without a password are refused but never counted as failed attempts", async () => {
     process.env.NOTEFEED_RATE_LIMIT = "2";
     await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });
