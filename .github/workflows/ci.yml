@@ -7,6 +7,7 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # The storage contract suite also runs against a real PostgreSQL (backend/storage/sql/postgres.test.ts).
     services:
       postgres:
@@ -52,6 +53,7 @@ jobs:
   # The committed openapi.json and the clients generated from it must match the route table.
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,6 +70,9 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    # Normally 3–4 minutes. The apt download of `playwright install --with-deps` sometimes crawls at ~64 kB/s
+    # for half an hour on one runner while others get MB/s: fail then instead of holding the required checks.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -88,6 +93,7 @@ jobs:
   # The image has no shell (docs/adr/0028), so its entrypoint and health check are Node code that only a running container exercises.
   image-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -117,6 +123,7 @@ jobs:
     needs: [check, image-smoke]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -195,6 +202,7 @@ jobs:
     needs: image
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
