@@ -294,10 +294,11 @@ describe("feed passwords", () => {
     expect((await call("GET", "/feeds/locked/notes", { headers: { "x-feed-password": "new" } })).status).toBe(200);
   });
 
-  test("PUT and DELETE on an open feed: 409", async () => {
+  test("on an open feed, DELETE is 409 and PUT sets a password: the name was all that protected it (ADR 0044)", async () => {
     await createNote("open", "# Hi");
-    expect((await put("open", "new")).status).toBe(409);
     expect((await call("DELETE", "/feeds/open/password", { headers: fp })).status).toBe(409);
+    expect((await put("open", "new")).status).toBe(204);
+    expect((await call("GET", "/feeds/open/notes")).status).toBe(401);
   });
 
   test("DELETE removes it with the current password; the feed is open again", async () => {

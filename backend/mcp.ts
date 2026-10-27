@@ -4,7 +4,7 @@ import * as z from "zod";
 import { bearerOf, checkBearer, locked } from "./auth";
 import { config } from "./config";
 import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoundError, TooManyAttemptsError, UnsupportedTypeError } from "./errors";
-import { checkFeedAccess } from "./feedlock";
+import { changePassword, checkFeedAccess } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson } from "./http/api";
 import { sender } from "./http/request";
@@ -85,6 +85,7 @@ function server(h: Headers): McpServer {
         feed,
         markdown: z.string(),
         title: z.string().optional().describe("The note's title (at most 100 characters, one line; control and text-direction override characters are refused); left out, it is taken from the text"),
+        name: z.string().optional().describe("A file name for the note, e.g. post-to-notefeed.md: the read link serves the newest note with that name at <read link>/<name>, a stable address for a file that changes. Not unique: post again under the same name for a new version."),
         password,
         tags: z.array(z.string()).optional().describe(`Labels for the note, e.g. ["ci","deploy"]: ${TAG_RULE}. Not verified; readers see them.`),
         date: z.string().optional().describe("The note's date, if not now: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC), any time from 1970 to 9999. The note takes its place in the feed by this time. A future time schedules the note: readers see it from then on."),
@@ -96,7 +97,7 @@ function server(h: Headers): McpServer {
       }),
       outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
     },
-    guard(async ({ feed, markdown, title, password, tags, date, read_id, license_key, attachments = [] }) => {
+    guard(async ({ feed, markdown, title, name, password, tags, date, read_id, license_key, attachments = [] }) => {
       // Buffer.from skips what is not base64, so the data is checked here; the rest of the checks are postWithPictures's.
       const pictures = attachments.map((a) => {
         const clean = a.data.replace(/\s/g, "");
@@ -104,7 +105,7 @@ function server(h: Headers): McpServer {
         if (body.toString("base64").replace(/=+$/, "") !== clean.replace(/=+$/, "")) throw new InvalidBodyError(`attachment "${safeName(a.name)}": data is not valid base64`);
         return { name: a.name, body, mediaType: a.type, alt: a.alt };
       });
-      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, tags, date, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
+      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, name, tags, date, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
       const feedUrl = base + feedPath(feed);
       return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
     }),
@@ -205,7 +206,7 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "update_feed",
     {
-      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. license_key, only on an instance that sells licenses: puts that license on the feed (moving it from the feed it was on; no feed password needed), empty takes the feed's license off; it is applied first. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. license_key, only on an instance that sells licenses: puts that license on the feed (moving it from the feed it was on; no feed password needed), empty takes the feed's license off; it is applied first. new_password sets the feed's password: on a protected feed it changes it (password is the current one); an open feed takes it without one, which claims the feed (its name was all that protected it). From then on every call for the feed needs the new password; the read link stays open. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         title: z.string().optional(),
@@ -213,21 +214,29 @@ function server(h: Headers): McpServer {
         image: z.string().optional(),
         read_id: z.string().optional(),
         license_key: z.string().optional().describe("A license key to put on the feed; empty takes its license off. A wrong key counts as a failed attempt, like a wrong password."),
+        new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end."),
         password,
       }),
       outputSchema: FeedOut,
       annotations: { destructiveHint: true, idempotentHint: true },
     },
-    guard(async ({ feed, title, description, image, read_id, license_key, password }) => {
+    guard(async ({ feed, title, description, image, read_id, license_key, new_password, password }) => {
       const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined;
-      if (!settings && license_key === undefined) throw new InvalidBodyError("nothing to change: send title, description, image, read_id, license_key or several");
-      // First, so a key that is refused changes nothing else (#247).
-      if (license_key !== undefined) await setLicense(feed, clientIp(h), license_key.trim() === "" ? null : license_key, { password });
+      if (!settings && license_key === undefined && new_password === undefined) throw new InvalidBodyError("nothing to change: send title, description, image, read_id, license_key, new_password or several");
+      const ip = clientIp(h);
+      // First, so a key that is refused changes nothing else (#247); the license may be what the new password needs.
+      if (license_key !== undefined) await setLicense(feed, ip, license_key.trim() === "" ? null : license_key, { password });
+      if (new_password !== undefined) {
+        assertFeed(feed); // a reserved name must not reach the lookup
+        await changePassword(feed, password ?? "", new_password, ip);
+      }
+      // From here on the feed's password is the new one.
+      const access = { password: new_password ?? password };
       if (settings) {
-        await updateFeed(feed, clientIp(h), async () => {
+        await updateFeed(feed, ip, async () => {
           const stored = await getStoredSettings(feed); // after the password check: what is left out stays
           return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id };
-        }, { password });
+        }, access);
       }
       return ok(await feedJson(feed, h));
     }),

@@ -260,6 +260,13 @@ describe("tools", () => {
     expect((await call("list_notes", { feed: "p", password: "pw" })).structuredContent.notes).toHaveLength(1);
   });
 
+  test("post_note name: the read link serves the newest note with it (#250)", async () => {
+    for (const v of ["v1", "v2"]) expect((await call("post_note", { feed: "named", markdown: `# ${v}`, name: "skill.md" })).isError).toBeUndefined();
+    const { fileRoute } = await import("./http/files");
+    const res = await fileRoute((await readIdOf("named"))!, "skill.md");
+    expect([res.status, await res.text()]).toEqual([200, "# v2"]);
+  });
+
   test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("license_key licenses a new open feed, and update_feed puts a license on a feed and takes it off (#247)", async () => {
     vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
     vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
@@ -276,6 +283,20 @@ describe("tools", () => {
     const off = await call("update_feed", { feed: "other", license_key: "" });
     expect(off.structuredContent.free_tier).toMatchObject({ notes: 1 });
     expect(await isLicensed("other")).toBe(false);
+  });
+
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("update_feed new_password: an open feed takes it, with license_key where licenses are sold; a protected one changes it (#248)", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    await call("post_note", { feed: "o", markdown: "# Hi" });
+    expect((await call("update_feed", { feed: "o", new_password: "N3wPassw0rd!" })).content[0].text).toBe("a license is needed for this feed");
+    const set = await call("update_feed", { feed: "o", new_password: "N3wPassw0rd!", license_key: key, title: "Mine" });
+    expect(set.structuredContent).toMatchObject({ protected: true, title: "Mine", free_tier: null });
+    expect((await call("list_notes", { feed: "o" })).content[0].text).toBe("missing or wrong password");
+    expect((await call("update_feed", { feed: "o", new_password: "Other!pass1", password: "N3wPassw0rd!" })).isError).toBeUndefined();
+    expect((await call("list_notes", { feed: "o", password: "Other!pass1" })).isError).toBeUndefined();
   });
 
   test("calls without a password are refused but never counted as failed attempts", async () => {

@@ -23,7 +23,7 @@ A feed is identified by its name, and anyone who knows the name can read and pos
 
 Claiming: who may set a password, and when.
 
-* **Only when the feed is created**, by the post that creates it.
+* **Only when the feed is created**, by the post that creates it. (Superseded by [ADR 0044](0044-an-open-feed-is-claimed-by-setting-a-password.md): an open feed gets one later from whoever has its name, first to set wins.)
 * **First to set wins:** any caller may add a password to an open feed.
 * **Proof by read id:** whoever presents the feed's read id may set one.
 

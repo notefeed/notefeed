@@ -58,10 +58,10 @@ def _parse_response(
 
         return response_402
 
-    if response.status_code == 409:
-        response_409 = Error.from_dict(response.json())
+    if response.status_code == 404:
+        response_404 = Error.from_dict(response.json())
 
-        return response_409
+        return response_404
 
     if response.status_code == 429:
         response_429 = Error.from_dict(response.json())
@@ -97,10 +97,12 @@ def sync_detailed(
     body: PasswordJson,
     x_feed_password: str | Unset = UNSET,
 ) -> Response[Any | Error]:
-    """Change a feed's password
+    """Set or change a feed's password
 
-     Needs the current password in `X-Feed-Password`. A feed can only get a password when it is created,
-    so an open feed answers 409.
+     On a protected feed: changes the password, with the current one in `X-Feed-Password`. On an open
+    feed: sets one, with no current password, for whoever calls it. An open feed's name is all that
+    protects it, so whoever knows the name may claim the feed this way. From then on everyone who posts
+    to the feed, reads it by its name or changes it needs the password; the read link and RSS stay open.
 
     Args:
         feed (str):
@@ -135,10 +137,12 @@ def sync(
     body: PasswordJson,
     x_feed_password: str | Unset = UNSET,
 ) -> Any | Error | None:
-    """Change a feed's password
+    """Set or change a feed's password
 
-     Needs the current password in `X-Feed-Password`. A feed can only get a password when it is created,
-    so an open feed answers 409.
+     On a protected feed: changes the password, with the current one in `X-Feed-Password`. On an open
+    feed: sets one, with no current password, for whoever calls it. An open feed's name is all that
+    protects it, so whoever knows the name may claim the feed this way. From then on everyone who posts
+    to the feed, reads it by its name or changes it needs the password; the read link and RSS stay open.
 
     Args:
         feed (str):
@@ -168,10 +172,12 @@ async def asyncio_detailed(
     body: PasswordJson,
     x_feed_password: str | Unset = UNSET,
 ) -> Response[Any | Error]:
-    """Change a feed's password
+    """Set or change a feed's password
 
-     Needs the current password in `X-Feed-Password`. A feed can only get a password when it is created,
-    so an open feed answers 409.
+     On a protected feed: changes the password, with the current one in `X-Feed-Password`. On an open
+    feed: sets one, with no current password, for whoever calls it. An open feed's name is all that
+    protects it, so whoever knows the name may claim the feed this way. From then on everyone who posts
+    to the feed, reads it by its name or changes it needs the password; the read link and RSS stay open.
 
     Args:
         feed (str):
@@ -204,10 +210,12 @@ async def asyncio(
     body: PasswordJson,
     x_feed_password: str | Unset = UNSET,
 ) -> Any | Error | None:
-    """Change a feed's password
+    """Set or change a feed's password
 
-     Needs the current password in `X-Feed-Password`. A feed can only get a password when it is created,
-    so an open feed answers 409.
+     On a protected feed: changes the password, with the current one in `X-Feed-Password`. On an open
+    feed: sets one, with no current password, for whoever calls it. An open feed's name is all that
+    protects it, so whoever knows the name may claim the feed this way. From then on everyone who posts
+    to the feed, reads it by its name or changes it needs the password; the read link and RSS stay open.
 
     Args:
         feed (str):

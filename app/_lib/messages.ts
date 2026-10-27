@@ -71,6 +71,14 @@ export function recoverErrorMessage(code: unknown, retry?: unknown): string | un
   return errorMessage(code, retry);
 }
 
+// The same, for giving an open feed a password (ADR 0044).
+export function protectErrorMessage(code: unknown, retry?: unknown): string | undefined {
+  if (code === "auth") return "Someone has set a password on this feed meanwhile.";
+  if (code === "license_required") return "A feed password needs a license: put one on this feed under License first.";
+  if (code === "invalid_body") return `The password must be ${PASSWORD_RULE}.`;
+  return errorMessage(code, retry);
+}
+
 // The same, for the feed's settings and delete forms, which send a title and a description or the typed name.
 export function feedDetailsErrorMessage(code: unknown, retry?: unknown): string | undefined {
   if (code === "invalid_body") return "The title, description or read id is too long or too short, or has characters that aren't allowed.";
