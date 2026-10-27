@@ -431,7 +431,7 @@ export type PostNoteData = {
          */
         'X-Note-Alt'?: string;
         /**
-         * For an image body: the picture's original file name, kept with the note (at most 200 characters)
+         * The note's file name (at most 200 characters; `/`, `\` and control characters are dropped): for a picture, its original name. The read link serves the newest note with that name at `/r/{readId}/{name}`, a stable address for a file that changes (a name ending in a lower-case extension, such as `post-to-notefeed.md`); a note's own file name (`<id>.<ext>`) comes first
          */
         'X-Note-Name'?: string;
         /**

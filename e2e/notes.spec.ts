@@ -265,6 +265,25 @@ test("changing a note's date in the edit form moves it in the list", async ({ pa
   expect(await top("Older")).toBeLessThan(await top("Newer"));
 });
 
+// A stable raw address (#250): /r/<read id>/<name> serves the newest note posted with that name, through the app's own rewrite.
+test("the read link serves the newest note with a name at /r/<read id>/<name>", async ({ request }) => {
+  const name = feedName();
+  const post = async (body: string, fileName: string) => {
+    const res = await request.post(`/${name}`, { data: body, headers: { "Content-Type": "text/markdown", "X-Note-Name": fileName } });
+    expect(res.status()).toBe(201);
+    return res.json();
+  };
+  const first = await post("# v1", "post-to-notefeed.md");
+  await post("# v2", "post-to-notefeed.md");
+  await post("# spaced", "my skill.md");
+  const base = new URL(first.file_url).pathname.replace(/[^/]+$/, ""); // /r/<read id>/
+  const named = await request.get(`${base}post-to-notefeed.md`);
+  expect([named.status(), await named.text()]).toEqual([200, "# v2"]);
+  expect(await (await request.get(`${base}my%20skill.md`)).text()).toBe("# spaced");
+  expect(await (await request.get(`${base}${first.file}`)).text()).toBe("# v1");
+  expect((await request.get(`${base}nothing.md`)).status()).toBe(404);
+});
+
 // Long notes (#243): a table of contents and heading anchors, highlighted code and a drawn mermaid diagram on the note's own page.
 test("a long note's page has contents, anchors, highlighted code and drawn diagrams", async ({ page }) => {
   const name = feedName();
