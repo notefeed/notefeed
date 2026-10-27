@@ -8,7 +8,7 @@ import { type FeedAccess, checkFeedAccess, createProtected } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
 import { assertFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
 import { attachLicense, checkLicenseKey, countingKeys, detachLicense } from "./licenseflow";
-import { licensingOn, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
+import { hasActiveLicense, licensingOn, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
 import { isBlockedImage } from "./takedown";
 import { capReached, rateLimit } from "./limits";
 import { logger } from "./log";
@@ -21,12 +21,14 @@ import { changeDate, checkLine, checkMarkdown, countNotes, createNoteOf, encoder
 const log = logger("posting");
 
 // The gate every write passes first: the feed's access, then the rate limit (counted once per request). Whether the
-// password was proved. An edit or delete targets an existing note, so its feed already exists, and the feed's
+// password was proved. Writes to a feed with an active license don't count against the per-IP limit (ADR 0046, #123): a paid
+// feed's CI bursts never get a 429 from it; wrong passwords and keys still count in their own bucket, checked before this. An edit or delete targets an existing note, so its feed already exists, and the feed's
 // protection can only be changed by a request that proved the password: no second access check after `read()`, unlike a post.
 async function admit(feed: string, ip: string, access: FeedAccess): Promise<boolean> {
   assertFeed(feed);
   if (await isRemovedFeed(feed)) throw new RemovedFeedError(); // the operator took the name out of use (issue #155): before any password is looked at
   const proved = await checkFeedAccess(feed, access, ip);
+  if (licensingOn() && (await hasActiveLicense(feed))) return proved;
   const wait = rateLimit(ip);
   if (wait !== null) throw new RateLimitedError(wait);
   return proved;

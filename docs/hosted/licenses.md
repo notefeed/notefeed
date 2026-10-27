@@ -14,7 +14,7 @@ The feed's settings show the tier under **License**, as *Free tier · N of 100 n
 
 ## What a license is
 
-A license is for one feed, by the month or by the year; the price is on the [license page](https://notefeed.me/license). With it the feed keeps every note, can have a feed password and takes pictures.
+A license is for one feed, by the month or by the year; the price is on the [license page](https://notefeed.me/license). With it the feed keeps every note, can have a feed password, takes pictures, and its posts, edits and deletes don't count against the per-client rate limit, so a burst from CI is never answered with `429`.
 
 There are no accounts. A license is a **key** you keep: notefeed stores only a hash of it and nothing about you; the payment provider holds the purchase. The key is issued by the payment provider: it is shown on the page you land on after paying, and it is in the provider's receipt e-mail and customer portal, where you find it again if you lose it. notefeed itself cannot show it again.
 
