@@ -9,6 +9,11 @@ import { verify } from "../oauth/tokens";
 import { publicUrl } from "../urls";
 import { errorResponse } from "./errors";
 
+// The cap for the web UI's plain forms that carry what was shared to notefeed (shared/share.ts): the login's `next` and the
+// unlock form's `share`. A share arrives in a URL, which Node takes up to 16 KiB of headers for; in a form body it is
+// percent-encoded once more, at most three times as long.
+export const FORM_WITH_SHARE_BYTES = 4096 + 3 * 16 * 1024;
+
 // Reads at most `max` bytes; null (and the stream cancelled) as soon as the body is larger. A body that ends
 // before the Content-Length it declared was cut short on its way (a proxy's buffer limit, a dropped
 // connection): null too, so it is never stored. Content-Length can be absent (chunked) or too large for

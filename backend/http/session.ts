@@ -4,13 +4,13 @@ import { IDENTITY_COOKIE, SESSION_COOKIE, locked, login } from "../auth";
 import { NotefeedError, RateLimitedError } from "../errors";
 import { clientIp } from "../limits";
 import { publicUrl, safeNext } from "../urls";
-import { parseForm, readCapped, seeOther } from "./request";
+import { FORM_WITH_SHARE_BYTES, parseForm, readCapped, seeOther } from "./request";
 
 const YEAR = 60 * 60 * 24 * 365;
 
 export async function loginRoute(req: Request): Promise<Response> {
   const h = req.headers;
-  const bytes = await readCapped(req, 4096);
+  const bytes = await readCapped(req, FORM_WITH_SHARE_BYTES); // `next` may carry a share from the start page
   const form = bytes ? await parseForm(bytes, h).catch(() => null) : null;
   const next = safeNext(form?.get("next"));
   try {

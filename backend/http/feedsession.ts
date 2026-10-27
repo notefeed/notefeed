@@ -7,10 +7,9 @@ import { changePassword, feedCookieName, protectedFeed, recoverPassword, removeP
 import { assertFeed } from "../feeds";
 import { clientIp } from "../limits";
 import { API_PREFIX, feedPath, publicUrl, settingsPath } from "../urls";
-import { MAX_BYTES } from "../note/markdown";
 import { shareQuery } from "../../shared/share";
 import { errorResponse } from "./errors";
-import { authorize, errorRedirect, parseForm, readCapped, sameOrigin, seeOther } from "./request";
+import { FORM_WITH_SHARE_BYTES, authorize, errorRedirect, parseForm, readCapped, sameOrigin, seeOther } from "./request";
 
 const YEAR = 60 * 60 * 24 * 365;
 
@@ -33,8 +32,7 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
   let back = page; // where a refusal goes: the form it came from
   try {
     assertFeed(feed); // before anything touches the disk
-    // The unlock form carries what was shared to notefeed (`share`, a query): its text may be as long as a note, percent-encoded.
-    const bytes = await readCapped(req, 4096 + 3 * MAX_BYTES);
+    const bytes = await readCapped(req, FORM_WITH_SHARE_BYTES); // the unlock form carries what was shared to notefeed (`share`)
     const form = bytes ? await parseForm(bytes, h).catch(() => null) : null;
     const field = (name: string) => String(form?.get(name) ?? "");
     const action = field("action");
