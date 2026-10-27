@@ -222,6 +222,24 @@ describe("tools", () => {
     expect((await call("list_notes", { feed: "p", password: "pw" })).structuredContent.notes).toHaveLength(1);
   });
 
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("license_key licenses a new open feed, and update_feed puts a license on a feed and takes it off (#247)", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    expect((await call("post_note", { feed: "o", markdown: "# Hi", license_key: key })).isError).toBeUndefined();
+    expect(await isLicensed("o")).toBe(true);
+    await call("post_note", { feed: "other", markdown: "# Hi" });
+    const moved = await call("update_feed", { feed: "other", license_key: key });
+    expect(moved.structuredContent).toMatchObject({ name: "other", free_tier: null });
+    expect(await isLicensed("o")).toBe(false);
+    expect((await call("update_feed", { feed: "other", license_key: "x".repeat(22), title: "Never" })).content[0].text).toBe("that is not a license key");
+    expect((await call("get_feed", { feed: "other" })).structuredContent.title).toBe(""); // the key first: nothing else changed
+    const off = await call("update_feed", { feed: "other", license_key: "" });
+    expect(off.structuredContent.free_tier).toMatchObject({ notes: 1 });
+    expect(await isLicensed("other")).toBe(false);
+  });
+
   test("calls without a password are refused but never counted as failed attempts", async () => {
     process.env.NOTEFEED_RATE_LIMIT = "2";
     await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });
@@ -427,6 +445,13 @@ describe("feed tools", () => {
     expect((await call("update_feed", { feed: "f", title: "x".repeat(101), description: "" })).isError).toBe(true);
     expect((await call("delete_feed", { feed: "f" })).structuredContent).toEqual({ deleted: true });
     expect((await call("get_feed", { feed: "f" })).content[0].text).toBe("no such feed");
+  });
+  test("update_feed keeps what is left out, and needs something to change", async () => {
+    await call("post_note", { feed: "k", markdown: "# Hi" });
+    await call("update_feed", { feed: "k", title: "T", description: "D" });
+    expect((await call("update_feed", { feed: "k", description: "New" })).structuredContent).toMatchObject({ title: "T", description: "New" });
+    expect((await call("update_feed", { feed: "k" })).content[0].text).toMatch(/^nothing to change/);
+    expect((await call("update_feed", { feed: "k", license_key: "k".repeat(22) })).content[0].text).toBe("licenses are not sold on this instance");
   });
   test("a protected feed needs the password", async () => {
     await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });

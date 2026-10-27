@@ -91,6 +91,7 @@ export const MetaJson = z
   })
   .meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
+export const LicenseKeyJson = z.object({ key: z.string().describe("The license key, as the checkout or the receipt gave it") }).meta({ id: "LicenseKey" });
 
 export const FeedPasswordHeader = z
   .string()
@@ -109,8 +110,9 @@ export const ReadIdHeader = z.string().describe("The read id the feed gets when 
 export const LicenseKeyHeader = z
   .string()
   .describe(
-    "Only on an instance that sells licenses, with `X-Feed-Password` on the post that creates the feed: the key of the license to put on the new feed, since a feed password is for licensed feeds (402 without one). " +
-      "Ignored on an existing feed and without a password; 400 for a key that is none",
+    "Only on an instance that sells licenses, on the post that creates the feed: the key of the license to put on the new feed, with or without `X-Feed-Password` " +
+      "(a feed password is for licensed feeds: with one and no key, 402). 400 for a key that is none, 402 for one whose license has lapsed; either way nothing is created. " +
+      "Ignored on an existing feed: put a license on it with `PUT /api/v1/feeds/{feed}/license`",
   );
 export const NoteNameHeader = z.string().describe("For an image body: the picture's original file name, kept with the note (at most 200 characters)");
 export const CurrentPasswordHeader = z.string().describe("The feed's current password");
@@ -158,7 +160,7 @@ export const ReadFeedJson = z.object({ title: TITLE, description: DESCRIPTION, i
 // A raw request body, not JSON.
 export const FileBody = z.string().meta({ format: "binary" }).describe("The note, a file: its bytes, of the type `Content-Type` declares");
 
-export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, MultipartNote, ErrorJson, MetaJson, PasswordJson, FeedSettingsJson, FreeTierJson, FeedJson, ReadFeedJson];
+export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, MultipartNote, ErrorJson, MetaJson, PasswordJson, LicenseKeyJson, FeedSettingsJson, FreeTierJson, FeedJson, ReadFeedJson];
 
 export const FeedParam = z.string().regex(FEED_RE).describe("The feed's name. It is the write key: anyone who knows it can post.");
 export const ReadIdParam = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).describe("The feed's read id, from its read link: 22 random characters, one the feed's owner chose, or the feed's own name for a reserved feed. Read-only; never reveals the name of any other feed.");

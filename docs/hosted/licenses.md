@@ -8,7 +8,7 @@ Every feed on notefeed.me starts on the free tier, with nothing to sign up for:
 
 - **It keeps its newest 100 notes.** At the cap, each new note drops the oldest one; a post is never refused for it.
 - **No pictures.** A picture, posted on its own or with a note, is refused with `402` (`license_required`).
-- **No feed password.** A [feed password](../using/feed-passwords.md) is set when the feed is created, and on notefeed.me that first post needs a license key next to the password (below). Without one it is refused with `402`.
+- **No feed password.** A [feed password](../using/feed-passwords.md) is set when the feed is created, and on notefeed.me that first post needs a license key next to the password (below). Without one it is refused with `402`. A license needs no password, though: an open feed can be licensed too.
 
 The feed's settings show the tier under **License**, as *Free tier · N of 100 notes*, with a meter. From 90 % of the cap on, the feed's page tells whoever can post to it; readers, the read-only view and RSS never see it. Scripts read the same from the [Feeds API](../integrations/api.md): `GET /api/v1/feeds/<feed>` answers `free_tier` as `{ "notes": N, "cap": 100 }`, or `null` for a licensed feed.
 
@@ -24,12 +24,20 @@ A key works on one feed at a time, and can be moved:
 
 - **In the feed's settings:** open the **License** row and enter the key under *Use key*. Entering it on another feed later moves the license there. *Take the license off this feed* frees the key without moving it.
 - **When creating a protected feed:** a new feed's **Protect this feed** section has a **License key** field under the password, so the first note creates the feed protected and licensed in one go. A feed can only get a password when it is created, so this is the only way to a protected feed. Without the key, the compose box says so and links to the license page.
-- **From a script:** send `X-License-Key` next to `X-Feed-Password` on the post that creates the feed. The [client libraries](../integrations/clients.md) take it as `license_key` (Python) or `licenseKey` (Node), and the [MCP server](../integrations/mcp.md)'s `post_note` as `license_key`. Without it the post is `402` (`license_required`); a key notefeed does not know is `400`. On an existing feed the key goes in through the settings.
+- **From a script, on the post that creates the feed:** send `X-License-Key`, with `X-Feed-Password` for a protected feed or without it for an open one. The [client libraries](../integrations/clients.md) take it as `license_key` (Python) or `licenseKey` (Node), and the [MCP server](../integrations/mcp.md)'s `post_note` as `license_key`. A password without a key is `402` (`license_required`); a key notefeed does not know is `400`, one whose license has lapsed `402`, and then nothing is created. On a feed that exists already, a key on a post is not used.
 
 ```sh
 curl -H "X-Feed-Password: ${FEED_PASSWORD:?}" -H "X-License-Key: ${LICENSE_KEY:?}" -H "Content-Type: text/markdown" \
   --data-binary @note.md https://notefeed.me/homelab-7f3k2q9x4m8wz
 ```
+
+- **From a script, on a feed that exists:** `PUT /api/v1/feeds/<feed>/license` with `{"key": "…"}` puts the license on the feed (moving it from the feed it was on), and `DELETE` takes it off. Both need what posting needs (the feed's password, if it has one) and answer the feed, with `free_tier` `null` while it is licensed. The clients have `attach_license` / `detach_license` (Python) and `attachLicense` / `detachLicense` (Node), and the MCP server's `update_feed` takes `license_key` (empty takes it off).
+
+```sh
+curl -X PUT -H "Content-Type: application/json" -d "{\"key\": \"${LICENSE_KEY:?}\"}" https://notefeed.me/api/v1/feeds/homelab-7f3k2q9x4m8wz/license
+```
+
+A key notefeed does not know counts as a wrong password, wherever it is sent.
 
 ## Cancelling, invoices, payment method
 

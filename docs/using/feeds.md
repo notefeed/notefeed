@@ -20,7 +20,7 @@ The cog in the feed's details opens `/<feed>/settings`, once the feed has a note
 - **Danger zone:** **Delete this feed** removes the feed with all its notes, its settings, its password and its read link, for good. You confirm by typing the feed's name.
 
 !!! note "On notefeed.me"
-    A **License** row shows the feed's tier, *Free tier · N of 1000 notes* with a meter or the licensed state, and is where a license key is entered, moved to another feed or taken off. See [Free tier and licenses](../hosted/licenses.md#entering-the-key).
+    A **License** row shows the feed's tier, *Free tier · N of 100 notes* with a meter or the licensed state, and is where a license key is entered, moved to another feed or taken off. See [Free tier and licenses](../hosted/licenses.md#entering-the-key).
 
 Anyone who can open the feed can change its settings and delete it; the read-only view has no settings.
 
