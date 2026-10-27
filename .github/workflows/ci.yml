@@ -70,8 +70,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # Normally 3–4 minutes. The apt download of `playwright install --with-deps` sometimes crawls at ~64 kB/s
-    # for half an hour on one runner while others get MB/s: fail then instead of holding the required checks.
+    # Normally 3–4 minutes: fail a hung run instead of holding the required checks.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -79,9 +78,18 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # On the runner, which has the compiler better-sqlite3 needs (it has no prebuilt binaries); the image has none.
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:e2e
+      # In Playwright's image, which has the browsers and their system libraries, at the version package-lock.json has:
+      # `playwright install --with-deps` fetched 119 MB from the Ubuntu mirror on every run, and on some runners that
+      # took half an hour (issue #289). The image is Ubuntu 24.04 like the runner, so the modules npm ci built work in it;
+      # the runner's Node 22 is mounted, the image's own is 24. --ipc=host: Chromium needs more than Docker's /dev/shm.
+      - name: Run npm run test:e2e in Playwright's image
+        run: |
+          version=$(node -p 'require("@playwright/test/package.json").version')
+          docker run --rm --ipc=host --user "$(id -u):$(id -g)" -e CI -e HOME=/tmp \
+            -v "$PWD:/w" -w /w -v "$(dirname "$(dirname "$(command -v node)")"):/opt/node:ro" \
+            "mcr.microsoft.com/playwright:v$version-noble" sh -c 'PATH=/opt/node/bin:$PATH npm run test:e2e'
       # Kept for a run that passed too: a test that failed once and passed on its retry leaves its trace only here.
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
