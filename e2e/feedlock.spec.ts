@@ -72,7 +72,8 @@ test("change the password, then remove it", async ({ page, browser, baseURL }) =
   await page.getByLabel("Current password").fill("old-pw");
   await page.getByLabel("New password").fill("new-pw");
   await page.getByRole("button", { name: "Change", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Saved."); // this browser stays unlocked
+  await expect(page.getByRole("status")).toContainText("Password changed."); // next to the row (#296); this browser stays unlocked
+  await expect(page.getByRole("status")).toBeInViewport();
   await page.getByRole("link", { name: "Back to the feed" }).click();
   await expect(page.getByRole("link", { name: "Secret note" })).toBeVisible();
 

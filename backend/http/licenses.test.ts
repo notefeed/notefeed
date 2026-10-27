@@ -319,7 +319,7 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
     expect(await opens("Passw0rd!x")).toBe(true);
 
     const set = await recover({ key, next: "N3wPassw0rd!" });
-    expect(set.headers.get("location")).toBe("/p/settings?saved=1");
+    expect(set.headers.get("location")).toBe("/p/settings?saved=password-recovered#access");
     expect(set.headers.getSetCookie()).toHaveLength(2);
     expect(await opens("N3wPassw0rd!")).toBe(true);
     expect(await opens("Passw0rd!x")).toBe(false);
@@ -328,6 +328,15 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
     expect(removed.headers.get("location")).toBe("/p");
     expect(removed.headers.getSetCookie().every((c) => c.includes("Max-Age=0"))).toBe(true);
     expect(await protectedFeed("p")).toBe(false);
+  });
+
+  test("from the settings page, a refusal goes back to the settings' recovery part (#297)", async () => {
+    const key = await protectedWithLicense();
+    const res = await recover({ key: "k".repeat(22), next: "N3wPassw0rd!", from: "settings" });
+    expect(res.headers.get("location")).toBe("/p/settings?form=recover&error=auth#access");
+    const set = await recover({ key, next: "N3wPassw0rd!", from: "settings" });
+    expect(set.headers.get("location")).toBe("/p/settings?saved=password-recovered#access");
+    expect(await opens("N3wPassw0rd!")).toBe(true);
   });
 
   test("a lapsed license's key removes the password but cannot set a new one", async () => {
@@ -448,7 +457,7 @@ describe.skipIf(!supported)("giving an open feed a password", () => {
     expect((await form({ next: "N3wPassw0rd!" })).headers.get("location")).toBe("/o/settings?form=protect&error=license_required");
     expect((await attachRoute(post("/api/licenses/attach", { feed: "o", key: await buy() }))).status).toBe(200);
     const ok = await form({ next: "N3wPassw0rd!" });
-    expect(ok.headers.get("location")).toBe("/o/settings?saved=1");
+    expect(ok.headers.get("location")).toBe("/o/settings?saved=password-set#access");
     expect(ok.headers.getSetCookie()).toHaveLength(2);
     expect(await opens("N3wPassw0rd!")).toBe(true);
   });
