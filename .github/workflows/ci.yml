@@ -165,6 +165,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The version the instance shows (#306): the tag's (0.30.0) or `main`, and the commit.
+          build-args: |
+            NOTEFEED_VERSION=${{ steps.meta.outputs.version }}
+            NOTEFEED_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # Attached to the image in the registry (docs/self-hosting/security.md shows how to read them).
