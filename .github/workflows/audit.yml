@@ -56,3 +56,17 @@ jobs:
           severity-cutoff: high
           only-fixed: true
           output-format: table
+
+  # The M8ven trust index (https://m8ven.ai/mcp/notefeed/notefeed), which MCP directories show next to the server. Its grade is capped
+  # at C for new projects until they have adoption, so the gate is the code sub-score, the part our code decides; the summary has
+  # the rest. M8ven re-reads the repository about once a day.
+  m8ven:
+    runs-on: ubuntu-latest
+    env:
+      MIN_CODE_SCORE: 80
+    steps:
+      - run: |
+          r=$(curl -sf --retry 3 "https://m8ven.ai/api/mcp/score?url=https%3A%2F%2Fgithub.com%2F${GITHUB_REPOSITORY/\//%2F}")
+          jq -r '"### M8ven: \(.grade) \(.score)/100, code \(.sub_scores.code)\n\nChecks: \(.findings_summary.pass) passed, \(.findings_summary.warn) warnings, \(.findings_summary.fail) failed (commit \(.commit_sha[:7]), read \(.verified_at[:10])). Details: https://m8ven.ai/mcp/notefeed/notefeed"' <<<"$r" | tee -a "$GITHUB_STEP_SUMMARY"
+          code=$(jq '.sub_scores.code' <<<"$r")
+          if [ "$code" -lt "$MIN_CODE_SCORE" ]; then echo "::error::M8ven code score $code is below $MIN_CODE_SCORE"; exit 1; fi
