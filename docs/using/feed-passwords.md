@@ -47,6 +47,6 @@ From then on everyone who posts to the feed needs the password, scripts and co-a
 
 ## A lost password
 
-The password is stored only as a salted hash, so nobody can look it up. On an instance that sells licenses, the feed's license key recovers it: the unlock screen's **Forgot the password?** sets a new password or removes it ([hosted](../hosted/licenses.md#a-lost-feed-password)).
+The password is stored only as a salted hash, so nobody can look it up. On an instance that sells licenses, the feed's license key recovers it: the unlock screen's **Forgot the password?**, the API's `POST /api/v1/feeds/<feed>/password/recover` or the MCP tool `recover_feed_password` sets a new password or removes it ([hosted](../hosted/licenses.md#a-lost-feed-password)).
 
 Otherwise the operator removes it and the feed is open at once, with its notes intact. With the file storage the hash is `DATA_DIR/<feed>/.password`: delete that file, and back it up with the notes. With SQLite or PostgreSQL there is no file: the operator clears the feed's password hash in the database (its `password_hash`, on the row the feed's name finds; with encryption at rest, ADR 0033, that name is stored as a keyed hash). Then a new password can be set as for any [open feed](#a-password-for-an-open-feed).

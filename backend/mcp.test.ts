@@ -90,10 +90,10 @@ const call = async (tool: string, args: Record<string, unknown>) => {
 describe("protocol", () => {
   test("tools/list", async () => {
     const tools = (await (await rpc("tools/list")).json()).result.tools;
-    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_note", "list_notes", "post_file", "post_note", "update_feed"]);
+    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_note", "list_notes", "post_file", "post_note", "recover_feed_password", "update_feed"]);
     for (const t of tools) {
       expect(t.annotations?.readOnlyHint === true).toBe(["get_feed", "get_note", "list_notes"].includes(t.name));
-      expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "delete_feed"].includes(t.name));
+      expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "recover_feed_password", "delete_feed"].includes(t.name));
       expect(t.annotations?.idempotentHint === true).toBe(["edit_note", "update_feed"].includes(t.name));
       expect(t.outputSchema.type).toBe("object");
     }
@@ -315,6 +315,31 @@ describe("tools", () => {
     expect((await call("create_feed", { feed: "l" })).content[0].text).toBe("a license is needed for this feed");
     expect((await call("create_feed", { feed: "l", license_key: key })).structuredContent).toMatchObject({ name: "l", free_tier: null });
     expect(await isLicensed("l")).toBe(true);
+  });
+
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("recover_feed_password: the feed's license key sets a new password or removes it; another key is refused (ADR 0037)", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    const other = "o".repeat(22); // a real key, but on no feed
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    await licenses().createLicense({ keyHash: hashKey(other), providerRef: "sub_2", validUntil: null });
+    await call("post_note", { feed: "p", markdown: "# Hi", password: "Lost!pass1", license_key: key });
+    for (const wrong of [other, "x".repeat(22)]) {
+      expect((await call("recover_feed_password", { feed: "p", license_key: wrong, new_password: "N3wPassw0rd!" })).isError).toBe(true);
+    }
+    expect((await call("recover_feed_password", { feed: "p", license_key: key, new_password: " padded " })).isError).toBe(true);
+    const set = await call("recover_feed_password", { feed: "p", license_key: ` ${key} `, new_password: "N3wPassw0rd!" });
+    expect(set.structuredContent).toMatchObject({ name: "p", protected: true, free_tier: null });
+    expect((await call("list_notes", { feed: "p", password: "Lost!pass1" })).isError).toBe(true);
+    expect((await call("list_notes", { feed: "p", password: "N3wPassw0rd!" })).isError).toBeUndefined();
+    const removed = await call("recover_feed_password", { feed: "p", license_key: key });
+    expect(removed.structuredContent).toMatchObject({ protected: false });
+  });
+
+  test("recover_feed_password is refused where licenses are not sold", async () => {
+    await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });
+    expect((await call("recover_feed_password", { feed: "p", license_key: "k".repeat(22), new_password: "N3wPassw0rd!" })).content[0].text).toBe("licenses are not sold on this instance");
   });
 
   test("calls without a password are refused but never counted as failed attempts", async () => {

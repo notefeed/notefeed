@@ -17,6 +17,7 @@ from .note_meta import NoteMeta
 from .password_json import PasswordJson
 from .posted import Posted
 from .read_feed import ReadFeed
+from .recovery_json import RecoveryJson
 
 __all__ = (
     "CreateFeedJson",
@@ -36,4 +37,5 @@ __all__ = (
     "PasswordJson",
     "Posted",
     "ReadFeed",
+    "RecoveryJson",
 )

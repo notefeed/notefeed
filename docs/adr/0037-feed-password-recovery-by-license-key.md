@@ -24,6 +24,7 @@ Chosen: the key recovers the password. The password stays what it is for, a secr
 * **Proof:** the key must be the license attached to this feed: found by its hash, its feed must be this one. A key on another feed or on none proves nothing.
 * **What it does:** with a new password, the feed gets it and this browser is unlocked for it (every earlier unlock cookie stops working); that needs an active license, like any password change. With the new password left empty, the password is removed, which a lapsed license's key may do too: it is still the buyer's proof, and the owner should not be locked out of their own notes by a lapsed subscription.
 * **Abuse:** a wrong key is a failed attempt and counts against the same per-client budget as a wrong password; a bad new password is refused before the key is tried and counts nothing.
+* **For scripts and agents** (added 2026-10-27): the same recovery is `POST /api/v1/feeds/{feed}/password/recover` with JSON `{key, password}`, the MCP tool `recover_feed_password` and the client packages' `recoverFeedPassword` / `recover_feed_password`; an empty or missing password removes it. Same proof, same attempt budget. Until then only the browser form could do it, and four feed passwords on notefeed.me had to be reset by replaying that form.
 * **Elsewhere:** an instance without a payment provider shows nothing new; there the operator still removes a lost password (ADR 0008), now described for the SQL storage too.
 
 ### Consequences

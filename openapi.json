@@ -1798,6 +1798,125 @@
         }
       }
     },
+    "/api/v1/feeds/{feed}/password/recover": {
+      "post": {
+        "operationId": "recoverFeedPassword",
+        "summary": "Recover a feed's password with its license key",
+        "description": "Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license on this feed proves ownership instead of the current password (ADR 0037). With a new password the feed gets it (needs an active license, like any password change); with none, or an empty one, the password is removed, which a lapsed license's key may do too. A key that is not this feed's license is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before the key is tried.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryJson"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Set or removed; the old password and unlock cookies stop working"
+          },
+          "400": {
+            "description": "Invalid or reserved feed name, bad JSON, or a new password that is not 1 to 256 printable ASCII characters, with no space at the start or end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The key is not this feed's license, or the feed has no password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The key's license has lapsed, and a new password needs an active one (`license_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Licenses are not sold on this instance, or the feed was deleted meanwhile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong passwords or keys from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/feeds/{feed}/license": {
       "put": {
         "operationId": "putFeedLicense",
@@ -2790,6 +2909,23 @@
         },
         "required": [
           "password"
+        ],
+        "additionalProperties": false
+      },
+      "RecoveryJson": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The license key on this feed, as the checkout or the receipt gave it"
+          },
+          "password": {
+            "description": "The new password: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out removes the password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
         ],
         "additionalProperties": false
       },

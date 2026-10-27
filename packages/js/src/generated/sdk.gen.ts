@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen.js';
+import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -167,6 +167,21 @@ export const removeFeedPassword = <ThrowOnError extends boolean = false>(options
 export const changeFeedPassword = <ThrowOnError extends boolean = false>(options: Options<ChangeFeedPasswordData, ThrowOnError>): RequestResult<ChangeFeedPasswordResponses, ChangeFeedPasswordErrors, ThrowOnError> => (options.client ?? client).put<ChangeFeedPasswordResponses, ChangeFeedPasswordErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/feeds/{feed}/password',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Recover a feed's password with its license key
+ *
+ * Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license on this feed proves ownership instead of the current password (ADR 0037). With a new password the feed gets it (needs an active license, like any password change); with none, or an empty one, the password is removed, which a lapsed license's key may do too. A key that is not this feed's license is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before the key is tried.
+ */
+export const recoverFeedPassword = <ThrowOnError extends boolean = false>(options: Options<RecoverFeedPasswordData, ThrowOnError>): RequestResult<RecoverFeedPasswordResponses, RecoverFeedPasswordErrors, ThrowOnError> => (options.client ?? client).post<RecoverFeedPasswordResponses, RecoverFeedPasswordErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/password/recover',
     ...options,
     headers: {
         'Content-Type': 'application/json',

@@ -302,6 +302,27 @@ jobs:
           curl -sf -X POST https://notefeed.me/api/v1/feeds/releases/notes -H "Content-Type: text/markdown" \
             -H "X-Feed-Password: $PASSWORD" -H "X-Note-Title: notefeed ${TAG#v}" -H "X-Note-Tags: release,$TAG" \
             --data-binary @post-dated.md -o /dev/null -w "posted: %{http_code}\n"
+      # Each agent skill (plugin/skills/<name>/SKILL.md) on notefeed.me's reserved `skills` feed under the name `<name>.md` (#250, ADR 0045):
+      # https://notefeed.me/r/skills/<name>.md is always the newest, earlier releases stay in the feed. Tagged with the release, so a
+      # re-run posts nothing twice; without the secret, or before the feed exists, it is a notice, not a failed release.
+      - name: Post the skills to the skills feed
+        env:
+          PASSWORD: ${{ secrets.NOTEFEED_RESERVED_PASSWORD }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$PASSWORD" ]; then echo "::notice::NOTEFEED_RESERVED_PASSWORD is not set: skills not posted"; exit 0; fi
+          # Only into the reserved feed itself: a post to a missing one would try to create it.
+          status=$(curl -s -o /dev/null -w "%{http_code}" -H "X-Feed-Password: $PASSWORD" https://notefeed.me/api/v1/feeds/skills)
+          if [ "$status" != 200 ]; then echo "::notice::the skills feed answered $status: skills not posted"; exit 0; fi
+          found=$(curl -sf -H "X-Feed-Password: $PASSWORD" "https://notefeed.me/api/v1/feeds/skills/notes?tag=$TAG&limit=100")
+          for file in plugin/skills/*/SKILL.md; do
+            name=$(basename "$(dirname "$file")")
+            if jq -e --arg n "$name" '.notes[] | select(.tags | index($n))' <<< "$found" > /dev/null; then echo "$name: already posted"; continue; fi
+            curl -sf -X POST https://notefeed.me/api/v1/feeds/skills/notes -H "Content-Type: text/markdown" \
+              -H "X-Feed-Password: $PASSWORD" -H "X-Note-Name: $name.md" -H "X-Note-Title: $name (notefeed ${TAG#v})" \
+              -H "X-Note-Tags: skill,$name,$TAG" --data-binary @"$file" -o /dev/null -w "$name: %{http_code}\n" \
+              || echo "::warning::$name was not posted to the skills feed"
+          done
       # A short post about the release on the reserved `news` feed (https://notefeed.me/r/news), written by Claude from the
       # tag message and the release's pull requests: only what users notice, no post when there is nothing of the kind.
       # The release is out either way, so a failure here is a warning, not a failed release: the News workflow (news.yml) posts it again.

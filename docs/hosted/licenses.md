@@ -14,7 +14,7 @@ The feed's settings show the tier under **License**, as *Free tier · N of 100 n
 
 ## What a license is
 
-A license is for one feed, by the month or by the year; the price is on the [license page](https://notefeed.me/license). With it the feed keeps every note, can have a feed password and takes pictures.
+A license is for one feed, by the month or by the year; the price is on the [license page](https://notefeed.me/license). With it the feed keeps every note, can have a feed password, takes pictures, and its posts, edits and deletes don't count against the per-client rate limit, so a burst from CI is never answered with `429`.
 
 There are no accounts. A license is a **key** you keep: notefeed stores only a hash of it and nothing about you; the payment provider holds the purchase. The key is issued by the payment provider: it is shown on the page you land on after paying, and it is in the provider's receipt e-mail and customer portal, where you find it again if you lose it. notefeed itself cannot show it again.
 
@@ -45,7 +45,7 @@ The subscription lives at the payment provider. The [license page](https://notef
 
 ## A lost feed password
 
-The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?**, enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it is also the way to the subscription and its invoices.
+The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?**, enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. Scripts and agents do the same with `POST /api/v1/feeds/<feed>/password/recover` and JSON `{"key": "…", "password": "…"}`, the MCP tool `recover_feed_password`, or `recoverFeedPassword` / `recover_feed_password` in the client packages. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it is also the way to the subscription and its invoices.
 
 ## When a license ends
 

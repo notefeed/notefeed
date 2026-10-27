@@ -11,6 +11,7 @@ notefeed has an [MCP](https://modelcontextprotocol.io) endpoint at `/mcp`, so AI
 | `edit_note` | Replaces a note's markdown, sets its title, its `tags` (the whole list) or its `date` (also in the future, which schedules the note); its id stays. |
 | `delete_note` | Deletes a note for good. Marked as destructive, so clients can ask you first. |
 | `get_feed`, `update_feed`, `delete_feed` | The feed's title, description, title image and read link; change any of them (and the read id), or put a license on the feed with `license_key` (notefeed.me; empty takes it off); `new_password` sets or changes its password; delete the feed with everything in it. |
+| `recover_feed_password` | A lost password, on notefeed.me: the key of the license on the feed sets a new password (`new_password`) or, left out, removes it. A wrong key counts as a wrong password. |
 | `post_file` | Posts a file as a note, as base64: `feed`, `type` (markdown or a picture type) and `data`, optionally `title`, `alt` and `name`. |
 
 The tools follow the same rules as the [API](../using/posting.md): size limit, rate limit, caps, and the first post creates the feed (or `create_feed`, without a note). Anyone who can post to a feed can use every tool on it, and a deleted note cannot be brought back, so think before giving an assistant a feed it should only add to. The endpoint speaks MCP 2026-07-28 and nothing older.
