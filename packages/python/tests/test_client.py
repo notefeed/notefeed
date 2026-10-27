@@ -467,6 +467,18 @@ def test_set_feed_password_puts_it_with_the_current_one_for_a_protected_feed(ser
     assert (json.loads(second["body"]), second["headers"]["X-Feed-Password"]) == ({"password": "Other!pass1"}, "N3wPassw0rd!")
 
 
+def test_recover_feed_password_posts_the_key_and_the_new_password_without_a_feed_password(server):
+    server.reply(204, "")
+    server.reply(204, "")
+    c = Client(server.url, "inbox", feed_password="forgotten")
+    assert c.recover_feed_password("k" * 22, "N3wPassw0rd!") is None
+    c.recover_feed_password("k" * 22, feed="other")
+    set_, removed = server.requests
+    assert (set_["method"], set_["path"], json.loads(set_["body"])) == ("POST", "/api/v1/feeds/inbox/password/recover", {"key": "k" * 22, "password": "N3wPassw0rd!"})
+    assert "X-Feed-Password" not in set_["headers"]
+    assert (removed["path"], json.loads(removed["body"])) == ("/api/v1/feeds/other/password/recover", {"key": "k" * 22, "password": ""})
+
+
 def test_delete_feed_sends_delete_and_returns_none(server):
     server.reply(204, "")
     with Client(server.url, "inbox", feed_password="fp") as c:

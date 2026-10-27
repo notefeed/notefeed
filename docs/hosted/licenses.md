@@ -45,7 +45,7 @@ The subscription lives at the payment provider. The [license page](https://notef
 
 ## A lost feed password
 
-The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?**, enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it is also the way to the subscription and its invoices.
+The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?**, enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. Scripts and agents do the same with `POST /api/v1/feeds/<feed>/password/recover` and JSON `{"key": "…", "password": "…"}`, the MCP tool `recover_feed_password`, or `recoverFeedPassword` / `recover_feed_password` in the client packages. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it is also the way to the subscription and its invoices.
 
 ## When a license ends
 

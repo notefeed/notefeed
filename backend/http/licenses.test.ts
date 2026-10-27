@@ -350,6 +350,55 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
   });
 });
 
+// The same recovery for scripts and agents: POST /api/v1/feeds/{feed}/password/recover with the key (ADR 0037).
+describe.skipIf(!supported)("recovering a feed password through the API", () => {
+  const recover = (body: unknown) =>
+    dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/p/password/recover`, { method: "POST", headers: { host: "notefeed.test", "content-type": "application/json" }, body: JSON.stringify(body) }), ["feeds", "p", "password", "recover"]);
+  const opens = async (password: string) => {
+    const { unlock } = await import("../feedlock");
+    return unlock("p", password, "1.2.3.4").then(
+      () => true,
+      () => false,
+    );
+  };
+  const protectedWithLicense = async () => {
+    const { createProtected } = await import("../feedlock");
+    await createProtected("p", "Passw0rd!x");
+    const key = await buy();
+    expect((await attachRoute(post("/api/licenses/attach", { feed: "p", key }, "POST", { "x-feed-password": "Passw0rd!x" }))).status).toBe(200);
+    return key;
+  };
+
+  test("the key on the feed sets a new password or removes it; another key, a bad body or a bad password is refused", async () => {
+    const { protectedFeed } = await import("../feedlock");
+    const key = await protectedWithLicense();
+    const other = await buy("sub_2");
+    for (const wrong of ["k".repeat(22), other, ""]) expect((await recover({ key: wrong, password: "N3wPassw0rd!" })).status).toBe(401);
+    expect((await recover({ password: "N3wPassw0rd!" })).status).toBe(400);
+    expect((await recover({ key, password: " padded " })).status).toBe(400);
+    expect(await opens("Passw0rd!x")).toBe(true);
+
+    expect((await recover({ key: ` ${key} `, password: "N3wPassw0rd!" })).status).toBe(204);
+    expect(await opens("N3wPassw0rd!")).toBe(true);
+    expect(await opens("Passw0rd!x")).toBe(false);
+
+    expect((await recover({ key })).status).toBe(204);
+    expect(await protectedFeed("p")).toBe(false);
+    expect((await recover({ key, password: "N3wPassw0rd!" })).status).toBe(401); // nothing left to recover
+  });
+
+  test("a lapsed license's key removes the password but cannot set one; 404 where licenses are not sold", async () => {
+    const { protectedFeed } = await import("../feedlock");
+    const key = await protectedWithLicense();
+    await webhookRoute(webhook([{ type: "refunded", providerRef: "sub_1" }]));
+    expect((await recover({ key, password: "N3wPassw0rd!" })).status).toBe(402);
+    expect((await recover({ key, password: "" })).status).toBe(204);
+    expect(await protectedFeed("p")).toBe(false);
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "");
+    expect((await recover({ key, password: "N3wPassw0rd!" })).status).toBe(404);
+  });
+});
+
 // An open feed gets a password later (ADR 0044, #248). Its name is all that protects it, so whoever has the name may set one, and so
 // claim the feed; where licenses are sold, a password needs a licensed feed, as at creation.
 describe.skipIf(!supported)("giving an open feed a password", () => {
