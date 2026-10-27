@@ -24,7 +24,7 @@
     "lucide-react": "^1.49.0",
     "mdast-util-from-markdown": "^2.0.3",
     "mermaid": "12.1.0",
-    "next": "16.3.8",
+    "next": "16.4.1",
     "pg": "^8.23.1",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",
