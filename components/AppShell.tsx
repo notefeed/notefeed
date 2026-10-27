@@ -22,7 +22,7 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
   const loggedIn = await hasSession();
   const links = await footerLinks();
   return (
-    <div className="shell mx-auto min-h-dvh max-w-[80rem] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:px-6">
+    <div className="shell min-h-dvh pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:px-6">
       <TopBar feed={feed} links={links} loggedIn={loggedIn} />
 
       <aside aria-label="Feeds" className="sticky top-0 hidden h-dvh flex-col self-start py-6 [grid-area:nav] lg:flex">

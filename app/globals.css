@@ -102,6 +102,8 @@ body {
 .md .hljs-strong { font-weight: 700; }
 /* A drawn ```mermaid block (#243): as wide as the column at most, centred. */
 .md .mermaid-diagram svg { max-width: 100%; height: auto; margin-inline: auto; }
+/* Enlarged in its dialog (#301): as large as the screen allows, past the max-width mermaid writes on the SVG. */
+.md .mermaid-enlarged svg { width: 100%; height: 100%; max-width: none !important; }
 /* A heading's link to itself on a note's page (#243): shown on hover or focus. */
 .md .anchor { margin-left: 0.4em; color: var(--muted); font-weight: 400; text-decoration: none; opacity: 0; }
 .md :is(h1, h2, h3, h4, h5, h6):hover .anchor, .md .anchor:focus-visible { opacity: 1; }
@@ -119,10 +121,10 @@ body {
    details on the right. One element per area, so nothing is rendered twice. */
 .shell { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; grid-template-areas: "top" "about" "main"; }
 @media (min-width: 64rem) {
-  .shell { grid-template-columns: 15rem minmax(0, 40rem); grid-template-rows: auto 1fr; grid-template-areas: "nav about" "nav main"; column-gap: 2rem; justify-content: center; }
+  .shell { grid-template-columns: 15rem minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "nav about" "nav main"; column-gap: 2rem; }
 }
 @media (min-width: 80rem) {
-  .shell { grid-template-columns: 15rem 40rem 18.75rem; grid-template-rows: 1fr; grid-template-areas: "nav main about"; }
+  .shell { grid-template-columns: 15rem minmax(0, 1fr) 18.75rem; grid-template-rows: 1fr; grid-template-areas: "nav main about"; }
 }
 
 /* A disclosure's marker: the summary carries its own chevron (settings rows, menus). */

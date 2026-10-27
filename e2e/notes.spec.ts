@@ -298,6 +298,36 @@ test("a long note's page has contents, anchors, highlighted code and drawn diagr
   await expect(page).toHaveURL(/#diagram$/);
   await expect(page.locator("h2#setup")).toBeVisible();
   await expect(page.locator(".hljs-attr", { hasText: "key:" })).toBeVisible();
-  await expect(page.locator(".mermaid-diagram svg")).toHaveCount(1); // the broken one stays as its source
+  await expect(page.getByRole("button", { name: "Enlarge diagram" })).toHaveCount(1); // the broken one stays as its source
   await expect(page.getByText("not a diagram ((")).toBeVisible();
+});
+
+// Diagrams in the timeline too, and a click enlarges one (#301).
+test("a diagram is drawn in the timeline and opens enlarged on a click", async ({ page }) => {
+  const name = feedName();
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill(["# Flow", "```mermaid\ngraph LR; A-->B-->C\n```"].join("\n\n"));
+  await page.getByRole("button", { name: "Post note" }).click();
+  const enlarge = page.getByRole("button", { name: "Enlarge diagram" });
+  await expect(enlarge).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "Diagram" });
+  await expect(dialog).toBeHidden();
+  await enlarge.click();
+  await expect(dialog).toBeVisible();
+  const small = (await enlarge.locator("svg").boundingBox())!.width;
+  expect((await dialog.locator("svg.flowchart").boundingBox())!.width).toBeGreaterThan(small);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await enlarge.click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+// The page uses the window's width (#300): on a wide screen the note column grows past the old 40rem.
+test("on a wide screen the note column takes the free width", async ({ page }) => {
+  await page.setViewportSize({ width: 1800, height: 1000 });
+  await page.goto(`/${feedName()}`);
+  const main = (await page.locator("main").boundingBox())!;
+  expect(main.width).toBeGreaterThan(1000);
+  expect(main.x + main.width).toBeGreaterThan(1800 - 18.75 * 16 - 100); // only the about column is to its right
 });
