@@ -36,6 +36,7 @@ See [Rate limits and caps](limits.md).
 | Variable | Default | Meaning |
 |---|---|---|
 | `NOTEFEED_RESERVED_FEEDS` | empty | Comma-separated names nobody can create, e.g. `news,announcements`. See [Reserved feeds](access.md#reserved-feeds). |
+| `NOTEFEED_FOOTER_FEEDS` | empty | Comma-separated feeds linked in the footer and the ⓘ menu, in this order, e.g. `releases,blog`. See [Reserved feeds](access.md#reserved-feeds). |
 | `NOTEFEED_RESERVED_PASSWORD` | none | With it, each reserved name exists from start-up as a protected feed with its name as read id. |
 | `NOTEFEED_IMPRINT_FILE`, `NOTEFEED_PRIVACY_FILE`, `NOTEFEED_TERMS_FILE` | none | A Markdown file each, shown at `/imprint`, `/privacy` and `/terms`. See [Imprint, privacy page and terms](legal-pages.md). |
 | `NOTEFEED_NOTICE_FILE` | none | A Markdown file shown as a red banner on the start page. |

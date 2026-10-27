@@ -16,7 +16,7 @@ class UsageError extends Error {}
 const USAGE = [
   "usage: notefeed post <text | - | --file PATH> [--type MEDIA_TYPE] [--title TITLE] [--tag TAG]... [--attach PATH]... [--date WHEN] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed edit <id> <text | - | --file PATH> [--type MEDIA_TYPE] [--url URL] [--feed FEED] [--password PASSWORD]",
-  "       notefeed update <id> [--title TITLE] [--alt ALT] [--date WHEN] [--url URL] [--feed FEED] [--password PASSWORD]",
+  "       notefeed update <id> [--title TITLE] [--alt ALT] [--tags LIST] [--date WHEN] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed delete <id> [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed notes [--limit N] [--tag TAG] [--json] [--url URL] [--feed FEED] [--password PASSWORD]",
 ].join("\n");
@@ -39,6 +39,7 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
         title: { type: "string" },
         alt: { type: "string" },
         tag: { type: "string", multiple: true },
+        tags: { type: "string" },
         date: { type: "string" },
         attach: { type: "string", multiple: true },
         limit: { type: "string" },
@@ -74,8 +75,10 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
       return 0;
     }
     if (command === "update" && text !== undefined && !rest.length) {
-      if (values.title === undefined && values.alt === undefined && values.date === undefined) throw new UsageError("give --title, --alt and/or --date");
-      const note = await client(values).update(text, { title: values.title, alt: values.alt, date: values.date });
+      if (values.title === undefined && values.alt === undefined && values.tags === undefined && values.date === undefined) throw new UsageError("give --title, --alt, --tags and/or --date");
+      // --tags is the whole new list, comma-separated; "" removes them all.
+      const tags = values.tags?.split(",").map((t) => t.trim()).filter(Boolean);
+      const note = await client(values).update(text, { title: values.title, alt: values.alt, tags, date: values.date });
       io.stdout.write(`${note.url}\n`);
       return 0;
     }

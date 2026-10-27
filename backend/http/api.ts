@@ -15,7 +15,7 @@ import { TAG_RULE } from "../tags";
 import { API_PREFIX, feedPath, imagePath, publicUrl, readPath, rssPath } from "../urls";
 import { MEDIA_TYPES } from "../note/media";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
-import { MAX_ATTACHMENTS, deleteFeed, deleteNote, editContent, editMeta, editWithPictures, updateFeed } from "../posting";
+import { MAX_ATTACHMENTS, deleteFeed, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
 import { MULTIPART_SLACK, createdOf, handlePostNote, readContent, readMetaPatch, readMultipart } from "./notes";
 import { authorize, feedAccess, mediaType, readCapped, sender } from "./request";
 import {
@@ -41,6 +41,7 @@ import {
   NoteList,
   NoteTagsHeader,
   PageQuery,
+  LicenseKeyJson,
   PasswordJson,
   Posted,
   ReadFeedJson,
@@ -152,7 +153,7 @@ const OPS: AnyOp[] = [
       "It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS position stays in an image). " +
       "Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; " +
       `${PASSWORD_RULE}) and with the read id in \`X-Read-Id\`; both are only used by the post that creates the feed. ` +
-      "Where licenses are sold, a feed password needs one: the post that creates the feed protected brings the license key in `X-License-Key`, or is refused with `402`. " +
+      "Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. " +
       "Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. " +
       "The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). " +
       `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Date\` (where it is placed in the feed: a past date backdates it, a future one schedules it). ` +
@@ -248,7 +249,7 @@ const OPS: AnyOp[] = [
     description:
       "The body is the new file, with the same rules as posting: a `Content-Type` that is one of the accepted types, a body that is what it declares. " +
       "A note keeps its type, so the type must be the note's own (`415` otherwise). Id, creation time and metadata stay: " +
-      "the title of a markdown note without one set follows the new text. Change the title or alt text with `PATCH`. " +
+      "the title of a markdown note without one set follows the new text. Change the title, alt text or tags with `PATCH`. " +
       "Needs the feed's password if it has one, and counts against the post rate limit. Read links can't edit. " +
       MULTIPART +
       "On a `PUT` the `text` part is required and the note must be a markdown note; the note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever the body holds.",
@@ -293,10 +294,11 @@ const OPS: AnyOp[] = [
     method: "PATCH",
     path: `${API_PREFIX}/feeds/{feed}/notes/{id}`,
     operationId: "patchNote",
-    summary: "Change a note's title, alt text or date",
+    summary: "Change a note's title, alt text, tags or date",
     description:
-      "Sets the note's title, alt text (only for images) and/or date. An empty title or alt removes it: a markdown note's title follows its text again. " +
-      "A new date moves the note in the feed, with its attachments; a date after now schedules it. Id and links stay. " +
+      "Sets the note's title, alt text (only for images), tags and/or date. An empty title or alt removes it: a markdown note's title follows its text again. " +
+      "`tags` replaces the whole list (an empty list removes them), with the same rules as on a post. " +
+      "A new date moves the note in the feed, with its attachments; a date after now schedules it. Id and links stay, and so does its RSS item's guid. " +
       "At least one is needed. Needs the feed's password if it has one, and counts against the post rate limit. Read links can't change notes.",
     tags: ["Feeds"],
     password: true,
@@ -305,7 +307,7 @@ const OPS: AnyOp[] = [
     body: { "application/json": MetaJson },
     responses: {
       200: { description: "The note as it is now", schema: NoteJson },
-      400: err("Invalid or reserved feed name; nothing to change; a bad title, alt text or date; alt for a note that has none; bad JSON"),
+      400: err("Invalid or reserved feed name; nothing to change; a bad title, alt text, tag or date; too many tags; alt for a note that has none; bad JSON"),
       401: UNAUTHORIZED,
       404: err("No such note"),
       415: err("Content-Type is not application/json"),
@@ -486,6 +488,67 @@ const OPS: AnyOp[] = [
   }).handle(async ({ req, params }) => {
     await removePassword(params.feed, req.headers.get("x-feed-password") ?? "", clientIp(req.headers));
     return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/feeds/{feed}/license`,
+    operationId: "putFeedLicense",
+    summary: "Put a license on a feed",
+    description:
+      "Only on an instance that sells licenses (404 elsewhere). Puts the license the key names on the feed, taking it off the feed it was on; a feed that has an active license already answers 400 (take it off first). " +
+      "A feed needs no password for a license. A key notefeed doesn't know is 400 and counts as a failed attempt, like a wrong password. " +
+      "Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed that exists: it is created by its first note, which can bring the key in `X-License-Key`.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    headers: { "X-Feed-Password": FeedPasswordHeader },
+    body: { "application/json": LicenseKeyJson },
+    responses: {
+      200: { description: "The feed as it is now: `free_tier` is null", schema: FeedJson },
+      400: err("Invalid or reserved feed name, bad JSON, a key that is none, or a feed with an active license already"),
+      401: UNAUTHORIZED,
+      402: err("The key's license has lapsed (`license_required`)"),
+      404: err("No such feed, or licenses are not sold on this instance"),
+      429: { ...err("Too many posts, edits and deletes, or wrong passwords and keys, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const bytes = await readCapped(req, 4096);
+    let body: ReturnType<typeof LicenseKeyJson.safeParse> | undefined;
+    try {
+      body = LicenseKeyJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array())));
+    } catch {}
+    if (!body?.success) throw new InvalidBodyError('JSON needs a "key" string');
+    await setLicense(params.feed, clientIp(req.headers), body.data.key, feedAccess(req.headers, params.feed));
+    return { status: 200, body: await feedJson(params.feed, req.headers) };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/feeds/{feed}/license`,
+    operationId: "deleteFeedLicense",
+    summary: "Take a feed's license off",
+    description:
+      "Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the key can be put on another feed; the subscription runs on. " +
+      "A feed without a license answers the same. Needs the feed's password if it has one, and counts against the post rate limit.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    headers: { "X-Feed-Password": FeedPasswordHeader },
+    responses: {
+      200: { description: "The feed as it is now", schema: FeedJson },
+      400: err("Invalid or reserved feed name"),
+      401: UNAUTHORIZED,
+      404: err("No such feed, or licenses are not sold on this instance"),
+      429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    await setLicense(params.feed, clientIp(req.headers), null, feedAccess(req.headers, params.feed));
+    return { status: 200, body: await feedJson(params.feed, req.headers) };
   }),
 
   op({

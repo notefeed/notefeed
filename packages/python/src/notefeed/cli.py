@@ -32,10 +32,11 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("text", nargs="?", help='the new markdown, or "-" to read stdin')
     e.add_argument("--file", help="replace it with this file (of the note's own type)")
     e.add_argument("--type", help="the file's media type, when the extension does not say")
-    u = sub.add_parser("update", help="set a note's title, alt text and/or date; prints its URL")
+    u = sub.add_parser("update", help="set a note's title, alt text, tags and/or date; prints its URL")
     u.add_argument("id", help="the note's id")
     u.add_argument("--title", help='the note\'s title ("" removes it)')
     u.add_argument("--alt", help='a picture\'s alternative text ("" removes it)')
+    u.add_argument("--tags", metavar="LIST", help='the note\'s tags, the whole new list, comma-separated ("" removes them)')
     u.add_argument("--date", metavar="WHEN", help="the note's new date: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note")
     d = sub.add_parser("delete", help="delete a note; prints nothing")
     d.add_argument("id", help="the note's id")
@@ -62,9 +63,10 @@ def main(argv: list[str] | None = None) -> int:
             content, media, _ = _read(args)
             print(_client(args).edit(args.id, content, type=media).url)
         elif args.command == "update":
-            if args.title is None and args.alt is None and args.date is None:
-                raise _UsageError("give --title, --alt and/or --date")
-            print(_client(args).update(args.id, title=args.title, alt=args.alt, date=args.date).url)
+            if args.title is None and args.alt is None and args.tags is None and args.date is None:
+                raise _UsageError("give --title, --alt, --tags and/or --date")
+            tags = None if args.tags is None else [t.strip() for t in args.tags.split(",") if t.strip()]
+            print(_client(args).update(args.id, title=args.title, alt=args.alt, date=args.date, tags=tags).url)
         elif args.command == "delete":
             _client(args).delete(args.id)
         else:

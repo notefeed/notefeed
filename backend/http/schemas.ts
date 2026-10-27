@@ -82,8 +82,16 @@ const NoteAlt = z.string().describe("Alternative text of an image note, at most 
 const DATE_FORMAT = "An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). ";
 const DATE_RULE = "When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on.";
 const NoteDate = z.string().describe(`${DATE_FORMAT}${DATE_RULE} The note's attachments move with it.`);
-export const MetaJson = z.object({ title: NoteTitle.optional(), alt: NoteAlt.optional(), date: NoteDate.optional() }).meta({ id: "NoteMeta" });
+export const MetaJson = z
+  .object({
+    title: NoteTitle.optional(),
+    alt: NoteAlt.optional(),
+    tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list (\`["ci","done"]\`): ${TAG_RULE}. Empty removes them all; omitted leaves them as they are.`),
+    date: NoteDate.optional(),
+  })
+  .meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
+export const LicenseKeyJson = z.object({ key: z.string().describe("The license key, as the checkout or the receipt gave it") }).meta({ id: "LicenseKey" });
 
 export const FeedPasswordHeader = z
   .string()
@@ -102,8 +110,9 @@ export const ReadIdHeader = z.string().describe("The read id the feed gets when 
 export const LicenseKeyHeader = z
   .string()
   .describe(
-    "Only on an instance that sells licenses, with `X-Feed-Password` on the post that creates the feed: the key of the license to put on the new feed, since a feed password is for licensed feeds (402 without one). " +
-      "Ignored on an existing feed and without a password; 400 for a key that is none",
+    "Only on an instance that sells licenses, on the post that creates the feed: the key of the license to put on the new feed, with or without `X-Feed-Password` " +
+      "(a feed password is for licensed feeds: with one and no key, 402). 400 for a key that is none, 402 for one whose license has lapsed; either way nothing is created. " +
+      "Ignored on an existing feed: put a license on it with `PUT /api/v1/feeds/{feed}/license`",
   );
 export const NoteNameHeader = z
   .string()
@@ -156,7 +165,7 @@ export const ReadFeedJson = z.object({ title: TITLE, description: DESCRIPTION, i
 // A raw request body, not JSON.
 export const FileBody = z.string().meta({ format: "binary" }).describe("The note, a file: its bytes, of the type `Content-Type` declares");
 
-export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, MultipartNote, ErrorJson, MetaJson, PasswordJson, FeedSettingsJson, FreeTierJson, FeedJson, ReadFeedJson];
+export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, MultipartNote, ErrorJson, MetaJson, PasswordJson, LicenseKeyJson, FeedSettingsJson, FreeTierJson, FeedJson, ReadFeedJson];
 
 export const FeedParam = z.string().regex(FEED_RE).describe("The feed's name. It is the write key: anyone who knows it can post.");
 export const ReadIdParam = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).describe("The feed's read id, from its read link: 22 random characters, one the feed's owner chose, or the feed's own name for a reserved feed. Read-only; never reveals the name of any other feed.");

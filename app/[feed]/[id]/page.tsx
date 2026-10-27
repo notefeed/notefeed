@@ -50,7 +50,7 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[fe
   const link = kind.attachments(note.content).length ? attachmentLinks(await getFeedPictures(feed), feedPath(feed)) : undefined;
 
   return (
-    <NoteActions key={`${note.content}\n${note.meta.title}\n${note.alt}\n${note.date.toISOString()}`} feed={feed} id={id} kind={kind.name} markdown={note.content ?? ""} title={note.meta.title ?? ""} alt={note.alt ?? ""} date={note.date.toISOString()} error={noteErrorMessage(error, retry)} images={imageUploadsOn()} imageBase={imageBase} reportHref={reportHref}>
+    <NoteActions key={`${note.content}\n${note.meta.title}\n${note.alt}\n${note.tags.join(",")}\n${note.date.toISOString()}`} feed={feed} id={id} kind={kind.name} markdown={note.content ?? ""} title={note.meta.title ?? ""} alt={note.alt ?? ""} tags={note.tags} date={note.date.toISOString()} error={noteErrorMessage(error, retry)} images={imageUploadsOn()} imageBase={imageBase} reportHref={reportHref}>
     <AppShell feed={feed} about={<NoteActionsBar />} docked>
       {edited === "1" && (
         <p role="status" className="mb-4 text-sm text-carbon">

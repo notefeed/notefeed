@@ -46,9 +46,10 @@ test("a support address that is not one gives no link", async () => {
   }
 });
 
-test("the reserved feeds there are to read come after the product links", async () => {
+test("the feeds the operator lists come after the product links; other reserved feeds do not", async () => {
   vi.stubEnv("DATA_DIR", dir);
-  vi.stubEnv("NOTEFEED_RESERVED_FEEDS", "releases,blog");
+  vi.stubEnv("NOTEFEED_RESERVED_FEEDS", "releases,admin,blog,www");
+  vi.stubEnv("NOTEFEED_FOOTER_FEEDS", "releases,blog");
   vi.stubEnv("NOTEFEED_RESERVED_PASSWORD", "operator-pass-1");
   expect((await footerLinks()).product.map((l) => l.label)).toEqual(["Docs", "GitHub", "Releases", "Blog"]);
 });

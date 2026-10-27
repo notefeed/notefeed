@@ -15,9 +15,9 @@ import httpx
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
-from ._generated.api.feeds import delete_feed, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, update_feed
+from ._generated.api.feeds import delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, update_feed
 from ._generated.api.read import get_read_note, list_read_notes
-from ._generated.models import Created, Feed, FeedSettings, Note, NoteList, NoteMeta
+from ._generated.models import Created, Feed, FeedSettings, LicenseKey, Note, NoteList, NoteMeta
 from ._generated.types import UNSET, File
 
 
@@ -319,9 +319,10 @@ class Client:
         feed: str | None = None,
         feed_password: str | None = None,
         date: str | date | None = None,
+        tags: list[str] | None = None,
     ) -> Note:
-        """Set a note's title, alt text (for pictures) and/or date (as in post(); a future one schedules the note); "" removes a title or alt, so a markdown note's title follows its text again; None leaves it. Same options as post()."""
-        meta = NoteMeta(title=UNSET if title is None else title, alt=UNSET if alt is None else alt, date=_date(date))
+        """Set a note's title, alt text (for pictures), tags and/or date (as in post(); a future one schedules the note); "" removes a title or alt, so a markdown note's title follows its text again; tags replace the whole list ([] removes them); None leaves it. Same options as post()."""
+        meta = NoteMeta(title=UNSET if title is None else title, alt=UNSET if alt is None else alt, tags=UNSET if tags is None else list(tags), date=_date(date))
         kwargs = patch_note._get_kwargs(feed=self._feed_for(feed), id=id, body=meta, x_feed_password=self._fp(feed_password))
         return self._parse(Note, self._call(kwargs))
 
@@ -351,6 +352,16 @@ class Client:
             read_id=UNSET if read_id is None else read_id,
         )
         kwargs = update_feed._get_kwargs(feed=self._feed_for(feed), body=settings, x_feed_password=self._fp(feed_password))
+        return self._parse(Feed, self._call(kwargs))
+
+    def attach_license(self, key: str, feed: str | None = None, feed_password: str | None = None) -> Feed:
+        """Put the license the key names on the feed, taking it off the feed it was on; a feed needs no password for it. Only on an instance that sells licenses. Same options as post()."""
+        kwargs = put_feed_license._get_kwargs(feed=self._feed_for(feed), body=LicenseKey(key=key), x_feed_password=self._fp(feed_password))
+        return self._parse(Feed, self._call(kwargs))
+
+    def detach_license(self, feed: str | None = None, feed_password: str | None = None) -> Feed:
+        """Take the feed's license off: it is a free feed again, and the key can go on another feed. Same options as post()."""
+        kwargs = delete_feed_license._get_kwargs(feed=self._feed_for(feed), x_feed_password=self._fp(feed_password))
         return self._parse(Feed, self._call(kwargs))
 
     def delete_feed(self, feed: str | None = None, feed_password: str | None = None) -> None:

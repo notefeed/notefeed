@@ -15,6 +15,7 @@ import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
 import { errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
+import { sortTags } from "@/shared/tags";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +35,6 @@ export async function generateMetadata({ params }: PageProps<"/[feed]">): Promis
   return { title: access === "locked" ? feed : ((await feedData(feed))?.title || feed) };
 }
 
-// The tags of the notes on the page, most used first: the filter in the feed's details.
-const tagsOf = (notes: { tags: string[] }[]) => {
-  const counts = new Map<string, number>();
-  for (const n of notes) for (const t of n.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
-  return [...counts].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(([t]) => t);
-};
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 
 export default async function FeedPage({ params, searchParams }: PageProps<"/[feed]">) {
@@ -92,7 +87,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           rssUrl={readId ? base + rssPath(readId) : undefined}
           viewHref={readId ? readPath(readId) : undefined}
           settingsHref={exists ? settingsPath(feed) : undefined}
-          tags={tagsOf(all.notes)}
+          tags={sortTags(all.notes)}
           tag={tag}
           base={feedPath(feed)}
         >

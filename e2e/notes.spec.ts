@@ -101,8 +101,28 @@ test("tags typed in the compose box show as links that filter the feed", async (
   await expect(page.getByRole("link", { name: "Tagged" })).toBeVisible();
   await page.getByRole("link", { name: "ci", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/${name}\\?tag=ci$`));
-  await expect(page.locator('[aria-current="page"]', { hasText: "ci" })).toBeVisible(); // the feed's tags show which one filters
+  await expect(page.locator('[aria-current="page"]', { hasText: /^Filter by ci$/ })).toBeVisible(); // the feed's tags show which one filters
   await expect(page.getByRole("link", { name: "Tagged" })).toBeVisible();
+});
+
+test("a note's tags change in the edit form; the feed filters by the new ones (#244)", async ({ page }) => {
+  const name = feedName();
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill("# Retagged");
+  await page.getByLabel("Tags (optional, separated by commas)").fill("draft");
+  await page.getByRole("button", { name: "Post note" }).click();
+  await page.getByRole("link", { name: "Retagged" }).click();
+  const patched = page.waitForRequest((r) => r.method() === "PATCH");
+  await page.getByText("Edit", { exact: true }).click();
+  await expect(page.getByLabel("Tags (optional, separated by commas)")).toHaveValue("draft");
+  await page.getByLabel("Tags (optional, separated by commas)").fill("Published, ci");
+  await page.getByRole("button", { name: "Save" }).click();
+  expect((await patched).postDataJSON()).toEqual({ tags: ["Published", "ci"] }); // the server folds the case
+  await expect(page.getByRole("status")).toHaveText("Saved.");
+  await page.goto(`/${name}?tag=published`);
+  await expect(page.getByRole("link", { name: "Retagged" })).toBeVisible();
+  await page.goto(`/${name}?tag=draft`);
+  await expect(page.getByRole("link", { name: "Retagged" })).toHaveCount(0);
 });
 
 test("a note dated in the past in the compose box goes below the newer ones, at its time", async ({ page }) => {
@@ -262,4 +282,22 @@ test("the read link serves the newest note with a name at /r/<read id>/<name>", 
   expect(await (await request.get(`${base}my%20skill.md`)).text()).toBe("# spaced");
   expect(await (await request.get(`${base}${first.file}`)).text()).toBe("# v1");
   expect((await request.get(`${base}nothing.md`)).status()).toBe(404);
+});
+
+// Long notes (#243): a table of contents and heading anchors, highlighted code and a drawn mermaid diagram on the note's own page.
+test("a long note's page has contents, anchors, highlighted code and drawn diagrams", async ({ page }) => {
+  const name = feedName();
+  const md = ["# Long read", "## Setup", "```yaml\nkey: value\n```", "## Diagram", "```mermaid\ngraph TD; A-->B\n```", "## Broken", "```mermaid\nnot a diagram ((\n```", "### Last"].join("\n\n");
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill(md);
+  await page.getByRole("button", { name: "Post note" }).click();
+  await page.getByRole("link", { name: "Long read" }).first().click();
+  const contents = page.getByRole("navigation", { name: "Contents" });
+  await expect(contents.getByRole("link")).toHaveText(["Setup", "Diagram", "Broken", "Last"]);
+  await contents.getByRole("link", { name: "Diagram" }).click();
+  await expect(page).toHaveURL(/#diagram$/);
+  await expect(page.locator("h2#setup")).toBeVisible();
+  await expect(page.locator(".hljs-attr", { hasText: "key:" })).toBeVisible();
+  await expect(page.locator(".mermaid-diagram svg")).toHaveCount(1); // the broken one stays as its source
+  await expect(page.getByText("not a diagram ((")).toBeVisible();
 });

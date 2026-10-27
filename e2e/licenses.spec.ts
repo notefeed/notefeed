@@ -64,9 +64,9 @@ test("the license page sells a month or a year, and the yearly checkout comes ba
   await expect(page.getByText("The newest 10 notes are kept")).toBeVisible(); // {cap}: NOTEFEED_FREE_NOTE_CAP
   const monthly = page.getByRole("region", { name: "Monthly" });
   const yearly = page.getByRole("region", { name: /^Yearly/ });
-  await expect(monthly.getByText("€1.99 per month")).toBeVisible();
-  await expect(yearly.getByText("€19.90 per year")).toBeVisible();
-  await expect(yearly.getByText("Save 16 %")).toBeVisible(); // against 12 × €1.99
+  await expect(monthly.getByText(/^1\.99\s€ per month$/)).toBeVisible();
+  await expect(yearly.getByText(/^19\.90\s€ per year$/)).toBeVisible();
+  await expect(yearly.getByText("Save 16 %")).toBeVisible(); // against 12 × 1.99 €
   await expect(page.getByText("A subscription renews until you cancel it.")).toBeVisible(); // the fine print, Markdown
   await expect(page.getByRole("link", { name: "terms" })).toHaveAttribute("href", "/terms");
   await expect(monthly.getByRole("button", { name: "Subscribe" })).toBeVisible();
@@ -160,7 +160,7 @@ test("the license tiles line up: prices and first features at the same height", 
   await page.goto("/license");
   const tiles = [page.getByRole("region", { name: "Free" }), page.getByRole("region", { name: "Monthly" }), page.getByRole("region", { name: /^Yearly/ })];
   const top = async (l: import("@playwright/test").Locator) => Math.round((await l.boundingBox())!.y);
-  const prices = await Promise.all(tiles.map((t) => top(t.getByText(/^€0$|per (month|year)$/))));
+  const prices = await Promise.all(tiles.map((t) => top(t.getByText(/^0\s€$|per (month|year)$/))));
   const features = await Promise.all(tiles.map((t) => top(t.getByRole("listitem").first())));
   expect(new Set(prices).size).toBe(1);
   expect(new Set(features).size).toBe(1);

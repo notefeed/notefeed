@@ -34,7 +34,7 @@ const render = (plans: Plan[], cap = 1000) => renderToStaticMarkup(<BuyLicense t
 
 test("a tile per plan with the provider's name and price, the words from license.md; the description is the checkout's", () => {
   const html = render([month, year]);
-  for (const s of ["The intro", "Free", "Every feed starts here.", "Monthly", "Yearly", "€1.99 per month", "€19.90 per year", "Save 16 %", "Per feed", "VAT included", "For one feed at a time; the key can move.", "A feed password"])
+  for (const s of ["The intro", "Free", "Every feed starts here.", "Monthly", "Yearly", "1.99\u00a0€ per month", "19.90\u00a0€ per year", "Save 16 %", "Per feed", "VAT included", "For one feed at a time; the key can move.", "A feed password"])
     expect(html).toContain(s);
   expect(html).not.toContain("Line one");
   expect(html.match(/>Subscribe</g)).toHaveLength(2);

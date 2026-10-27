@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { cookieValue, createProtected } from "./feedlock";
 import { readIdOf, resetFeedsForTests } from "./feeds";
-import { feedUnlocked, getFeed, reservedFeedLinks, getFeedImages, getFeedNote, getReadFeed, getReadNote, getReadPictures, identitySender, passwordSet, signInProviders } from "./index";
+import { feedUnlocked, getFeed, footerFeedLinks, getFeedImages, getFeedNote, getReadFeed, getReadNote, getReadPictures, identitySender, passwordSet, signInProviders } from "./index";
 import { sign } from "./oauth/tokens";
 import { createImageNote, createNote, removeNote } from "./notes";
 import { saveSettings } from "./feedsettings";
@@ -145,20 +145,23 @@ test("identitySender names the signed-in person only while sign-in is on", () =>
   }
 });
 
-test("reservedFeedLinks: the reserved feeds there are to read, as listed, by title or name; not one an ordinary feed had first", async () => {
-  await createNote("old", "# made before `old` was reserved: open, with a random read id");
-  process.env.NOTEFEED_RESERVED_FEEDS = "releases, old, blog";
+test("footerFeedLinks: the feeds NOTEFEED_FOOTER_FEEDS names, in its order, by title or name; not reserved names it leaves out, nor names that are no feed", async () => {
+  const { readId } = await createNote("diary", "# an ordinary feed, with a random read id");
+  process.env.NOTEFEED_RESERVED_FEEDS = "releases, blog, admin, www";
+  process.env.NOTEFEED_RESERVED_PASSWORD = "operator-pass-1";
   try {
-    expect(await reservedFeedLinks()).toEqual([]); // no reserved password: they don't exist
-    process.env.NOTEFEED_RESERVED_PASSWORD = "operator-pass-1";
     resetFeedsForTests();
-    expect(await readIdOf("blog")).toBe("blog"); // made now, at the first look
+    expect(await readIdOf("blog")).toBe("blog"); // the reserved feeds are made at the first look
+    expect(await footerFeedLinks()).toEqual([]); // unset: no feed links, though the reserved feeds exist
+    process.env.NOTEFEED_FOOTER_FEEDS = "blog, releases, diary, missing, Bad Name, blog";
     await saveSettings("blog", { title: "What I'm working on", description: "", image: "", showSender: false });
-    expect(await reservedFeedLinks()).toEqual([
-      { href: "/r/releases", label: "Releases" },
+    expect(await footerFeedLinks()).toEqual([
       { href: "/r/blog", label: "What I'm working on" },
+      { href: "/r/releases", label: "Releases" },
+      { href: `/r/${readId}`, label: "Diary" },
     ]);
   } finally {
+    delete process.env.NOTEFEED_FOOTER_FEEDS;
     delete process.env.NOTEFEED_RESERVED_FEEDS;
     delete process.env.NOTEFEED_RESERVED_PASSWORD;
   }

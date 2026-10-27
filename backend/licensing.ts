@@ -4,6 +4,7 @@
 // A lapsed license changes nothing already stored: the notes stay, images are still served, and a password keeps protecting the feed.
 import { config } from "./config";
 import { LicenseRequiredError } from "./errors";
+import { isHeldBack } from "./feednames";
 import { logger } from "./log";
 import { countNotes, idsBeyond, removeNote } from "./notes";
 import { paymentProvider, type Plan } from "./payments";
@@ -51,6 +52,13 @@ export async function releaseLicense(feed: string): Promise<void> {
 /** Whether the feed has what a license unlocks: always, with no provider; else an active license attached to it. */
 export async function isLicensed(feed: string): Promise<boolean> {
   if (!licensingOn()) return true;
+  // The operator's reserved feeds (ADR 0012) are never on the free tier: only the operator posts there (#242).
+  if (isHeldBack(feed)) return true;
+  return hasActiveLicense(feed);
+}
+
+/** Whether a license on the feed is active now, whatever else would make the feed licensed. */
+export async function hasActiveLicense(feed: string): Promise<boolean> {
   const license = await licenses().byFeed(feed);
   // A lapsed period counts even if the provider's webhook for it never came.
   return license?.status === "active" && (license.validUntil === null || license.validUntil > Date.now());

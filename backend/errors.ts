@@ -133,6 +133,12 @@ export class InvalidBodyError extends NotefeedError {
     super("invalid_body", message);
   }
 }
+/** A license key notefeed doesn't know: a bad body like any other, and a failed attempt, as a wrong password is (#247). */
+export class UnknownLicenseKeyError extends InvalidBodyError {
+  constructor() {
+    super("that is not a license key");
+  }
+}
 
 /** A path or query parameter the API can't use, e.g. `limit=0`. */
 export class InvalidRequestError extends NotefeedError {

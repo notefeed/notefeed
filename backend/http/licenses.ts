@@ -3,7 +3,8 @@
 //   POST   /api/licenses/checkout  {"period"?: "month" | "year"} the URL to send a buyer to (who comes back with `checkout_id`)
 //   POST   /api/licenses/key       {"checkout"} the license key bought in that checkout, for the success page; 404 until it is completed
 //   POST   /api/licenses/webhook   the provider's events; signed, answered 200 once applied, 400 for a bad signature
-//   POST   /api/licenses/attach    {"feed", "key"} puts the license on the feed; needs write access to the feed
+//   POST   /api/licenses/attach    {"feed", "key"} puts the license on the feed; needs write access to the feed (the public API's
+//                                  PUT /api/v1/feeds/{feed}/license does the same, #247)
 //   DELETE /api/licenses/attach    {"feed"} takes the license off; needs write access to the feed
 //   POST   /<feed>/license         {"key"} and DELETE: the same for the feed's settings page, under the feed's path, where the
 //                                  unlock cookie of a protected feed is sent (it never reaches /api/licenses)
@@ -12,7 +13,7 @@
 import { InvalidBodyError, NotefeedError, NotFoundError, RateLimitedError } from "../errors";
 import { checkFeedAccess } from "../feedlock";
 import { checkFeed } from "../feednames";
-import { attachLicense, detachLicense, keyOfCheckout, portalFor, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
+import { attachLicense, countingKeys, detachLicense, keyOfCheckout, portalFor, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
 import { licensingOn } from "../licensing";
 import { clientIp, rateLimit } from "../limits";
 import { logger } from "../log";
@@ -100,7 +101,7 @@ async function attachOrDetach(req: Request, feedOf: (b: Record<string, unknown>)
       await detachLicense(feed);
       return json({ ok: true });
     }
-    await attachLicense(feed, typeof b.key === "string" ? b.key.trim() : "");
+    await countingKeys(ip, () => attachLicense(feed, typeof b.key === "string" ? b.key.trim() : ""));
     return json({ ok: true });
   } catch (e) {
     return failed(e);
