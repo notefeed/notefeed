@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { config } from "./config";
-import { AuthError, InvalidBodyError, LicenseRequiredError, NotFoundError, TooManyAttemptsError } from "./errors";
+import { AuthError, InvalidBodyError, LicenseRequiredError, NotFoundError, RateLimitedError, TooManyAttemptsError } from "./errors";
 import { changePassword, createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, readIdOf, resetFeedsForTests } from "./feeds";
 import { authWait, resetRateLimitsForTests } from "./limits";
@@ -217,6 +217,19 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       await setLicense("open", "other-ip", KEY, {});
       expect(await isLicensed("open")).toBe(true);
       expect(authWait("other-ip")).toBeNull(); // a right key costs nothing
+    });
+
+    test("writes to a licensed feed skip the per-IP post limit; a free or lapsed feed's still count (ADR 0046, #123)", async () => {
+      vi.stubEnv("NOTEFEED_RATE_LIMIT", "2");
+      resetRateLimitsForTests();
+      await createNote("paid", "first");
+      await license("paid");
+      for (let i = 0; i < 5; i++) await text("paid", `burst ${i}`);
+      await text("free", "one");
+      await text("free", "two");
+      await expect(text("free", "three")).rejects.toBeInstanceOf(RateLimitedError);
+      await licenses().update("sub_1", { status: "lapsed" });
+      await expect(text("paid", "after")).rejects.toBeInstanceOf(RateLimitedError);
     });
 
     test("an existing password keeps protecting a lapsed feed, but it cannot be changed", async () => {
