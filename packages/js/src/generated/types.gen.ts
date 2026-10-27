@@ -259,6 +259,21 @@ export type RecoveryJson = {
     password?: string;
 };
 
+export type CreateFeedJson = {
+    /**
+     * A password that protects the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out: an open feed
+     */
+    password?: string;
+    /**
+     * Where licenses are sold, required: the key of the license to put on the new feed
+     */
+    license_key?: string;
+    /**
+     * The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one
+     */
+    read_id?: string;
+};
+
 export type LicenseKey = {
     /**
      * The license key, as the checkout or the receipt gave it
@@ -884,6 +899,60 @@ export type GetFeedResponses = {
 };
 
 export type GetFeedResponse = GetFeedResponses[keyof GetFeedResponses];
+
+export type CreateFeedData = {
+    body: CreateFeedJson;
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}';
+};
+
+export type CreateFeedErrors = {
+    /**
+     * Invalid or reserved feed name, bad JSON, a password that is not 1 to 256 printable ASCII characters, with no space at the start or end, a read id that is invalid, or a key that is none
+     */
+    400: Error;
+    /**
+     * A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)
+     */
+    402: Error;
+    /**
+     * The feed exists already (`feed_exists`), or the read id is taken (`taken`)
+     */
+    409: Error;
+    /**
+     * The operator removed this feed for good (`removed`): its name cannot be used again
+     */
+    410: Error;
+    /**
+     * Too many posts, or wrong keys, from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+    /**
+     * NOTEFEED_MAX_FEEDS reached
+     */
+    507: Error;
+};
+
+export type CreateFeedError = CreateFeedErrors[keyof CreateFeedErrors];
+
+export type CreateFeedResponses = {
+    /**
+     * The new feed
+     */
+    201: Feed;
+};
+
+export type CreateFeedResponse = CreateFeedResponses[keyof CreateFeedResponses];
 
 export type UpdateFeedData = {
     body: FeedSettings;

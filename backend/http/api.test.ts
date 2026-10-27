@@ -43,6 +43,22 @@ describe("POST /feeds/{feed}/notes", () => {
   });
 });
 
+// A feed without a note (#295, ADR 0047). Licenses aren't sold here, so no key is needed.
+describe("POST /feeds/{feed}", () => {
+  test("creates an empty feed (201), protected with a password; a second time is 409; bad JSON or password is 400", async () => {
+    const made = await call("POST", "/feeds/empty", { body: "", headers: { "content-type": "application/json" } });
+    expect(made.status).toBe(201);
+    expect(await json(made)).toMatchObject({ name: "empty", protected: false, read_url: null });
+    expect((await call("POST", "/feeds/empty", { body: "{}", headers: { "content-type": "application/json" } })).status).toBe(409);
+    const locked = await call("POST", "/feeds/locked", { body: JSON.stringify({ password: "Passw0rd!x" }), headers: { "content-type": "application/json" } });
+    expect([locked.status, (await json(locked)).protected]).toEqual([201, true]);
+    expect((await post("locked", "# hi")).status).toBe(401);
+    expect((await post("locked", "# hi", { "x-feed-password": "Passw0rd!x" })).status).toBe(201);
+    expect((await call("POST", "/feeds/bad", { body: "not json", headers: { "content-type": "application/json" } })).status).toBe(400);
+    expect((await call("POST", "/feeds/bad", { body: JSON.stringify({ password: " padded " }), headers: { "content-type": "application/json" } })).status).toBe(400);
+  });
+});
+
 describe("GET /feeds/{feed}/notes", () => {
   test("newest first, as JSON notes with their web UI links", async () => {
     const { note: one } = await createNote("backups", "# One\nbody", new Date("2026-09-29T10:00:00Z"));

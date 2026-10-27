@@ -72,6 +72,14 @@ export function recoverErrorMessage(code: unknown, retry?: unknown): string | un
 }
 
 // The same, for giving an open feed a password (ADR 0044).
+// The new feed's "Create feed without a note" (#295).
+export function createErrorMessage(code: unknown, retry?: unknown): string | undefined {
+  if (code === "license_required") return "Creating a feed without a note needs a license key: enter one above.";
+  if (code === "feed_exists") return "This feed exists already.";
+  if (code === "invalid_body") return `The password must be ${PASSWORD_RULE}, and the license key a valid one.`;
+  return errorMessage(code, retry);
+}
+
 // What a password change on the settings page just did (#296), shown in the password row.
 export function passwordNotice(saved: unknown): string | undefined {
   const others = "Scripts and other browsers need the new password from now on; this browser stays unlocked.";

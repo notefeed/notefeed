@@ -41,7 +41,7 @@ curl -X DELETE https://notes.example.com/api/v1/feeds/homelab-7f3k2q9x4m8wz
 ```
 
 - **Who may:** whoever may post to the feed, with the same passwords. The read link can neither change settings nor delete.
-- **The feed must exist:** it is created by its first note, and `404` before that.
+- **The feed must exist:** it is created by its first note, or without one by `POST /api/v1/feeds/<feed>`, and `404` before that.
 - **The name is free again** at once after a delete. A feed created there later is a new feed with a new read link; the old link stays empty for good.
 - **Settings are public to readers,** through `GET /api/v1/read/<read id>` too.
 - The errors are in the [REST API](../integrations/api.md).

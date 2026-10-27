@@ -3,10 +3,10 @@
 import { config } from "./config";
 import { applyImages, type ImagePlan } from "../shared/imagePlan.mjs";
 import { isAttachmentName, MAX_ATTACHMENTS, safeName } from "../shared/links";
-import { BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, ImagesOffError, ImageTooLargeError, InvalidBodyError, NotefeedError, NoteLimitError, NotFoundError, RateLimitedError, RemovedFeedError, UnsupportedTypeError } from "./errors";
-import { type FeedAccess, checkFeedAccess, createProtected } from "./feedlock";
+import { AuthError, BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, ImagesOffError, ImageTooLargeError, InvalidBodyError, NotefeedError, NoteLimitError, NotFoundError, LicenseRequiredError, RateLimitedError, RemovedFeedError, ReservedFeedError, UnsupportedTypeError } from "./errors";
+import { type FeedAccess, checkFeedAccess, checkNewPassword, createProtected } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
-import { assertFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
+import { assertFeed, createOpenFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
 import { attachLicense, checkLicenseKey, countingKeys, detachLicense } from "./licenseflow";
 import { hasActiveLicense, licensingOn, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
 import { isBlockedImage } from "./takedown";
@@ -185,6 +185,30 @@ export async function postNote(
   return { ...made, created };
 }
 
+
+// A feed without a note (#295, ADR 0047): reserved now, with a password and a read id if given, as a first post would create it.
+// Where licenses are sold it needs a license key, which goes on the new feed (free feeds still start with their first note). It counts
+// as a post against the rate limit, and against NOTEFEED_MAX_FEEDS. A feed that exists is refused (409), whatever it holds.
+export async function createFeed(feed: string, ip: string, input: { password?: string; licenseKey?: string; readId?: string }): Promise<void> {
+  assertFeed(feed);
+  if (isHeldBack(feed)) throw new ReservedFeedError();
+  if (await isRemovedFeed(feed)) throw new RemovedFeedError();
+  const wait = rateLimit(ip);
+  if (wait !== null) throw new RateLimitedError(wait);
+  if (await feedCapped(feed)) throw new FeedExistsError("feed already exists");
+  const password = input.password || undefined; // empty means none
+  if (password !== undefined) checkNewPassword(password); // before the key is tried, as recovery does
+  const key = licensingOn() ? input.licenseKey?.trim() || undefined : undefined;
+  if (licensingOn() && !key) throw new LicenseRequiredError();
+  if (key) await countingKeys(ip, () => checkLicenseKey(key));
+  const readId = input.readId?.trim() || undefined;
+  if (password !== undefined) {
+    await createProtected(feed, password, readId).catch((e) => {
+      throw e instanceof AuthError ? new FeedExistsError("feed already exists") : e; // created by someone else meanwhile
+    });
+  } else if (!(await createOpenFeed(feed, readId))) throw new FeedExistsError("feed already exists");
+  if (key) await attachLicense(feed, key);
+}
 
 // Replacing a note's content, and changing its title or alt text: the same gate as posting, minus the caps.
 export async function editContent(feed: string, id: string, ip: string, read: () => Promise<{ body: Uint8Array; mediaType: string }>, access: FeedAccess): Promise<Note> {

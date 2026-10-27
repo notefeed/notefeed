@@ -3,7 +3,7 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { changeFeedPassword, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, updateFeed } from "./generated/sdk.gen.js";
+import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, updateFeed } from "./generated/sdk.gen.js";
 import type { Created, Error as ApiError, Feed, FeedSettings, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
@@ -247,6 +247,13 @@ export class Client {
   async setFeedPassword(password: string, options: { feed?: string; feedPassword?: string } = {}): Promise<void> {
     const feed = this.feedFor(options.feed);
     await this.call(changeFeedPassword({ client: this.api, path: { feed }, body: { password }, ...this.opts(options.feedPassword) }));
+  }
+
+  /** Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `readId` gives it that read link. Where licenses are sold `licenseKey` is required and goes on the new feed. A feed that exists is refused (409). */
+  async createFeed(options: { feed?: string; password?: string; licenseKey?: string; readId?: string } = {}): Promise<Feed> {
+    const feed = this.feedFor(options.feed);
+    const body = { ...(options.password ? { password: options.password } : {}), ...(options.licenseKey ? { license_key: options.licenseKey } : {}), ...(options.readId ? { read_id: options.readId } : {}) };
+    return this.call(createFeed({ client: this.api, path: { feed }, body, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
   /** For a lost password, only on an instance that sells licenses: the key of the license on the feed proves ownership instead of the current password. `password` becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. A key that is not the feed's license is refused and counts as a failed attempt. */

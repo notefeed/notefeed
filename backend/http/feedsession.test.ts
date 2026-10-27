@@ -128,3 +128,15 @@ test("invalid and reserved feed names, and unknown actions", async () => {
   expect((await post("login", { action: "unlock", password: "x" })).status).toBe(400);
   expect((await post("lockd", { action: "bogus" })).status).toBe(400);
 });
+
+// A feed without a note from the new feed's card (#295): back to the feed, unlocked for it when it has a password.
+test("create makes the feed; with a password this browser is unlocked for it; an existing one goes back to the card", async () => {
+  const open = await post("fresh", { action: "create", password: "", key: "" });
+  expect(open.headers.get("location")).toBe("/fresh?created=1");
+  expect(cookies(open)).toEqual([]);
+  const locked = await post("fresh2", { action: "create", password: "N3wPassw0rd!", key: "" });
+  expect(locked.headers.get("location")).toBe("/fresh2?created=1");
+  expect(cookies(locked)).toEqual(setBoth("fresh2"));
+  expect(await protectedFeed("fresh2")).toBe(true);
+  expect((await post("fresh", { action: "create", password: "", key: "" })).headers.get("location")).toBe("/fresh?form=create&error=feed_exists");
+});

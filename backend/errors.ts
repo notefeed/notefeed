@@ -95,8 +95,8 @@ export class LicenseRequiredError extends NotefeedError {
 
 /** A feed password was asked for (set, change, remove) on a feed that exists and has none. */
 export class FeedExistsError extends NotefeedError {
-  constructor() {
-    super("feed_exists", "feed already exists and has no password");
+  constructor(message = "feed already exists and has no password") {
+    super("feed_exists", message);
   }
 }
 

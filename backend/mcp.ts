@@ -17,7 +17,7 @@ import { checkLine, getNote, isScheduled, listNotes, MAX_NOTE_TITLE, type Note }
 import { verify } from "./oauth/tokens";
 import { isAttachmentName, safeName } from "../shared/links";
 import { checkTags, TAG_RULE } from "./tags";
-import { checkDate, deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
+import { checkDate, createFeed, deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
 import { getStoredSettings } from "./feedsettings";
 import { feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
@@ -238,6 +238,25 @@ function server(h: Headers): McpServer {
           return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id };
         }, access);
       }
+      return ok(await feedJson(feed, h));
+    }),
+  );
+
+  s.registerTool(
+    "create_feed",
+    {
+      description: `Create a feed without posting a note, to reserve its name (feeds are otherwise created by their first note). password protects it from its first moment; read_id gives it that read link. Where licenses are sold, license_key is required and goes on the new feed. A feed that exists is refused. Set its title and description afterwards with update_feed. ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        password: z.string().optional().describe("A password for the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Left out: an open feed."),
+        license_key: z.string().optional().describe("The key of the license to put on the new feed; required where licenses are sold."),
+        read_id: z.string().optional().describe("The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one."),
+      }),
+      outputSchema: FeedOut,
+      annotations: { destructiveHint: false, idempotentHint: false },
+    },
+    guard(async ({ feed, password, license_key, read_id }) => {
+      await createFeed(feed, clientIp(h), { password, licenseKey: license_key, readId: read_id });
       return ok(await feedJson(feed, h));
     }),
   );

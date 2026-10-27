@@ -177,6 +177,22 @@ test("an unlocked browser resets a lost password with the license key in the set
   expect((await request.post(`/${feed}`, { data: "# New", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
 });
 
+// A feed without a note (#295, ADR 0047): on notefeed.me the new feed's card makes it with the key, protected and unlocked here.
+test("the new feed's card creates the feed without a note, with a license key", async ({ page, request }) => {
+  const feed = feedName();
+  await page.goto(`/${feed}`);
+  await page.getByRole("button", { name: "Create feed without a note" }).click();
+  await expect(page.getByText(/^Creating a feed without a note needs a license key: enter one above/)).toBeVisible();
+  const key = await buy(request, `sub_${feed}`);
+  await page.getByLabel("Password (optional, protects this feed)").fill("N3wPassw0rd!");
+  await page.getByLabel("License key (needed with a password)").fill(key);
+  await page.getByRole("button", { name: "Create feed without a note" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${feed}\\?created=1$`));
+  await expect(page.getByRole("button", { name: "Create feed without a note" })).toHaveCount(0); // the feed exists, unlocked here
+  expect((await request.post(`/${feed}`, { data: "# Stranger", headers: text })).status()).toBe(401);
+  expect((await request.post(`/${feed}`, { data: "# Owner", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
+});
+
 // An open feed gets a password later (ADR 0044): whoever knows its name may set one in its settings; on notefeed.me the feed needs a
 // license for it, as at creation.
 test("an open feed gets a password in its settings once it is licensed", async ({ page, request }) => {

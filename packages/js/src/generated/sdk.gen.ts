@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen.js';
+import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -116,6 +116,21 @@ export const getFeed = <ThrowOnError extends boolean = false>(options: Options<G
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/feeds/{feed}',
     ...options
+});
+
+/**
+ * Create a feed without posting a note
+ *
+ * Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. Where licenses are sold a license key is required and goes on the new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.
+ */
+export const createFeed = <ThrowOnError extends boolean = false>(options: Options<CreateFeedData, ThrowOnError>): RequestResult<CreateFeedResponses, CreateFeedErrors, ThrowOnError> => (options.client ?? client).post<CreateFeedResponses, CreateFeedErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**
