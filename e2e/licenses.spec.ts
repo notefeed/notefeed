@@ -127,7 +127,7 @@ test("on a protected feed, a new key from the settings page replaces a refunded 
   const second = await buy(request, `${ref}_2`);
   await page.goto(`/${feed}/settings`);
   await page.getByText(/^Free tier/).click();
-  await page.getByLabel("License key").fill(second);
+  await page.getByLabel("License key", { exact: true }).fill(second);
   await page.getByRole("button", { name: "Use key" }).click();
   await expect(page.getByText("The license is on this feed now.")).toBeVisible();
   await expect(page.getByText("Licensed", { exact: true })).toBeVisible();
@@ -148,7 +148,31 @@ test("a lost feed password is set anew with the feed's license key", async ({ pa
   await page.getByLabel("License key", { exact: true }).fill(key);
   await page.getByLabel("New password (empty removes it)").fill("N3wPassw0rd!");
   await page.getByRole("button", { name: "Recover" }).click();
-  await expect(page).toHaveURL(new RegExp(`/${feed}/settings\\?saved=1$`));
+  await expect(page).toHaveURL(new RegExp(`/${feed}/settings\\?saved=password-recovered#access$`));
+  expect((await request.post(`/${feed}`, { data: "# Old", headers: { ...text, "X-Feed-Password": "Passw0rd!x" } })).status()).toBe(401);
+  expect((await request.post(`/${feed}`, { data: "# New", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
+});
+
+// The same from the settings page (#297): a browser that is still unlocked, whose owner lost the password, resets it with the key there.
+test("an unlocked browser resets a lost password with the license key in the settings", async ({ page, request }) => {
+  const feed = feedName();
+  const key = await buy(request, `sub_${feed}`);
+  expect((await request.post(`/${feed}`, { data: "# Secret", headers: { ...text, "X-Feed-Password": "Passw0rd!x", "X-License-Key": key } })).status()).toBe(201);
+  await page.goto(`/${feed}`);
+  await page.getByLabel("Feed password").fill("Passw0rd!x");
+  await page.getByRole("button", { name: "Unlock" }).click();
+  await page.goto(`/${feed}/settings`);
+  await page.locator("summary", { hasText: "Feed password" }).click();
+  await page.getByText("Forgot the current password?").click();
+  await page.getByLabel("This feed's license key").fill("k".repeat(22));
+  await page.getByRole("button", { name: "Reset with license key" }).click();
+  await expect(page.locator("#settings-recover-error")).toHaveText("That is not the license key of this feed.");
+
+  await page.getByLabel("This feed's license key").fill(key);
+  await page.getByLabel("New password (empty removes it)").fill("N3wPassw0rd!");
+  await page.getByRole("button", { name: "Reset with license key" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${feed}/settings\\?saved=password-recovered#access$`));
+  await expect(page.getByRole("status")).toContainText("New password set with the license key.");
   expect((await request.post(`/${feed}`, { data: "# Old", headers: { ...text, "X-Feed-Password": "Passw0rd!x" } })).status()).toBe(401);
   expect((await request.post(`/${feed}`, { data: "# New", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
 });
@@ -183,7 +207,8 @@ test("an open feed gets a password in its settings once it is licensed", async (
   expect((await request.post(`/api/licenses/attach`, { data: { feed, key } })).status()).toBe(200);
   await page.getByLabel("Password", { exact: true }).fill("N3wPassw0rd!");
   await page.getByRole("button", { name: "Set password" }).click();
-  await expect(page).toHaveURL(new RegExp(`/${feed}/settings\\?saved=1$`));
+  await expect(page).toHaveURL(new RegExp(`/${feed}/settings\\?saved=password-set#access$`));
+  await expect(page.getByRole("status")).toContainText("Password set.");
   expect((await request.post(`/${feed}`, { data: "# Stranger", headers: text })).status()).toBe(401);
   expect((await request.post(`/${feed}`, { data: "# Owner", headers: { ...text, "X-Feed-Password": "N3wPassw0rd!" } })).status()).toBe(201);
 });

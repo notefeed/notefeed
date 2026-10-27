@@ -80,6 +80,15 @@ export function createErrorMessage(code: unknown, retry?: unknown): string | und
   return errorMessage(code, retry);
 }
 
+// What a password change on the settings page just did (#296), shown in the password row.
+export function passwordNotice(saved: unknown): string | undefined {
+  const others = "Scripts and other browsers need the new password from now on; this browser stays unlocked.";
+  if (saved === "password-set") return `Password set. ${others}`;
+  if (saved === "password-changed") return `Password changed. ${others}`;
+  if (saved === "password-recovered") return `New password set with the license key. ${others}`;
+  return undefined;
+}
+
 export function protectErrorMessage(code: unknown, retry?: unknown): string | undefined {
   if (code === "auth") return "Someone has set a password on this feed meanwhile.";
   if (code === "license_required") return "A feed password needs a license: put one on this feed under License first.";

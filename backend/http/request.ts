@@ -82,7 +82,8 @@ export function seeOther(location: string, headers: HeadersInit = {}): Response 
 export function errorRedirect(page: string, e: unknown): Response {
   if (!(e instanceof NotefeedError)) throw e;
   const retry = e instanceof RateLimitedError ? `&retry=${e.retryAfter}` : "";
-  return seeOther(`${page}${page.includes("?") ? "&" : "?"}error=${e.code}${retry}`);
+  const [path, hash] = page.split("#"); // the query goes before a fragment such as #access
+  return seeOther(`${path}${path.includes("?") ? "&" : "?"}error=${e.code}${retry}${hash ? `#${hash}` : ""}`);
 }
 
 // Scripts send the bearer password. The web UI sends a session cookie (password or identity) instead, accepted only from

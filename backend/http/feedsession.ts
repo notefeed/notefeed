@@ -37,9 +37,12 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
     const action = field("action");
     if (!["unlock", "lock", "change", "remove", "recover", "protect", "create"].includes(action)) throw new InvalidRequestError("unknown action");
     if (action === "change" || action === "remove") back = settingsPath(feed);
-    if (action === "protect") back = `${settingsPath(feed)}?form=protect`;
-    if (action === "create") back = `${page}?form=create`; // the new feed's "Protect this feed" card // the settings page opens its "protect this feed" part
-    if (action === "recover") back = `${page}?form=recover`; // the unlock screen opens its "forgot the password" part
+    if (action === "protect") back = `${settingsPath(feed)}?form=protect`; // the settings page opens its "protect this feed" part
+    if (action === "create") back = `${page}?form=create`; // the new feed's "Protect this feed" card
+    // Recovery is on the unlock screen and, for a browser that is still unlocked, in the settings' password row (#297): each opens its
+    // own "forgot the password" part.
+    const fromSettings = field("from") === "settings";
+    if (action === "recover") back = fromSettings ? `${settingsPath(feed)}?form=recover#access` : `${page}?form=recover`;
     // Only this instance's own pages may send these: they set, use or drop the cookie's session, and another
     // site's form must not spend a visitor's password attempts either.
     if (!sameOrigin(h)) throw new AuthError();
@@ -55,19 +58,24 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
       await createFeed(feed, clientIp(h), { password, licenseKey: field("key") });
       return password ? seeOther(`${page}?created=1`, set(await unlock(feed, password, clientIp(h)))) : seeOther(`${page}?created=1`);
     }
-    if (action === "protect") return seeOther(`${settingsPath(feed)}?saved=1`, set(await changePassword(feed, "", field("next"), clientIp(h))));
+    if (action === "protect") return seeOther(saved(feed, "set"), set(await changePassword(feed, "", field("next"), clientIp(h))));
     if (action === "recover") {
       const cookie = await recoverPassword(feed, field("key").trim(), field("next"), clientIp(h));
-      return cookie === null ? seeOther(page, clear()) : seeOther(`${settingsPath(feed)}?saved=1`, set(cookie));
+      return cookie === null ? seeOther(page, clear()) : seeOther(saved(feed, "recovered"), set(cookie));
     }
     if (action === "remove") {
       await removePassword(feed, field("current"), clientIp(h));
       return seeOther(page, clear()); // the feed is open now: its settings page would redirect anyway
     }
-    return seeOther(`${settingsPath(feed)}?saved=1`, set(await changePassword(feed, field("current"), field("next"), clientIp(h))));
+    return seeOther(saved(feed, "changed"), set(await changePassword(feed, field("current"), field("next"), clientIp(h))));
   } catch (e) {
     if (!(e instanceof NotefeedError)) throw e;
     if (["invalid_feed", "reserved_feed", "invalid_request"].includes(e.code)) return errorResponse(e);
     return errorRedirect(back, e);
   }
+}
+
+// A password change says so in the password row, which the page scrolls to (#296); `saved=1` is the profile's "Saved." at the top.
+function saved(feed: string, what: "set" | "changed" | "recovered"): string {
+  return `${settingsPath(feed)}?saved=password-${what}#access`;
 }
