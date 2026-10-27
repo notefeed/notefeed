@@ -68,6 +68,7 @@ Create the client with the server's URL and, usually, a default feed; every call
 | `update(id, title=, alt=, tags=, date=, feed=)` | `update(id, { title, alt, tags, date }, { feed })` | Sets a note's title, a picture's alt text, a note's tags (the whole list; `[]` removes them) or its date; `""` removes a title or alt text. |
 | `delete(id, feed=)` | `delete(id, { feed })` | Deletes a note for good. |
 | `feed_info(feed=)` | `feedInfo({ feed })` | The feed's `name`, `title`, `description`, `image_url`, `protected` and `read_url`. |
+| `set_feed_image(content, type, feed=)`, `remove_feed_image(feed=)` | `setFeedImage(content, type, { feed })`, `removeFeedImage({ feed })` | Sets the feed's title image from an image's bytes (no post; a previous one set this way is deleted), or removes it. |
 | `update_feed(title, description, feed=, image=, read_id=)` | `updateFeed({ title, description, image, read_id }, { feed })` | Replaces the feed's title and description; `image` is the `file` of a picture for the title image. |
 | `set_feed_password(password, feed=)` | `setFeedPassword(password, { feed })` | Changes a protected feed's password (the current one is the client's feed password), or [gives an open feed one](../using/feed-passwords.md#a-password-for-an-open-feed). |
 | `recover_feed_password(key, password="", feed=)` | `recoverFeedPassword(key, password, { feed })` | A [lost password](../hosted/licenses.md#a-lost-feed-password): the key of the license on the feed sets a new password, or removes it when `password` is empty. Needs no feed password. |

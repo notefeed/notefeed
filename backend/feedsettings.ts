@@ -5,7 +5,8 @@ import { hasImageNote, type Note } from "./notes";
 import { storage } from "./storage";
 import { FeedGoneError } from "./storage/types";
 
-export type FeedSettings = { title: string; description: string; image: string; showSender: boolean };
+// `ownImage`: the title image was uploaded as the feed's own (setFeedImage in posting.ts), so it is no post.
+export type FeedSettings = { title: string; description: string; image: string; showSender: boolean; ownImage?: boolean };
 
 export const MAX_TITLE = 100;
 export const MAX_DESCRIPTION = 500;

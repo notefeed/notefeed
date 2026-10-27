@@ -256,9 +256,43 @@ export async function updateFeed(feed: string, ip: string, read: () => Promise<u
   if (newId !== undefined && isHeldBack(feed)) throw new InvalidBodyError("a reserved feed keeps its read id");
   // First, so a read id that is refused (taken, badly formed, not allowed) saves nothing.
   if (newId !== undefined) await setReadId(feed, newId === "" ? null : newId);
-  const checked = { ...rest, image: rest.image ?? stored.image, showSender: given.showSender ?? stored.showSender };
+  const image = rest.image ?? stored.image;
+  const ownImage = stored.ownImage && image === stored.image ? true : undefined; // another title image, or none: the own one goes (below)
+  const checked = { ...rest, image, showSender: given.showSender ?? stored.showSender, ...(ownImage && { ownImage }) };
   await saveSettings(feed, checked);
+  if (stored.ownImage && stored.image && stored.image !== image) await removeOwnImage(feed, stored.image);
   return checked;
+}
+
+// The feed's own title image (#310): uploaded as the title image, it is stored as an image note but marked in the settings, so it is
+// in no list and was never a post. Every check of posting a picture applies (access, rate limit, a license for images, caps, the
+// blocklist). A previous own image is deleted, as nobody posted it; a posted image picked as title image stays a post. The feed must
+// exist. `body` empty removes the title image.
+export async function setFeedImage(feed: string, ip: string, read: () => Promise<{ body: Uint8Array; mediaType: string }>, access: FeedAccess): Promise<FeedSettings> {
+  if (!(await hasFeed(feed))) {
+    await admit(feed, ip, access); // a stranger learns nothing a post wouldn't tell
+    throw new NotFoundError("no such feed");
+  }
+  let image = "";
+  const input = await (async () => {
+    const got = await read();
+    if (got.body.length && parseMediaType(got.mediaType)?.type.name !== "image") throw new UnsupportedTypeError("a title image must be an image");
+    return got;
+  })();
+  const stored = await getStoredSettings(feed);
+  if (input.body.length) image = (await postNote(feed, ip, async () => input, access)).note.file;
+  else await admit(feed, ip, access);
+  const now = await getStoredSettings(feed); // after the post: its title and description as they are now
+  const saved = { ...now, image, ...(image && { ownImage: true }) };
+  if (!image) delete (saved as FeedSettings).ownImage;
+  await saveSettings(feed, saved);
+  if (stored.ownImage && stored.image && stored.image !== image) await removeOwnImage(feed, stored.image);
+  return saved;
+}
+
+async function removeOwnImage(feed: string, file: string): Promise<void> {
+  const m = /^([A-Za-z0-9_-]{1,128})\./.exec(file);
+  if (m) await removeNote(feed, m[1]);
 }
 
 // A feed's license, entered (a key) or taken off (null) by whoever may write to the feed (#247): the gate of its settings. Entering

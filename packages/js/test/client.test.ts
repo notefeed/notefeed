@@ -255,6 +255,16 @@ describe("feed settings and deletion", () => {
     expect(set.headers["x-feed-password"]).toBeUndefined();
     expect([removed.path, JSON.parse(removed.body.toString())]).toEqual(["/api/v1/feeds/other/password/recover", { key: "k".repeat(22), password: "" }]);
   });
+  test("setFeedImage PUTs the image with its type, removeFeedImage DELETEs it; both return the feed", async () => {
+    server.reply(200, FEED);
+    server.reply(200, FEED);
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
+    expect(await c.setFeedImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), "image/png")).toEqual(FEED);
+    expect(await c.removeFeedImage({ feed: "other" })).toEqual(FEED);
+    const [put, del] = server.requests;
+    expect([put.method, put.path, put.headers["content-type"], put.headers["x-feed-password"], [...put.body]]).toEqual(["PUT", "/api/v1/feeds/inbox/image", "image/png", "fp", [0x89, 0x50, 0x4e, 0x47]]);
+    expect([del.method, del.path]).toEqual(["DELETE", "/api/v1/feeds/other/image"]);
+  });
   test("deleteFeed sends DELETE and resolves to nothing on 204", async () => {
     server.reply(204, "", "text/plain");
     const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });

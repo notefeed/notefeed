@@ -491,6 +491,17 @@ def test_recover_feed_password_posts_the_key_and_the_new_password_without_a_feed
     assert (removed["path"], json.loads(removed["body"])) == ("/api/v1/feeds/other/password/recover", {"key": "k" * 22, "password": ""})
 
 
+def test_set_feed_image_puts_the_image_with_its_type_and_remove_deletes_it(server):
+    server.reply(200, FEED)
+    server.reply(200, FEED)
+    c = Client(server.url, "inbox", feed_password="fp")
+    assert c.set_feed_image(b"\x89PNG", "image/png").name == "inbox"
+    assert c.remove_feed_image(feed="other").name == "inbox"
+    put, delete = server.requests
+    assert (put["method"], put["path"], put["headers"]["Content-Type"], put["headers"]["X-Feed-Password"], put["body"]) == ("PUT", "/api/v1/feeds/inbox/image", "image/png", "fp", b"\x89PNG")
+    assert (delete["method"], delete["path"]) == ("DELETE", "/api/v1/feeds/other/image")
+
+
 def test_delete_feed_sends_delete_and_returns_none(server):
     server.reply(204, "")
     with Client(server.url, "inbox", feed_password="fp") as c:

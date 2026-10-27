@@ -15,7 +15,7 @@ import httpx
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
-from ._generated.api.feeds import change_feed_password, create_feed, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, recover_feed_password, update_feed
+from ._generated.api.feeds import change_feed_password, create_feed, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, recover_feed_password, remove_feed_image, set_feed_image, update_feed
 from ._generated.api.read import get_read_note, list_read_notes
 from ._generated.models import CreateFeedJson, Created, Feed, FeedSettings, LicenseKey, Note, NoteList, NoteMeta, PasswordJson, RecoveryJson
 from ._generated.types import UNSET, File
@@ -378,6 +378,16 @@ class Client:
         """For a lost password, only on an instance that sells licenses: the key of the license on the feed proves ownership instead of the current password. `password` becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. A key that is not the feed's license is refused and counts as a failed attempt."""
         body = RecoveryJson(key=key, password=password)
         self._call(recover_feed_password._get_kwargs(feed=self._feed_for(feed), body=body))
+
+    def set_feed_image(self, content: bytes, type: str, feed: str | None = None, feed_password: str | None = None) -> Feed:
+        """Set the feed's title image: `content` the image's bytes, `type` its media type (image/png, image/jpeg, image/gif, image/webp). It is the feed's own image, in no list, so no post; a previous one set this way is deleted. Same options as post()."""
+        kwargs = set_feed_image._get_kwargs(feed=self._feed_for(feed), body=File(payload=content), x_feed_password=self._fp(feed_password))
+        kwargs["headers"]["Content-Type"] = type  # the generated call sends octet-stream; the server takes only the image's own type
+        return self._parse(Feed, self._call(kwargs))
+
+    def remove_feed_image(self, feed: str | None = None, feed_password: str | None = None) -> Feed:
+        """Remove the feed's title image; one set with set_feed_image is deleted. Same options as post()."""
+        return self._parse(Feed, self._call(remove_feed_image._get_kwargs(feed=self._feed_for(feed), x_feed_password=self._fp(feed_password))))
 
     def delete_feed(self, feed: str | None = None, feed_password: str | None = None) -> None:
         """Delete the feed with all its notes, settings and password, for good; its name is free again. Same options as post()."""

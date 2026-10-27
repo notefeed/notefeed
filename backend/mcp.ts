@@ -17,7 +17,7 @@ import { checkLine, getNote, isScheduled, listNotes, MAX_NOTE_TITLE, type Note }
 import { verify } from "./oauth/tokens";
 import { isAttachmentName, safeName } from "../shared/links";
 import { checkTags, TAG_RULE } from "./tags";
-import { checkDate, createFeed, deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
+import { checkDate, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
 import { getStoredSettings } from "./feedsettings";
 import { feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
@@ -276,6 +276,25 @@ function server(h: Headers): McpServer {
     guard(async ({ feed, license_key, new_password }) => {
       assertFeed(feed); // a reserved name must not reach the lookup
       await recoverPassword(feed, license_key.trim(), new_password ?? "", clientIp(h));
+      return ok(await feedJson(feed, h));
+    }),
+  );
+
+  s.registerTool(
+    "set_feed_image",
+    {
+      description: `Set the feed's title image, shown in its header: the image as base64 in data, its media type in type (image/png, image/jpeg, image/gif or image/webp). It is the feed's own image, in no list (timeline, RSS, counts), so it is no post; a previous one set this way is deleted. To remove the title image, use update_feed with image "". To use a picture already posted, use update_feed's image instead. ${PROTECTED} ${SECRET_NOTE}`,
+      inputSchema: z.object({ feed, type: z.string().describe("The image's media type"), data: z.string().describe("The image's bytes, base64"), password }),
+      outputSchema: FeedOut,
+      annotations: { destructiveHint: true, idempotentHint: true },
+    },
+    guard(async ({ feed, type, data, password }) => {
+      const parsed = parseMediaType(type);
+      if (parsed?.type.name !== "image") throw new UnsupportedTypeError("a title image must be an image");
+      const body = Buffer.from(data, "base64");
+      if (body.length > config.maxImageBytes()) throw new ImageTooLargeError();
+      if (!body.length) throw new UnsupportedTypeError("data is empty");
+      await setFeedImage(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType }), { password });
       return ok(await feedJson(feed, h));
     }),
   );

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
+import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -144,6 +144,33 @@ export const updateFeed = <ThrowOnError extends boolean = false>(options: Option
     ...options,
     headers: {
         'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove the feed's title image
+ *
+ * The feed has no title image afterwards. One uploaded as the feed's own (setFeedImage) is deleted; a posted image that was the title image stays a post.
+ */
+export const removeFeedImage = <ThrowOnError extends boolean = false>(options: Options<RemoveFeedImageData, ThrowOnError>): RequestResult<RemoveFeedImageResponses, RemoveFeedImageErrors, ThrowOnError> => (options.client ?? client).delete<RemoveFeedImageResponses, RemoveFeedImageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/image',
+    ...options
+});
+
+/**
+ * Set the feed's title image
+ *
+ * Uploads the image (its bytes, of the type `Content-Type` declares) as the feed's own title image: it is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read API, counts), so it is no post. A previous title image uploaded this way is deleted; a posted image picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The feed must exist.
+ */
+export const setFeedImage = <ThrowOnError extends boolean = false>(options: Options<SetFeedImageData, ThrowOnError>): RequestResult<SetFeedImageResponses, SetFeedImageErrors, ThrowOnError> => (options.client ?? client).put<SetFeedImageResponses, SetFeedImageErrors, ThrowOnError>({
+    bodySerializer: null,
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/image',
+    ...options,
+    headers: {
+        'Content-Type': 'image/png',
         ...options.headers
     }
 });

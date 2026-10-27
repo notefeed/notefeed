@@ -10,6 +10,7 @@ notefeed has an [MCP](https://modelcontextprotocol.io) endpoint at `/mcp`, so AI
 | `get_note` | One note with its content, its `date` and `scheduled`. Takes `feed` and `id`. |
 | `edit_note` | Replaces a note's markdown, sets its title, its `tags` (the whole list) or its `date` (also in the future, which schedules the note); its id stays. |
 | `delete_note` | Deletes a note for good. Marked as destructive, so clients can ask you first. |
+| `set_feed_image` | Sets the feed's title image from base64 `data` and its `type`. It is the feed's own image, no post; a previous one set this way is deleted. Remove it with `update_feed` `image: ""`. |
 | `get_feed`, `update_feed`, `delete_feed` | The feed's title, description, title image and read link; change any of them (and the read id), or put a license on the feed with `license_key` (notefeed.me; empty takes it off); `new_password` sets or changes its password; delete the feed with everything in it. |
 | `recover_feed_password` | A lost password, on notefeed.me: the key of the license on the feed sets a new password (`new_password`) or, left out, removes it. A wrong key counts as a wrong password. |
 | `post_file` | Posts a file as a note, as base64: `feed`, `type` (markdown or a picture type) and `data`, optionally `title`, `alt` and `name`. |

@@ -275,6 +275,9 @@ test("a title image shows in the header and the read-only view, and can be remov
   await page.getByRole("link", { name: "Open read-only view" }).click();
   await expect(page).toHaveURL(/\/r\/[^/]+$/);
   await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toBeVisible();
+  await expect(page.locator("ol > li img")).toHaveCount(0); // the feed's own image, not a post (#310)
+  await page.goto(`/${name}`);
+  await expect(page.locator("ol > li")).toHaveCount(1);
   await page.goto(`/${name}/settings`); // not goBack: where it lands depends on timing
   await page.locator("summary", { hasText: "Title image" }).click();
   await page.getByRole("button", { name: "Remove image" }).click();

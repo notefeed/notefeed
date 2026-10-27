@@ -90,11 +90,11 @@ const call = async (tool: string, args: Record<string, unknown>) => {
 describe("protocol", () => {
   test("tools/list", async () => {
     const tools = (await (await rpc("tools/list")).json()).result.tools;
-    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_note", "list_notes", "post_file", "post_note", "recover_feed_password", "update_feed"]);
+    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_note", "list_notes", "post_file", "post_note", "recover_feed_password", "set_feed_image", "update_feed"]);
     for (const t of tools) {
       expect(t.annotations?.readOnlyHint === true).toBe(["get_feed", "get_note", "list_notes"].includes(t.name));
-      expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "recover_feed_password", "delete_feed"].includes(t.name));
-      expect(t.annotations?.idempotentHint === true).toBe(["edit_note", "update_feed"].includes(t.name));
+      expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "recover_feed_password", "set_feed_image", "delete_feed"].includes(t.name));
+      expect(t.annotations?.idempotentHint === true).toBe(["edit_note", "update_feed", "set_feed_image"].includes(t.name));
       expect(t.outputSchema.type).toBe("object");
     }
   });
@@ -340,6 +340,14 @@ describe("tools", () => {
   test("recover_feed_password is refused where licenses are not sold", async () => {
     await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });
     expect((await call("recover_feed_password", { feed: "p", license_key: "k".repeat(22), new_password: "N3wPassw0rd!" })).content[0].text).toBe("licenses are not sold on this instance");
+  });
+
+  test("set_feed_image sets the feed's own title image, which is no post (#310)", async () => {
+    await call("post_note", { feed: "i", markdown: "# hi" });
+    const data = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]).toString("base64");
+    expect((await call("set_feed_image", { feed: "i", type: "image/png", data })).structuredContent.image_url).toMatch(/\.png$/);
+    expect((await call("list_notes", { feed: "i" })).structuredContent.notes).toHaveLength(1);
+    expect((await call("set_feed_image", { feed: "i", type: "text/markdown", data })).isError).toBe(true);
   });
 
   test("calls without a password are refused but never counted as failed attempts", async () => {

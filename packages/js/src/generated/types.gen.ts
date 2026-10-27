@@ -1010,6 +1010,137 @@ export type UpdateFeedResponses = {
 
 export type UpdateFeedResponse = UpdateFeedResponses[keyof UpdateFeedResponses];
 
+export type RemoveFeedImageData = {
+    body?: never;
+    headers?: {
+        /**
+         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
+         */
+        'X-Feed-Password'?: string;
+    };
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/image';
+};
+
+export type RemoveFeedImageErrors = {
+    /**
+     * Invalid or reserved feed name
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * No such feed
+     */
+    404: Error;
+    /**
+     * Too many posts, or wrong passwords, from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type RemoveFeedImageError = RemoveFeedImageErrors[keyof RemoveFeedImageErrors];
+
+export type RemoveFeedImageResponses = {
+    /**
+     * The feed, without a title image
+     */
+    200: Feed;
+};
+
+export type RemoveFeedImageResponse = RemoveFeedImageResponses[keyof RemoveFeedImageResponses];
+
+export type SetFeedImageData = {
+    /**
+     * The note, a file: its bytes, of the type `Content-Type` declares
+     */
+    body: Blob | File;
+    headers?: {
+        /**
+         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
+         */
+        'X-Feed-Password'?: string;
+    };
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/image';
+};
+
+export type SetFeedImageErrors = {
+    /**
+     * Invalid or reserved feed name
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds
+     */
+    402: Error;
+    /**
+     * Image uploads are off on this instance (`NOTEFEED_IMAGE_UPLOADS=0`, code `images_off`): an image body, a picture replaced, or a multipart body with pictures. Stored pictures are still served
+     */
+    403: Error;
+    /**
+     * No such feed
+     */
+    404: Error;
+    /**
+     * An image over NOTEFEED_MAX_IMAGE_BYTES
+     */
+    413: Error;
+    /**
+     * Not an image, or the body is not what it declares
+     */
+    415: Error;
+    /**
+     * Too many posts, or wrong passwords, from this client
+     */
+    429: Error;
+    /**
+     * An image the operator removed, which may not be posted again in any feed (`blocked`)
+     */
+    451: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+    /**
+     * NOTEFEED_MAX_IMAGES_PER_FEED reached
+     */
+    507: Error;
+};
+
+export type SetFeedImageError = SetFeedImageErrors[keyof SetFeedImageErrors];
+
+export type SetFeedImageResponses = {
+    /**
+     * The feed, with its new title image
+     */
+    200: Feed;
+};
+
+export type SetFeedImageResponse = SetFeedImageResponses[keyof SetFeedImageResponses];
+
 export type RemoveFeedPasswordData = {
     body?: never;
     headers?: {
