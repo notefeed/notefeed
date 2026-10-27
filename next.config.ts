@@ -12,17 +12,7 @@ const nextConfig: NextConfig = {
   rewrites: async () => [{ source: "/r/:readId/:file((?!feed\\.xml$)[^/]+\\.[a-z0-9]+)", destination: "/r/:readId/files/:file" }],
   // The OAuth login hands a code to whatever host the client registered: no framing it (clickjacking a
   // password manager's autofill and the "Allow" click).
-  // The service worker (public/sw.js) is fetched fresh every time, so a fix to it reaches every browser with the next page load.
-  headers: async () => [
-    { source: "/oauth/authorize", headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }] },
-    {
-      source: "/sw.js",
-      headers: [
-        { key: "Content-Type", value: "application/javascript; charset=utf-8" },
-        { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
-      ],
-    },
-  ],
+  headers: async () => [{ source: "/oauth/authorize", headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }] }],
   // notefeed doesn't use next/image, so leave out sharp and its LGPL libvips binaries.
   outputFileTracingExcludes: {
     "*": ["node_modules/sharp/**", "node_modules/@img/**"],

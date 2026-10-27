@@ -16,7 +16,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
-  use: { trace: "retain-on-failure" },
+  // The service worker (public/sw.js) only takes shares; the share project allows it, the rest run without it, as before it existed.
+  use: { trace: "retain-on-failure", serviceWorkers: "block" },
   projects: [
     { name: "open", testMatch: "open.spec.ts", use: { baseURL: "http://localhost:3100" } },
     { name: "errors", testMatch: "errors.spec.ts", use: { baseURL: "http://localhost:3100" } },
@@ -33,7 +34,7 @@ export default defineConfig({
     { name: "phone-webkit", testMatch: "phone.spec.ts", use: { ...devices["iPhone 13"], baseURL: "http://localhost:3100" } },
     { name: "phone-chromium", testMatch: "phone.spec.ts", use: { ...devices["Pixel 7"], baseURL: "http://localhost:3100" } },
     // Pictures shared to the installed app (issue #148): the service worker takes the share target's POST.
-    { name: "share", testMatch: "share.spec.ts", use: { baseURL: "http://localhost:3100" } },
+    { name: "share", testMatch: "share.spec.ts", use: { baseURL: "http://localhost:3100", serviceWorkers: "allow" } },
     { name: "locked", testMatch: "locked.spec.ts", use: { baseURL: "http://localhost:3101" } },
     // The locked server also runs with NOTEFEED_IMAGE_UPLOADS=0 (issue #152): the open one has to take pictures.
     { name: "images-off", testMatch: "images-off.spec.ts", use: { baseURL: "http://localhost:3101" } },

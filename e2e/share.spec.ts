@@ -62,6 +62,7 @@ test("the picked feed's compose box opens with the shared picture and posts it",
   const name = feedName();
   expect((await page.request.post(`/api/v1/feeds/${name}/notes`, { headers: { "Content-Type": "text/markdown" }, data: "first" })).ok()).toBe(true);
   await page.goto(`/${name}`); // remembered by this browser from now on
+  await expect.poll(() => page.evaluate((n) => localStorage.getItem("notefeed:feeds")?.includes(n) ?? false, name)).toBe(true);
   await share(page, { share_text: "from my phone" }, [PNG]);
   await page.locator("section", { hasText: "Post what you shared to" }).getByRole("link", { name }).click();
   await expect(page.getByLabel("Note in markdown")).toHaveValue(/from my phone/);

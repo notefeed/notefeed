@@ -23,7 +23,7 @@ Chosen: a service worker, `public/sw.js`, registered on every page by `component
 * **Nothing reaches the server before Post**, so the feed password, the license, the attachment limit, shrinking and "images off" stay where they are: in the compose box and the posting route.
 * **The worker's job stays this one.** No page caching, no offline mode, no `respondWith` for anything but `POST /api/share`. A wish for offline support is a new decision, not an extension of this file.
 * **`/api/share` has no server route.** Without the worker (an install never opened since, cleared site data) the share answers 404. It sits under `/api/` because `proxy.ts` rewrites every one-segment POST to a post in that feed: `/share` would publish the pictures in a feed called "share".
-* `/sw.js` is served with `Cache-Control: no-cache` and is exempt from the instance lock, so a fix reaches every browser on its next page load.
+* `/sw.js` is a public file (Next serves it with `max-age=0`, and browsers check a worker script for updates past the HTTP cache) and is exempt from the instance lock, so a fix reaches every browser on its next page load.
 
 ### Consequences
 
