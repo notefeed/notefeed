@@ -2,7 +2,7 @@ name: Audit
 
 # Known vulnerabilities in what is shipped: the server's and the client packages' dependencies, and the published image.
 # A scheduled run, because an advisory appears without a commit. A red run means: upgrade the dependency, or release again so the
-# image is rebuilt on a fixed base. Renovate (renovate.json) opens the pull request for a fixed version as soon as an advisory
+# image is rebuilt on a fixed base. Dependabot security updates (.github/dependabot.yml) open the pull request for a fixed version as soon as an advisory
 # is known; this run is the net for what it misses.
 on:
   schedule:
