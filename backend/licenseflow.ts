@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { config } from "./config";
 import { InvalidBodyError, LicenseRequiredError, NotFoundError } from "./errors";
-import { isLicensed, licenses } from "./licensing";
+import { hasActiveLicense, licenses } from "./licensing";
 import { logger } from "./log";
 import { licenseEvent } from "./metrics";
 import { paymentProvider, WebhookRejectedError, type LicenseEvent, type LicensePeriod } from "./payments";
@@ -74,7 +74,7 @@ async function apply(e: LicenseEvent): Promise<void> {
       if (await store.update(e.providerRef, { status: "active", validUntil: e.validUntil })) licenseEvent("renewed");
       return;
     case "cancelled":
-      // Stays active to the end of the paid period; isLicensed ends it then.
+      // Stays active to the end of the paid period; hasActiveLicense ends it then.
       await store.update(e.providerRef, { validUntil: e.validUntil });
       return;
     case "ended": {
@@ -104,7 +104,7 @@ export async function attachLicense(feed: string, key: string): Promise<void> {
   if (!KEY_RE.test(key)) throw new InvalidBodyError("that is not a license key");
   let result = await licenses().attach(hashKey(key), feed);
   // A lapsed license stays on its feed (it is the record of the subscription), but it gives the feed nothing: a new key takes its place.
-  if (result === "feed-has-license" && !(await isLicensed(feed))) {
+  if (result === "feed-has-license" && !(await hasActiveLicense(feed))) {
     await licenses().detach(feed);
     result = await licenses().attach(hashKey(key), feed);
   }

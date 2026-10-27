@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { config } from "./config";
 import { InvalidBodyError, LicenseRequiredError } from "./errors";
 import { changePassword, createProtected, protectedFeed } from "./feedlock";
-import { hasFeed, resetFeedsForTests } from "./feeds";
+import { hasFeed, readIdOf, resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
 import { hashKey } from "./licenseflow";
 import { freeTier, isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
@@ -76,6 +76,24 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       expect(await freeTier("f")).toEqual({ notes: 2, cap: 3 });
       await license("f");
       expect(await freeTier("f")).toBeNull();
+    });
+
+    test("a reserved feed is never on the free tier: it keeps every note, takes images, shows no cap (#242)", async () => {
+      vi.stubEnv("NOTEFEED_RESERVED_FEEDS", "releases");
+      vi.stubEnv("NOTEFEED_RESERVED_PASSWORD", "Reserved-pw1");
+      resetFeedsForTests();
+      expect(await readIdOf("releases")).toBe("releases"); // made at the first look, as at start-up
+      for (let i = 0; i < 5; i++) {
+        await postNote("releases", "ip", async () => ({ body: new TextEncoder().encode(`n${i}`), mediaType: "text/markdown" }), { password: "Reserved-pw1" });
+        await text("f", `n${i}`);
+      }
+      expect(await countNotes("releases", "markdown")).toBe(5);
+      expect(await countNotes("f", "markdown")).toBe(3);
+      await postNote("releases", "ip", async () => ({ body: png, mediaType: "image/png" }), { password: "Reserved-pw1" });
+      expect(await countNotes("releases", "image")).toBe(1);
+      await expect(image("f")).rejects.toBeInstanceOf(LicenseRequiredError);
+      expect(await freeTier("releases")).toBeNull();
+      expect(await freeTier("f")).toEqual({ notes: 3, cap: 3 });
     });
 
     test("a licensed feed keeps every note", async () => {
