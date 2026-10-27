@@ -4,7 +4,7 @@
 import * as z from "zod";
 import { config } from "../config";
 import { InvalidBodyError, NotFoundError, RemovedFeedError } from "../errors";
-import { changePassword, checkFeedAccess, protectedFeed, removePassword } from "../feedlock";
+import { changePassword, checkFeedAccess, protectedFeed, recoverPassword, removePassword } from "../feedlock";
 import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf } from "../feeds";
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
@@ -43,6 +43,7 @@ import {
   PageQuery,
   LicenseKeyJson,
   PasswordJson,
+  RecoveryJson,
   Posted,
   ReadFeedJson,
   ReadIdParam,
@@ -490,6 +491,40 @@ const OPS: AnyOp[] = [
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
     await removePassword(params.feed, req.headers.get("x-feed-password") ?? "", clientIp(req.headers));
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/feeds/{feed}/password/recover`,
+    operationId: "recoverFeedPassword",
+    summary: "Recover a feed's password with its license key",
+    description:
+      "Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license on this feed proves ownership instead of the current password (ADR 0037). " +
+      "With a new password the feed gets it (needs an active license, like any password change); with none, or an empty one, the password is removed, which a lapsed license's key may do too. " +
+      "A key that is not this feed's license is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before the key is tried.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    body: { "application/json": RecoveryJson },
+    responses: {
+      204: { description: "Set or removed; the old password and unlock cookies stop working" },
+      400: err(`Invalid or reserved feed name, bad JSON, or a new password that is not ${PASSWORD_RULE}`),
+      401: err("The key is not this feed's license, or the feed has no password"),
+      402: err("The key's license has lapsed, and a new password needs an active one (`license_required`)"),
+      404: err("Licenses are not sold on this instance, or the feed was deleted meanwhile"),
+      429: { ...err("Too many wrong passwords or keys from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const bytes = await readCapped(req, 4096);
+    let body: ReturnType<typeof RecoveryJson.safeParse> | undefined;
+    try {
+      body = RecoveryJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array())));
+    } catch {}
+    if (!body?.success) throw new InvalidBodyError('JSON needs a "key" string, and optionally a "password" string');
+    await recoverPassword(params.feed, body.data.key.trim(), body.data.password ?? "", clientIp(req.headers));
     return { status: 204, body: undefined };
   }),
 
