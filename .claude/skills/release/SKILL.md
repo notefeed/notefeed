@@ -18,6 +18,15 @@ Before tagging:
 
 The release job refuses a tag that doesn't match both. npm and PyPI refuse a version that is already published, so every release needs a new version.
 
+The tag message is the release notes: on GitHub, on /r/releases, and what the news post is written from. Its shape:
+
+- First line `notefeed X.Y.Z` (dropped on /r/releases), then what changed for users in a few short paragraphs, as the previous tags do.
+- `Breaking:` a paragraph per change that makes something stop working (a renamed or removed header, parameter, tool or command, something now refused, a changed default) and what to do instead. Check every pull request since the last tag for one; when there is none, leave the paragraph out.
+- `Upgrading:` what someone who runs notefeed has to do: a new or changed setting (and that notefeed.me sets it in notefeed-ansible), a backup before a migration.
+- `MCP:` when the tools changed (`git diff --quiet vPREV..HEAD -- backend/mcp.ts` fails): which tools or parameters are new, changed or gone, and that assistants see them only after reconnecting (Claude: a new chat, or remove and add the connector; Claude Code: restart). When the sign-in changed (`backend/oauth`, `app/.well-known`, `app/mcp`) in a way that ends existing connections: connect notefeed again.
+
+Write the message to a file and tag with `git tag -a vX.Y.Z -F <file>`.
+
 After the release:
 
 3. The release notes go onto notefeed.me's `releases` feed (a reserved feed, read link https://notefeed.me/r/releases) by themselves: the `release` job in `ci.yml` posts one note per release (title `notefeed X.Y.Z`, the annotated tag message without its first line under a line with the date and the GitHub release, tags `release` and `vX.Y.Z`) with the repository secret `NOTEFEED_RESERVED_PASSWORD`, and a re-run posts nothing twice. Check https://notefeed.me/r/releases afterwards. When the step was skipped or failed, post it by hand, late rather than not at all, the password read from the server's notefeed settings and never written into a file or commit:
