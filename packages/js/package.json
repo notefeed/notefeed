@@ -44,7 +44,7 @@
     "url": "https://github.com/notefeed/notefeed/issues"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^26",
     "typescript": "^5.9",
     "vitest": "^4.1"
   }
