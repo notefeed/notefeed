@@ -18,10 +18,8 @@ note=$(curl -sf "$API/read/releases/notes?tag=$TAG" | jq -r '.notes[0].id // emp
 prev=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
 notes=$(git for-each-ref "refs/tags/$TAG" --format='%(contents)')
 prs=""
-# Each description cut at 6000 characters: a post of a few sentences needs the gist, not every test plan.
 for n in $(git log --merges --format=%s "${prev:+$prev..}$TAG" | sed -n 's/^Merge pull request #\([0-9]*\).*/\1/p'); do
-  prs+=$(gh pr view "$n" -R "$REPO" --json number,title,body \
-    -q '"## #\(.number): \(.title)\n\n\(.body | if length > 6000 then .[:6000] + " […]" else . end)\n\n"')
+  prs+=$(gh pr view "$n" -R "$REPO" --json number,title,body -q '"## #\(.number): \(.title)\n\n\(.body)\n\n"')
 done
 # What an AI assistant connected over MCP has to do is a fact of the code, not of the descriptions: whether the tools
 # (backend/mcp.ts) or the sign-in (OAuth) changed since the previous release, with the tools' diff for which ones.
