@@ -30,6 +30,14 @@ NOTEFEED_RESERVED_PASSWORD: a-long-operator-password
 
 At start-up each listed name that doesn't exist yet is created as a [protected feed](../using/feed-passwords.md#in-the-api) with that password, and its read id is its name: `/r/news/feed.xml` is the link to hand out, and it never changes. Nobody else can create a listed name (`400`, `reserved_feed`). Without the password the names are blocked but the feeds don't exist. A name that already exists as an open feed is not converted: delete its folder and restart.
 
+A reserved name is not linked anywhere by itself, so you can hold back names (`admin`, `www`) that you never post to. To link feeds in every page's footer and the ⓘ menu, name them in `NOTEFEED_FOOTER_FEEDS`, in the order they should appear, reserved or not:
+
+```yaml
+NOTEFEED_FOOTER_FEEDS: news,announcements
+```
+
+Each link goes to the feed's read link and shows the feed's title, or its name. A name that is no feed is left out.
+
 ## OAuth for MCP clients
 
 Clients that can't send a header, such as the Claude.ai and Claude Desktop connectors for [MCP](../integrations/mcp.md), log in through notefeed's own OAuth login page with the instance password (or [sign-in](sign-in/index.md)). It only exists on a locked instance. `PUBLIC_URL` is the issuer, so set it with `https://`. Nothing is stored: codes and tokens are signed with a key derived from the secret and the password, so changing `NOTEFEED_PASSWORD` signs every client out. An access token lasts an hour, a refresh token 30 days.
