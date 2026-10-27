@@ -4,7 +4,7 @@ Send a picture, a text or a link from another app on your phone to a feed: Photo
 
 ## Android
 
-[Install notefeed as an app](web-ui.md#install-it-as-an-app) (Chrome: **Add to Home Screen** or **Install app**) and open it once. From then on it is in the share sheet of other apps:
+[Install notefeed as an app](web-ui.md#install-it-as-an-app) with **Chrome** (**Add to Home Screen** or **Install app**) and open it once. Installed from Samsung Internet, notefeed is in the share sheet, but sharing only opens the start page ([#314](https://github.com/notefeed/notefeed/issues/314)). From then on it is in the share sheet of other apps:
 
 1. Share one or more pictures, a text or a link and pick **notefeed**.
 2. The start page asks which feed it goes to: one of **Your feeds** (the feeds this browser has opened), or type a name.
