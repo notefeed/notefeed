@@ -356,7 +356,7 @@ describe("updateNote and removeNote", () => {
     const { note: n } = await createNote("test", "# Old", now);
     await expect(replaceContent("test", n.id, new TextEncoder().encode("  "), "text/markdown")).rejects.toThrow(EmptyNoteError);
     expect(await readFile(join(dir, `${n.id}.md`), "utf8")).toBe("# Old");
-    expect((await files()).sort()).toEqual([`.${n.id}.md.json`, `${n.id}.md`]);
+    expect((await files()).sort()).toEqual([`.${n.id}.md.json`, `${n.id}.md`].sort()); // an id may start with "-", which sorts before "."
   });
   test("removeNote is true once, then false", async () => {
     const { note: n } = await createNote("test", "# Old", now);

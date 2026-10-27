@@ -135,12 +135,12 @@ def sync_detailed(
      The body is the new file, with the same rules as posting: a `Content-Type` that is one of the
     accepted types, a body that is what it declares. A note keeps its type, so the type must be the
     note's own (`415` otherwise). Id, creation time and metadata stay: the title of a markdown note
-    without one set follows the new text. Change the title or alt text with `PATCH`. Needs the feed's
-    password if it has one, and counts against the post rate limit. Read links can't edit. A markdown
-    note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or
-    a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10
-    pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The
-    pictures are stored first, each as its own note named by its file name, then the text with its
+    without one set follows the new text. Change the title, alt text or tags with `PATCH`. Needs the
+    feed's password if it has one, and counts against the post rate limit. Read links can't edit. A
+    markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a
+    field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts
+    (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
+    The pictures are stored first, each as its own note named by its file name, then the text with its
     references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
     the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
     before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
@@ -194,12 +194,12 @@ def sync(
      The body is the new file, with the same rules as posting: a `Content-Type` that is one of the
     accepted types, a body that is what it declares. A note keeps its type, so the type must be the
     note's own (`415` otherwise). Id, creation time and metadata stay: the title of a markdown note
-    without one set follows the new text. Change the title or alt text with `PATCH`. Needs the feed's
-    password if it has one, and counts against the post rate limit. Read links can't edit. A markdown
-    note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or
-    a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10
-    pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The
-    pictures are stored first, each as its own note named by its file name, then the text with its
+    without one set follows the new text. Change the title, alt text or tags with `PATCH`. Needs the
+    feed's password if it has one, and counts against the post rate limit. Read links can't edit. A
+    markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a
+    field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts
+    (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
+    The pictures are stored first, each as its own note named by its file name, then the text with its
     references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
     the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
     before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
@@ -248,12 +248,12 @@ async def asyncio_detailed(
      The body is the new file, with the same rules as posting: a `Content-Type` that is one of the
     accepted types, a body that is what it declares. A note keeps its type, so the type must be the
     note's own (`415` otherwise). Id, creation time and metadata stay: the title of a markdown note
-    without one set follows the new text. Change the title or alt text with `PATCH`. Needs the feed's
-    password if it has one, and counts against the post rate limit. Read links can't edit. A markdown
-    note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or
-    a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10
-    pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The
-    pictures are stored first, each as its own note named by its file name, then the text with its
+    without one set follows the new text. Change the title, alt text or tags with `PATCH`. Needs the
+    feed's password if it has one, and counts against the post rate limit. Read links can't edit. A
+    markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a
+    field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts
+    (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
+    The pictures are stored first, each as its own note named by its file name, then the text with its
     references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
     the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
     before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
@@ -305,12 +305,12 @@ async def asyncio(
      The body is the new file, with the same rules as posting: a `Content-Type` that is one of the
     accepted types, a body that is what it declares. A note keeps its type, so the type must be the
     note's own (`415` otherwise). Id, creation time and metadata stay: the title of a markdown note
-    without one set follows the new text. Change the title or alt text with `PATCH`. Needs the feed's
-    password if it has one, and counts against the post rate limit. Read links can't edit. A markdown
-    note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or
-    a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10
-    pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The
-    pictures are stored first, each as its own note named by its file name, then the text with its
+    without one set follows the new text. Change the title, alt text or tags with `PATCH`. Needs the
+    feed's password if it has one, and counts against the post rate limit. Read links can't edit. A
+    markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a
+    field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts
+    (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
+    The pictures are stored first, each as its own note named by its file name, then the text with its
     references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
     the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
     before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-

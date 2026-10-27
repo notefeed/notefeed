@@ -1,0 +1,10 @@
+{
+  "name": "notefeed",
+  "version": "0.1.0",
+  "description": "Skills for posting to notefeed feeds from Claude: write a note, review it as a draft, post it on approval.",
+  "author": { "name": "notefeed", "url": "https://notefeed.me" },
+  "homepage": "https://docs.notefeed.me/integrations/skills/",
+  "repository": "https://github.com/notefeed/notefeed",
+  "license": "AGPL-3.0-or-later",
+  "keywords": ["notefeed", "blog", "rss", "release-notes", "mcp"]
+}

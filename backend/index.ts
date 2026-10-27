@@ -4,7 +4,7 @@
 import { config } from "./config";
 import { identityOn, providers } from "./oidc/config";
 import { forReaders, getSettings } from "./feedsettings";
-import { isReadId, checkFeed, feedForReadId, hasFeed, readableReservedFeeds, readIdOf } from "./feeds";
+import { isReadId, checkFeed, feedForReadId, hasFeed, readIdOf } from "./feeds";
 import { countNotes, getNote, ImageNote, isScheduled, listNotes, MarkdownNote, type Note } from "./notes";
 import { imagePath, readPath } from "./urls";
 
@@ -47,10 +47,16 @@ export const supportEmail = config.supportEmail;
 /** The sign-in providers for the buttons, in order: id (for /api/oidc/start?provider=) and label; empty while identity is off. */
 export const signInProviders = (): { id: string; label: string }[] => providers().map(({ id, label }) => ({ id, label }));
 
-/** The reserved feeds there are to read (releases, a blog), for the footer and the ⓘ menu: the feed's title, else its name. */
-export async function reservedFeedLinks(): Promise<{ href: string; label: string }[]> {
-  const feeds = await readableReservedFeeds();
-  return Promise.all(feeds.map(async (feed) => ({ href: readPath(feed), label: (await getSettings(feed)).title || feed[0].toUpperCase() + feed.slice(1) })));
+/** The feeds NOTEFEED_FOOTER_FEEDS names (releases, a blog), for the footer and the ⓘ menu, linked by their read id: the feed's
+ * title, else its name. A name that is no feed, or a feed without a read link, is left out. */
+export async function footerFeedLinks(): Promise<{ href: string; label: string }[]> {
+  const links = await Promise.all(
+    config.footerFeeds().map(async (feed) => {
+      const readId = checkFeed(feed) === null ? await readIdOf(feed) : null; // a bad name must not reach the lookup
+      return readId ? { href: readPath(readId), label: (await getSettings(feed)).title || feed[0].toUpperCase() + feed.slice(1) } : null;
+    }),
+  );
+  return links.filter((l) => l !== null);
 }
 
 /** Whether the instance password is set (sign-in alone can lock an instance too). */

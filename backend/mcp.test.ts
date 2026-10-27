@@ -48,7 +48,44 @@ async function rpc(method: string, params: Record<string, unknown> = {}, headers
     }),
   );
 }
-const call = async (tool: string, args: Record<string, unknown>) => (await (await rpc("tools/call", { name: tool, arguments: args })).json()).result;
+// Every result is checked against the tool's declared output schema, as a client does (#245):
+// a key the schema doesn't list makes a strict client refuse the whole answer.
+type Schema = { type?: string | string[]; properties?: Record<string, Schema>; additionalProperties?: boolean; required?: string[]; items?: Schema; anyOf?: Schema[] };
+let outputSchemas: Record<string, Schema> | undefined;
+function conforms(v: unknown, s: Schema & { $ref?: string }, path: string): void {
+  if (s.$ref) throw new Error(`${path}: the output schema uses $ref, which this check (and an MCP client expecting an object) does not follow`);
+  if (s.anyOf) {
+    const errors: string[] = [];
+    for (const alt of s.anyOf) {
+      try {
+        return conforms(v, alt, path);
+      } catch (e) {
+        errors.push((e as Error).message);
+      }
+    }
+    throw new Error(errors.join("; "));
+  }
+  if (v === null) {
+    if (s.type === "null" || (Array.isArray(s.type) && s.type.includes("null"))) return;
+    if (s.type !== undefined) throw new Error(`${path} is null`);
+    return;
+  }
+  if (Array.isArray(v) && s.items) return v.forEach((x, i) => conforms(x, s.items!, `${path}[${i}]`));
+  if (typeof v === "object" && s.properties) {
+    const o = v as Record<string, unknown>;
+    for (const k of Object.keys(o)) {
+      if (k in s.properties) conforms(o[k], s.properties[k], `${path}.${k}`);
+      else if (s.additionalProperties === false) throw new Error(`${path}.${k} is not in the output schema`);
+    }
+    for (const k of s.required ?? []) if (!(k in o)) throw new Error(`${path}.${k} is missing`);
+  }
+}
+const call = async (tool: string, args: Record<string, unknown>) => {
+  outputSchemas ??= Object.fromEntries((await (await rpc("tools/list")).json()).result.tools.map((t: { name: string; outputSchema: Schema }) => [t.name, t.outputSchema]));
+  const result = (await (await rpc("tools/call", { name: tool, arguments: args })).json()).result;
+  if (!result.isError) conforms(result.structuredContent, outputSchemas[tool], tool);
+  return result;
+};
 
 describe("protocol", () => {
   test("tools/list", async () => {
@@ -58,6 +95,7 @@ describe("protocol", () => {
       expect(t.annotations?.readOnlyHint === true).toBe(["get_feed", "get_note", "list_notes"].includes(t.name));
       expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "delete_feed"].includes(t.name));
       expect(t.annotations?.idempotentHint === true).toBe(["edit_note", "update_feed"].includes(t.name));
+      expect(t.outputSchema.type).toBe("object");
     }
   });
   test("server/discover lists the version", async () => {
@@ -412,6 +450,15 @@ describe("edit_note and delete_note", () => {
     expect(e.structuredContent).not.toHaveProperty("scheduled");
     expect((await call("edit_note", { feed: "o", id, markdown: "# New", date: "soon" })).isError).toBe(true);
     expect((await call("get_note", { feed: "o", id })).structuredContent).toMatchObject({ title: "Old", date: "2025-03-01T00:00:00.000Z" });
+  });
+
+  test("edit_note tags replace the list; a bad tag changes nothing, not even the text (#244)", async () => {
+    const id = (await call("post_note", { feed: "o", markdown: "# Old", tags: ["draft"] })).structuredContent.id;
+    expect((await call("edit_note", { feed: "o", id, tags: ["Published", "ci"] })).structuredContent).toMatchObject({ id, title: "Old", tags: ["published", "ci"] });
+    const bad = await call("edit_note", { feed: "o", id, markdown: "# New", tags: ["has space"] });
+    expect(bad.isError).toBe(true);
+    expect((await call("get_note", { feed: "o", id })).structuredContent).toMatchObject({ content: "# Old", tags: ["published", "ci"] });
+    expect((await call("edit_note", { feed: "o", id, tags: [] })).structuredContent.tags).toEqual([]);
   });
 
   test("work on an open feed", async () => {

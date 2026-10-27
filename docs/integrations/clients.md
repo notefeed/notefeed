@@ -64,7 +64,7 @@ Create the client with the server's URL and, usually, a default feed; every call
 | `notes(feed=, page_size=, tag=)` | `notes({ feed, pageSize, tag })` | Every note in the feed, newest first; the next page is fetched as you iterate. |
 | `note(id, feed=)` | `note(id, { feed })` | One note. |
 | `edit(id, content, feed=, type=)` | `edit(id, content, { feed, type })` | Replaces a note's content; id, URLs and metadata stay. |
-| `update(id, title=, alt=, date=, feed=)` | `update(id, { title, alt, date }, { feed })` | Sets a note's title, a picture's alt text or a note's date; `""` removes a title or alt text. |
+| `update(id, title=, alt=, tags=, date=, feed=)` | `update(id, { title, alt, tags, date }, { feed })` | Sets a note's title, a picture's alt text, a note's tags (the whole list; `[]` removes them) or its date; `""` removes a title or alt text. |
 | `delete(id, feed=)` | `delete(id, { feed })` | Deletes a note for good. |
 | `feed_info(feed=)` | `feedInfo({ feed })` | The feed's `name`, `title`, `description`, `image_url`, `protected` and `read_url`. |
 | `update_feed(title, description, feed=, image=, read_id=)` | `updateFeed({ title, description, image, read_id }, { feed })` | Replaces the feed's title and description; `image` is the `file` of a picture for the title image. |

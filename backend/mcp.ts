@@ -8,6 +8,7 @@ import { changePassword, checkFeedAccess } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson } from "./http/api";
 import { sender } from "./http/request";
+import { FeedJson, FreeTierJson } from "./http/schemas";
 import { clientIp } from "./limits";
 import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
@@ -15,7 +16,7 @@ import { logger } from "./log";
 import { checkLine, getNote, isScheduled, listNotes, MAX_NOTE_TITLE, type Note } from "./notes";
 import { verify } from "./oauth/tokens";
 import { isAttachmentName, safeName } from "../shared/links";
-import { TAG_RULE } from "./tags";
+import { checkTags, TAG_RULE } from "./tags";
 import { checkDate, deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
 import { getStoredSettings } from "./feedsettings";
 import { feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
@@ -144,17 +145,26 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "edit_note",
     {
-      description: `Replace a note's markdown, set its title or its date, or any of them (an empty title removes it: the title follows the text again; a future date schedules the note); its id stays. At least one of markdown, title and date. ${PROTECTED} ${SECRET_NOTE}`,
-      inputSchema: z.object({ feed, id: z.string(), markdown: z.string().optional(), title: z.string().optional(), date: z.string().optional().describe("The note's new date: an ISO 8601 date and time with its offset or a date alone (midnight UTC), any time from 1970 to 9999. A future time schedules the note."), password }),
+      description: `Replace a note's markdown, set its title, its tags or its date, or any of them (an empty title removes it: the title follows the text again; tags replace the whole list, an empty one removes them; a future date schedules the note); its id stays. At least one of markdown, title, tags and date. ${PROTECTED} ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        id: z.string(),
+        markdown: z.string().optional(),
+        title: z.string().optional(),
+        tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list, e.g. ["ci","done"]: ${TAG_RULE}. Empty removes them; left out keeps them.`),
+        date: z.string().optional().describe("The note's new date: an ISO 8601 date and time with its offset or a date alone (midnight UTC), any time from 1970 to 9999. A future time schedules the note."),
+        password,
+      }),
       outputSchema: NoteFull,
       annotations: { destructiveHint: true, idempotentHint: true },
     },
-    guard(async ({ feed, id, markdown, title, date, password }) => {
-      if (markdown === undefined && title === undefined && date === undefined) throw new InvalidBodyError("nothing to change: send markdown, title, date or several");
+    guard(async ({ feed, id, markdown, title, tags, date, password }) => {
+      if (markdown === undefined && title === undefined && tags === undefined && date === undefined) throw new InvalidBodyError("nothing to change: send markdown, title, tags, date or several");
       checkLine("title", title, MAX_NOTE_TITLE);
-      checkDate(date); // before the content is replaced: a bad title must not leave a half edit
+      if (tags !== undefined) checkTags(tags);
+      checkDate(date); // before the content is replaced: a bad title, tag or date must not leave a half edit
       let note = markdown === undefined ? undefined : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), { password });
-      if (title !== undefined || date !== undefined) note = await editMeta(feed, id, clientIp(h), async () => ({ title, date }), { password });
+      if (title !== undefined || tags !== undefined || date !== undefined) note = await editMeta(feed, id, clientIp(h), async () => ({ title, tags, date }), { password });
       return ok({ ...summary(feed, note!), ...(note!.content !== undefined && { content: note!.content }) });
     }),
   );
@@ -173,12 +183,14 @@ function server(h: Headers): McpServer {
     }),
   );
 
-  const FeedOut = z.object({ name: z.string(), title: z.string(), description: z.string(), protected: z.boolean(), read_url: z.string().nullable(), image_url: z.string().nullable() });
+  // The API's Feed with its fields inlined: an id in .meta() turns into a top-level $ref, and an
+  // MCP output schema must be an object at its root. Built from FeedJson so a new field is declared here too (#245).
+  const FeedOut = z.object({ ...FeedJson.shape, free_tier: z.object(FreeTierJson.shape).nullable().describe(FeedJson.shape.free_tier.description ?? "") });
 
   s.registerTool(
     "get_feed",
     {
-      description: `Get a feed's title, description, title image, whether it is protected, and its read link (null while it has no notes). ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Get a feed's title, description, title image, whether it is protected, its read link (null while it has no notes), whether readers see who posted, and, on a free feed where licenses are sold, its notes against the free cap. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, password }),
       outputSchema: FeedOut,
       annotations: { readOnlyHint: true },

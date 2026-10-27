@@ -204,8 +204,8 @@ export class Client {
     return this.call(editNote({ client: this.api, path: { feed, id }, body, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
-  /** Set a note's title, alt text (for pictures) and/or date (as in post(); a future one schedules the note); `""` removes a title or alt, so a markdown note's title follows its text again. Same options as post(). */
-  async update(id: string, meta: { title?: string; alt?: string; date?: string | Date }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
+  /** Set a note's title, alt text (for pictures), tags and/or date (as in post(); a future one schedules the note); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
+  async update(id: string, meta: { title?: string; alt?: string; tags?: string[]; date?: string | Date }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
     const feed = this.feedFor(options.feed);
     const { date, ...rest } = meta;
     const body = { ...rest, ...(date !== undefined && { date: dateString(date) }) };

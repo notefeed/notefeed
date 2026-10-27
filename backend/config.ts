@@ -180,6 +180,8 @@ export const config = {
   maxFeeds: () => Math.max(0, int("NOTEFEED_MAX_FEEDS", 0)),
   // Comma-separated feed names nobody may create, on top of the built-in list (see feeds.ts).
   reservedFeeds: () => env("NOTEFEED_RESERVED_FEEDS").split(",").map((n) => n.trim()).filter(Boolean),
+  // Comma-separated feeds linked in the footer and the ⓘ menu, in this order (releases, a blog); none when unset.
+  footerFeeds: () => [...new Set(env("NOTEFEED_FOOTER_FEEDS").split(",").map((n) => n.trim()).filter(Boolean))],
   // Password of the reserved feeds, which exist only while this is set (see feeds.ts).
   reservedPassword: () => env("NOTEFEED_RESERVED_PASSWORD"),
   // "0" leaves only random read ids: nothing chosen is accepted (empty, a random one, still is).
