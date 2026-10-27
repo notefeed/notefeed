@@ -15,7 +15,7 @@ import { TAG_RULE } from "../tags";
 import { API_PREFIX, feedPath, imagePath, publicUrl, readPath, rssPath } from "../urls";
 import { MEDIA_TYPES } from "../note/media";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
-import { MAX_ATTACHMENTS, deleteFeed, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
+import { MAX_ATTACHMENTS, createFeed, deleteFeed, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
 import { MULTIPART_SLACK, createdOf, handlePostNote, readContent, readMetaPatch, readMultipart } from "./notes";
 import { authorize, feedAccess, mediaType, readCapped, sender } from "./request";
 import {
@@ -43,6 +43,7 @@ import {
   PageQuery,
   LicenseKeyJson,
   PasswordJson,
+  CreateFeedJson,
   Posted,
   ReadFeedJson,
   ReadIdParam,
@@ -342,6 +343,41 @@ const OPS: AnyOp[] = [
   }).handle(async ({ req, params }) => {
     await deleteNote(params.feed, params.id, clientIp(req.headers), feedAccess(req.headers, params.feed));
     return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/feeds/{feed}`,
+    operationId: "createFeed",
+    summary: "Create a feed without posting a note",
+    description:
+      "Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. " +
+      "Where licenses are sold a license key is required and goes on the new feed; free feeds start with their first note. A feed that exists is 409. " +
+      "Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    body: { "application/json": CreateFeedJson },
+    responses: {
+      201: { description: "The new feed", schema: FeedJson },
+      400: err(`Invalid or reserved feed name, bad JSON, a password that is not ${PASSWORD_RULE}, a read id that is invalid, or a key that is none`),
+      402: err("A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)"),
+      409: err("The feed exists already (`feed_exists`), or the read id is taken (`taken`)"),
+      410: REMOVED,
+      429: { ...err("Too many posts, or wrong keys, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+      507: err("NOTEFEED_MAX_FEEDS reached"),
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const bytes = await readCapped(req, 4096);
+    let body: ReturnType<typeof CreateFeedJson.safeParse> | undefined;
+    try {
+      body = CreateFeedJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes?.length ? bytes : new TextEncoder().encode("{}"))));
+    } catch {}
+    if (!body?.success) throw new InvalidBodyError('JSON with optional "password", "license_key" and "read_id" strings');
+    await createFeed(params.feed, clientIp(req.headers), { password: body.data.password, licenseKey: body.data.license_key, readId: body.data.read_id });
+    return { status: 201, body: await feedJson(params.feed, req.headers) };
   }),
 
   op({

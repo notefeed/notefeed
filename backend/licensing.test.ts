@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { config } from "./config";
-import { AuthError, InvalidBodyError, LicenseRequiredError, NotFoundError, TooManyAttemptsError } from "./errors";
+import { AuthError, FeedExistsError, InvalidBodyError, LicenseRequiredError, NotFoundError, TooManyAttemptsError } from "./errors";
 import { changePassword, createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, readIdOf, resetFeedsForTests } from "./feeds";
 import { authWait, resetRateLimitsForTests } from "./limits";
 import { countingKeys, hashKey } from "./licenseflow";
 import { freeTier, isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
 import { countNotes, createNote } from "./notes";
-import { deleteFeed, postNote, postWithPictures, setLicense } from "./posting";
+import { createFeed, deleteFeed, postNote, postWithPictures, setLicense } from "./posting";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -217,6 +217,20 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       await setLicense("open", "other-ip", KEY, {});
       expect(await isLicensed("open")).toBe(true);
       expect(authWait("other-ip")).toBeNull(); // a right key costs nothing
+    });
+
+    test("createFeed: a feed without a note needs a license key here; it is made protected or open, licensed, and only once (#295)", async () => {
+      await licenses().createLicense({ keyHash: hashKey(KEY), providerRef: "sub_1", validUntil: null });
+      await expect(createFeed("p", "ip", { password: "Passw0rd!x" })).rejects.toBeInstanceOf(LicenseRequiredError);
+      await expect(createFeed("p", "ip", { password: "Passw0rd!x", licenseKey: "y".repeat(22) })).rejects.toBeInstanceOf(InvalidBodyError);
+      await expect(createFeed("p", "ip", { password: " padded ", licenseKey: KEY })).rejects.toBeInstanceOf(InvalidBodyError);
+      expect(await hasFeed("p")).toBe(false);
+      await createFeed("p", "ip", { password: "Passw0rd!x", licenseKey: ` ${KEY} `, readId: "my-read-id" });
+      expect([await hasFeed("p"), await protectedFeed("p"), await isLicensed("p"), await readIdOf("p"), await countNotes("p")]).toEqual([true, true, true, "my-read-id", 0]);
+      await expect(createFeed("p", "ip", { licenseKey: KEY })).rejects.toBeInstanceOf(FeedExistsError);
+      await licenses().createLicense({ keyHash: hashKey("o".repeat(22)), providerRef: "sub_2", validUntil: null });
+      await createFeed("open", "ip", { licenseKey: "o".repeat(22) });
+      expect([await protectedFeed("open"), await isLicensed("open")]).toEqual([false, true]);
     });
 
     test("an existing password keeps protecting a lapsed feed, but it cannot be changed", async () => {

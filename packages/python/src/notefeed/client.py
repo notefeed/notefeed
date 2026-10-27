@@ -15,9 +15,9 @@ import httpx
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
-from ._generated.api.feeds import change_feed_password, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, update_feed
+from ._generated.api.feeds import change_feed_password, create_feed, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, update_feed
 from ._generated.api.read import get_read_note, list_read_notes
-from ._generated.models import Created, Feed, FeedSettings, LicenseKey, Note, NoteList, NoteMeta, PasswordJson
+from ._generated.models import CreateFeedJson, Created, Feed, FeedSettings, LicenseKey, Note, NoteList, NoteMeta, PasswordJson
 from ._generated.types import UNSET, File
 
 
@@ -368,6 +368,11 @@ class Client:
         """Set the feed's password. On a protected feed it changes it: `feed_password` (or the client's) is the current one. An open feed takes one without, which claims it: its name was all that protected it. Every request for the feed then needs the new password; its read link stays open. Same options as post()."""
         body = PasswordJson(password=password)
         self._call(change_feed_password._get_kwargs(feed=self._feed_for(feed), body=body, x_feed_password=self._fp(feed_password)))
+
+    def create_feed(self, feed: str | None = None, password: str | None = None, license_key: str | None = None, read_id: str | None = None) -> Feed:
+        """Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `read_id` gives it that read link. Where licenses are sold `license_key` is required and goes on the new feed. A feed that exists is refused (409)."""
+        body = CreateFeedJson(password=password or UNSET, license_key=license_key or UNSET, read_id=read_id or UNSET)
+        return self._parse(Feed, self._call(create_feed._get_kwargs(feed=self._feed_for(feed), body=body)))
 
     def delete_feed(self, feed: str | None = None, feed_password: str | None = None) -> None:
         """Delete the feed with all its notes, settings and password, for good; its name is free again. Same options as post()."""

@@ -1077,6 +1077,140 @@
       }
     },
     "/api/v1/feeds/{feed}": {
+      "post": {
+        "operationId": "createFeed",
+        "summary": "Create a feed without posting a note",
+        "description": "Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. Where licenses are sold a license key is required and goes on the new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedJson"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name, bad JSON, a password that is not 1 to 256 printable ASCII characters, with no space at the start or end, a read id that is invalid, or a key that is none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feed exists already (`feed_exists`), or the read id is taken (`taken`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The operator removed this feed for good (`removed`): its name cannot be used again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many posts, or wrong keys, from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "NOTEFEED_MAX_FEEDS reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "operationId": "getFeed",
         "summary": "Get a feed's settings",
@@ -2657,6 +2791,24 @@
         "required": [
           "password"
         ],
+        "additionalProperties": false
+      },
+      "CreateFeedJson": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "description": "A password that protects the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out: an open feed",
+            "type": "string"
+          },
+          "license_key": {
+            "description": "Where licenses are sold, required: the key of the license to put on the new feed",
+            "type": "string"
+          },
+          "read_id": {
+            "description": "The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one",
+            "type": "string"
+          }
+        },
         "additionalProperties": false
       },
       "LicenseKey": {

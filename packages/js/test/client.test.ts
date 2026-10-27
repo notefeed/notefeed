@@ -233,6 +233,17 @@ describe("feed settings and deletion", () => {
     expect(open.headers["x-feed-password"]).toBeUndefined();
     expect([JSON.parse(change.body.toString()), change.headers["x-feed-password"]]).toEqual([{ password: "Other!pass1" }, "N3wPassw0rd!"]);
   });
+  test("createFeed POSTs the feed's protection and returns the feed, without a feed password", async () => {
+    server.reply(201, FEED);
+    server.reply(201, FEED);
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
+    expect(await c.createFeed({ password: "N3wPassw0rd!", licenseKey: "k".repeat(22), readId: "my-read" })).toEqual(FEED);
+    await c.createFeed({ feed: "other" });
+    const [made, bare] = server.requests;
+    expect([made.method, made.path, JSON.parse(made.body.toString())]).toEqual(["POST", "/api/v1/feeds/inbox", { password: "N3wPassw0rd!", license_key: "k".repeat(22), read_id: "my-read" }]);
+    expect(made.headers["x-feed-password"]).toBeUndefined();
+    expect([bare.path, JSON.parse(bare.body.toString())]).toEqual(["/api/v1/feeds/other", {}]);
+  });
   test("deleteFeed sends DELETE and resolves to nothing on 204", async () => {
     server.reply(204, "", "text/plain");
     const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });

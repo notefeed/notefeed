@@ -1,13 +1,14 @@
 // POST /<feed>/access: the web UI's plain forms for a feed password (unlock, lock, change, remove, recover, and protect: an open
-// feed gets one, ADR 0044).
+// feed gets one, ADR 0044), and create: a feed without a note (ADR 0047).
 // Always answers with a redirect back to the feed page (unlock, lock) or the settings page (change, remove); the cookie is the feed's unlock cookie.
 import { AuthError, InvalidRequestError, NotefeedError } from "../errors";
+import { createFeed } from "../posting";
 import { changePassword, feedCookieName, protectedFeed, recoverPassword, removePassword, unlock } from "../feedlock";
 import { assertFeed } from "../feeds";
 import { clientIp } from "../limits";
 import { API_PREFIX, feedPath, publicUrl, settingsPath } from "../urls";
 import { errorResponse } from "./errors";
-import { errorRedirect, parseForm, readCapped, sameOrigin, seeOther } from "./request";
+import { authorize, errorRedirect, parseForm, readCapped, sameOrigin, seeOther } from "./request";
 
 const YEAR = 60 * 60 * 24 * 365;
 
@@ -34,9 +35,10 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
     const form = bytes ? await parseForm(bytes, h).catch(() => null) : null;
     const field = (name: string) => String(form?.get(name) ?? "");
     const action = field("action");
-    if (!["unlock", "lock", "change", "remove", "recover", "protect"].includes(action)) throw new InvalidRequestError("unknown action");
+    if (!["unlock", "lock", "change", "remove", "recover", "protect", "create"].includes(action)) throw new InvalidRequestError("unknown action");
     if (action === "change" || action === "remove") back = settingsPath(feed);
-    if (action === "protect") back = `${settingsPath(feed)}?form=protect`; // the settings page opens its "protect this feed" part
+    if (action === "protect") back = `${settingsPath(feed)}?form=protect`;
+    if (action === "create") back = `${page}?form=create`; // the new feed's "Protect this feed" card // the settings page opens its "protect this feed" part
     if (action === "recover") back = `${page}?form=recover`; // the unlock screen opens its "forgot the password" part
     // Only this instance's own pages may send these: they set, use or drop the cookie's session, and another
     // site's form must not spend a visitor's password attempts either.
@@ -46,6 +48,13 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
       return seeOther(page, set(await unlock(feed, field("password"), clientIp(h))));
     }
     if (action === "lock") return seeOther(page, clear());
+    // A feed without a note (#295, ADR 0047), from the new feed's card: a protected one leaves this browser unlocked for it.
+    if (action === "create") {
+      authorize(h, clientIp(h)); // a locked instance's own password (or session) first, as every other way to create a feed needs it
+      const password = field("password");
+      await createFeed(feed, clientIp(h), { password, licenseKey: field("key") });
+      return password ? seeOther(`${page}?created=1`, set(await unlock(feed, password, clientIp(h)))) : seeOther(`${page}?created=1`);
+    }
     if (action === "protect") return seeOther(`${settingsPath(feed)}?saved=1`, set(await changePassword(feed, "", field("next"), clientIp(h))));
     if (action === "recover") {
       const cookie = await recoverPassword(feed, field("key").trim(), field("next"), clientIp(h));

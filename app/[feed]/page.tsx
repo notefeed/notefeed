@@ -13,7 +13,7 @@ import { ProtectFeed } from "@/components/ProtectFeed";
 import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
-import { errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
+import { createErrorMessage, errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
 import { sortTags } from "@/shared/tags";
 
@@ -91,7 +91,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           tag={tag}
           base={feedPath(feed)}
         >
-          {isNew && <ProtectFeed licensing={licensingOn()} licensePage={licensePage} />}
+          {isNew && <ProtectFeed feed={feed} licensing={licensingOn()} licensePage={licensePage} error={form === "create" ? createErrorMessage(error, retry) : undefined} />}
         </FeedAbout>
       }
     >
@@ -102,7 +102,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           Note deleted.
         </p>
       )}
-      <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={errorMessage(error, retry)} errorCode={one(error)}
+      <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={form === "create" ? undefined : errorMessage(error, retry)} errorCode={one(error)}
         isNew={isNew} settingsHref={exists ? settingsPath(feed) : undefined} licensePage={licensePage}
         sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
         initialTitle={one(share_title)} initialText={shared}

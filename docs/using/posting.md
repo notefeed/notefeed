@@ -6,7 +6,7 @@ A note is a file. Post its bytes to `POST /<feed>` and say in `Content-Type` wha
 curl -H "Content-Type: text/markdown" --data-binary @note.md https://notes.example.com/homelab-7f3k2q9x4m8wz
 ```
 
-The feed is created by its first note; there is nothing to set up. notefeed answers `201` with the note's `id`, its `url` in the web UI, the feed's `read_url` (the RSS link for readers, see [Read links](read-links.md)) and the note's `file` and `file_url`. The file on disk is the body exactly as posted. From Python or Node, the [client libraries](../integrations/clients.md) build the request for you.
+The feed is created by its first note; there is nothing to set up. To reserve a name before posting, create the feed without a note: `POST /api/v1/feeds/<feed>` with optional JSON `{"password", "license_key", "read_id"}`, the MCP tool `create_feed`, `createFeed` / `create_feed` in the client packages, or **Create feed without a note** in the web UI (on notefeed.me it needs a license key). notefeed answers `201` with the note's `id`, its `url` in the web UI, the feed's `read_url` (the RSS link for readers, see [Read links](read-links.md)) and the note's `file` and `file_url`. The file on disk is the body exactly as posted. From Python or Node, the [client libraries](../integrations/clients.md) build the request for you.
 
 !!! tip "Use `--data-binary`, not `-d`"
     `curl -d` strips newlines. And set the `Content-Type`: without it curl sends a form type, which notefeed refuses with `415`.

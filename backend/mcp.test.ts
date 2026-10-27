@@ -90,7 +90,7 @@ const call = async (tool: string, args: Record<string, unknown>) => {
 describe("protocol", () => {
   test("tools/list", async () => {
     const tools = (await (await rpc("tools/list")).json()).result.tools;
-    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["delete_feed", "delete_note", "edit_note", "get_feed", "get_note", "list_notes", "post_file", "post_note", "update_feed"]);
+    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_note", "list_notes", "post_file", "post_note", "update_feed"]);
     for (const t of tools) {
       expect(t.annotations?.readOnlyHint === true).toBe(["get_feed", "get_note", "list_notes"].includes(t.name));
       expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "delete_feed"].includes(t.name));
@@ -297,6 +297,24 @@ describe("tools", () => {
     expect((await call("list_notes", { feed: "o" })).content[0].text).toBe("missing or wrong password");
     expect((await call("update_feed", { feed: "o", new_password: "Other!pass1", password: "N3wPassw0rd!" })).isError).toBeUndefined();
     expect((await call("list_notes", { feed: "o", password: "Other!pass1" })).isError).toBeUndefined();
+  });
+
+  test("create_feed makes an empty feed, protected with a password; where licenses are sold it needs license_key (#295)", async () => {
+    const made = await call("create_feed", { feed: "e", password: "Passw0rd!x", read_id: "e-read" });
+    expect(made.structuredContent).toMatchObject({ name: "e", protected: true });
+    expect(await readIdOf("e")).toBe("e-read");
+    expect((await call("create_feed", { feed: "e" })).isError).toBe(true);
+    expect((await call("list_notes", { feed: "e", password: "Passw0rd!x" })).structuredContent.notes).toHaveLength(0);
+  });
+
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("create_feed where licenses are sold: the key is required and goes on the feed", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    expect((await call("create_feed", { feed: "l" })).content[0].text).toBe("a license is needed for this feed");
+    expect((await call("create_feed", { feed: "l", license_key: key })).structuredContent).toMatchObject({ name: "l", free_tier: null });
+    expect(await isLicensed("l")).toBe(true);
   });
 
   test("calls without a password are refused but never counted as failed attempts", async () => {

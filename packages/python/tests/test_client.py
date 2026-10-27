@@ -467,6 +467,18 @@ def test_set_feed_password_puts_it_with_the_current_one_for_a_protected_feed(ser
     assert (json.loads(second["body"]), second["headers"]["X-Feed-Password"]) == ({"password": "Other!pass1"}, "N3wPassw0rd!")
 
 
+def test_create_feed_posts_the_protection_and_returns_the_feed(server):
+    server.reply(201, FEED)
+    server.reply(201, FEED)
+    c = Client(server.url, "inbox", feed_password="fp")
+    assert c.create_feed(password="N3wPassw0rd!", license_key="k" * 22, read_id="my-read").name == "inbox"
+    c.create_feed(feed="other")
+    made, bare = server.requests
+    assert (made["method"], made["path"], json.loads(made["body"])) == ("POST", "/api/v1/feeds/inbox", {"password": "N3wPassw0rd!", "license_key": "k" * 22, "read_id": "my-read"})
+    assert "X-Feed-Password" not in made["headers"]
+    assert (bare["path"], json.loads(bare["body"])) == ("/api/v1/feeds/other", {})
+
+
 def test_delete_feed_sends_delete_and_returns_none(server):
     server.reply(204, "")
     with Client(server.url, "inbox", feed_password="fp") as c:

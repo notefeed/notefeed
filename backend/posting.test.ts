@@ -2,7 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { AuthError, EmptyNoteError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
+import { AuthError, EmptyNoteError, FeedExistsError, ReservedFeedError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
 import { createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
@@ -11,7 +11,7 @@ import * as notes from "./notes";
 import { countNotes, createImageNote, createNote, getNote, isScheduled, listNotes, MarkdownNote } from "./notes";
 import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
-import { checkDate, deleteFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
+import { checkDate, createFeed, deleteFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
 
 // The text's write is the call after the pictures: a test makes it fail to see the pictures removed again.
 vi.mock("./notes", async (original) => {
@@ -374,4 +374,27 @@ test("what happens to feeds and notes is logged at info: the kind and the size, 
     { level: "info", component: "feeds", msg: "feed deleted" },
   ]);
   expect(JSON.stringify(logs)).not.toMatch(/secret|Secret|password/);
+});
+
+// A feed without a note (#295, ADR 0047): where licenses aren't sold, anyone may make one, open or protected.
+describe("createFeed", () => {
+  test("makes an empty feed, open or protected, once; a post then goes into it", async () => {
+    await createFeed("empty", "ip", {});
+    expect([await hasFeed("empty"), await protectedFeed("empty"), await countNotes("empty")]).toEqual([true, false, 0]);
+    await expect(createFeed("empty", "ip", {})).rejects.toBeInstanceOf(FeedExistsError);
+    await createFeed("locked", "ip", { password: "Passw0rd!x" });
+    expect(await protectedFeed("locked")).toBe(true);
+    await expect(createFeed("locked", "ip", { password: "Other!pass1" })).rejects.toBeInstanceOf(FeedExistsError);
+    await expect(postNote("locked", "ip", async () => ({ body: new TextEncoder().encode("hi"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(AuthError);
+    await postNote("empty", "ip", async () => ({ body: new TextEncoder().encode("hi"), mediaType: "text/markdown" }), {});
+    expect(await countNotes("empty")).toBe(1);
+  });
+
+  test("a feed that has notes counts as existing, and a reserved name is refused", async () => {
+    await createNote("full", "hi");
+    await expect(createFeed("full", "ip", {})).rejects.toBeInstanceOf(FeedExistsError);
+    vi.stubEnv("NOTEFEED_RESERVED_FEEDS", "news");
+    resetFeedsForTests();
+    await expect(createFeed("news", "ip", {})).rejects.toBeInstanceOf(ReservedFeedError);
+  });
 });

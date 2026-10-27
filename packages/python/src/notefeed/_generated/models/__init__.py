@@ -1,5 +1,6 @@
 """Contains all the data models used in inputs/outputs"""
 
+from .create_feed_json import CreateFeedJson
 from .created import Created
 from .error import Error
 from .error_code import ErrorCode
@@ -18,6 +19,7 @@ from .posted import Posted
 from .read_feed import ReadFeed
 
 __all__ = (
+    "CreateFeedJson",
     "Created",
     "Error",
     "ErrorCode",

@@ -4,7 +4,7 @@ A feed can have a password of its own, so that strangers who guess or learn its 
 
 ## In the web UI
 
-On a feed that doesn't exist yet, the feed's details (under its card, on the right on a wide screen) have a **Protect this feed** section with an optional **Password** field: fill it in and the first note creates a protected feed. The password is 1 to 256 printable ASCII characters, with no space at the start or end, so that it works from a script too.
+On a feed that doesn't exist yet, the feed's details (under its card, on the right on a wide screen) have a **Protect this feed** section with an optional **Password** field: fill it in and the first note creates a protected feed, or press **Create feed without a note** to create it protected right away (on notefeed.me with a license key). The password is 1 to 256 printable ASCII characters, with no space at the start or end, so that it works from a script too.
 
 A protected feed shows an **Unlock** form before anything else. The browser then stays unlocked until the password changes or you press **Lock this browser**. Once unlocked, the settings page has a **Privacy & access** group to change or remove the password (both need the current one) and to lock the browser again. Changing the password signs every other browser out.
 
