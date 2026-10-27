@@ -23,7 +23,7 @@
     "kysely": "^0.29.6",
     "lucide-react": "^1.56.0",
     "mdast-util-from-markdown": "^2.1.0",
-    "mermaid": "12.1.0",
+    "mermaid": "12.2.0",
     "next": "16.4.3",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
