@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { hasLegalPage, licensePageOn, reservedFeedLinks, supportEmail } from "@/backend";
+import { hasLegalPage, licensePageOn, footerFeedLinks, supportEmail } from "@/backend";
 
 export type FooterLink = { href: string; label: string; external?: boolean };
 
-// The product links with the operator's reserved feeds (releases, a blog) after them, and the operator's legal pages. The imprint, privacy and terms pages are the operator's own files
+// The product links with the feeds the operator lists (NOTEFEED_FOOTER_FEEDS: releases, a blog) after them, and the operator's legal pages. The imprint, privacy and terms pages are the operator's own files
 // (backend/legal.ts), looked for on every request: a link only where there is a page; the license page only while
 // the instance sells licenses and has its license.md (ADR 0035); a Support link where the operator gave an address.
 export async function footerLinks(): Promise<{ product: FooterLink[]; legal: FooterLink[] }> {
-  const [imprint, privacy, terms, license, feeds] = await Promise.all([hasLegalPage("imprint"), hasLegalPage("privacy"), hasLegalPage("terms"), licensePageOn(), reservedFeedLinks()]);
+  const [imprint, privacy, terms, license, feeds] = await Promise.all([hasLegalPage("imprint"), hasLegalPage("privacy"), hasLegalPage("terms"), licensePageOn(), footerFeedLinks()]);
   return {
     product: [
       { href: "https://docs.notefeed.me/", label: "Docs", external: true },

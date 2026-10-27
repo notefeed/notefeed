@@ -21,7 +21,7 @@ Wherever these docs say `https://notes.example.com`, use `https://notefeed.me`.
 
 ## What differs from your own server
 
-Every feed on notefeed.me starts on the **free tier**: it keeps its newest 1000 notes, and has no pictures and no feed password. A [license](../hosted/licenses.md) for the feed lifts that. Everything else works as described in [Using notefeed](../using/web-ui.md) and [Integrations](../integrations/clients.md); where a page differs on notefeed.me, a box titled *On notefeed.me* says so.
+Every feed on notefeed.me starts on the **free tier**: it keeps its newest 100 notes, and has no pictures and no feed password. A [license](../hosted/licenses.md) for the feed lifts that. Everything else works as described in [Using notefeed](../using/web-ui.md) and [Integrations](../integrations/clients.md); where a page differs on notefeed.me, a box titled *On notefeed.me* says so.
 
 Who runs the service, where the notes are and how to report content is on [the notefeed.me page](../hosted/index.md).
 

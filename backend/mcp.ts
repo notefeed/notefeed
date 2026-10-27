@@ -8,6 +8,7 @@ import { checkFeedAccess } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson } from "./http/api";
 import { sender } from "./http/request";
+import { FeedJson, FreeTierJson } from "./http/schemas";
 import { clientIp } from "./limits";
 import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
@@ -16,7 +17,8 @@ import { checkLine, getNote, isScheduled, listNotes, MAX_NOTE_TITLE, type Note }
 import { verify } from "./oauth/tokens";
 import { isAttachmentName, safeName } from "../shared/links";
 import { checkTags, TAG_RULE } from "./tags";
-import { checkDate, deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, updateFeed } from "./posting";
+import { checkDate, deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
+import { getStoredSettings } from "./feedsettings";
 import { feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
 const log = logger("mcp");
@@ -87,7 +89,7 @@ function server(h: Headers): McpServer {
         tags: z.array(z.string()).optional().describe(`Labels for the note, e.g. ["ci","deploy"]: ${TAG_RULE}. Not verified; readers see them.`),
         date: z.string().optional().describe("The note's date, if not now: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC), any time from 1970 to 9999. The note takes its place in the feed by this time. A future time schedules the note: readers see it from then on."),
         read_id: z.string().optional().describe("Only when this post creates the feed: its read id (3 to 64 characters of a-z, 0-9, - and _), random when left out. A short readable one is guessable. Fails if taken."),
-        license_key: z.string().optional().describe("Only on an instance that sells licenses, with a password when this post creates the feed: the key of the license the password needs (a feed password is for licensed feeds; without the key the post fails with license_required). Ignored on an existing feed and without a password."),
+        license_key: z.string().optional().describe("Only on an instance that sells licenses, when this post creates the feed: the key of the license to put on it, with or without a password (a feed password is for licensed feeds; with a password and no key the post fails with license_required). A key that is none or has lapsed creates nothing. Ignored on an existing feed: use update_feed's license_key."),
         attachments: z
           .array(z.object({ name: z.string().refine(isAttachmentName, "Not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots").describe("What the markdown calls it: ![](name). Any single path segment (no / or \\; spaces allowed, written <name with spaces> or name%20with%20spaces in the markdown); unique"), type: z.string().describe(`The picture's media type: ${ACCEPTED_TYPES}`), data: z.string().describe("The picture's bytes, standard base64 (not URL-safe)"), alt: z.string().optional().describe("Alternative text (at most 500 characters, one line; control and text-direction override characters are refused)") }))
           .optional(),
@@ -181,12 +183,14 @@ function server(h: Headers): McpServer {
     }),
   );
 
-  const FeedOut = z.object({ name: z.string(), title: z.string(), description: z.string(), protected: z.boolean(), read_url: z.string().nullable(), image_url: z.string().nullable() });
+  // The API's Feed with its fields inlined: an id in .meta() turns into a top-level $ref, and an
+  // MCP output schema must be an object at its root. Built from FeedJson so a new field is declared here too (#245).
+  const FeedOut = z.object({ ...FeedJson.shape, free_tier: z.object(FreeTierJson.shape).nullable().describe(FeedJson.shape.free_tier.description ?? "") });
 
   s.registerTool(
     "get_feed",
     {
-      description: `Get a feed's title, description, title image, whether it is protected, and its read link (null while it has no notes). ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Get a feed's title, description, title image, whether it is protected, its read link (null while it has no notes), whether readers see who posted, and, on a free feed where licenses are sold, its notes against the free cap. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, password }),
       outputSchema: FeedOut,
       annotations: { readOnlyHint: true },
@@ -201,13 +205,30 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "update_feed",
     {
-      description: `Replace a feed's title (at most 100 characters) and description (at most 500), both one line (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it, left out to keep it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one; left out keeps it): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
-      inputSchema: z.object({ feed, title: z.string(), description: z.string(), image: z.string().optional(), read_id: z.string().optional(), password }),
+      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. license_key, only on an instance that sells licenses: puts that license on the feed (moving it from the feed it was on; no feed password needed), empty takes the feed's license off; it is applied first. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        title: z.string().optional(),
+        description: z.string().optional(),
+        image: z.string().optional(),
+        read_id: z.string().optional(),
+        license_key: z.string().optional().describe("A license key to put on the feed; empty takes its license off. A wrong key counts as a failed attempt, like a wrong password."),
+        password,
+      }),
       outputSchema: FeedOut,
       annotations: { destructiveHint: true, idempotentHint: true },
     },
-    guard(async ({ feed, title, description, image, read_id, password }) => {
-      await updateFeed(feed, clientIp(h), async () => ({ title, description, image, readId: read_id }), { password });
+    guard(async ({ feed, title, description, image, read_id, license_key, password }) => {
+      const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined;
+      if (!settings && license_key === undefined) throw new InvalidBodyError("nothing to change: send title, description, image, read_id, license_key or several");
+      // First, so a key that is refused changes nothing else (#247).
+      if (license_key !== undefined) await setLicense(feed, clientIp(h), license_key.trim() === "" ? null : license_key, { password });
+      if (settings) {
+        await updateFeed(feed, clientIp(h), async () => {
+          const stored = await getStoredSettings(feed); // after the password check: what is left out stays
+          return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id };
+        }, { password });
+      }
       return ok(await feedJson(feed, h));
     }),
   );

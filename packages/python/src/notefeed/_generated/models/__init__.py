@@ -7,6 +7,7 @@ from .feed import Feed
 from .feed_settings import FeedSettings
 from .free_tier import FreeTier
 from .get_open_api_response_200 import GetOpenApiResponse200
+from .license_key import LicenseKey
 from .multipart_note import MultipartNote
 from .note import Note
 from .note_edited import NoteEdited
@@ -24,6 +25,7 @@ __all__ = (
     "FeedSettings",
     "FreeTier",
     "GetOpenApiResponse200",
+    "LicenseKey",
     "MultipartNote",
     "Note",
     "NoteEdited",

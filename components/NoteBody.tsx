@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
+import rehypeHighlight from "rehype-highlight";
+import type { PluggableList } from "unified";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
 import { kindOf, type KindName } from "@/shared/notekinds";
 import { extractTitle } from "@/shared/notes";
 import { cleanLine } from "@/shared/links";
+import { headingsOf, type Heading } from "@/shared/markdown";
 
 // How each kind of note (shared/notekinds.ts) shows, in a list's card or on its own page (ADR 0038). A body draws content only;
 // where a click goes is decided by CardContent and PageContent below: `attachmentLink` is where an attachment inside it links.
@@ -26,20 +29,50 @@ function Picture({ note, imageBase, className }: { note: Note; imageBase?: strin
 // A stored title that is the text's first line already shows in the text.
 const ownTitle = (note: Note) => (note.meta.title !== undefined && note.title !== "" && note.title !== cleanLine(extractTitle(note.content ?? "")) ? note.title : undefined);
 
+// Rendered here, on the server: a code block with a language is highlighted (#243), with the colours in globals.css.
+const SERVER_PLUGINS: PluggableList = [rehypeHighlight];
+
 const markdown: Body = {
   heading: (note) => ownTitle(note),
   Content({ note, place, imageBase, attachmentLink }) {
     const text = note.content ?? "";
-    if (place === "page") return <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} />;
+    if (place === "page") {
+      return (
+        <>
+          <Contents headings={headingsOf(text)} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} anchors diagrams plugins={SERVER_PLUGINS} />
+        </>
+      );
+    }
     return (
       text.trim() && (
         <div className={`note-card text-[15px] ${ownTitle(note) ? "mt-1" : ""}`}>
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} plugins={SERVER_PLUGINS} />
         </div>
       )
     );
   },
 };
+
+// A long note's table of contents on its own page (#243): its second- and third-level headings, once there are three or more.
+function Contents({ headings }: { headings: Heading[] }) {
+  const listed = headings.filter((h) => h.depth === 2 || h.depth === 3);
+  if (listed.length < 3) return null;
+  return (
+    <nav aria-label="Contents" className="mb-5 rounded-xl border border-rule px-4 py-3 text-[14px]">
+      <p className="mb-1 font-bold">Contents</p>
+      <ol className="space-y-0.5">
+        {listed.map((h) => (
+          <li key={h.id} className={h.depth === 3 ? "pl-4" : ""}>
+            <a href={`#${h.id}`} className="text-carbon hover:underline">
+              {h.text}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
 
 const image: Body = {
   heading: (note) => note.title || undefined,

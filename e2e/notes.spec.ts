@@ -264,3 +264,21 @@ test("changing a note's date in the edit form moves it in the list", async ({ pa
   await expect(page.getByRole("link", { name: "Newer" })).toBeVisible();
   expect(await top("Older")).toBeLessThan(await top("Newer"));
 });
+
+// Long notes (#243): a table of contents and heading anchors, highlighted code and a drawn mermaid diagram on the note's own page.
+test("a long note's page has contents, anchors, highlighted code and drawn diagrams", async ({ page }) => {
+  const name = feedName();
+  const md = ["# Long read", "## Setup", "```yaml\nkey: value\n```", "## Diagram", "```mermaid\ngraph TD; A-->B\n```", "## Broken", "```mermaid\nnot a diagram ((\n```", "### Last"].join("\n\n");
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill(md);
+  await page.getByRole("button", { name: "Post note" }).click();
+  await page.getByRole("link", { name: "Long read" }).first().click();
+  const contents = page.getByRole("navigation", { name: "Contents" });
+  await expect(contents.getByRole("link")).toHaveText(["Setup", "Diagram", "Broken", "Last"]);
+  await contents.getByRole("link", { name: "Diagram" }).click();
+  await expect(page).toHaveURL(/#diagram$/);
+  await expect(page.locator("h2#setup")).toBeVisible();
+  await expect(page.locator(".hljs-attr", { hasText: "key:" })).toBeVisible();
+  await expect(page.locator(".mermaid-diagram svg")).toHaveCount(1); // the broken one stays as its source
+  await expect(page.getByText("not a diagram ((")).toBeVisible();
+});
