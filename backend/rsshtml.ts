@@ -1,12 +1,15 @@
 // A markdown note's text as HTML, for RSS readers, which show a description as HTML (issue: the literal `![](…)` in a reader). The same
 // parser as the page (react-markdown: remark with GFM), so a reader shows what the page shows. Raw HTML in a note stays text, as on the
 // page: it is never run in a reader either. Pictures of the feed (relative links) become absolute, readers having no base to resolve them.
+// Code is highlighted as on the page (`hljs-` classes); a reader without the page's colours shows it plain.
+import rehypeHighlight from "rehype-highlight";
 import rehypeStringify from "rehype-stringify";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { isRelativeLink } from "../shared/links";
+import { imageSizes } from "../shared/markdown";
 
 type Node = { type: string; value?: string; tagName?: string; properties?: Record<string, unknown>; children?: Node[] };
 
@@ -36,6 +39,6 @@ export function markdownToHtml(markdown: string, base: string): { html: string; 
       n.properties.src = src;
       image ??= src;
     });
-  const html = String(unified().use(remarkParse).use(remarkGfm).use(htmlAsText).use(remarkRehype).use(pictures).use(rehypeStringify).processSync(markdown));
+  const html = String(unified().use(remarkParse).use(remarkGfm).use(htmlAsText).use(remarkRehype).use(imageSizes).use(rehypeHighlight).use(pictures).use(rehypeStringify).processSync(markdown));
   return { html, image };
 }

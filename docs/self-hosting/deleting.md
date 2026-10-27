@@ -9,7 +9,7 @@ rm data/homelab-7f3k2q9x4m8wz/Vq3xH8mTn2KfLw0aZr9bYe.md
 rm -r data/homelab-7f3k2q9x4m8wz
 ```
 
-Two things can go wrong with a feed's files. If a feed's first note fails to save (a full disk, say), an empty, open feed may be left that cannot get a password: delete it and create it again. If notefeed can't read a feed's `.readid` at start-up, it logs that and lists the feed without a read link (`read_url` is `null`) until the file is readable and notefeed restarted.
+Two things can go wrong with a feed's files. If a feed's first note fails to save (a full disk, say), an empty, open feed may be left: delete it and create it again, or give it a password ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)). If notefeed can't read a feed's `.readid` at start-up, it logs that and lists the feed without a read link (`read_url` is `null`) until the file is readable and notefeed restarted.
 
 ## Removing a feed as the operator
 

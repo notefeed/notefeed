@@ -444,6 +444,29 @@ def test_update_feed_puts_title_and_description(server):
         assert server.requests[1]["headers"]["X-Feed-Password"] == "o"
 
 
+def test_attach_license_puts_the_key_and_detach_license_deletes_it(server):
+    server.reply(200, FEED)
+    server.reply(200, FEED)
+    with Client(server.url, "inbox", feed_password="fp") as c:
+        assert c.attach_license("k" * 22).name == "inbox"
+        assert c.detach_license(feed="other").name == "inbox"
+    put, delete = server.requests
+    assert (put["method"], put["path"], json.loads(put["body"]), put["headers"]["X-Feed-Password"]) == ("PUT", "/api/v1/feeds/inbox/license", {"key": "k" * 22}, "fp")
+    assert (delete["method"], delete["path"]) == ("DELETE", "/api/v1/feeds/other/license")
+
+
+def test_set_feed_password_puts_it_with_the_current_one_for_a_protected_feed(server):
+    server.reply(204, "")
+    server.reply(204, "")
+    c = Client(server.url, "inbox")
+    assert c.set_feed_password("N3wPassw0rd!") is None
+    c.set_feed_password("Other!pass1", feed_password="N3wPassw0rd!")
+    first, second = server.requests
+    assert (first["method"], first["path"], json.loads(first["body"])) == ("PUT", "/api/v1/feeds/inbox/password", {"password": "N3wPassw0rd!"})
+    assert "X-Feed-Password" not in first["headers"]
+    assert (json.loads(second["body"]), second["headers"]["X-Feed-Password"]) == ({"password": "Other!pass1"}, "N3wPassw0rd!")
+
+
 def test_delete_feed_sends_delete_and_returns_none(server):
     server.reply(204, "")
     with Client(server.url, "inbox", feed_password="fp") as c:

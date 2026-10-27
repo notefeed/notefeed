@@ -48,7 +48,44 @@ async function rpc(method: string, params: Record<string, unknown> = {}, headers
     }),
   );
 }
-const call = async (tool: string, args: Record<string, unknown>) => (await (await rpc("tools/call", { name: tool, arguments: args })).json()).result;
+// Every result is checked against the tool's declared output schema, as a client does (#245):
+// a key the schema doesn't list makes a strict client refuse the whole answer.
+type Schema = { type?: string | string[]; properties?: Record<string, Schema>; additionalProperties?: boolean; required?: string[]; items?: Schema; anyOf?: Schema[] };
+let outputSchemas: Record<string, Schema> | undefined;
+function conforms(v: unknown, s: Schema & { $ref?: string }, path: string): void {
+  if (s.$ref) throw new Error(`${path}: the output schema uses $ref, which this check (and an MCP client expecting an object) does not follow`);
+  if (s.anyOf) {
+    const errors: string[] = [];
+    for (const alt of s.anyOf) {
+      try {
+        return conforms(v, alt, path);
+      } catch (e) {
+        errors.push((e as Error).message);
+      }
+    }
+    throw new Error(errors.join("; "));
+  }
+  if (v === null) {
+    if (s.type === "null" || (Array.isArray(s.type) && s.type.includes("null"))) return;
+    if (s.type !== undefined) throw new Error(`${path} is null`);
+    return;
+  }
+  if (Array.isArray(v) && s.items) return v.forEach((x, i) => conforms(x, s.items!, `${path}[${i}]`));
+  if (typeof v === "object" && s.properties) {
+    const o = v as Record<string, unknown>;
+    for (const k of Object.keys(o)) {
+      if (k in s.properties) conforms(o[k], s.properties[k], `${path}.${k}`);
+      else if (s.additionalProperties === false) throw new Error(`${path}.${k} is not in the output schema`);
+    }
+    for (const k of s.required ?? []) if (!(k in o)) throw new Error(`${path}.${k} is missing`);
+  }
+}
+const call = async (tool: string, args: Record<string, unknown>) => {
+  outputSchemas ??= Object.fromEntries((await (await rpc("tools/list")).json()).result.tools.map((t: { name: string; outputSchema: Schema }) => [t.name, t.outputSchema]));
+  const result = (await (await rpc("tools/call", { name: tool, arguments: args })).json()).result;
+  if (!result.isError) conforms(result.structuredContent, outputSchemas[tool], tool);
+  return result;
+};
 
 describe("protocol", () => {
   test("tools/list", async () => {
@@ -58,6 +95,7 @@ describe("protocol", () => {
       expect(t.annotations?.readOnlyHint === true).toBe(["get_feed", "get_note", "list_notes"].includes(t.name));
       expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "delete_feed"].includes(t.name));
       expect(t.annotations?.idempotentHint === true).toBe(["edit_note", "update_feed"].includes(t.name));
+      expect(t.outputSchema.type).toBe("object");
     }
   });
   test("server/discover lists the version", async () => {
@@ -220,6 +258,45 @@ describe("tools", () => {
     expect((await call("post_note", { feed: "p", markdown: "# Hi", password: "pw", license_key: key })).isError).toBeUndefined();
     expect(await isLicensed("p")).toBe(true);
     expect((await call("list_notes", { feed: "p", password: "pw" })).structuredContent.notes).toHaveLength(1);
+  });
+
+  test("post_note name: the read link serves the newest note with it (#250)", async () => {
+    for (const v of ["v1", "v2"]) expect((await call("post_note", { feed: "named", markdown: `# ${v}`, name: "skill.md" })).isError).toBeUndefined();
+    const { fileRoute } = await import("./http/files");
+    const res = await fileRoute((await readIdOf("named"))!, "skill.md");
+    expect([res.status, await res.text()]).toEqual([200, "# v2"]);
+  });
+
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("license_key licenses a new open feed, and update_feed puts a license on a feed and takes it off (#247)", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    expect((await call("post_note", { feed: "o", markdown: "# Hi", license_key: key })).isError).toBeUndefined();
+    expect(await isLicensed("o")).toBe(true);
+    await call("post_note", { feed: "other", markdown: "# Hi" });
+    const moved = await call("update_feed", { feed: "other", license_key: key });
+    expect(moved.structuredContent).toMatchObject({ name: "other", free_tier: null });
+    expect(await isLicensed("o")).toBe(false);
+    expect((await call("update_feed", { feed: "other", license_key: "x".repeat(22), title: "Never" })).content[0].text).toBe("that is not a license key");
+    expect((await call("get_feed", { feed: "other" })).structuredContent.title).toBe(""); // the key first: nothing else changed
+    const off = await call("update_feed", { feed: "other", license_key: "" });
+    expect(off.structuredContent.free_tier).toMatchObject({ notes: 1 });
+    expect(await isLicensed("other")).toBe(false);
+  });
+
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("update_feed new_password: an open feed takes it, with license_key where licenses are sold; a protected one changes it (#248)", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    await call("post_note", { feed: "o", markdown: "# Hi" });
+    expect((await call("update_feed", { feed: "o", new_password: "N3wPassw0rd!" })).content[0].text).toBe("a license is needed for this feed");
+    const set = await call("update_feed", { feed: "o", new_password: "N3wPassw0rd!", license_key: key, title: "Mine" });
+    expect(set.structuredContent).toMatchObject({ protected: true, title: "Mine", free_tier: null });
+    expect((await call("list_notes", { feed: "o" })).content[0].text).toBe("missing or wrong password");
+    expect((await call("update_feed", { feed: "o", new_password: "Other!pass1", password: "N3wPassw0rd!" })).isError).toBeUndefined();
+    expect((await call("list_notes", { feed: "o", password: "Other!pass1" })).isError).toBeUndefined();
   });
 
   test("calls without a password are refused but never counted as failed attempts", async () => {
@@ -427,6 +504,13 @@ describe("feed tools", () => {
     expect((await call("update_feed", { feed: "f", title: "x".repeat(101), description: "" })).isError).toBe(true);
     expect((await call("delete_feed", { feed: "f" })).structuredContent).toEqual({ deleted: true });
     expect((await call("get_feed", { feed: "f" })).content[0].text).toBe("no such feed");
+  });
+  test("update_feed keeps what is left out, and needs something to change", async () => {
+    await call("post_note", { feed: "k", markdown: "# Hi" });
+    await call("update_feed", { feed: "k", title: "T", description: "D" });
+    expect((await call("update_feed", { feed: "k", description: "New" })).structuredContent).toMatchObject({ title: "T", description: "New" });
+    expect((await call("update_feed", { feed: "k" })).content[0].text).toMatch(/^nothing to change/);
+    expect((await call("update_feed", { feed: "k", license_key: "k".repeat(22) })).content[0].text).toBe("licenses are not sold on this instance");
   });
   test("a protected feed needs the password", async () => {
     await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });

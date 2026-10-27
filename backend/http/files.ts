@@ -1,11 +1,13 @@
 // GET /r/<readId>/<file> (next.config.ts rewrites a name with an extension here; note ids have none): a file of the feed, public like the read
 // link (no password, even on a locked instance; proxy.ts skips /r/). Every file is served except dot files (the feed's own files and the
 // notes' sidecars). The type comes from the extension and nothing else, whatever follows the header; what is not an image or text is a download.
+// A note's own file name (`<id>.<ext>`) comes first; any other name is the newest note posted with that name (X-Note-Name, #250), so
+// /r/<readId>/post-to-notefeed.md is always the current version of that file.
 import { createHash } from "node:crypto";
 import { feedForReadId, isRemovedReadId } from "../feeds";
 import { measured } from "../metrics";
 import { noteRoute } from "../requestscope";
-import { fileVisible, unreadableNote } from "../notes";
+import { fileVisible, namedFile, unreadableNote } from "../notes";
 import { storage } from "../storage";
 import { IMAGE_EXTS, contentTypeOf } from "../../shared/images";
 
@@ -30,15 +32,20 @@ export const fileRoute = (readId: string, file: string, ifNoneMatch?: string | n
 async function serveFile(readId: string, file: string, ifNoneMatch?: string | null): Promise<Response> {
   noteRoute("/r/[readId]/files/[file]"); // reached by a rewrite: the path has the shape of a note's page
   const feed = await feedForReadId(readId);
-  const ext = NAME_RE.exec(file)?.[1];
+  const now = new Date();
+  let stored: string | null = null;
   let bytes: Buffer | null;
   try {
     // A note dated after now (scheduled) is a missing one to a reader, its file too; asked before any bytes are read.
-    bytes = feed && ext && (await fileVisible(feed, file, new Date())) ? await storage().readFile(feed, file) : null;
+    const own = feed && NAME_RE.test(file) && (await fileVisible(feed, file, now)) ? file : null;
+    stored = own ?? (feed ? await namedFile(feed, file, now) : null);
+    bytes = feed && stored ? await storage().readFile(feed, stored) : null;
   } catch (e) {
-    unreadableNote(file.slice(0, file.indexOf(".")), e); // throws anything but a stored copy that does not decrypt
-    return damaged(ext!);
+    const damagedFile = stored ?? file;
+    unreadableNote(damagedFile.slice(0, damagedFile.indexOf(".")), e); // throws anything but a stored copy that does not decrypt
+    return damaged(NAME_RE.exec(damagedFile)?.[1] ?? "");
   }
+  const ext = stored ? NAME_RE.exec(stored)?.[1] : undefined;
   if (!feed && (await isRemovedReadId(readId))) return new Response("removed by the operator", { status: 410 });
   if (!bytes || !ext) return new Response("not found", { status: 404 });
   const image = (IMAGE_EXTS as string[]).includes(ext);

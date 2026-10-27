@@ -16,11 +16,11 @@ The cog in the feed's details opens `/<feed>/settings`, once the feed has a note
 
 - **Profile:** the feed's **Title**, **Description** and **Title image** (one of the feed's pictures). They are shown in the feed's details, in the read-only view and as the RSS channel's title, description and image, so anyone with the read link sees them. The name never changes. With [sign-in](../self-hosting/sign-in/index.md) on, **Show who posted** hides the sender from readers.
 - **Sharing:** the read link and the RSS link with copy buttons, a ready-to-copy `curl` command for this feed, and the **Read id** field (see [Choosing a feed's read id](read-links.md#choosing-a-feeds-read-id)).
-- **Privacy & access:** on a protected feed you have unlocked, change or remove the [feed password](feed-passwords.md#in-the-web-ui) and lock this browser.
+- **Privacy & access:** on a protected feed you have unlocked, change or remove the [feed password](feed-passwords.md#in-the-web-ui) and lock this browser; on an open feed, [set one](feed-passwords.md#a-password-for-an-open-feed).
 - **Danger zone:** **Delete this feed** removes the feed with all its notes, its settings, its password and its read link, for good. You confirm by typing the feed's name.
 
 !!! note "On notefeed.me"
-    A **License** row shows the feed's tier, *Free tier · N of 1000 notes* with a meter or the licensed state, and is where a license key is entered, moved to another feed or taken off. See [Free tier and licenses](../hosted/licenses.md#entering-the-key).
+    A **License** row shows the feed's tier, *Free tier · N of 100 notes* with a meter or the licensed state, and is where a license key is entered, moved to another feed or taken off. See [Free tier and licenses](../hosted/licenses.md#entering-the-key).
 
 Anyone who can open the feed can change its settings and delete it; the read-only view has no settings.
 

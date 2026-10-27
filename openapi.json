@@ -33,7 +33,7 @@
       "post": {
         "operationId": "postNote",
         "summary": "Post a note",
-        "description": "The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most 102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS position stays in an image). Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where licenses are sold, a feed password needs one: the post that creates the feed protected brings the license key in `X-License-Key`, or is refused with `402`. Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. A refused multipart post that would have created a protected feed creates nothing.",
+        "description": "The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most 102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS position stays in an image). Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. A refused multipart post that would have created a protected feed creates nothing.",
         "tags": [
           "Feeds"
         ],
@@ -76,7 +76,7 @@
             "name": "X-License-Key",
             "in": "header",
             "required": false,
-            "description": "Only on an instance that sells licenses, with `X-Feed-Password` on the post that creates the feed: the key of the license to put on the new feed, since a feed password is for licensed feeds (402 without one). Ignored on an existing feed and without a password; 400 for a key that is none",
+            "description": "Only on an instance that sells licenses, on the post that creates the feed: the key of the license to put on the new feed, with or without `X-Feed-Password` (a feed password is for licensed feeds: with one and no key, 402). 400 for a key that is none, 402 for one whose license has lapsed; either way nothing is created. Ignored on an existing feed: put a license on it with `PUT /api/v1/feeds/{feed}/license`",
             "schema": {
               "type": "string"
             }
@@ -112,7 +112,7 @@
             "name": "X-Note-Name",
             "in": "header",
             "required": false,
-            "description": "For an image body: the picture's original file name, kept with the note (at most 200 characters)",
+            "description": "The note's file name (at most 200 characters; `/`, `\\` and control characters are dropped): for a picture, its original name. The read link serves the newest note with that name at `/r/{readId}/{name}`, a stable address for a file that changes (a name ending in a lower-case extension, such as `post-to-notefeed.md`); a note's own file name (`<id>.<ext>`) comes first",
             "schema": {
               "type": "string"
             }
@@ -1433,8 +1433,8 @@
     "/api/v1/feeds/{feed}/password": {
       "put": {
         "operationId": "changeFeedPassword",
-        "summary": "Change a feed's password",
-        "description": "Needs the current password in `X-Feed-Password`. A feed can only get a password when it is created, so an open feed answers 409.",
+        "summary": "Set or change a feed's password",
+        "description": "On a protected feed: changes the password, with the current one in `X-Feed-Password`. On an open feed: sets one, with no current password, for whoever calls it. An open feed's name is all that protects it, so whoever knows the name may claim the feed this way. From then on everyone who posts to the feed, reads it by its name or changes it needs the password; the read link and RSS stay open.",
         "tags": [
           "Feeds"
         ],
@@ -1477,7 +1477,7 @@
         },
         "responses": {
           "204": {
-            "description": "Changed; the old password and unlock cookies stop working"
+            "description": "Set or changed; the old password and unlock cookies stop working"
           },
           "400": {
             "description": "Invalid or reserved feed name, bad JSON, or a new password that is not 1 to 256 printable ASCII characters, with no space at the start or end",
@@ -1509,8 +1509,8 @@
               }
             }
           },
-          "409": {
-            "description": "The feed has no password",
+          "404": {
+            "description": "No such feed",
             "content": {
               "application/json": {
                 "schema": {
@@ -1627,6 +1627,254 @@
           },
           "429": {
             "description": "Too many wrong passwords from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feeds/{feed}/license": {
+      "put": {
+        "operationId": "putFeedLicense",
+        "summary": "Put a license on a feed",
+        "description": "Only on an instance that sells licenses (404 elsewhere). Puts the license the key names on the feed, taking it off the feed it was on; a feed that has an active license already answers 400 (take it off first). A feed needs no password for a license. A key notefeed doesn't know is 400 and counts as a failed attempt, like a wrong password. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed that exists: it is created by its first note, which can bring the key in `X-License-Key`.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "X-Feed-Password",
+            "in": "header",
+            "required": false,
+            "description": "The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LicenseKey"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The feed as it is now: `free_tier` is null",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name, bad JSON, a key that is none, or a feed with an active license already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The key's license has lapsed (`license_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feed, or licenses are not sold on this instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many posts, edits and deletes, or wrong passwords and keys, from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFeedLicense",
+        "summary": "Take a feed's license off",
+        "description": "Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the key can be put on another feed; the subscription runs on. A feed without a license answers the same. Needs the feed's password if it has one, and counts against the post rate limit.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "X-Feed-Password",
+            "in": "header",
+            "required": false,
+            "description": "The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The feed as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feed, or licenses are not sold on this instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many posts, edits and deletes, or wrong passwords, from this client",
             "headers": {
               "Retry-After": {
                 "description": "Seconds to wait before trying again",
@@ -2408,6 +2656,19 @@
         },
         "required": [
           "password"
+        ],
+        "additionalProperties": false
+      },
+      "LicenseKey": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The license key, as the checkout or the receipt gave it"
+          }
+        },
+        "required": [
+          "key"
         ],
         "additionalProperties": false
       },

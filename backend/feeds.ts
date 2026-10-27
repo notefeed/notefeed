@@ -143,15 +143,6 @@ export async function feedForReadId(id: string): Promise<string | null> {
   return (await prepared()).feedForReadId(id);
 }
 
-// The reserved feeds there are to read at /r/<name>, in the order they are listed: the ones makeReservedFeeds made, not an
-// ordinary feed that had the name first (that one keeps another read id). For the footer's and the ⓘ menu's links.
-export async function readableReservedFeeds(): Promise<string[]> {
-  const s = await prepared();
-  const found: string[] = [];
-  for (const feed of heldBack()) if ((await s.feedReadId(feed)) === feed) found.push(feed);
-  return found;
-}
-
 // Reserved feeds makeReservedFeeds did not make, because the name was already an ordinary feed: it stays open (no password)
 // or keeps another read id than its name. For the startup log; nothing while NOTEFEED_RESERVED_PASSWORD is unset.
 export async function reservedFeedProblems(): Promise<{ feed: string; problem: "unprotected" | "read_id" }[]> {

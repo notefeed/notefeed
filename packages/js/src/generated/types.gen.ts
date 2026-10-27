@@ -248,6 +248,13 @@ export type PasswordJson = {
     password: string;
 };
 
+export type LicenseKey = {
+    /**
+     * The license key, as the checkout or the receipt gave it
+     */
+    key: string;
+};
+
 export type FeedSettings = {
     /**
      * Display title, at most 100 characters, one line (control and text-direction override characters are refused); empty means none (the feed's name is shown)
@@ -408,7 +415,7 @@ export type PostNoteData = {
          */
         'X-Read-Id'?: string;
         /**
-         * Only on an instance that sells licenses, with `X-Feed-Password` on the post that creates the feed: the key of the license to put on the new feed, since a feed password is for licensed feeds (402 without one). Ignored on an existing feed and without a password; 400 for a key that is none
+         * Only on an instance that sells licenses, on the post that creates the feed: the key of the license to put on the new feed, with or without `X-Feed-Password` (a feed password is for licensed feeds: with one and no key, 402). 400 for a key that is none, 402 for one whose license has lapsed; either way nothing is created. Ignored on an existing feed: put a license on it with `PUT /api/v1/feeds/{feed}/license`
          */
         'X-License-Key'?: string;
         /**
@@ -424,7 +431,7 @@ export type PostNoteData = {
          */
         'X-Note-Alt'?: string;
         /**
-         * For an image body: the picture's original file name, kept with the note (at most 200 characters)
+         * The note's file name (at most 200 characters; `/`, `\` and control characters are dropped): for a picture, its original name. The read link serves the newest note with that name at `/r/{readId}/{name}`, a stable address for a file that changes (a name ending in a lower-case extension, such as `post-to-notefeed.md`); a note's own file name (`<id>.<ext>`) comes first
          */
         'X-Note-Name'?: string;
         /**
@@ -1007,9 +1014,9 @@ export type ChangeFeedPasswordErrors = {
      */
     402: Error;
     /**
-     * The feed has no password
+     * No such feed
      */
-    409: Error;
+    404: Error;
     /**
      * Too many wrong passwords from this client
      */
@@ -1024,12 +1031,120 @@ export type ChangeFeedPasswordError = ChangeFeedPasswordErrors[keyof ChangeFeedP
 
 export type ChangeFeedPasswordResponses = {
     /**
-     * Changed; the old password and unlock cookies stop working
+     * Set or changed; the old password and unlock cookies stop working
      */
     204: void;
 };
 
 export type ChangeFeedPasswordResponse = ChangeFeedPasswordResponses[keyof ChangeFeedPasswordResponses];
+
+export type DeleteFeedLicenseData = {
+    body?: never;
+    headers?: {
+        /**
+         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
+         */
+        'X-Feed-Password'?: string;
+    };
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/license';
+};
+
+export type DeleteFeedLicenseErrors = {
+    /**
+     * Invalid or reserved feed name
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * No such feed, or licenses are not sold on this instance
+     */
+    404: Error;
+    /**
+     * Too many posts, edits and deletes, or wrong passwords, from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type DeleteFeedLicenseError = DeleteFeedLicenseErrors[keyof DeleteFeedLicenseErrors];
+
+export type DeleteFeedLicenseResponses = {
+    /**
+     * The feed as it is now
+     */
+    200: Feed;
+};
+
+export type DeleteFeedLicenseResponse = DeleteFeedLicenseResponses[keyof DeleteFeedLicenseResponses];
+
+export type PutFeedLicenseData = {
+    body: LicenseKey;
+    headers?: {
+        /**
+         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
+         */
+        'X-Feed-Password'?: string;
+    };
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/license';
+};
+
+export type PutFeedLicenseErrors = {
+    /**
+     * Invalid or reserved feed name, bad JSON, a key that is none, or a feed with an active license already
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * The key's license has lapsed (`license_required`)
+     */
+    402: Error;
+    /**
+     * No such feed, or licenses are not sold on this instance
+     */
+    404: Error;
+    /**
+     * Too many posts, edits and deletes, or wrong passwords and keys, from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type PutFeedLicenseError = PutFeedLicenseErrors[keyof PutFeedLicenseErrors];
+
+export type PutFeedLicenseResponses = {
+    /**
+     * The feed as it is now: `free_tier` is null
+     */
+    200: Feed;
+};
+
+export type PutFeedLicenseResponse = PutFeedLicenseResponses[keyof PutFeedLicenseResponses];
 
 export type GetReadFeedData = {
     body?: never;

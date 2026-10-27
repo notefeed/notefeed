@@ -3,7 +3,7 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { deleteFeed, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, updateFeed } from "./generated/sdk.gen.js";
+import { changeFeedPassword, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, updateFeed } from "./generated/sdk.gen.js";
 import type { Created, Error as ApiError, Feed, FeedSettings, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
@@ -229,6 +229,24 @@ export class Client {
     const feed = this.feedFor(options.feed);
     const body = { title: settings.title, description: settings.description, ...(settings.image === undefined ? {} : { image: settings.image }), ...(settings.read_id === undefined ? {} : { read_id: settings.read_id }) };
     return this.call(updateFeed({ client: this.api, path: { feed }, body, ...this.opts(options.feedPassword) }));
+  }
+
+  /** Put the license the key names on the feed, taking it off the feed it was on; a feed needs no password for it. Only on an instance that sells licenses. Same options as post(). */
+  async attachLicense(key: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
+    const feed = this.feedFor(options.feed);
+    return this.call(putFeedLicense({ client: this.api, path: { feed }, body: { key }, ...this.opts(options.feedPassword) }));
+  }
+
+  /** Take the feed's license off: it is a free feed again, and the key can go on another feed. Same options as post(). */
+  async detachLicense(options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
+    const feed = this.feedFor(options.feed);
+    return this.call(deleteFeedLicense({ client: this.api, path: { feed }, ...this.opts(options.feedPassword) }));
+  }
+
+  /** Set the feed's password. On a protected feed it changes it: `feedPassword` (or the client's) is the current one. An open feed takes one without, which claims it: its name was all that protected it. Every request for the feed then needs the new password; its read link stays open. Same options as post(). */
+  async setFeedPassword(password: string, options: { feed?: string; feedPassword?: string } = {}): Promise<void> {
+    const feed = this.feedFor(options.feed);
+    await this.call(changeFeedPassword({ client: this.api, path: { feed }, body: { password }, ...this.opts(options.feedPassword) }));
   }
 
   /** Delete the feed with all its notes, settings and password, for good; its name is free again. Same options as post(). */
