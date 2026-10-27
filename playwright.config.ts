@@ -32,6 +32,8 @@ export default defineConfig({
     // A feed's page and its note bar on a phone (issues #202 and #203): the other projects run at desktop size.
     { name: "phone-webkit", testMatch: "phone.spec.ts", use: { ...devices["iPhone 13"], baseURL: "http://localhost:3100" } },
     { name: "phone-chromium", testMatch: "phone.spec.ts", use: { ...devices["Pixel 7"], baseURL: "http://localhost:3100" } },
+    // Pictures shared to the installed app (issue #148): the service worker takes the share target's POST.
+    { name: "share", testMatch: "share.spec.ts", use: { baseURL: "http://localhost:3100" } },
     { name: "locked", testMatch: "locked.spec.ts", use: { baseURL: "http://localhost:3101" } },
     // The locked server also runs with NOTEFEED_IMAGE_UPLOADS=0 (issue #152): the open one has to take pictures.
     { name: "images-off", testMatch: "images-off.spec.ts", use: { baseURL: "http://localhost:3101" } },

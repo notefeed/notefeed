@@ -32,7 +32,8 @@ export function proxy(req: NextRequest) {
   // /login, /mcp, OAuth, and well-known paths are exempt from the lock because each checks credentials itself
   // (/health has none to check: a probe carries no session, and it says only whether the instance answers);
   // redirecting them to /login would turn a script's 401 into a success-looking 307.
-  // Icons, the manifest and the share image are public too, so the login page and link previews have them.
+  // Icons, the manifest and the share image are public too, so the login page and link previews have them; so is the service
+  // worker (public/sw.js), the same file for everyone, so a browser whose sign-in ran out can still update it.
   // /privacy and /imprint are public so the footer links work before signing in (the imprint must be easy to reach,
   // and the privacy page says what signing in stores). /report is reached from the read-only views, which are public.
   const exempt =
@@ -46,7 +47,7 @@ export function proxy(req: NextRequest) {
     pathname === "/license" ||
     pathname === "/imprint" ||
     /^\/(r|_next|api|oauth|\.well-known)\//.test(pathname) ||
-    /^\/(icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest)$/.test(pathname);
+    /^\/(icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js)$/.test(pathname);
   if (!locked() || exempt) return NextResponse.next();
   if (sessionOk(req.cookies.get(SESSION_COOKIE)?.value, req.cookies.get(IDENTITY_COOKIE)?.value)) return NextResponse.next();
   // Must be absolute (Next rejects a relative Location here); built from the public base,

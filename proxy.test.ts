@@ -126,6 +126,11 @@ test.each(["/r/x/feed.xml", "/login", "/_next/static/x.js", "/api/v1/feeds/backu
   expect(isNext(proxy(req(p)))).toBe(true);
 });
 
+test("locked: the service worker passes, so a browser whose sign-in ran out still gets its update", () => {
+  process.env.NOTEFEED_PASSWORD = "pw";
+  expect(isNext(proxy(req("/sw.js")))).toBe(true);
+});
+
 test.each(["/mcp", "/metrics", "/health", "/oauth/authorize?x=1", "/oauth/token", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])("locked: %s is not sent to /login", (p) => {
   process.env.NOTEFEED_PASSWORD = "pw";
   expect(isNext(proxy(req(p)))).toBe(true);
