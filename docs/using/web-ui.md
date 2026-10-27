@@ -49,4 +49,4 @@ If the instance has a password (`NOTEFEED_PASSWORD`), every page except the read
 
 ## Install it as an app
 
-notefeed ships a web manifest and icons, so a browser can install it as an app (**Install** in Chrome and Edge, **Add to Home Screen** on a phone). On Android the installed app is in the system share sheet: share a text or a link to it and it asks which feed it goes to. A link pasted into a chat shows a preview with the notefeed wordmark; set `PUBLIC_URL` on a public instance so the preview's image URL is right.
+notefeed ships a web manifest and icons, so a browser can install it as an app (**Install** in Chrome and Edge, **Add to Home Screen** on a phone). On Android the installed app is in the system share sheet: share pictures, a text or a link to it and it asks which feed it goes to; on an iPhone a Shortcut does the same. See [Sharing from a phone](sharing.md). A link pasted into a chat shows a preview with the notefeed wordmark; set `PUBLIC_URL` on a public instance so the preview's image URL is right.

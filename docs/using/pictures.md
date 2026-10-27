@@ -6,7 +6,7 @@ A picture is a note of its own. Post it with its `Content-Type`, and it is liste
 curl -H "Content-Type: image/png" --data-binary @photo.png https://notes.example.com/homelab-7f3k2q9x4m8wz
 ```
 
-The answer is that of any [post](posting.md), with the picture's `file` and `file_url`. A markdown note shows it with `![](<file>)`. `X-Note-Alt` sets the alternative text, `X-Note-Name` keeps the original file name (and serves the newest picture with it at `/r/<read id>/<name>`, see [Files by name](read-links.md#files-by-name)), and `X-Note-Title` and `X-Note-Tags` work as for markdown. In the browser, the compose box and the note editor take pictures with the [Add image](web-ui.md#adding-an-image) button, by paste or by drop.
+The answer is that of any [post](posting.md), with the picture's `file` and `file_url`. A markdown note shows it with `![](<file>)`. `X-Note-Alt` sets the alternative text, `X-Note-Name` keeps the original file name (and serves the newest picture with it at `/r/<read id>/<name>`, see [Files by name](read-links.md#files-by-name)), and `X-Note-Title` and `X-Note-Tags` work as for markdown. In the browser, the compose box and the note editor take pictures with the [Add image](web-ui.md#adding-an-image) button, by paste or by drop. From another app on a phone, share them to notefeed: see [Sharing from a phone](sharing.md).
 
 !!! note "On notefeed.me"
     Pictures need a license: on the free tier every picture is refused with `402` (`license_required`), on its own or with a note. See [Free tier and licenses](../hosted/licenses.md).
