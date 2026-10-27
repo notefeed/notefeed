@@ -89,7 +89,8 @@ body {
 .md pre { font-family: var(--font-mono); font-size: 0.875rem; overflow-x: auto; padding: 0.75em 0.9em; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); }
 .md table { border-collapse: collapse; }
 .md th, .md td { border: 1px solid var(--rule); padding: 0.25em 0.5em; text-align: left; }
-.md img { max-width: 100%; height: auto; }
+/* Pictures don't grow with the window (#308): at most 40rem wide and 80% of the screen high, in their own proportions. */
+.md img { max-width: min(100%, 40rem); max-height: 80vh; height: auto; object-fit: contain; }
 .md hr { border: 0; border-top: 1px solid var(--rule); }
 /* Highlighted code (rehype-highlight's hljs classes, #243), in the page's own colours, light and dark. */
 .md .hljs-comment, .md .hljs-quote, .md .hljs-meta { color: var(--muted); font-style: italic; }

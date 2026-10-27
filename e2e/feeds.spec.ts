@@ -150,3 +150,51 @@ test("the read id can be chosen on the settings page, and generated again", asyn
   await expect(page.getByLabel("Read id")).not.toHaveValue(id);
   await expect(page.getByLabel("Read id")).toHaveValue(/^[A-Za-z0-9_-]{22}$/);
 });
+
+// The running version (#306): in the info menu and the site footer, linked to where it came from (`dev` in a local build).
+test("the info menu and the footer show the running version", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto(`/${feedName()}`);
+  await page.getByText("About & legal").click();
+  await expect(page.getByRole("link", { name: "notefeed dev" })).toHaveAttribute("href", "https://github.com/notefeed/notefeed");
+  await page.goto("/");
+  await expect(page.getByRole("contentinfo").getByRole("link", { name: "notefeed dev" })).toBeVisible();
+});
+
+// A note on the read page (#307): on a wide screen the right column holds a large way back to the feed.
+test("a note's read page has All notes in the right column on a wide screen", async ({ page, request }) => {
+  const name = feedName();
+  const posted = await (await request.post(`/api/v1/feeds/${name}/notes`, { data: "# Side note", headers: { "Content-Type": "text/markdown" } })).json();
+  const feedPage = new URL(posted.read_url).pathname.replace(/\/feed\.xml$/, "");
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto(`${feedPage}/${posted.id}`);
+  const back = page.getByRole("navigation", { name: "Feed" }).getByRole("link", { name: /All notes/ });
+  await expect(back).toBeVisible();
+  await expect(page.getByRole("link", { name: "Back to all notes" })).toBeHidden(); // the small link above the note is for narrower screens
+  await back.click();
+  await expect(page).toHaveURL(feedPage);
+});
+
+// Pictures don't grow with the window (#308): a large one stays within 40rem and 80% of the screen's height.
+test("a large picture is capped in width and height", async ({ page, request }) => {
+  const name = feedName();
+  await page.setViewportSize({ width: 1800, height: 900 });
+  await page.goto("/");
+  const png = await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 3000;
+    c.height = 2000;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#c08040";
+    g.fillRect(0, 0, 3000, 2000);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  const posted = await (await request.post(`/api/v1/feeds/${name}/notes`, { data: Buffer.from(png, "base64"), headers: { "Content-Type": "image/png" } })).json();
+  await request.post(`/api/v1/feeds/${name}/notes`, { data: `# With a picture\n\n![](${posted.file})`, headers: { "Content-Type": "text/markdown" } });
+  await page.goto(`/${name}`);
+  const inline = page.locator(".md img").first();
+  await expect(inline).toBeVisible();
+  const box = (await inline.boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(640 + 1);
+  expect(box.height).toBeLessThanOrEqual(900 * 0.8 + 1);
+});

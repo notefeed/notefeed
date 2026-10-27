@@ -109,7 +109,7 @@ test("the read link shows the notes but not the feed name, and serves RSS", asyn
   expect(link).toMatch(/^http:\/\/localhost:3100\/r\/[A-Za-z0-9_-]{22}\/[A-Za-z0-9_-]{22}$/);
   await page.goto(link);
   await expect(page.getByText("Shared note")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Back to all notes" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /All notes/ }).filter({ visible: true })).toBeVisible(); // above the note, or in the right column from xl (#307)
   expect(await page.content()).not.toContain(name);
 });
 

@@ -125,9 +125,18 @@ export async function getReadFeed(id: string, tag?: string): Promise<{ notes: No
   return { notes: feed ? forReaders(await listNotes(feed, PAGE, undefined, tag, undefined, true, asOf), settings) : [], title, description, imageUrl: image ? imagePath(id, image) : null };
 }
 
+/** A feed's title and title image by its read id, without its notes: the card beside one of its notes (#307). */
+export async function getReadFeedAbout(id: string): Promise<{ title: string; imageUrl: string | null }> {
+  const feed = isReadId(id) ? await feedForReadId(id) : null;
+  if (!feed) return { title: "", imageUrl: null };
+  const { title, image } = await getSettings(feed, new Date());
+  return { title, imageUrl: image ? imagePath(id, image) : null };
+}
+
 /** `asOf`: the request's time (shared with getReadPictures). */
 export async function getReadNote(readId: string, id: string, asOf = new Date()): Promise<Note | null> {
   const feed = await feedForReadId(readId);
   const note = feed ? await getNote(feed, id, asOf) : null;
   return note && feed ? forReaders([note], await getSettings(feed))[0] : null;
 }
+export { runningVersion, type RunningVersion } from "./version";

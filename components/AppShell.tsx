@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { ArrowUpRight, ChevronDown, Info, LogOut, Plus } from "lucide-react";
 import type { ReactNode } from "react";
-import { IDENTITY_COOKIE, SESSION_COOKIE, locked, sessionOk } from "@/backend";
+import { IDENTITY_COOKIE, SESSION_COOKIE, locked, sessionOk, type RunningVersion } from "@/backend";
 import { Disclosure } from "@/components/Disclosure";
 import { footerLinks, type FooterLink } from "@/components/LegalLinks";
 import { RememberedFeedLinks } from "@/components/RememberedFeeds";
@@ -84,7 +84,7 @@ function LogOutButton({ className }: { className: string }) {
 // The phone's top bar. A <div>, not a <header>: the page's header is the feed's details (`about`). No backdrop blur: it
 // would make the bar the containing block of the sheets inside it, which are fixed to the screen. Above the docked
 // composer bar (z-30), so the switcher's sheet covers it.
-function TopBar({ feed, links, loggedIn }: { feed?: string; links: { product: FooterLink[]; legal: FooterLink[] }; loggedIn: boolean }) {
+function TopBar({ feed, links, loggedIn }: { feed?: string; links: { product: FooterLink[]; legal: FooterLink[]; version: RunningVersion }; loggedIn: boolean }) {
   return (
     <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-rule/70 bg-paper/95 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] [grid-area:top] lg:hidden">
       <Logo wordmark={feed === undefined} />
@@ -132,7 +132,7 @@ function FeedSwitcher({ feed }: { feed: string }) {
 
 // ⓘ: the product links and the operator's legal pages, and "Log out" on a locked instance. On the phone's top bar of a
 // feed's pages, and on every plain page (app/(site)/layout.tsx). `up`: at the foot of the left column, labelled, opening upwards.
-export function InfoMenu({ links, loggedIn, up = false }: { links: { product: FooterLink[]; legal: FooterLink[] }; loggedIn: boolean; up?: boolean }) {
+export function InfoMenu({ links, loggedIn, up = false }: { links: { product: FooterLink[]; legal: FooterLink[]; version: RunningVersion }; loggedIn: boolean; up?: boolean }) {
   const row = "flex items-center gap-3 px-3 py-2.5 text-[15px] text-ink hover:bg-surface-2";
   const item = (l: FooterLink) =>
     l.external ? (
@@ -171,6 +171,10 @@ export function InfoMenu({ links, loggedIn, up = false }: { links: { product: Fo
             <LogOutButton className={`${row} w-full`} />
           </>
         )}
+        <div className="my-1.5 border-t border-rule" />
+        <a href={links.version.url} className="block px-3 py-1.5 font-mono text-[12px] text-muted hover:text-ink hover:underline">
+          {links.version.label}
+        </a>
       </div>
     </Disclosure>
   );

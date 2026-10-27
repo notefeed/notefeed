@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { BackToFeed } from "@/components/BackToFeed";
 import { NoteArticle } from "@/components/NoteArticle";
 import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
 import { orDamaged } from "@/app/_lib/damaged";
-import { getReadNote, getReadPictures, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
+import { getReadFeedAbout, getReadNote, getReadPictures, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
 import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
 export const dynamic = "force-dynamic";
@@ -33,11 +34,13 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
   }
   if (!note) notFound();
 
+  const about = await getReadFeedAbout(readId);
   return (
-    <AppShell>
+    <AppShell about={<BackToFeed title={about.title || instanceTitle()} imageUrl={about.imageUrl} href={readPath(readId)} />} docked>
       <NoteArticle
         note={note}
         back={readPath(readId)}
+        backAside
         imageBase={`${readPath(readId)}/`}
         report={reportTemplate() ? { template: reportTemplate(), readId } : undefined}
         link={kindOf(note.type).attachments(note.content).length ? attachmentLinks(await getReadPictures(readId, asOf), readPath(readId)) : undefined}

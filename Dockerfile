@@ -18,6 +18,10 @@ COPY --from=build --chown=1000:1000 /app/.next/standalone ./
 COPY --from=build --chown=1000:1000 /app/.next/static ./.next/static
 COPY --from=build --chown=1000:1000 /data /data
 COPY docker-entrypoint.mjs ./
+# The version it runs (#306, backend/version.ts), passed in by the release build; last, so it doesn't spoil the layers' cache.
+ARG NOTEFEED_VERSION=dev
+ARG NOTEFEED_COMMIT=
+ENV NOTEFEED_VERSION=$NOTEFEED_VERSION NOTEFEED_COMMIT=$NOTEFEED_COMMIT
 VOLUME /data
 EXPOSE 3000
 # GET /health (backend/http/health.ts): `docker ps` and monitors that read Docker's health status show it. A 503 is unhealthy.

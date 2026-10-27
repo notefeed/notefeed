@@ -77,8 +77,8 @@ function Contents({ headings }: { headings: Heading[] }) {
 const image: Body = {
   heading: (note) => note.title || undefined,
   Content({ note, place, imageBase }) {
-    if (place === "page") return <Picture note={note} imageBase={imageBase} className="max-w-full rounded-xl" />;
-    return <Picture note={note} imageBase={imageBase} className={`max-h-96 w-full rounded-xl object-cover ${note.title ? "mt-3" : ""}`} />;
+    if (place === "page") return <Picture note={note} imageBase={imageBase} className="max-h-[80vh] max-w-full rounded-xl object-contain" />;
+    return <Picture note={note} imageBase={imageBase} className={`max-h-96 w-full max-w-[40rem] rounded-xl object-cover ${note.title ? "mt-3" : ""}`} />;
   },
 };
 

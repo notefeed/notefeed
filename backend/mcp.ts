@@ -10,6 +10,7 @@ import { feedJson } from "./http/api";
 import { sender } from "./http/request";
 import { FeedJson, FreeTierJson } from "./http/schemas";
 import { clientIp } from "./limits";
+import { runningVersion } from "./version";
 import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
 import { logger } from "./log";
@@ -65,7 +66,7 @@ function server(h: Headers): McpServer {
     assertFeed(feed);
     await checkFeedAccess(feed, { password }, clientIp(h));
   };
-  const s = new McpServer({ name: "notefeed", version: "1.0.0" });
+  const s = new McpServer({ name: "notefeed", version: runningVersion().version }); // the instance's version (#306)
 
   // One file as a note: the type must be accepted and the bytes must be what it says (postNote checks that); a picture is size-limited.
   const postBytes = async (feed: string, f: { type: string; data: string; title?: string; alt?: string; name?: string; tags?: string[] }, password: string | undefined) => {
