@@ -3,7 +3,7 @@
 // generated from. Each handler is typed from its own declared responses (see op() in dispatch.ts).
 import * as z from "zod";
 import { config } from "../config";
-import { InvalidBodyError, NotFoundError, RemovedFeedError } from "../errors";
+import { ImageTooLargeError, InvalidBodyError, NotFoundError, RemovedFeedError, UnsupportedTypeError } from "../errors";
 import { changePassword, checkFeedAccess, protectedFeed, recoverPassword, removePassword } from "../feedlock";
 import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf } from "../feeds";
 import { forReaders, getSettings } from "../feedsettings";
@@ -15,7 +15,7 @@ import { TAG_RULE } from "../tags";
 import { API_PREFIX, feedPath, imagePath, publicUrl, readPath, rssPath } from "../urls";
 import { MEDIA_TYPES } from "../note/media";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
-import { MAX_ATTACHMENTS, createFeed, deleteFeed, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
+import { MAX_ATTACHMENTS, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
 import { MULTIPART_SLACK, createdOf, handlePostNote, readContent, readMetaPatch, readMultipart } from "./notes";
 import { authorize, feedAccess, mediaType, readCapped, sender } from "./request";
 import {
@@ -469,6 +469,69 @@ const OPS: AnyOp[] = [
   }).handle(async ({ req, params }) => {
     await deleteFeed(params.feed, clientIp(req.headers), feedAccess(req.headers, params.feed));
     return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/feeds/{feed}/image`,
+    operationId: "setFeedImage",
+    summary: "Set the feed's title image",
+    description:
+      "Uploads the image (its bytes, of the type `Content-Type` declares) as the feed's own title image: it is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read API, counts), so it is no post. " +
+      "A previous title image uploaded this way is deleted; a posted image picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The feed must exist.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    headers: { "X-Feed-Password": FeedPasswordHeader },
+    body: Object.fromEntries(MEDIA_TYPES.filter((m) => m.mediaType.startsWith("image/")).map((m) => [m.mediaType, FileBody])),
+    responses: {
+      200: { description: "The feed, with its new title image", schema: FeedJson },
+      400: err("Invalid or reserved feed name"),
+      401: UNAUTHORIZED,
+      402: LICENSE_REQUIRED,
+      403: IMAGES_OFF,
+      404: err("No such feed"),
+      413: err("An image over NOTEFEED_MAX_IMAGE_BYTES"),
+      415: err("Not an image, or the body is not what it declares"),
+      429: { ...err("Too many posts, or wrong passwords, from this client"), headers: RETRY },
+      451: BLOCKED,
+      503: UNAVAILABLE,
+      507: err("NOTEFEED_MAX_IMAGES_PER_FEED reached"),
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const mediaType = req.headers.get("content-type") ?? "";
+    await setFeedImage(params.feed, clientIp(req.headers), async () => {
+      const body = await readCapped(req, config.maxImageBytes());
+      if (body === null) throw new ImageTooLargeError();
+      if (!body.length) throw new UnsupportedTypeError("the body is empty: send an image, or DELETE to remove the title image");
+      return { body, mediaType };
+    }, feedAccess(req.headers, params.feed));
+    return { status: 200, body: await feedJson(params.feed, req.headers) };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/feeds/{feed}/image`,
+    operationId: "removeFeedImage",
+    summary: "Remove the feed's title image",
+    description: "The feed has no title image afterwards. One uploaded as the feed's own (setFeedImage) is deleted; a posted image that was the title image stays a post.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    headers: { "X-Feed-Password": FeedPasswordHeader },
+    responses: {
+      200: { description: "The feed, without a title image", schema: FeedJson },
+      400: err("Invalid or reserved feed name"),
+      401: UNAUTHORIZED,
+      404: err("No such feed"),
+      429: { ...err("Too many posts, or wrong passwords, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    await setFeedImage(params.feed, clientIp(req.headers), async () => ({ body: new Uint8Array(), mediaType: "" }), feedAccess(req.headers, params.feed));
+    return { status: 200, body: await feedJson(params.feed, req.headers) };
   }),
 
   op({

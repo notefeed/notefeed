@@ -5,13 +5,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { AuthError, EmptyNoteError, FeedExistsError, ReservedFeedError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
 import { createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, resetFeedsForTests } from "./feeds";
+import { getSettings } from "./feedsettings";
 import { resetRateLimitsForTests } from "./limits";
 import { logsOf } from "./log";
 import * as notes from "./notes";
 import { countNotes, createImageNote, createNote, getNote, isScheduled, listNotes, MarkdownNote } from "./notes";
 import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
-import { checkDate, createFeed, deleteFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
+import { checkDate, createFeed, deleteFeed, setFeedImage, updateFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
 
 // The text's write is the call after the pictures: a test makes it fail to see the pictures removed again.
 vi.mock("./notes", async (original) => {
@@ -396,5 +397,39 @@ describe("createFeed", () => {
     vi.stubEnv("NOTEFEED_RESERVED_FEEDS", "news");
     resetFeedsForTests();
     await expect(createFeed("news", "ip", {})).rejects.toBeInstanceOf(ReservedFeedError);
+  });
+});
+
+// The feed's own title image (#310): an image note in no list, so no post; replaced or removed, it goes.
+describe("setFeedImage", () => {
+  const img = (n: number) => async () => ({ body: png(n), mediaType: "image/png" });
+  test("is the title image but in no list; a new one replaces and deletes it; removing it deletes it", async () => {
+    await createNote("f", "hi");
+    const first = await setFeedImage("f", "ip", img(1), {});
+    expect(first.ownImage).toBe(true);
+    expect((await getSettings("f")).image).toBe(first.image);
+    expect((await listNotes("f")).map((n) => n.type)).toEqual(["text/markdown"]);
+    expect([await countNotes("f"), await countNotes("f", "image")]).toEqual([1, 0]);
+    const second = await setFeedImage("f", "ip", img(2), {});
+    expect(second.image).not.toBe(first.image);
+    expect(await getNote("f", first.image.split(".")[0])).toBeNull();
+    await updateFeed("f", "ip", async () => ({ title: "T", description: "", image: "" }), {});
+    expect(await getNote("f", second.image.split(".")[0])).toBeNull();
+    expect((await getSettings("f")).ownImage).toBeUndefined();
+  });
+
+  test("a posted picture picked as title image stays a post, and is not deleted when replaced", async () => {
+    const posted = await postNote("f", "ip", img(3), {});
+    await updateFeed("f", "ip", async () => ({ title: "", description: "", image: posted.note.file }), {});
+    expect(await countNotes("f", "image")).toBe(1);
+    await setFeedImage("f", "ip", img(4), {});
+    expect(await getNote("f", posted.note.id)).not.toBeNull();
+    expect(await countNotes("f", "image")).toBe(1); // the posted one; the own one is in no list
+  });
+
+  test("needs an existing feed and an image", async () => {
+    await expect(setFeedImage("none", "ip", img(1), {})).rejects.toBeInstanceOf(NotFoundError);
+    await createNote("f", "hi");
+    await expect(setFeedImage("f", "ip", async () => ({ body: new TextEncoder().encode("# no"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(UnsupportedTypeError);
   });
 });

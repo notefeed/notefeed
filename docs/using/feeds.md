@@ -14,7 +14,7 @@ A feed name is 1 to 64 characters of `a`–`z`, `0`–`9`, `-` and `_`. Names no
 
 The cog in the feed's details opens `/<feed>/settings`, once the feed has a note:
 
-- **Profile:** the feed's **Title**, **Description** and **Title image** (one of the feed's pictures). They are shown in the feed's details, in the read-only view and as the RSS channel's title, description and image, so anyone with the read link sees them. The name never changes. With [sign-in](../self-hosting/sign-in/index.md) on, **Show who posted** hides the sender from readers.
+- **Profile:** the feed's **Title**, **Description** and **Title image**. An image chosen there is the feed's own: it shows in the header but is no post, so it stays out of the notes, RSS and the APIs' lists, and choosing another deletes it. A picture already posted can be the title image too (`image` below); it stays a post. They are shown in the feed's details, in the read-only view and as the RSS channel's title, description and image, so anyone with the read link sees them. The name never changes. With [sign-in](../self-hosting/sign-in/index.md) on, **Show who posted** hides the sender from readers.
 - **Sharing:** the read link and the RSS link with copy buttons, a ready-to-copy `curl` command for this feed, and the **Read id** field (see [Choosing a feed's read id](read-links.md#choosing-a-feeds-read-id)).
 - **Privacy & access:** on a protected feed you have unlocked, change or remove the [feed password](feed-passwords.md#in-the-web-ui) and lock this browser; on an open feed, [set one](feed-passwords.md#a-password-for-an-open-feed).
 - **Danger zone:** **Delete this feed** removes the feed with all its notes, its settings, its password and its read link, for good. You confirm by typing the feed's name.
@@ -26,7 +26,7 @@ Anyone who can open the feed can change its settings and delete it; the read-onl
 
 ## Feed settings in the API
 
-`GET /api/v1/feeds/<feed>` answers the feed's `name`, `title`, `description`, `show_sender`, `image_url`, `protected` and `read_url`. `PUT` on the same URL sets the title (at most 100 characters) and the description (at most 500), both at once; `image` names one of the feed's pictures as the title image, `show_sender` and `read_id` are optional:
+`GET /api/v1/feeds/<feed>` answers the feed's `name`, `title`, `description`, `show_sender`, `image_url`, `protected` and `read_url`. `PUT` on the same URL sets the title (at most 100 characters) and the description (at most 500), both at once; `image` names one of the feed's posted pictures as the title image (empty removes it), `show_sender` and `read_id` are optional. To upload a title image that is no post, `PUT /api/v1/feeds/<feed>/image` with the image as the body and its `Content-Type`; `DELETE` on the same URL removes it:
 
 ```sh
 curl -X PUT -H "Content-Type: application/json" \

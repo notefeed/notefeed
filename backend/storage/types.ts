@@ -5,7 +5,8 @@
 /** `of`: on an attachment, the id of the text note it was posted with. */
 export type Meta = { title?: string; sender?: string; tags?: string[]; alt?: string; name?: string; created?: string; of?: string };
 
-export type Settings = { title: string; description: string; image: string; showSender: boolean };
+// `ownImage`: the title image is the feed's own, uploaded as one (not a post): lists leave that image note out (notes.ts).
+export type Settings = { title: string; description: string; image: string; showSender: boolean; ownImage?: boolean };
 
 /** A note as listed: which note, the extension its file has, and its date (ms since the epoch). */
 export type NoteRef = { id: string; ext: string; date: number };

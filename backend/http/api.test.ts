@@ -59,6 +59,22 @@ describe("POST /feeds/{feed}", () => {
   });
 });
 
+// The feed's own title image (#310): set, in no list, removed.
+describe("PUT and DELETE /feeds/{feed}/image", () => {
+  test("sets the title image without a post; DELETE removes it; a non-image is 415; a missing feed 404", async () => {
+    expect((await post("img", "# hi")).status).toBe(201);
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+    const set = await call("PUT", "/feeds/img/image", { body: png, headers: { "content-type": "image/png" } });
+    expect(set.status).toBe(200);
+    expect((await json(set)).image_url).toMatch(/\/r\/[^/]+\/[^/]+\.png$/);
+    expect((await json(await call("GET", "/feeds/img/notes"))).notes).toHaveLength(1);
+    expect((await call("PUT", "/feeds/img/image", { body: "# no", headers: { "content-type": "text/markdown" } })).status).toBe(415);
+    expect((await call("PUT", "/feeds/none/image", { body: png, headers: { "content-type": "image/png" } })).status).toBe(404);
+    const removed = await call("DELETE", "/feeds/img/image");
+    expect([removed.status, (await json(removed)).image_url]).toEqual([200, null]);
+  });
+});
+
 describe("GET /feeds/{feed}/notes", () => {
   test("newest first, as JSON notes with their web UI links", async () => {
     const { note: one } = await createNote("backups", "# One\nbody", new Date("2026-09-29T10:00:00Z"));

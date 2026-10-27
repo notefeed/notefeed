@@ -3,7 +3,7 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, updateFeed } from "./generated/sdk.gen.js";
+import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
 import type { Created, Error as ApiError, Feed, FeedSettings, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
@@ -260,6 +260,19 @@ export class Client {
   async recoverFeedPassword(key: string, password = "", options: { feed?: string } = {}): Promise<void> {
     const feed = this.feedFor(options.feed);
     await this.call(recoverFeedPassword({ client: this.api, path: { feed }, body: { key, password }, signal: AbortSignal.timeout(this.timeoutMs) })); // the key instead of the (lost) feed password
+  }
+
+  /** Set the feed's title image: `content` the image's bytes, `type` its media type (image/png, image/jpeg, image/gif, image/webp). It is the feed's own image, in no list, so no post; a previous one set this way is deleted. Same options as post(). */
+  async setFeedImage(content: Uint8Array, type: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
+    const feed = this.feedFor(options.feed);
+    const opts = this.opts(options.feedPassword);
+    return this.call(setFeedImage({ client: this.api, path: { feed }, body: new Blob([content as BlobPart], { type }), ...opts, headers: { ...opts.headers, "Content-Type": type } }));
+  }
+
+  /** Remove the feed's title image; one set with setFeedImage is deleted. Same options as post(). */
+  async removeFeedImage(options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
+    const feed = this.feedFor(options.feed);
+    return this.call(removeFeedImage({ client: this.api, path: { feed }, ...this.opts(options.feedPassword) }));
   }
 
   /** Delete the feed with all its notes, settings and password, for good; its name is free again. Same options as post(). */

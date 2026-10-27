@@ -199,6 +199,9 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         const set = { title: "T", description: "D", image: "a.png", showSender: false };
         await s.writeSettings("f", set);
         expect(await s.readSettings("f")).toEqual(set);
+        const own = { ...set, ownImage: true }; // the feed's own title image (#310)
+        await s.writeSettings("f", own);
+        expect(await s.readSettings("f")).toEqual(own);
       });
       t("the password hash: none, write, read, remove", async ({ storage: s }) => {
         expect(await s.readHash("f")).toBeNull();

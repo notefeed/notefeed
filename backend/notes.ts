@@ -113,7 +113,10 @@ type RefQuery = { upTo?: number; before?: string; limit?: number };
 // the whole list (images and texts interleave); so does a limited page that held a file that is no note (one placed by hand).
 async function noteRefs(feed: string, typeName?: string, q: RefQuery = {}): Promise<NoteRef[]> {
   if (checkFeed(feed)) return [];
-  const isNote = (e: NoteRef) => { const type = typeForExt(e.ext); return !!type && (typeName === undefined || type.name === typeName) && isValidId(e.id); };
+  // The feed's own title image (uploaded as one, not posted) is in no list: not the timeline, RSS, the APIs, counts or the free cap.
+  const settings = await storage().readSettings(feed);
+  const own = settings.ownImage ? settings.image : null;
+  const isNote = (e: NoteRef) => { const type = typeForExt(e.ext); return !!type && (typeName === undefined || type.name === typeName) && isValidId(e.id) && `${e.id}.${e.ext}` !== own; };
   const limit = typeName === undefined ? q.limit : undefined;
   const refs = await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, limit });
   const notes = refs.filter(isNote);
