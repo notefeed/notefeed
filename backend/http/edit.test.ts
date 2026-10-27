@@ -207,6 +207,16 @@ describe("multipart PUT: a markdown note's new text with its pictures", () => {
     expect(await sidecar(c.file)).toEqual({ alt: "C", name: "c.png", tags: ["pics"], of: made.id });
     expect((await content(made.file)).toString()).toBe(`# New ![](${c.file})`);
   });
+  test("new pictures with the same file name are each stored and appended; a text that names it is 400", async () => {
+    const made = await post("# Old", "text/markdown");
+    const res = await putForm(made.id, [["text", "# New"], ["file", png("image.png")], ["file", png("image.png")]]);
+    expect(res.status).toBe(200);
+    const note = await res.json();
+    expect(note.attachments).toHaveLength(2);
+    expect(note.content).toBe(`# New\n\n![](${note.attachments[0].file})\n\n![](${note.attachments[1].file})`);
+    const named = await putForm(made.id, [["text", "![](image.png)"], ["file", png("image.png")], ["file", png("image.png")]]);
+    expect([named.status, (await named.json()).code]).toEqual([400, "invalid_body"]);
+  });
   test("the text as a file part works the same, byte for byte", async () => {
     const made = await post("# Old", "text/markdown");
     const res = await putForm(made.id, [["text", new File(["# New\nline"], "n.md", { type: "text/markdown" })]]);

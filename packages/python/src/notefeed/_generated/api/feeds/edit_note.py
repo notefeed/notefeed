@@ -142,13 +142,14 @@ def sync_detailed(
     (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
     The pictures are stored first, each as its own note named by its file name, then the text with its
     references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
-    the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
-    before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
-    Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of
-    the `file` parts. On a `PUT` the `text` part is required and the note must be a markdown note; the
-    note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores
-    `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever
-    the body holds.
+    the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have
+    the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended,
+    but a text that refers to such a name is 400. Everything is checked before the first write, and a
+    failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are
+    400. The answer has `attachments`, the stored pictures in the order of the `file` parts. On a `PUT`
+    the `text` part is required and the note must be a markdown note; the note keeps its own title and
+    tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked
+    up first: a missing note is `404` and an image note `415` whatever the body holds.
 
     Args:
         feed (str):
@@ -201,13 +202,14 @@ def sync(
     (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
     The pictures are stored first, each as its own note named by its file name, then the text with its
     references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
-    the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
-    before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
-    Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of
-    the `file` parts. On a `PUT` the `text` part is required and the note must be a markdown note; the
-    note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores
-    `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever
-    the body holds.
+    the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have
+    the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended,
+    but a text that refers to such a name is 400. Everything is checked before the first write, and a
+    failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are
+    400. The answer has `attachments`, the stored pictures in the order of the `file` parts. On a `PUT`
+    the `text` part is required and the note must be a markdown note; the note keeps its own title and
+    tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked
+    up first: a missing note is `404` and an image note `415` whatever the body holds.
 
     Args:
         feed (str):
@@ -255,13 +257,14 @@ async def asyncio_detailed(
     (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
     The pictures are stored first, each as its own note named by its file name, then the text with its
     references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
-    the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
-    before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
-    Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of
-    the `file` parts. On a `PUT` the `text` part is required and the note must be a markdown note; the
-    note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores
-    `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever
-    the body holds.
+    the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have
+    the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended,
+    but a text that refers to such a name is 400. Everything is checked before the first write, and a
+    failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are
+    400. The answer has `attachments`, the stored pictures in the order of the `file` parts. On a `PUT`
+    the `text` part is required and the note must be a markdown note; the note keeps its own title and
+    tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked
+    up first: a missing note is `404` and an image note `415` whatever the body holds.
 
     Args:
         feed (str):
@@ -312,13 +315,14 @@ async def asyncio(
     (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
     The pictures are stored first, each as its own note named by its file name, then the text with its
     references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
-    the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
-    before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
-    Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of
-    the `file` parts. On a `PUT` the `text` part is required and the note must be a markdown note; the
-    note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores
-    `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever
-    the body holds.
+    the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have
+    the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended,
+    but a text that refers to such a name is 400. Everything is checked before the first write, and a
+    failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are
+    400. The answer has `attachments`, the stored pictures in the order of the `file` parts. On a `PUT`
+    the `text` part is required and the note must be a markdown note; the note keeps its own title and
+    tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked
+    up first: a missing note is `404` and an image note `415` whatever the body holds.
 
     Args:
         feed (str):

@@ -88,7 +88,7 @@ describe("postWithPictures", () => {
   });
 
   const refused: [string, PostBundle, unknown, string?][] = [
-    ["a duplicate filename", { text: "x", pictures: [pic("a.png"), pic("a.png")] }, InvalidBodyError, "a.png"],
+    ["a text that refers to a filename given twice", { text: "![](a.png)", pictures: [pic("a.png"), pic("a.png")] }, InvalidBodyError, "a.png"],
     ["an unsafe filename", { text: "x", pictures: [pic("a/b.png")] }, InvalidBodyError, "a\ufffdb.png"], // the echo is safeName's: a forbidden character as U+FFFD
     ["a non-image mediaType", { text: "x", pictures: [pic("a.md", { mediaType: "text/markdown" })] }, UnsupportedTypeError, "a.md"],
     ["bytes that are not that image", { text: "x", pictures: [pic("a.jpg", { mediaType: "image/jpeg" })] }, UnsupportedTypeError, "a.jpg"],
@@ -344,7 +344,7 @@ describe("editWithPictures", () => {
 
   test("a picture's error names it, with nothing stored", async () => {
     const { note } = await createNote("f", "x");
-    await expect(edit(note.id, { text: "y", pictures: [pic("a.png"), pic("a.png")] })).rejects.toThrow(/^attachment "a.png": /);
+    await expect(edit(note.id, { text: "![](a.png)", pictures: [pic("a.png"), pic("a.png")] })).rejects.toThrow(/^attachment "a.png": /);
     expect(await countNotes("f")).toBe(1);
   });
 

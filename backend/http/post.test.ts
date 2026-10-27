@@ -270,6 +270,27 @@ describe("multipart: a text with its pictures", () => {
     expect(await countNotes("f", "markdown")).toBe(0);
     expect(await countNotes("f")).toBe(2);
   });
+  test("pictures with the same file name that the text doesn't mention: each is stored and shown at the end", async () => {
+    const res = await sendForm([["text", "# Trip"], ["file", png("image.png")], ["file", png("image.png")]]);
+    expect(res.status).toBe(201);
+    const { file, attachments } = await res.json();
+    expect(attachments).toHaveLength(2);
+    expect(attachments[0].file).not.toBe(attachments[1].file);
+    expect((await stored(file)).toString()).toBe(`# Trip\n\n![](${attachments[0].file})\n\n![](${attachments[1].file})`);
+    for (const a of attachments) expect((await sidecarOf(a.file)).name).toBe("image.png");
+  });
+  test("only files with the same file name: each is a note of its own", async () => {
+    const res = await sendForm([["file", png("image.png")], ["file", png("image.png")]]);
+    expect(res.status).toBe(201);
+    expect((await res.json()).attachments).toHaveLength(2);
+    expect(await countNotes("f")).toBe(2);
+  });
+  test("a repeated name beside one the text refers to: the reference gets its picture, the others are appended", async () => {
+    const res = await sendForm([["text", "![](map.png)"], ["file", png("image.png")], ["file", png("map.png")], ["file", png("image.png")]]);
+    expect(res.status).toBe(201);
+    const { file, attachments } = await res.json();
+    expect((await stored(file)).toString()).toBe(`![](${attachments[1].file})\n\n![](${attachments[0].file})\n\n![](${attachments[2].file})`);
+  });
   test("only text equals a raw post, with no attachments", async () => {
     const res = await sendForm([["text", "# Hi"]], { "x-note-title": "T" });
     expect(res.status).toBe(201);
@@ -289,7 +310,7 @@ describe("multipart: a text with its pictures", () => {
     ["a text field and a text file", [["text", "# a"], ["text", new File(["# b"], "b.md", { type: "text/markdown" })]], {}, "invalid_body", null],
     ["a part named other", [["text", "a"], ["other", "x"]], {}, "invalid_body", null],
     ["a file part without a file name", [["file", "just a string"]], {}, "invalid_body", null],
-    ["a duplicate file name", [["file", png("a.png")], ["file", png("a.png")]], {}, "invalid_body", "a.png"],
+    ["a text that refers to a file name given twice", [["text", "![](a.png)"], ["file", png("a.png")], ["file", png("a.png")]], {}, "invalid_body", "a.png"],
     ["alt for a file that is not sent", [["file", png("a.png")], ["alt.x.png", "x"]], {}, "invalid_body", null],
     ["X-Note-Alt", [["file", png("a.png")]], { "x-note-alt": "x" }, "invalid_body", null],
     ["X-Note-Name", [["file", png("a.png")]], { "x-note-name": "x.png" }, "invalid_body", null],
@@ -392,7 +413,7 @@ describe("multipart: a text with its pictures", () => {
     expect(refused.status).toBe(415);
     expect(await hasFeed("g")).toBe(false);
     expect(await protectedFeed("g")).toBe(false);
-    const twice = await sendForm([["text", "# a"], ["file", png("a.png")], ["file", png("a.png")]], { "x-feed-password": "hunter22" }, "g");
+    const twice = await sendForm([["text", "![](a.png)"], ["file", png("a.png")], ["file", png("a.png")]], { "x-feed-password": "hunter22" }, "g");
     expect([twice.status, (await twice.json()).code]).toEqual([400, "invalid_body"]);
     expect(await hasFeed("g")).toBe(false);
     expect(await protectedFeed("g")).toBe(false);

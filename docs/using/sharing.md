@@ -28,7 +28,6 @@ iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut t
 5. **Repeat with Each** item of the Shortcut Input:
     - **Convert Image** to **JPEG**, with **Preserve Metadata** off: iPhone photos are HEIC, which notefeed does not take, and this drops where the photo was taken.
     - **Resize Image** to 2048 on the longest edge, so a photo stays under the 5 MiB limit.
-    - **Set Name** of the image to `photo-` followed by **Repeat Index** and `.jpg`: every picture of one post needs a name of its own, or the post is refused with `400`.
     - **Add to Variable** `Pictures`.
 6. **Get Contents of URL**: `https://<your instance>/<feed>` (the chosen feed), method **POST**, request body **Form** with a field `file` of type File set to `Pictures`, and, only when the caption is not empty (an **If** around it), a field `text` with the caption. Under **Headers** add `X-Feed-Password` with the password when it is not empty, and, on an instance with a password (`NOTEFEED_PASSWORD`), `Authorization` with `Bearer <instance password>`.
 7. **Show Result** or **Show Notification** with the answer.
@@ -36,7 +35,7 @@ iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut t
 With a caption, the pictures arrive as one note with them attached; without one, each picture is a note of its own (see [Posting a note with its pictures](pictures.md#posting-a-note-with-its-pictures)).
 
 !!! note "Not tried on a device yet"
-    The action names follow Apple's Shortcuts app; the recipe has not been run on an iPhone yet. Two things to watch the first time: whether the form's File field sends every picture of the `Pictures` variable (not only the first), and whether **Set Name** keeps the names apart. If a step is named differently or either doesn't hold, open an issue.
+    The action names follow Apple's Shortcuts app; the recipe has not been run on an iPhone yet. One thing to watch the first time: whether the form's File field sends every picture of the `Pictures` variable, not only the first. If a step is named differently or it doesn't, open an issue.
 
 !!! note "On notefeed.me"
     Pictures need a license: on the free tier every picture is refused with `402`. See [Free tier and licenses](../hosted/licenses.md).

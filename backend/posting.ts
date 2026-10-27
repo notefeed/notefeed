@@ -321,23 +321,25 @@ export type PostBundle = { text?: string; pictures: Picture[]; title?: string; t
 const MARKDOWN_TYPE = "text/markdown";
 const IMAGE_TYPES = MEDIA_TYPES.filter((m) => m.mediaType.startsWith("image/")).map((m) => m.mediaType).join(", ");
 
+// A checked picture. `key`: what the text can call it by, its file name; a name sent more than once (a phone's every photo is
+// "image.jpg") gets a key no text can hold, so such pictures are appended, and only a text that names one of them is refused (checkText).
+type Checked = Picture & { type: NoteType; ext: string; key: string };
+
 // Every check a picture gets before anything is stored; a refusal names it (safeName: a refused name is not echoed as sent).
-function checkPictures(pictures: Picture[]): (Picture & { type: NoteType; ext: string })[] {
+function checkPictures(pictures: Picture[]): Checked[] {
   refuseImages(pictures.length > 0);
   if (pictures.length > MAX_ATTACHMENTS) throw new InvalidBodyError(`at most ${MAX_ATTACHMENTS} attachments`);
-  const seen = new Set<string>();
-  return pictures.map((p) => {
+  const repeated = repeatedNames(pictures);
+  return pictures.map((p, i) => {
     try {
       if (!isAttachmentName(p.name)) throw new InvalidBodyError("not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots");
-      if (seen.has(p.name)) throw new InvalidBodyError("the file name is given twice");
-      seen.add(p.name);
       const parsed = parseMediaType(p.mediaType);
       if (parsed?.type.name !== "image") throw new UnsupportedTypeError(`send a picture: ${IMAGE_TYPES}`);
       if (p.body.length > config.maxImageBytes()) throw new ImageTooLargeError();
       if (!parsed.type.verify(p.body, parsed.ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
       parsed.type.checkBody(p.body);
       checkLine("alt", p.alt, MAX_ALT);
-      return { ...p, type: parsed.type, ext: parsed.ext };
+      return { ...p, type: parsed.type, ext: parsed.ext, key: repeated.has(p.name) ? `\0${i}` : p.name }; // a file name holds no control character
     } catch (e) {
       if (e instanceof NotefeedError) e.message = `attachment "${safeName(p.name)}": ${e.message}`;
       throw e;
@@ -345,20 +347,26 @@ function checkPictures(pictures: Picture[]): (Picture & { type: NoteType; ext: s
   });
 }
 
+const repeatedNames = (pictures: { name: string }[]) => new Set(pictures.map((p) => p.name).filter((n, i, all) => all.indexOf(n) !== i));
+
 // The text as it will be stored, checked before the pictures are: each picture's place holds a file name as long as its stored one will be.
 // The text is parsed once, here, in a worker (place.ts); the plan it returns is applied again with the stored file names.
-// The length is that of a new id (newNoteId).
-async function checkText(text: string, pictures: { name: string; ext: string }[]): Promise<ImagePlan> {
+// The length is that of a new id (newNoteId). A text that refers to a name sent more than once is refused: which picture it means is a guess.
+async function checkText(text: string, pictures: { name: string; ext: string; key: string }[]): Promise<ImagePlan> {
   const id = newNoteId();
-  const plan = await planInWorker(text, new Set(pictures.map((p) => p.name)));
-  checkMarkdown(applyImages(plan, new Map(pictures.map((p) => [p.name, `${id}.${p.ext}`]))));
+  const repeated = repeatedNames(pictures);
+  const found = await planInWorker(text, new Set([...pictures.map((p) => p.key), ...repeated]));
+  const named = found.edits.find((e) => repeated.has(e.name));
+  if (named) throw new InvalidBodyError(`attachment "${safeName(named.name)}": the text refers to a file name given more than once`);
+  const plan = { ...found, unused: found.unused.filter((n) => !repeated.has(n)) };
+  checkMarkdown(applyImages(plan, new Map(pictures.map((p) => [p.key, `${id}.${p.ext}`]))));
   return plan;
 }
 
 // Stores the pictures in order, then whatever `then` stores (given the stored notes and the map of file name to stored file); if
 // any write fails, the pictures stored so far are removed and the error is rethrown. A picture that can't be removed is logged by its
 // note id (never the feed: its name is the write key), so an operator can find the stray file. `dateOf(i)`: picture i's date.
-async function storeWithPictures<T>(feed: string, pictures: (Picture & { type: NoteType; ext: string })[], opts: NewNoteOptions, dateOf: (i: number) => Date, then: (stored: Note[], sent: Map<string, string>, readId: string | null) => Promise<T>): Promise<T> {
+async function storeWithPictures<T>(feed: string, pictures: Checked[], opts: NewNoteOptions, dateOf: (i: number) => Date, then: (stored: Note[], sent: Map<string, string>, readId: string | null) => Promise<T>): Promise<T> {
   const stored: Note[] = [];
   try {
     let readId: string | null = null;
@@ -367,7 +375,7 @@ async function storeWithPictures<T>(feed: string, pictures: (Picture & { type: N
       stored.push(made.note);
       readId = made.readId;
     }
-    return await then(stored, new Map(pictures.map((p, i) => [p.name, stored[i].file])), readId);
+    return await then(stored, new Map(pictures.map((p, i) => [p.key, stored[i].file])), readId);
   } catch (e) {
     await Promise.all(
       stored.map(async (n) => {

@@ -60,7 +60,8 @@ const MULTIPART =
   "A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), " +
   `\`file\` parts (up to ${MAX_ATTACHMENTS} pictures, each with its file name and image \`Content-Type\`) and \`alt.<file name>\` fields. ` +
   "The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, " +
-  "as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked before the first write, " +
+  "as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. " +
+  "Several pictures may have the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is 400. Everything is checked before the first write, " +
   "and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. " +
   "The answer has `attachments`, the stored pictures in the order of the `file` parts. ";
 const UNAUTHORIZED = err("The instance has a password, or the feed has its own, and it is missing or wrong");
@@ -180,7 +181,7 @@ const OPS: AnyOp[] = [
       201: { description: "Stored: the note, and with a multipart body its pictures", schema: Posted },
       400: err(
         "Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; " +
-          `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad or repeated file name, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
+          `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
       402: LICENSE_REQUIRED,
@@ -264,7 +265,7 @@ const OPS: AnyOp[] = [
       200: { description: "The note as it is now, and with a multipart body the new pictures", schema: NoteEdited },
       400: err(
         "Invalid or reserved feed name; a blank note; " +
-          `a multipart body with an unexpected part, no \`text\`, more than ${MAX_ATTACHMENTS} files, a bad or repeated file name, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
+          `a multipart body with an unexpected part, no \`text\`, more than ${MAX_ATTACHMENTS} files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
       402: LICENSE_REQUIRED,
