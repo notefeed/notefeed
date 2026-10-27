@@ -67,9 +67,9 @@ test("the picked feed's compose box opens with the shared picture and posts it",
   await page.locator("section", { hasText: "Post what you shared to" }).getByRole("link", { name }).click();
   await expect(page.getByLabel("Note in markdown")).toHaveValue(/from my phone/);
   await expect(waiting(page)).toHaveCount(1);
-  expect(await stored(page)).toBe(0); // taken: a reload doesn't attach it again
   await page.getByRole("button", { name: "Post note" }).click();
   await expect(page.locator("ol > li img")).toHaveCount(1);
+  expect(await stored(page)).toBe(0); // posted: gone from the browser
 });
 
 test("a feed opened with shared=1 and nothing stored opens as usual", async ({ page }) => {
@@ -96,4 +96,26 @@ test("a shared picture waits through the feed password", async ({ page }) => {
   await page.getByRole("button", { name: "Unlock" }).click();
   await expect(page.getByLabel("Note in markdown")).toHaveValue(/behind a password/);
   await expect(waiting(page)).toHaveCount(1);
+});
+
+test("going back to pick another feed keeps the pictures", async ({ page }) => {
+  await share(page, {}, [PNG]);
+  await page.goto(`/${feedName()}?shared=1`);
+  await expect(waiting(page)).toHaveCount(1);
+  await page.goto(`/${feedName()}?shared=1`);
+  await expect(waiting(page)).toHaveCount(1);
+});
+
+test("a share the browser can't read still goes on to the start page", async ({ page }) => {
+  await controlled(page);
+  const res = await page.evaluate(async () => {
+    const r = await fetch("/api/share", { method: "POST", headers: { "Content-Type": "multipart/form-data; boundary=x" }, body: "not a form" });
+    return { status: r.status, path: new URL(r.url).pathname };
+  });
+  expect(res).toEqual({ status: 200, path: "/" });
+});
+
+test("of many pictures, only one more than a note takes is kept", async ({ page }) => {
+  await share(page, {}, Array.from({ length: MAX_ATTACHMENTS + 5 }, (_, i) => ({ ...PNG, name: `p${i}.png` })));
+  expect(await stored(page)).toBe(MAX_ATTACHMENTS + 1);
 });

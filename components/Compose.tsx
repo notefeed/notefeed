@@ -10,7 +10,7 @@ import { MarkdownInput } from "@/components/MarkdownInput";
 import { usePendingImages } from "@/components/usePendingImages";
 import { multipart, useApiForm } from "@/app/_lib/useApiForm";
 import { errorMessage, IMAGES_OFF, SENDER_NOTICE, TOO_MANY_PICTURES, withPictures } from "@/app/_lib/messages";
-import { takeSharedFiles } from "@/app/_lib/sharedFiles";
+import { clearSharedFiles, readSharedFiles } from "@/app/_lib/sharedFiles";
 import { COMPOSE_FORM } from "@/components/ProtectFeed";
 import { addPending, removeReference, type Pending } from "@/components/pendingFiles";
 import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
@@ -26,7 +26,7 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // `images` false: the instance takes no pictures.
 // `imageBase`: the feed's read link, for the preview's stored pictures. `initialTitle` and `initialText`: what was shared to
 // notefeed from another app (app/share), so the box opens with it. `shared`: pictures were shared too and wait in the browser
-// (app/_lib/sharedFiles.ts): the box takes them once, like photos from the camera button.
+// (app/_lib/sharedFiles.ts): the box takes them like photos from the camera button, and posting clears them there.
 // Below lg: the phone layout of components/AppShell.tsx.
 const NARROW = "(max-width: 63.98rem)";
 const subscribeNarrow = (onChange: () => void) => {
@@ -100,7 +100,10 @@ export function Compose({
             : { body: new Blob([text], { type: "text/markdown" }), headers: { ...headers, "Content-Type": "text/markdown" } }),
         });
       },
-      ({ data }) => router.push(`${action}?posted=${data?.id}`),
+      async ({ data }) => {
+        if (shared) await clearSharedFiles();
+        router.push(`${action}?posted=${data?.id}`);
+      },
     );
   };
 
@@ -126,12 +129,12 @@ export function Compose({
     setText((t) => [t.trimEnd(), ...added.map((p) => `![](${p.token})`)].filter(Boolean).join("\n"));
     images.setPending([...images.pending, ...added]);
   };
-  // Taken once: React runs a mount effect twice in development, and the second run would find the cache already empty anyway.
+  // Taken once: React runs a mount effect twice in development, which would attach them twice.
   const tookShared = useRef(false);
   useEffect(() => {
     if (!shared || tookShared.current) return;
     tookShared.current = true;
-    void takeSharedFiles().then((files) => {
+    void readSharedFiles().then((files) => {
       if (!files.length) return;
       setOpen(true);
       if (imagesOn) addPhotos(files);
