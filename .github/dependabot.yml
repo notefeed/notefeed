@@ -16,6 +16,10 @@ updates:
     commit-message:
       prefix: Dependencies
     labels: [dependencies]
+    ignore:
+      # @types/node follows the Node major the app runs on (.nvmrc, the Dockerfile), by hand.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     groups:
       # Next.js and its ESLint config move together.
       nextjs:
@@ -36,6 +40,10 @@ updates:
     commit-message:
       prefix: Dependencies
     labels: [dependencies]
+    ignore:
+      # @types/node follows the oldest Node the client supports (engines in packages/js/package.json), by hand.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
