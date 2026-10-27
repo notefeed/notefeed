@@ -17,18 +17,26 @@ export type LicenseText = {
   fineprint?: string;
 };
 
-/** "€1.99 per month": the amount in major units, by the currency's own number of digits. */
-export function formatPrice({ amount, currency, period }: Pick<Plan, "amount" | "currency" | "period">): string {
-  const format = new Intl.NumberFormat("en", { style: "currency", currency });
-  return `${format.format(amount / 10 ** (format.resolvedOptions().maximumFractionDigits ?? 2))} per ${period}`;
+/** An amount as the page shows it: English digits, and the euro sign after the amount, as the euro countries write it
+ *  ("1.99 €", #223); any other currency as English writes it ("$1.99"). A no-break space keeps the sign with its amount. */
+function money(format: Intl.NumberFormat, value: number): string {
+  if (format.resolvedOptions().currency !== "EUR") return format.format(value);
+  const amount = format.formatToParts(value).filter((p) => p.type !== "currency").map((p) => p.value).join("").trim();
+  return `${amount}\u00a0€`;
 }
 
-/** The free tile's price from license.md: a bare number gets the plans' currency the way their prices show it ("€0", "€0.50"),
+/** "1.99 € per month": the amount in major units, by the currency's own number of digits. */
+export function formatPrice({ amount, currency, period }: Pick<Plan, "amount" | "currency" | "period">): string {
+  const format = new Intl.NumberFormat("en", { style: "currency", currency });
+  return `${money(format, amount / 10 ** (format.resolvedOptions().maximumFractionDigits ?? 2))} per ${period}`;
+}
+
+/** The free tile's price from license.md: a bare number gets the plans' currency the way their prices show it ("0 €", "0.50 €"),
  *  so the tiles read alike; anything else ("Free") stays as the operator wrote it, as does any price while no plan gives a currency. */
 export function freePrice(price: string, currency: string | undefined): string {
   if (!currency || !/^\d+(\.\d+)?$/.test(price)) return price;
   const digits = price.split(".")[1]?.length ?? 0;
-  return new Intl.NumberFormat("en", { style: "currency", currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(price));
+  return money(new Intl.NumberFormat("en", { style: "currency", currency, minimumFractionDigits: digits, maximumFractionDigits: digits }), Number(price));
 }
 
 /** "Save 16 %": what the yearly plan saves against twelve months, when both are sold in the same currency; otherwise nothing is claimed. */

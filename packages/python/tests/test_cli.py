@@ -347,6 +347,14 @@ def test_update_sets_the_date(server):
     assert json.loads(server.requests[0]["body"]) == {"date": "2025-03-01"}
 
 
+def test_update_sets_the_tags_as_a_whole_list(server):
+    server.reply(200, NOTE)
+    server.reply(200, NOTE)
+    assert main(["update", "i", "--tags", "done, ci", "--url", server.url, "--feed", "inbox"]) == 0
+    assert main(["update", "i", "--tags", "", "--url", server.url, "--feed", "inbox"]) == 0
+    assert [json.loads(q["body"]) for q in server.requests] == [{"tags": ["done", "ci"]}, {"tags": []}]
+
+
 def test_edit_a_picture_file_sends_it_as_its_type(server, tmp_path):
     f = tmp_path / "x.webp"
     f.write_bytes(b"RIFF....WEBPVP8 ")

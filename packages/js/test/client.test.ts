@@ -158,6 +158,13 @@ describe("edit and delete", () => {
     expect(JSON.parse(req.body.toString())).toEqual({ title: "T", alt: "" });
     expect(req.headers.authorization).toBe("Bearer pw");
   });
+  test("update sends tags as the whole new list, an empty one too", async () => {
+    server.reply(200, note(10));
+    const c = new Client({ url: server.url, feed: "inbox" });
+    await c.update(ID, { tags: ["done", "ci"] });
+    await c.update(ID, { tags: [] });
+    expect(server.requests.map((r) => JSON.parse(r.body.toString()))).toEqual([{ tags: ["done", "ci"] }, { tags: [] }]);
+  });
   test("delete sends DELETE and resolves to nothing on 204", async () => {
     server.reply(204, "", "text/plain");
     const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });

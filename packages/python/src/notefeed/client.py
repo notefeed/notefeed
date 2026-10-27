@@ -319,9 +319,10 @@ class Client:
         feed: str | None = None,
         feed_password: str | None = None,
         date: str | date | None = None,
+        tags: list[str] | None = None,
     ) -> Note:
-        """Set a note's title, alt text (for pictures) and/or date (as in post(); a future one schedules the note); "" removes a title or alt, so a markdown note's title follows its text again; None leaves it. Same options as post()."""
-        meta = NoteMeta(title=UNSET if title is None else title, alt=UNSET if alt is None else alt, date=_date(date))
+        """Set a note's title, alt text (for pictures), tags and/or date (as in post(); a future one schedules the note); "" removes a title or alt, so a markdown note's title follows its text again; tags replace the whole list ([] removes them); None leaves it. Same options as post()."""
+        meta = NoteMeta(title=UNSET if title is None else title, alt=UNSET if alt is None else alt, tags=UNSET if tags is None else list(tags), date=_date(date))
         kwargs = patch_note._get_kwargs(feed=self._feed_for(feed), id=id, body=meta, x_feed_password=self._fp(feed_password))
         return self._parse(Note, self._call(kwargs))
 

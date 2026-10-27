@@ -124,6 +124,14 @@ def test_update_patches_title_and_alt_as_json_and_leaves_out_what_is_none(server
     assert json.loads(server.requests[1]["body"]) == {"title": "T"}
     assert (q["headers"]["Authorization"], q["headers"]["X-Feed-Password"]) == ("Bearer pw", "fp")
 
+def test_update_sends_tags_as_the_whole_new_list_an_empty_one_too(server):
+    server.reply(200, note(10))
+    server.reply(200, note(10))
+    c = Client(server.url, "inbox")
+    c.update("i", tags=["done", "ci"])
+    c.update("i", tags=[])
+    assert [json.loads(q["body"]) for q in server.requests] == [{"tags": ["done", "ci"]}, {"tags": []}]
+
 def test_a_picture_is_posted_like_any_note_with_its_alt_and_name_as_headers(server):
     server.reply(201, UPLOADED)
     Client(server.url, "inbox").post(b"x", type="image/png", tags=["a", "b"], title="Cat", alt="a cat", name="cat.png")

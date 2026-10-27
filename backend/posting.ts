@@ -199,12 +199,13 @@ export async function editContent(feed: string, id: string, ip: string, read: ()
 }
 
 // A note's title, alt text and date (at least one): every value is checked before the first change, the date by checkDate.
-export async function editMeta(feed: string, id: string, ip: string, read: () => Promise<{ title?: string; alt?: string; date?: string }>, access: FeedAccess): Promise<Note> {
+export async function editMeta(feed: string, id: string, ip: string, read: () => Promise<{ title?: string; alt?: string; tags?: string[]; date?: string }>, access: FeedAccess): Promise<Note> {
   await admit(feed, ip, access);
   const { date: given, ...meta } = await read();
   const date = checkDate(given);
-  if (date === undefined && meta.title === undefined && meta.alt === undefined) throw new InvalidBodyError("nothing to change: send title, alt or date");
-  let note = meta.title === undefined && meta.alt === undefined ? await getNote(feed, id) : await changeMeta(feed, id, meta);
+  const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined;
+  if (date === undefined && !metaGiven) throw new InvalidBodyError("nothing to change: send title, alt, tags or date");
+  let note = metaGiven ? await changeMeta(feed, id, meta) : await getNote(feed, id);
   if (note && date) note = await changeDate(feed, id, date);
   if (!note) throw new NotFoundError("no such note");
   return note;

@@ -400,6 +400,15 @@ describe("edit_note and delete_note", () => {
     expect((await call("get_note", { feed: "o", id })).structuredContent).toMatchObject({ title: "Old", date: "2025-03-01T00:00:00.000Z" });
   });
 
+  test("edit_note tags replace the list; a bad tag changes nothing, not even the text (#244)", async () => {
+    const id = (await call("post_note", { feed: "o", markdown: "# Old", tags: ["draft"] })).structuredContent.id;
+    expect((await call("edit_note", { feed: "o", id, tags: ["Published", "ci"] })).structuredContent).toMatchObject({ id, title: "Old", tags: ["published", "ci"] });
+    const bad = await call("edit_note", { feed: "o", id, markdown: "# New", tags: ["has space"] });
+    expect(bad.isError).toBe(true);
+    expect((await call("get_note", { feed: "o", id })).structuredContent).toMatchObject({ content: "# Old", tags: ["published", "ci"] });
+    expect((await call("edit_note", { feed: "o", id, tags: [] })).structuredContent.tags).toEqual([]);
+  });
+
   test("work on an open feed", async () => {
     const id = (await call("post_note", { feed: "o", markdown: "# Old" })).structuredContent.id;
     const e = await call("edit_note", { feed: "o", id, markdown: "# New" });

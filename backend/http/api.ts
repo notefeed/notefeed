@@ -249,7 +249,7 @@ const OPS: AnyOp[] = [
     description:
       "The body is the new file, with the same rules as posting: a `Content-Type` that is one of the accepted types, a body that is what it declares. " +
       "A note keeps its type, so the type must be the note's own (`415` otherwise). Id, creation time and metadata stay: " +
-      "the title of a markdown note without one set follows the new text. Change the title or alt text with `PATCH`. " +
+      "the title of a markdown note without one set follows the new text. Change the title, alt text or tags with `PATCH`. " +
       "Needs the feed's password if it has one, and counts against the post rate limit. Read links can't edit. " +
       MULTIPART +
       "On a `PUT` the `text` part is required and the note must be a markdown note; the note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever the body holds.",
@@ -294,10 +294,11 @@ const OPS: AnyOp[] = [
     method: "PATCH",
     path: `${API_PREFIX}/feeds/{feed}/notes/{id}`,
     operationId: "patchNote",
-    summary: "Change a note's title, alt text or date",
+    summary: "Change a note's title, alt text, tags or date",
     description:
-      "Sets the note's title, alt text (only for images) and/or date. An empty title or alt removes it: a markdown note's title follows its text again. " +
-      "A new date moves the note in the feed, with its attachments; a date after now schedules it. Id and links stay. " +
+      "Sets the note's title, alt text (only for images), tags and/or date. An empty title or alt removes it: a markdown note's title follows its text again. " +
+      "`tags` replaces the whole list (an empty list removes them), with the same rules as on a post. " +
+      "A new date moves the note in the feed, with its attachments; a date after now schedules it. Id and links stay, and so does its RSS item's guid. " +
       "At least one is needed. Needs the feed's password if it has one, and counts against the post rate limit. Read links can't change notes.",
     tags: ["Feeds"],
     password: true,
@@ -306,7 +307,7 @@ const OPS: AnyOp[] = [
     body: { "application/json": MetaJson },
     responses: {
       200: { description: "The note as it is now", schema: NoteJson },
-      400: err("Invalid or reserved feed name; nothing to change; a bad title, alt text or date; alt for a note that has none; bad JSON"),
+      400: err("Invalid or reserved feed name; nothing to change; a bad title, alt text, tag or date; too many tags; alt for a note that has none; bad JSON"),
       401: UNAUTHORIZED,
       404: err("No such note"),
       415: err("Content-Type is not application/json"),
