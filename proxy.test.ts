@@ -99,6 +99,11 @@ test("locked: the redirect keeps the query in next, and / needs none", () => {
   expect(proxy(req("/")).headers.get("location")).toBe("http://localhost:3000/login");
 });
 
+test("locked: what was shared to the start page survives the sign-in", () => {
+  process.env.NOTEFEED_PASSWORD = "pw";
+  expect(proxy(req("/?share_text=hi&shared=1")).headers.get("location")).toBe("http://localhost:3000/login?next=%2F%3Fshare_text%3Dhi%26shared%3D1");
+});
+
 test("locked: a valid session cookie passes", () => {
   process.env.NOTEFEED_PASSWORD = "pw";
   expect(isNext(proxy(req("/backups", { headers: { cookie: `${SESSION_COOKIE}=${login("pw", "test")}` } })))).toBe(true);

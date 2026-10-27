@@ -84,3 +84,15 @@ test("of more pictures than a note takes, the first are attached", async ({ page
   await expect(waiting(page)).toHaveCount(MAX_ATTACHMENTS);
   await expect(page.getByText(`A note can have at most ${MAX_ATTACHMENTS} pictures.`)).toBeVisible();
 });
+
+test("a shared picture waits through the feed password", async ({ page }) => {
+  const name = feedName();
+  const created = await page.request.post(`/api/v1/feeds/${name}/notes`, { headers: { "Content-Type": "text/markdown", "X-Feed-Password": "secret-pw" }, data: "first" });
+  expect(created.ok()).toBe(true);
+  await share(page, { share_text: "behind a password" }, [PNG]);
+  await page.goto(`/${name}?share_text=behind%20a%20password&shared=1`);
+  await page.getByLabel("Feed password").fill("secret-pw");
+  await page.getByRole("button", { name: "Unlock" }).click();
+  await expect(page.getByLabel("Note in markdown")).toHaveValue(/behind a password/);
+  await expect(waiting(page)).toHaveCount(1);
+});

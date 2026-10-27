@@ -16,6 +16,7 @@ import { curlFor } from "@/app/_lib/curl";
 import { createErrorMessage, errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
 import { sortTags } from "@/shared/tags";
+import { shareQuery } from "@/shared/share";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
       <AppShell feed={feed}>
         <UnlockForm
           feed={feed}
+          share={shareQuery(sp)}
           error={form === "recover" ? undefined : feedErrorMessage(error, retry)}
           recover={licensingOn() ? { open: form === "recover", error: form === "recover" ? recoverErrorMessage(error, retry) : undefined } : undefined}
         />

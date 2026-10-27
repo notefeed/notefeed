@@ -64,6 +64,21 @@ test("a wrong password goes back with the error; no cookie", async () => {
   expect(res.headers.get("set-cookie")).toBeNull();
 });
 
+test("unlock returns to the feed with what was shared, and nothing else", async () => {
+  const res = await post("lockd", { action: "unlock", password: "pw", share: "?share_text=hi&shared=1&error=x" });
+  expect(res.headers.get("location")).toBe("/lockd?share_text=hi&shared=1");
+});
+
+test("a wrong password keeps what was shared, for the next try", async () => {
+  const res = await post("lockd", { action: "unlock", password: "nope", share: "?share_text=hi&shared=1" });
+  expect(res.headers.get("location")).toBe("/lockd?share_text=hi&shared=1&error=auth");
+});
+
+test("a shared text longer than the form's old 4 KiB still unlocks", async () => {
+  const res = await post("lockd", { action: "unlock", password: "pw", share: `?share_text=${"x".repeat(20_000)}` });
+  expect(res.headers.get("location")).toBe(`/lockd?share_text=${"x".repeat(20_000)}`);
+});
+
 test("over the limit: the wait, even for the right password", async () => {
   process.env.NOTEFEED_RATE_LIMIT = "2";
   for (let i = 0; i < 2; i++) await post("lockd", { action: "unlock", password: "nope" });

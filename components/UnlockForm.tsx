@@ -4,8 +4,8 @@ import { PASSWORD_PATTERN } from "@/shared/password";
 
 // The feed password screen: a plain form, POST /<feed>/access sets the unlock cookie and returns to the feed. `recover` is set
 // where licenses are sold (ADR 0037): a lost password is set anew or removed with the feed's license key; `open` when the
-// last attempt was that form's.
-export function UnlockForm({ feed, error, recover }: { feed: string; error?: string; recover?: { open: boolean; error?: string } }) {
+// last attempt was that form's. `share`: what was shared to notefeed (shared/share.ts), carried through the unlock to the compose box.
+export function UnlockForm({ feed, error, recover, share = "" }: { feed: string; error?: string; recover?: { open: boolean; error?: string }; share?: string }) {
   return (
     <div className={`${card} mx-auto mt-[8vh] max-w-sm p-6`}>
       <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-carbon-soft text-carbon">
@@ -13,6 +13,7 @@ export function UnlockForm({ feed, error, recover }: { feed: string; error?: str
       </span>
       <form method="post" action={`/${feed}/access`}>
         <input type="hidden" name="action" value="unlock" />
+        {share && <input type="hidden" name="share" value={share} />}
         <label htmlFor="feed-password" className="mb-1 block text-sm text-muted">
           Feed password
         </label>

@@ -54,7 +54,8 @@ export function proxy(req: NextRequest) {
   // not req.url, so it is right behind a reverse proxy.
   noteOutcome("auth");
   const login = new URL("/login", publicUrl(req.headers));
-  if (pathname !== "/") login.searchParams.set("next", pathname + search); // checked by safeNext after login
+  // checked by safeNext after login; / needs none, unless it carries what was shared to notefeed (the share target)
+  if (pathname !== "/" || search) login.searchParams.set("next", pathname + search);
   return NextResponse.redirect(login);
 }
 

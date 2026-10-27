@@ -7,6 +7,8 @@ import { changePassword, feedCookieName, protectedFeed, recoverPassword, removeP
 import { assertFeed } from "../feeds";
 import { clientIp } from "../limits";
 import { API_PREFIX, feedPath, publicUrl, settingsPath } from "../urls";
+import { MAX_BYTES } from "../note/markdown";
+import { shareQuery } from "../../shared/share";
 import { errorResponse } from "./errors";
 import { authorize, errorRedirect, parseForm, readCapped, sameOrigin, seeOther } from "./request";
 
@@ -31,11 +33,14 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
   let back = page; // where a refusal goes: the form it came from
   try {
     assertFeed(feed); // before anything touches the disk
-    const bytes = await readCapped(req, 4096);
+    // The unlock form carries what was shared to notefeed (`share`, a query): its text may be as long as a note, percent-encoded.
+    const bytes = await readCapped(req, 4096 + 3 * MAX_BYTES);
     const form = bytes ? await parseForm(bytes, h).catch(() => null) : null;
     const field = (name: string) => String(form?.get(name) ?? "");
     const action = field("action");
     if (!["unlock", "lock", "change", "remove", "recover", "protect", "create"].includes(action)) throw new InvalidRequestError("unknown action");
+    const share = shareQuery(new URLSearchParams(field("share")));
+    if (action === "unlock") back = page + share; // a wrong password keeps the share for the next try
     if (action === "change" || action === "remove") back = settingsPath(feed);
     if (action === "protect") back = `${settingsPath(feed)}?form=protect`; // the settings page opens its "protect this feed" part
     if (action === "create") back = `${page}?form=create`; // the new feed's "Protect this feed" card
@@ -47,8 +52,8 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
     // site's form must not spend a visitor's password attempts either.
     if (!sameOrigin(h)) throw new AuthError();
     if (action === "unlock") {
-      if (!(await protectedFeed(feed))) return seeOther(page);
-      return seeOther(page, set(await unlock(feed, field("password"), clientIp(h))));
+      if (!(await protectedFeed(feed))) return seeOther(back);
+      return seeOther(back, set(await unlock(feed, field("password"), clientIp(h))));
     }
     if (action === "lock") return seeOther(page, clear());
     // A feed without a note (#295, ADR 0047), from the new feed's card: a protected one leaves this browser unlocked for it.
