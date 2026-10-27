@@ -20,7 +20,14 @@ Then add the [MCP endpoint](mcp.md#claude-code) if you haven't, and ask, for exa
 
 ## Other assistants
 
-Each skill is one file, [`plugin/skills/<name>/SKILL.md`](https://github.com/notefeed/notefeed/tree/main/plugin/skills). Assistants that read skills take it as it is; for the others, paste it into the project or custom instructions together with the feed to post to.
+Each skill is one file, [`plugin/skills/<name>/SKILL.md`](https://github.com/notefeed/notefeed/tree/main/plugin/skills). Every release also posts them to notefeed.me's `skills` feed, where the newest version of each is always at the same address:
+
+```sh
+curl -O https://notefeed.me/r/skills/post-to-notefeed.md
+curl -O https://notefeed.me/r/skills/create-notefeed-feed.md
+```
+
+Assistants that read skills take the file as it is; for the others, paste it into the project or custom instructions together with the feed to post to. Earlier versions stay in the feed, https://notefeed.me/r/skills, one note per skill and release.
 
 ## Drafts
 
