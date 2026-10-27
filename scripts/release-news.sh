@@ -32,16 +32,19 @@ For a release, write one short post:
 - If nothing in the release is noticeable for users, set post to false and leave title and markdown empty.
 Match the tone of the earlier posts, if there are any.'
 
-user=$(printf 'Release %s\n\n# Release notes (the tag message)\n\n%s\n\n# Pull requests in this release\n\n%s\n\n# Earlier news posts\n\n%s\n' "$TAG" "$notes" "$prs" "${recent:-(none yet)}")
+# As files, not arguments: one argument may not exceed 128 KB, and the pull requests of a large release do (0.29.0).
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+printf '%s' "$system" > "$tmp/system"
+printf 'Release %s\n\n# Release notes (the tag message)\n\n%s\n\n# Pull requests in this release\n\n%s\n\n# Earlier news posts\n\n%s\n' "$TAG" "$notes" "$prs" "${recent:-(none yet)}" > "$tmp/user"
 
-body=$(jq -n --arg system "$system" --arg user "$user" '{
+body=$(jq -n --rawfile system "$tmp/system" --rawfile user "$tmp/user" '{
   model: "claude-opus-5-5", max_tokens: 16000, fallbacks: "default", system: $system,
   messages: [{role: "user", content: $user}],
   output_config: {format: {type: "json_schema", schema: {type: "object", additionalProperties: false, required: ["post", "title", "markdown"],
     properties: {post: {type: "boolean"}, title: {type: "string"}, markdown: {type: "string"}}}}}
 }')
 res=$(curl -sS --fail-with-body https://api.anthropic.com/v1/messages -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01" \
-  -H "anthropic-beta: server-side-fallback-2026-07-01" -H "content-type: application/json" --data-binary "$body")
+  -H "anthropic-beta: server-side-fallback-2026-07-01" -H "content-type: application/json" --data-binary @- <<< "$body")
 stop=$(jq -r .stop_reason <<< "$res")
 [ "$stop" = end_turn ] || { echo "::error::the Claude API stopped with $stop"; exit 1; }
 out=$(jq -r '[.content[] | select(.type == "text") | .text] | join("")' <<< "$res")
