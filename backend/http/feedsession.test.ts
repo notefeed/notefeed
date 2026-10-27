@@ -99,7 +99,7 @@ test("change from another site is refused and changes nothing", async () => {
 
 test("change with the right current password sets a cookie for the new one", async () => {
   const res = await post("lockd", { action: "change", current: "pw", next: "new" });
-  expect(res.headers.get("location")).toBe("/lockd/settings?saved=1");
+  expect(res.headers.get("location")).toBe("/lockd/settings?saved=password-changed#access");
   expect(cookies(res)).toEqual(setBoth("lockd"));
   expect((await post("lockd", { action: "unlock", password: "pw" })).headers.get("location")).toBe("/lockd?error=auth");
   expect((await post("lockd", { action: "unlock", password: "new" })).headers.get("location")).toBe("/lockd");

@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowUpRight, Bot, Braces, ChevronLeft, Link2, Package, Rss, Terminal } from "lucide-react";
 import { claudeMcpFor, curlFor } from "@/app/_lib/curl";
-import { feedDetailsErrorMessage, feedErrorMessage, protectErrorMessage } from "@/app/_lib/messages";
+import { feedDetailsErrorMessage, feedErrorMessage, passwordNotice, protectErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
 import { FeedDetails } from "@/components/FeedDetails";
 import { FeedSettings, ProtectFeed } from "@/components/FeedSettings";
@@ -35,7 +35,8 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
   const readUrl = readId ? base + readPath(readId) : undefined;
   const rssUrl = readId ? base + rssPath(readId) : undefined;
   const detailsError = form === "details";
-  const passwordError = !detailsError && access === "unlocked" && ["auth", "invalid_body", "too_many_attempts"].includes(String(error));
+  const recoverForm = form === "recover";
+  const passwordError = !detailsError && !recoverForm && access === "unlocked" && ["auth", "invalid_body", "too_many_attempts"].includes(String(error));
 
   return (
     <AppShell
@@ -49,7 +50,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         </Link>
         <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
       </div>
-      {saved && (
+      {saved === "1" && (
         <p role="status" className="mb-4 text-sm text-carbon">
           Saved.
         </p>
@@ -111,7 +112,14 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         }
       >
         {licensingOn() && <LicenseSection feed={feed} freeTier={await freeTier(feed)} licensePage={await licensePageOn()} />}
-        {access === "unlocked" && <FeedSettings feed={feed} error={passwordError ? feedErrorMessage(error, retry) : undefined} />}
+        {access === "unlocked" && (
+          <FeedSettings
+            feed={feed}
+            error={passwordError ? feedErrorMessage(error, retry) : undefined}
+            notice={passwordNotice(saved)}
+            recover={licensingOn() ? { open: recoverForm, error: recoverForm ? recoverErrorMessage(error, retry) : undefined } : undefined}
+          />
+        )}
         {access === "open" && <ProtectFeed feed={feed} error={form === "protect" ? protectErrorMessage(error, retry) : undefined} />}
       </FeedDetails>
     </AppShell>
