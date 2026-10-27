@@ -17,7 +17,7 @@
     "generate": "sh scripts/generate.sh"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "2.2.0",
+    "@modelcontextprotocol/server": "2.3.0",
     "aws4fetch": "^1.0.20",
     "better-sqlite3": "^13.0.3",
     "kysely": "^0.29.6",
