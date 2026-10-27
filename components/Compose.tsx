@@ -25,7 +25,7 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // `errorCode` is the code behind `error`. `licensePage`: /license exists (ADR 0035), so that banner links to it.
 // `images` false: the instance takes no pictures.
 // `imageBase`: the feed's read link, for the preview's stored pictures. `initialTitle` and `initialText`: what was shared to
-// notefeed from another app (app/share), so the box opens with it. `shared`: pictures were shared too and wait in the browser
+// notefeed from another app (the share target in app/manifest.ts), so the box opens with it. `shared`: pictures were shared too and wait in the browser
 // (app/_lib/sharedFiles.ts): the box takes them like photos from the camera button, and posting clears them there.
 // Below lg: the phone layout of components/AppShell.tsx.
 const NARROW = "(max-width: 63.98rem)";

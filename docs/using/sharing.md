@@ -13,7 +13,7 @@ Send a picture, a text or a link from another app on your phone to a feed: Photo
 What to know:
 
 - **The pictures stay on the phone until you post.** They wait in the browser, not on the server; nothing is uploaded before **Post**, and sharing something new replaces what was waiting.
-- **Shrunk and checked like any picture** you add in the compose box: PNG, JPEG, GIF and WebP, at most 10 per note (the first 10 are attached), shrunk to 1 MiB before upload. Other files don't offer notefeed in the share sheet. See [Pictures](pictures.md).
+- **Shrunk and checked like any picture** you add in the compose box: PNG, JPEG, GIF and WebP, at most 10 per note (the first 10 are attached), shrunk to 1 MiB before upload. Other files don't offer notefeed in the share sheet; shared along with pictures, they are left out. See [Pictures](pictures.md).
 - **A protected feed or a locked instance** asks for its password or the sign-in first; what you shared is still there afterwards.
 - **Open notefeed once after installing (or after clearing the browser's data for it).** Sharing pictures needs the small helper the app installs on its first visit (a service worker). Without it, the share fails with "not found"; open notefeed and share again.
 
@@ -28,14 +28,15 @@ iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut t
 5. **Repeat with Each** item of the Shortcut Input:
     - **Convert Image** to **JPEG**, with **Preserve Metadata** off: iPhone photos are HEIC, which notefeed does not take, and this drops where the photo was taken.
     - **Resize Image** to 2048 on the longest edge, so a photo stays under the 5 MiB limit.
+    - **Set Name** of the image to `photo-` followed by **Repeat Index** and `.jpg`: every picture of one post needs a name of its own, or the post is refused with `400`.
     - **Add to Variable** `Pictures`.
-6. **Get Contents of URL**: `https://<your instance>/<feed>` (the chosen feed), method **POST**, request body **Form** with a field `file` of type File set to `Pictures`, and, only when the caption is not empty (an **If** around it), a field `text` with the caption. Under **Headers** add `X-Feed-Password` with the password when it is not empty.
+6. **Get Contents of URL**: `https://<your instance>/<feed>` (the chosen feed), method **POST**, request body **Form** with a field `file` of type File set to `Pictures`, and, only when the caption is not empty (an **If** around it), a field `text` with the caption. Under **Headers** add `X-Feed-Password` with the password when it is not empty, and, on an instance with a password (`NOTEFEED_PASSWORD`), `Authorization` with `Bearer <instance password>`.
 7. **Show Result** or **Show Notification** with the answer.
 
 With a caption, the pictures arrive as one note with them attached; without one, each picture is a note of its own (see [Posting a note with its pictures](pictures.md#posting-a-note-with-its-pictures)).
 
 !!! note "Not tried on a device yet"
-    The action names follow Apple's Shortcuts app; the recipe has not been run on an iPhone yet. If a step is named differently or the form field takes only one file, open an issue.
+    The action names follow Apple's Shortcuts app; the recipe has not been run on an iPhone yet. Two things to watch the first time: whether the form's File field sends every picture of the `Pictures` variable (not only the first), and whether **Set Name** keeps the names apart. If a step is named differently or either doesn't hold, open an issue.
 
 !!! note "On notefeed.me"
     Pictures need a license: on the free tier every picture is refused with `402`. See [Free tier and licenses](../hosted/licenses.md).

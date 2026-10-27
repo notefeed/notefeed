@@ -72,7 +72,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
   const base = publicUrl(await headers());
   const readUrl = readId ? base + readPath(readId) : undefined; // none until the feed has a note
   const curlExample = curlFor(base, feed, access === "unlocked");
-  // What another app shared to notefeed (app/share): the text and the link go into the note.
+  // What another app shared to notefeed (the share target in app/manifest.ts): the text and the link go into the note.
   const shared = [one(share_text), one(share_url)].filter(Boolean).join("\n\n");
   const isNew = access === "open" && !exists;
   const licensePage = await licensePageOn(); // the links to /license (ADR 0035)

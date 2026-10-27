@@ -119,3 +119,13 @@ test("of many pictures, only one more than a note takes is kept", async ({ page 
   await share(page, {}, Array.from({ length: MAX_ATTACHMENTS + 5 }, (_, i) => ({ ...PNG, name: `p${i}.png` })));
   expect(await stored(page)).toBe(MAX_ATTACHMENTS + 1);
 });
+
+test("with the worker installed, posting a note works as before", async ({ page }) => {
+  await controlled(page);
+  const name = feedName();
+  await page.goto(`/${name}`);
+  expect(await page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  await page.getByLabel("Note in markdown").fill("# Not a share");
+  await page.getByRole("button", { name: "Post note" }).click();
+  await expect(page.getByRole("link", { name: "Not a share" })).toBeVisible();
+});
