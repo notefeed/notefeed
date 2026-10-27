@@ -39,7 +39,8 @@ const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : u
 
 export default async function FeedPage({ params, searchParams }: PageProps<"/[feed]">) {
   const { feed } = await params;
-  const { posted, deleted, error, retry, form, tag: tagParam, share_title, share_text, share_url } = await searchParams;
+  const sp = await searchParams;
+  const { posted, deleted, error, retry, form, tag: tagParam, share_title, share_text, share_url, shared: sharedPictures } = sp;
   const tag = typeof tagParam === "string" ? tagParam.toLowerCase() : undefined;
   if (!checkFeed(feed) && (await isRemovedFeed(feed))) {
     return (
@@ -105,7 +106,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
       <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={form === "create" ? undefined : errorMessage(error, retry)} errorCode={one(error)}
         isNew={isNew} settingsHref={exists ? settingsPath(feed) : undefined} licensePage={licensePage}
         sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
-        initialTitle={one(share_title)} initialText={shared}
+        initialTitle={one(share_title)} initialText={shared} shared={one(sharedPictures) === "1"}
       />
       {tag && notes.length === 0 ? (
         <p className="text-muted">No notes with this tag.</p>
