@@ -2,8 +2,10 @@
 # Writes the short post for notefeed.me's news (https://notefeed.me/r/news) about one release, with the Claude API, and posts it.
 # Usage: scripts/release-news.sh vX.Y.Z   (env: ANTHROPIC_API_KEY, NOTEFEED_RESERVED_PASSWORD; DRY_RUN=1 prints the post instead)
 # Run by the release job in ci.yml after the release's note is on /r/releases. What it reads: the annotated tag message and the
-# pull requests merged since the previous tag (title and description); the last news posts, for the tone. Only what users
-# notice goes in; a release with nothing of the kind gets no post. A release that already has a post (tag vX.Y.Z) gets no second one.
+# pull requests merged since the previous tag (title and description); whether the MCP tools or the MCP sign-in changed since
+# then; the last news posts, for the tone. Only what users notice goes in, breaking changes and what a reader has to do always;
+# a release with nothing of the kind gets no post. A release that already has a post (tag vX.Y.Z) gets no second one.
+# Also run by hand from the News workflow (news.yml), for a release whose post failed.
 set -euo pipefail
 TAG=${1:?usage: release-news.sh vX.Y.Z}
 API=https://notefeed.me/api/v1
@@ -16,9 +18,21 @@ note=$(curl -sf "$API/read/releases/notes?tag=$TAG" | jq -r '.notes[0].id // emp
 prev=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
 notes=$(git for-each-ref "refs/tags/$TAG" --format='%(contents)')
 prs=""
+# Each description cut at 6000 characters: a post of a few sentences needs the gist, not every test plan.
 for n in $(git log --merges --format=%s "${prev:+$prev..}$TAG" | sed -n 's/^Merge pull request #\([0-9]*\).*/\1/p'); do
-  prs+=$(gh pr view "$n" -R "$REPO" --json number,title,body -q '"## #\(.number): \(.title)\n\n\(.body)\n\n"')
+  prs+=$(gh pr view "$n" -R "$REPO" --json number,title,body \
+    -q '"## #\(.number): \(.title)\n\n\(.body | if length > 6000 then .[:6000] + " […]" else . end)\n\n"')
 done
+# What an AI assistant connected over MCP has to do is a fact of the code, not of the descriptions: whether the tools
+# (backend/mcp.ts) or the sign-in (OAuth) changed since the previous release, with the tools' diff for which ones.
+if [ -n "$prev" ]; then
+  git diff --quiet "$prev..$TAG" -- backend/mcp.ts && tools=no || tools=yes
+  git diff --quiet "$prev..$TAG" -- backend/oauth app/.well-known app/mcp && signin=no || signin=yes
+  mcp=$(printf 'MCP tools changed since %s: %s\nMCP sign-in (OAuth) code changed since %s: %s\n' "$prev" "$tools" "$prev" "$signin")
+  [ "$tools" = yes ] && mcp+=$(printf '\n\nThe change to the tools (backend/mcp.ts):\n\n```diff\n%s\n```\n' "$(git diff "$prev..$TAG" -- backend/mcp.ts | head -c 30000)")
+else
+  mcp="No previous release to compare with."
+fi
 recent=$(curl -sf "$API/read/news/notes?limit=3" | jq -r '.notes[] | "## \(.title)\n\n\(.content)\n"')
 
 system='You write the news of notefeed.me, a small hosted service (and open-source app) for posting markdown notes and pictures to feeds that people read in the browser or by RSS, from scripts, the web, or AI assistants. The news tells the people who use notefeed what changed for them.
@@ -27,6 +41,9 @@ For a release, write one short post:
 - Only what a user of notefeed or notefeed.me notices: features, changed behavior, fixes they would have run into, new limits or prices, client package changes they use. Leave out tests, refactors, CI, internal docs, ADR numbers, PR numbers, code names.
 - Plain words, no marketing, no exclamation marks, no emojis. Say what it does for the reader, not how it is built.
 - A sentence saying the version is out, then at most four short bullet points or two short paragraphs. Markdown, no heading (the title is separate).
+- Breaking changes always get a bullet of their own, on top of the four, starting with "Breaking:": what stops working and what to do instead (a renamed header, parameter or command, something now refused). Never leave one out to stay short.
+- So does anything a reader has to do: for example "If you run notefeed yourself, set X before upgrading" or "back up your data first".
+- MCP: when the facts below say the tools changed, and a change is one a user of an AI assistant notices (a new tool, a new or renamed parameter, a removed one), add a bullet that says what the assistant can do now and that assistants see the changed tools only after reconnecting: in Claude, start a new chat, or remove and add the notefeed connector if they still do not show; in Claude Code, restart it. When the sign-in changed in a way the pull requests say breaks existing connections, say they have to connect notefeed again. Changes to a tool'"'"'s description alone need no bullet.
 - The title: "notefeed X.Y.Z: " and what matters most in a few words, lowercase after the colon.
 - Do not add links to the release notes: they are appended after your text.
 - If nothing in the release is noticeable for users, set post to false and leave title and markdown empty.
@@ -35,7 +52,8 @@ Match the tone of the earlier posts, if there are any.'
 # As files, not arguments: one argument may not exceed 128 KB, and the pull requests of a large release do (0.29.0).
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 printf '%s' "$system" > "$tmp/system"
-printf 'Release %s\n\n# Release notes (the tag message)\n\n%s\n\n# Pull requests in this release\n\n%s\n\n# Earlier news posts\n\n%s\n' "$TAG" "$notes" "$prs" "${recent:-(none yet)}" > "$tmp/user"
+printf 'Release %s\n\n# Release notes (the tag message)\n\n%s\n\n# MCP facts\n\n%s\n\n# Pull requests in this release\n\n%s\n\n# Earlier news posts\n\n%s\n' \
+  "$TAG" "$notes" "$mcp" "$prs" "${recent:-(none yet)}" > "$tmp/user"
 
 body=$(jq -n --rawfile system "$tmp/system" --rawfile user "$tmp/user" '{
   model: "claude-opus-5-5", max_tokens: 16000, fallbacks: "default", system: $system,

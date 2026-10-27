@@ -1,0 +1,38 @@
+name: News
+
+# The post about a release on notefeed.me's news (https://notefeed.me/r/news), by hand: for a release whose post failed in the
+# release job of ci.yml, or after a fix to scripts/release-news.sh. Runs the script of the branch it is started on (main),
+# not the tag's, against the tag's notes and pull requests. A release that already has a post gets no second one.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release, e.g. v0.29.0
+        required: true
+      dry_run:
+        description: Print the post instead of posting it
+        type: boolean
+        default: false
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Post to the news
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTEFEED_RESERVED_PASSWORD: ${{ secrets.NOTEFEED_RESERVED_PASSWORD }}
+          TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+        run: |
+          git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || { echo "::error::no tag $TAG"; exit 1; }
+          scripts/release-news.sh "$TAG"

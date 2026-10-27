@@ -304,9 +304,8 @@ jobs:
             --data-binary @post-dated.md -o /dev/null -w "posted: %{http_code}\n"
       # A short post about the release on the reserved `news` feed (https://notefeed.me/r/news), written by Claude from the
       # tag message and the release's pull requests: only what users notice, no post when there is nothing of the kind.
-      # The release is out either way, so a failure here is a warning, not a failed release.
+      # The release is out either way, so a failure here is a warning, not a failed release: the News workflow (news.yml) posts it again.
       - name: Post to the news
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -314,4 +313,4 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ] || [ -z "$NOTEFEED_RESERVED_PASSWORD" ]; then echo "::notice::a secret is not set: no news post"; exit 0; fi
-          scripts/release-news.sh "$TAG"
+          scripts/release-news.sh "$TAG" || echo "::warning::no news post for $TAG: see the step's log, then run the News workflow for $TAG"
