@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next } from "next/font/google";
 import { publicUrl, shrinkImageBytes } from "@/backend";
+import { ServiceWorker } from "@/components/ServiceWorker";
 import "./globals.css";
 
 const sans = Atkinson_Hyperlegible_Next({ variable: "--font-atkinson", subsets: ["latin"] });
@@ -27,7 +28,10 @@ export const viewport: Viewport = { viewportFit: "cover", themeColor: [{ color: 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" data-shrink-image-bytes={shrinkImageBytes()} className={`${sans.variable} ${mono.variable} antialiased`}>
-      <body className="font-sans text-base leading-relaxed">{children}</body>
+      <body className="font-sans text-base leading-relaxed">
+        {children}
+        <ServiceWorker />
+      </body>
     </html>
   );
 }

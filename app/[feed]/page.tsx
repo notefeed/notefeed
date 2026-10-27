@@ -16,6 +16,7 @@ import { curlFor } from "@/app/_lib/curl";
 import { createErrorMessage, errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
 import { sortTags } from "@/shared/tags";
+import { shareQuery } from "@/shared/share";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,8 @@ const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : u
 
 export default async function FeedPage({ params, searchParams }: PageProps<"/[feed]">) {
   const { feed } = await params;
-  const { posted, deleted, error, retry, form, tag: tagParam, share_title, share_text, share_url } = await searchParams;
+  const sp = await searchParams;
+  const { posted, deleted, error, retry, form, tag: tagParam, share_title, share_text, share_url, shared: sharedPictures } = sp;
   const tag = typeof tagParam === "string" ? tagParam.toLowerCase() : undefined;
   if (!checkFeed(feed) && (await isRemovedFeed(feed))) {
     return (
@@ -56,6 +58,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
       <AppShell feed={feed}>
         <UnlockForm
           feed={feed}
+          share={shareQuery(sp)}
           error={form === "recover" ? undefined : feedErrorMessage(error, retry)}
           recover={licensingOn() ? { open: form === "recover", error: form === "recover" ? recoverErrorMessage(error, retry) : undefined } : undefined}
         />
@@ -69,7 +72,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
   const base = publicUrl(await headers());
   const readUrl = readId ? base + readPath(readId) : undefined; // none until the feed has a note
   const curlExample = curlFor(base, feed, access === "unlocked");
-  // What another app shared to notefeed (app/share): the text and the link go into the note.
+  // What another app shared to notefeed (the share target in app/manifest.ts): the text and the link go into the note.
   const shared = [one(share_text), one(share_url)].filter(Boolean).join("\n\n");
   const isNew = access === "open" && !exists;
   const licensePage = await licensePageOn(); // the links to /license (ADR 0035)
@@ -105,7 +108,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
       <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={form === "create" ? undefined : errorMessage(error, retry)} errorCode={one(error)}
         isNew={isNew} settingsHref={exists ? settingsPath(feed) : undefined} licensePage={licensePage}
         sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
-        initialTitle={one(share_title)} initialText={shared}
+        initialTitle={one(share_title)} initialText={shared} shared={one(sharedPictures) === "1"}
       />
       {tag && notes.length === 0 ? (
         <p className="text-muted">No notes with this tag.</p>

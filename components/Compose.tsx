@@ -9,7 +9,8 @@ import { encodeHeaderValue } from "@/shared/headers";
 import { MarkdownInput } from "@/components/MarkdownInput";
 import { usePendingImages } from "@/components/usePendingImages";
 import { multipart, useApiForm } from "@/app/_lib/useApiForm";
-import { errorMessage, SENDER_NOTICE, TOO_MANY_PICTURES, withPictures } from "@/app/_lib/messages";
+import { errorMessage, IMAGES_OFF, SENDER_NOTICE, TOO_MANY_PICTURES, withPictures } from "@/app/_lib/messages";
+import { clearSharedFiles, readSharedFiles } from "@/app/_lib/sharedFiles";
 import { COMPOSE_FORM } from "@/components/ProtectFeed";
 import { addPending, removeReference, type Pending } from "@/components/pendingFiles";
 import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
@@ -24,7 +25,8 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // `errorCode` is the code behind `error`. `licensePage`: /license exists (ADR 0035), so that banner links to it.
 // `images` false: the instance takes no pictures.
 // `imageBase`: the feed's read link, for the preview's stored pictures. `initialTitle` and `initialText`: what was shared to
-// notefeed from another app (app/share), so the box opens with it.
+// notefeed from another app (the share target in app/manifest.ts), so the box opens with it. `shared`: pictures were shared too and wait in the browser
+// (app/_lib/sharedFiles.ts): the box takes them like photos from the camera button, and posting clears them there.
 // Below lg: the phone layout of components/AppShell.tsx.
 const NARROW = "(max-width: 63.98rem)";
 const subscribeNarrow = (onChange: () => void) => {
@@ -45,6 +47,7 @@ export function Compose({
   imageBase,
   initialTitle = "",
   initialText = "",
+  shared = false,
   licensePage = false,
 }: {
   feed: string;
@@ -58,6 +61,7 @@ export function Compose({
   imageBase?: string;
   initialTitle?: string;
   initialText?: string;
+  shared?: boolean;
   licensePage?: boolean;
 }) {
   const images = usePendingImages();
@@ -96,7 +100,10 @@ export function Compose({
             : { body: new Blob([text], { type: "text/markdown" }), headers: { ...headers, "Content-Type": "text/markdown" } }),
         });
       },
-      ({ data }) => router.push(`${action}?posted=${data?.id}`),
+      async ({ data }) => {
+        if (shared) await clearSharedFiles();
+        router.push(`${action}?posted=${data?.id}`);
+      },
     );
   };
 
@@ -122,6 +129,19 @@ export function Compose({
     setText((t) => [t.trimEnd(), ...added.map((p) => `![](${p.token})`)].filter(Boolean).join("\n"));
     images.setPending([...images.pending, ...added]);
   };
+  // Taken once: React runs a mount effect twice in development, which would attach them twice.
+  const tookShared = useRef(false);
+  useEffect(() => {
+    if (!shared || tookShared.current) return;
+    tookShared.current = true;
+    void readSharedFiles().then((files) => {
+      if (!files.length) return;
+      setOpen(true);
+      if (imagesOn) addPhotos(files);
+      else setError(IMAGES_OFF);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
   const removePhoto = (p: Pending) => {
     URL.revokeObjectURL(p.preview);
     setText((t) => removeReference(t, p.token));

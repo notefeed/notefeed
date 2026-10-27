@@ -596,7 +596,8 @@ describe("post_note attachments", () => {
     expect((await call("post_note", { feed: "f", markdown: "x" })).structuredContent.attachments).toEqual([]);
   });
   test("validation refuses before anything is posted", async () => {
-    for (const attachments of [[att("a.png"), att("a.png")], [att("a/b.png")], [att("..")], [att("a.md", { type: "text/markdown" })], [att("a.svg", { type: "image/svg+xml" })]]) {
+    expect((await call("post_note", { feed: "f", markdown: "![](a.png)", attachments: [att("a.png"), att("a.png")] })).isError).toBe(true);
+    for (const attachments of [[att("a/b.png")], [att("..")], [att("a.md", { type: "text/markdown" })], [att("a.svg", { type: "image/svg+xml" })]]) {
       expect((await call("post_note", { feed: "f", markdown: "x", attachments })).isError).toBe(true);
     }
     expect(await hasFeed("f")).toBe(false);
