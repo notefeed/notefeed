@@ -26,6 +26,8 @@ claude mcp add notefeed --transport http https://notes.example.com/mcp --header 
 
 Add a custom connector with the URL `https://notes.example.com/mcp`. On a locked instance the connector opens notefeed's login page: check that it names the client, enter the instance password and press **Allow**; with [sign-in](../self-hosting/sign-in/index.md#mcp) on, there is also a **Sign in with** button per provider. See [OAuth for MCP clients](../self-hosting/access.md#oauth-for-mcp-clients). It needs the instance's public `https://` address in `PUBLIC_URL`. A client whose callback has its own scheme, such as `cursor://`, can't log in through OAuth: give it the password as a `Bearer` header, as for Claude Code.
 
+For writing a note with a review step before it is posted, see the [agent skills](skills.md).
+
 ## Feeds with a password
 
 Every tool takes an optional `password` for a [protected feed](../using/feed-passwords.md); `post_note` with one creates the feed protected. It is not remembered between calls and is part of the conversation, so tell the assistant only passwords you would give that service.
