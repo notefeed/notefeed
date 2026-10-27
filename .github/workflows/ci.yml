@@ -7,6 +7,7 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # The storage contract suite also runs against a real PostgreSQL (backend/storage/sql/postgres.test.ts).
     services:
       postgres:
@@ -52,6 +53,7 @@ jobs:
   # The committed openapi.json and the clients generated from it must match the route table.
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -68,15 +70,26 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    # Normally 3–4 minutes: fail a hung run instead of holding the required checks.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+      # On the runner, which has the compiler better-sqlite3 needs (it has no prebuilt binaries); the image has none.
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:e2e
+      # In Playwright's image, which has the browsers and their system libraries, at the version package-lock.json has:
+      # `playwright install --with-deps` fetched 119 MB from the Ubuntu mirror on every run, and on some runners that
+      # took half an hour (issue #289). The image is Ubuntu 24.04 like the runner, so the modules npm ci built work in it;
+      # the runner's Node 22 is mounted, the image's own is 24. --ipc=host: Chromium needs more than Docker's /dev/shm.
+      - name: Run npm run test:e2e in Playwright's image
+        run: |
+          version=$(node -p 'require("@playwright/test/package.json").version')
+          docker run --rm --ipc=host --user "$(id -u):$(id -g)" -e CI -e HOME=/tmp \
+            -v "$PWD:/w" -w /w -v "$(dirname "$(dirname "$(command -v node)")"):/opt/node:ro" \
+            "mcr.microsoft.com/playwright:v$version-noble" sh -c 'PATH=/opt/node/bin:$PATH npm run test:e2e'
       # Kept for a run that passed too: a test that failed once and passed on its retry leaves its trace only here.
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
@@ -88,6 +101,7 @@ jobs:
   # The image has no shell (docs/adr/0028), so its entrypoint and health check are Node code that only a running container exercises.
   image-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -117,6 +131,7 @@ jobs:
     needs: [check, image-smoke]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -195,6 +210,7 @@ jobs:
     needs: image
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
