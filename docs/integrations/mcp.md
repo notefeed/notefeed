@@ -7,7 +7,7 @@ notefeed has an [MCP](https://modelcontextprotocol.io) endpoint at `/mcp`, so AI
 | `post_note` | Posts a markdown note. Takes `feed` and `markdown`, optionally `title`, `tags`, `date` (any time from 1970 to 9999; a future time schedules the note), `read_id` (for the feed this post creates), `password`, `license_key` (notefeed.me) and `attachments`, a list of `{ name, type, data, alt }` with base64 pictures [posted with the note](../using/pictures.md#posting-a-note-with-its-pictures); write `![](name)` in `markdown` where one goes. |
 | `list_notes` | A feed's notes, newest first, without their text, each with its `date` (and `scheduled: true` when the date is in the future: readers do not see it yet). Takes `feed`, optionally `limit` (1–100), `before` and `tag`. |
 | `get_note` | One note with its content, its `date` and `scheduled`. Takes `feed` and `id`. |
-| `edit_note` | Replaces a note's markdown, sets its title or its `date` (also in the future, which schedules the note); its id stays. |
+| `edit_note` | Replaces a note's markdown, sets its title, its `tags` (the whole list) or its `date` (also in the future, which schedules the note); its id stays. |
 | `delete_note` | Deletes a note for good. Marked as destructive, so clients can ask you first. |
 | `get_feed`, `update_feed`, `delete_feed` | The feed's title, description, title image and read link; change them (and the read id); delete the feed with everything in it. |
 | `post_file` | Posts a file as a note, as base64: `feed`, `type` (markdown or a picture type) and `data`, optionally `title`, `alt` and `name`. |

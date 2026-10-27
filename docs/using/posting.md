@@ -49,7 +49,7 @@ curl -H "Content-Type: text/markdown" -H "X-Note-Tags: ci,deploy" --data-binary 
 - At most 10 per note, each 1 to 32 characters of lowercase letters, digits, `-`, `_`, `.` and `:`.
 - Tags are free labels set by whoever posts: no identity, no access. They show on the read link and in RSS like the note itself.
 - `?tag=ci` on the feed page, the read-only view, the note list of the API and the RSS feed (`/r/<read id>/feed.xml?tag=ci`) shows only notes with that tag.
-- Tags are set when a note is posted and cannot be changed afterwards.
+- A note's tags can be changed afterwards with a `PATCH` (see [Editing](#editing-and-deleting-notes)) or **Edit** on its page: the whole list is replaced, and the note keeps its id, address and date.
 
 ## A note's date
 
@@ -87,11 +87,12 @@ All three use the note's API URL, `/api/v1/feeds/<feed>/notes/<id>`, and need wh
 ```sh
 URL=https://notes.example.com/api/v1/feeds/homelab-7f3k2q9x4m8wz/notes/Vq3xH8mTn2KfLw0aZr9bYe
 curl -X PUT -H "Content-Type: text/markdown" --data-binary @note.md "$URL"          # replace the content
-curl -X PATCH -H "Content-Type: application/json" -d '{"title": "Backup finished"}' "$URL"   # title, alt text of a picture or date
+curl -X PATCH -H "Content-Type: application/json" -d '{"title": "Backup finished"}' "$URL"   # title, alt text of a picture, tags or date
+curl -X PATCH -H "Content-Type: application/json" -d '{"tags": ["backup", "done"]}' "$URL"   # the whole new list; [] removes them
 curl -X DELETE "$URL"                                                                  # gone for good
 ```
 
-- **The id stays.** A `PUT` keeps the note's id, URLs and date, so its RSS item keeps its `guid`; a reader that already fetched it may keep showing the old text. There is no history.
+- **The id stays.** A `PUT` or `PATCH` keeps the note's id and URLs (and its date, unless the `PATCH` changes it), so its RSS item keeps its `guid`; a reader that already fetched it may keep showing the old text. There is no history.
 - **A note keeps its type:** a markdown note takes markdown, a PNG another PNG. A `PUT` with `multipart/form-data` adds [pictures](pictures.md#posting-a-note-with-its-pictures).
 - **No undo and no trash.** Anyone who can post to a feed can edit and delete its notes; the read link cannot. Deleting the last note leaves the feed, empty.
 
