@@ -4,7 +4,7 @@ import * as z from "zod";
 import { bearerOf, checkBearer, locked } from "./auth";
 import { config } from "./config";
 import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoundError, TooManyAttemptsError, UnsupportedTypeError } from "./errors";
-import { changePassword, checkFeedAccess } from "./feedlock";
+import { changePassword, checkFeedAccess, recoverPassword } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson } from "./http/api";
 import { sender } from "./http/request";
@@ -238,6 +238,25 @@ function server(h: Headers): McpServer {
           return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id };
         }, access);
       }
+      return ok(await feedJson(feed, h));
+    }),
+  );
+
+  s.registerTool(
+    "recover_feed_password",
+    {
+      description: `For a lost feed password, only on an instance that sells licenses: the key of the license on this feed proves ownership instead of the current password. new_password becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. From then on every call for the feed needs the new password; the read link stays open. A key that is not this feed's license is refused and counts as a failed attempt, like a wrong password. To change a password you know, use update_feed's new_password. ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        license_key: z.string().describe("The key of the license on this feed, from the receipt or the provider's portal."),
+        new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end. Left out or empty removes the password."),
+      }),
+      outputSchema: FeedOut,
+      annotations: { destructiveHint: true },
+    },
+    guard(async ({ feed, license_key, new_password }) => {
+      assertFeed(feed); // a reserved name must not reach the lookup
+      await recoverPassword(feed, license_key.trim(), new_password ?? "", clientIp(h));
       return ok(await feedJson(feed, h));
     }),
   );

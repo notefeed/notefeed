@@ -248,6 +248,17 @@ export type PasswordJson = {
     password: string;
 };
 
+export type RecoveryJson = {
+    /**
+     * The license key on this feed, as the checkout or the receipt gave it
+     */
+    key: string;
+    /**
+     * The new password: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out removes the password
+     */
+    password?: string;
+};
+
 export type LicenseKey = {
     /**
      * The license key, as the checkout or the receipt gave it
@@ -1037,6 +1048,56 @@ export type ChangeFeedPasswordResponses = {
 };
 
 export type ChangeFeedPasswordResponse = ChangeFeedPasswordResponses[keyof ChangeFeedPasswordResponses];
+
+export type RecoverFeedPasswordData = {
+    body: RecoveryJson;
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/password/recover';
+};
+
+export type RecoverFeedPasswordErrors = {
+    /**
+     * Invalid or reserved feed name, bad JSON, or a new password that is not 1 to 256 printable ASCII characters, with no space at the start or end
+     */
+    400: Error;
+    /**
+     * The key is not this feed's license, or the feed has no password
+     */
+    401: Error;
+    /**
+     * The key's license has lapsed, and a new password needs an active one (`license_required`)
+     */
+    402: Error;
+    /**
+     * Licenses are not sold on this instance, or the feed was deleted meanwhile
+     */
+    404: Error;
+    /**
+     * Too many wrong passwords or keys from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type RecoverFeedPasswordError = RecoverFeedPasswordErrors[keyof RecoverFeedPasswordErrors];
+
+export type RecoverFeedPasswordResponses = {
+    /**
+     * Set or removed; the old password and unlock cookies stop working
+     */
+    204: void;
+};
+
+export type RecoverFeedPasswordResponse = RecoverFeedPasswordResponses[keyof RecoverFeedPasswordResponses];
 
 export type DeleteFeedLicenseData = {
     body?: never;
