@@ -47,7 +47,7 @@ const markdown: Body = {
     return (
       text.trim() && (
         <div className={`note-card text-[15px] ${ownTitle(note) ? "mt-1" : ""}`}>
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} plugins={SERVER_PLUGINS} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} diagrams plugins={SERVER_PLUGINS} />
         </div>
       )
     );
