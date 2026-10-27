@@ -128,7 +128,7 @@ describe("settings", () => {
     for (const [m, p] of [["GET", "/feeds/locked"], ["DELETE", "/feeds/locked"]] as const) expect((await call(m, p)).status).toBe(401);
     expect((await put("locked", { title: "t", description: "" })).status).toBe(401);
     expect((await put("locked", { title: "t", description: "" }, { "x-feed-password": "nope" })).status).toBe(401);
-    expect((await call("GET", "/feeds/locked", { headers: fp })).json()).resolves.toMatchObject({ protected: true, title: "" });
+    await expect((await call("GET", "/feeds/locked", { headers: fp })).json()).resolves.toMatchObject({ protected: true, title: "" });
     expect((await put("locked", { title: "t", description: "" }, fp)).status).toBe(200);
     // the public read side shows the title but never asks for a password
     const rid = (await readIdOf("locked"))!;
