@@ -45,9 +45,16 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       )}
       {shared.length > 0 && <HomeFeeds query={shareQ} label="Post what you shared to" />}
       <h1 className="text-3xl font-bold tracking-tight">Notes in, RSS out.</h1>
-      <p className="mb-6 mt-2 text-muted">
+      <p className="mt-2 text-muted">
         A feed is a list of markdown notes with a name. Post to it from this page, your phone, one curl command or an AI
         assistant over MCP, and follow it in any RSS reader through its read link, which shows the notes but not the name.
+      </p>
+      <p className="mb-6 mt-2 text-muted">
+        No accounts, no personal data, readers stay invisible:{" "}
+        <a href="https://docs.notefeed.me/values/" className="text-ink underline hover:text-carbon">
+          what notefeed stands for
+        </a>
+        .
       </p>
       <section aria-labelledby="open-feed" className={`${card} mb-8 p-5`}>
         <h2 id="open-feed" className="mb-1 text-[17px] font-bold">
@@ -76,12 +83,6 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </div>
         ))}
       </div>
-      <p className="mt-6 text-center text-[13px] text-muted">
-        No accounts, no personal data, readers stay invisible.{" "}
-        <a href="https://docs.notefeed.me/values/" className="text-ink underline hover:text-carbon">
-          What notefeed stands for
-        </a>
-      </p>
     </>
   );
 }
