@@ -96,7 +96,7 @@ curl -X PATCH -H "Content-Type: application/json" -d '{"draft": false}' "$NOTEFE
 
 - Publishing changes nothing else: the note keeps its id, its links and its date. A date in the past places it there (in RSS too, below newer notes); a date in the future makes it a scheduled note. Set the date in the same `PATCH` if it should be now.
 - `{"draft": true}` makes a published note a draft again: readers stop seeing it.
-- Pictures posted with a draft are drafts too, and follow it when it is published or made a draft again.
+- Pictures posted with a draft are drafts too, and follow it when it is published or made a draft again. Such a picture's own state can't be changed (`400`): publish or hide its note.
 - A draft picture can't be the feed's title image, and a note whose picture is the title image can't become a draft (`409`, `title_image`).
 - A draft counts toward a feed's free note cap like any note.
 

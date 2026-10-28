@@ -32,7 +32,7 @@ Chosen: A. The flag is stored in plaintext beside the date: a `draft` column on 
 B would decrypt every note to list a feed. C makes publishing a move on three backends, pictures included, while sealed content is bound to a note's name. A dateless draft cannot also carry the date it is written for, and the owner decided against reusing the date.
 
 * **Publishing changes only the state.** The note keeps its date: a past one places it there, a future one makes it a scheduled note. Making a published note a draft again hides it from readers again.
-* **Pictures follow their text**, on posting, on publishing and unpublishing, and when an edit adds pictures to a draft.
+* **Pictures follow their text**, on posting, on publishing and unpublishing, and when an edit adds pictures to a draft. A picture posted with a note can't change its state on its own (`400`): published alone, it would show part of a draft.
 * **The title image.** A draft picture cannot be set as the feed's title image (`400`), and a note whose picture is the title image cannot become a draft (`409`, `title_image`).
 * **Limits.** A draft counts toward a feed's free-tier limits like any note: it is stored.
 * **Setting it.** `X-Note-Draft: true` on a post (raw or multipart), `draft` in the `PATCH` body, `draft: true` on an owner's note and on a post's answer; MCP `post_note`, `post_file` and `edit_note` take `draft`; the clients take `draft`, their CLIs `post --draft` and `update --draft` / `--publish`; the compose box and the edit form have a checkbox, and the note's card says **Draft**.

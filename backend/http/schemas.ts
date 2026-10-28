@@ -90,7 +90,7 @@ export const MetaJson = z
     alt: NoteAlt.optional(),
     tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list (\`["ci","done"]\`): ${TAG_RULE}. Empty removes them all; omitted leaves them as they are.`),
     date: NoteDate.optional(),
-    draft: z.boolean().optional().describe("true makes the note a draft, which readers do not see; false publishes it. Its attachments follow, and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)"),
+    draft: z.boolean().optional().describe("true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)"),
   })
   .meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });

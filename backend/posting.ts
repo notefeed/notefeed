@@ -247,6 +247,11 @@ export async function editMeta(feed: string, id: string, ip: string, read: () =>
   const date = checkDate(given);
   const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined;
   if (date === undefined && draft === undefined && !metaGiven) throw new InvalidBodyError("nothing to change: send title, alt, tags, date or draft");
+  if (draft !== undefined) {
+    // A picture posted with a note is a draft when its note is: published alone, it would show readers part of a draft (V3).
+    const of = (await getNote(feed, id))?.of;
+    if (of !== undefined && (await getNote(feed, of))) throw new InvalidBodyError("this picture follows its note: make the note a draft or publish it");
+  }
   if (draft === true && (await isTitleImageOf(feed, id))) throw new TitleImageDraftError(); // before any change: all or nothing
   let note = metaGiven ? await changeMeta(feed, id, meta) : await getNote(feed, id);
   if (note && date) note = await changeDate(feed, id, date);

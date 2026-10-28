@@ -163,7 +163,7 @@ function server(h: Headers): McpServer {
         title: z.string().optional(),
         tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list, e.g. ["ci","done"]: ${TAG_RULE}. Empty removes them; left out keeps them.`),
         date: z.string().optional().describe("The note's new date: an ISO 8601 date and time with its offset or a date alone (midnight UTC), any time from 1970 to 9999. A future time schedules the note."),
-        draft: z.boolean().optional().describe("false publishes the note: readers see it from then on. true makes it a draft again, hidden from readers (refused while a picture of it is the feed's title image). Its pictures follow, and its date stays: a past date places it there, a future one schedules it."),
+        draft: z.boolean().optional().describe("false publishes the note: readers see it from then on. true makes it a draft again, hidden from readers (refused while a picture of it is the feed's title image). Its pictures follow (a picture posted with a note can't be set on its own), and its date stays: a past date places it there, a future one schedules it."),
         password,
       }),
       outputSchema: NoteFull,

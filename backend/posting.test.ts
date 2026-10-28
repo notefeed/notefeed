@@ -456,6 +456,14 @@ describe("drafts", () => {
     await expect(meta(r.note.id, {})).rejects.toThrow(/draft/);
   });
 
+  test("a picture posted with a note follows it: its own draft state can't be changed (#265)", async () => {
+    const r = await post({ text: "hi ![](a.png)", pictures: [pic("a.png")], draft: true });
+    await expect(meta(r.pictures[0].id, { draft: false })).rejects.toThrow(/follows its note/);
+    expect((await getNote("f", r.pictures[0].id))?.draft).toBe(true);
+    const alone = await post({ pictures: [pic("b.png")], draft: true }); // a picture without a text has no note to follow
+    expect((await meta(alone.note.id, { draft: false })).draft).toBe(false);
+  });
+
   test("an edit's new picture on a draft is a draft", async () => {
     const r = await post({ text: "old", pictures: [], draft: true });
     const e = await edit(r.note.id, { text: "new ![](b.png)", pictures: [pic("b.png")] });
@@ -468,7 +476,7 @@ describe("drafts", () => {
     const p = await post({ text: "p ![](b.png)", pictures: [pic("b.png")] });
     await updateFeed("f", "ip", async () => ({ title: "", description: "", image: p.pictures[0].file }), {});
     await expect(meta(p.note.id, { draft: true })).rejects.toBeInstanceOf(TitleImageDraftError);
-    await expect(meta(p.pictures[0].id, { draft: true })).rejects.toBeInstanceOf(TitleImageDraftError);
+    await expect(meta(p.pictures[0].id, { draft: true })).rejects.toThrow(/follows its note/);
     expect((await getNote("f", p.note.id))?.draft).toBe(false);
   });
 });

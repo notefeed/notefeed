@@ -256,7 +256,7 @@ export type NoteMeta = {
      */
     date?: string;
     /**
-     * true makes the note a draft, which readers do not see; false publishes it. Its attachments follow, and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)
+     * true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)
      */
     draft?: boolean;
 };
