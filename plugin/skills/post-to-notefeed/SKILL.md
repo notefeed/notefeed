@@ -30,7 +30,7 @@ same whatever the note is: **draft, show, revise, post on approval.**
    {
      "feeds": {
        "blog": { "url": "https://notefeed.me", "feed": "blog-…", "read_id": "you", "drafts_feed": "drafts-…" },
-       "homelab": { "feed": "homelab-…", "read_id": "homelab-you" }
+       "homelab": { "feed": "homelab-…", "read_id": "homelab-you", "drafts": "feed" }
      }
    }
    ```
@@ -41,7 +41,11 @@ same whatever the note is: **draft, show, revise, post on approval.**
    | `feed` | the feed name the note is posted to |
    | `read_id` | the feed's read id; readers see it at `<url>/r/<read_id>` |
    | `password` | optional: the feed password of a protected feed; pass it as `password` on every call on that feed |
-   | `drafts_feed` | optional: a second feed for drafts, so the user (or someone they send its read link to) sees a draft as readers will. Without it the draft lives in the conversation |
+   | `drafts` | optional: `"feed"` keeps drafts on the feed itself as notefeed drafts, which readers don't see until they are published; the note keeps its id when it goes live. Only whoever has the feed name sees them |
+   | `drafts_feed` | optional: a second feed for drafts, so the user (or someone they send its read link to) sees a draft as readers will |
+
+   Without either, the draft lives in the conversation. The user chooses when the feed is added
+   (*Add a feed*); with both, `drafts_feed` wins.
 
    Use the feed the request or the calling skill names; with only one, use it; otherwise
    ask. None fits, or no `feeds.json` yet: see *Add a feed*. This skill writes the file
@@ -69,16 +73,19 @@ same whatever the note is: **draft, show, revise, post on approval.**
    next. A `title` (one line, at most 100 characters) and markdown without a top-level heading,
    because the title is shown above it.
 4. **Make it a draft.** With `drafts_feed`: `post_note` on it with the `title`, `markdown` and
-   images as `attachments` (referenced as `![](name)`), no tags. Without: keep it in the
-   conversation.
+   images as `attachments` (referenced as `![](name)`), no tags. With `drafts: "feed"`: the same
+   `post_note` on `feed` with `draft: true`; readers don't see it or its pictures. Without either:
+   keep it in the conversation.
 5. **Show it**: the title and the whole text in the reply, so the user can review it in place,
-   plus the draft's read link (`<url>/r/<drafts read id>/<id>`, from the answer's `read_url`)
-   when there is one. Say what they can do: ask for changes, or say "post it".
+   plus, with `drafts_feed`, the draft's read link (`<url>/r/<drafts read id>/<id>`, from the
+   answer's `read_url`). A draft on the feed has no link readers can open: say it is on the feed
+   page as a draft. Say what they can do: ask for changes, or say "post it".
 
 ## Revise
 
 Change what the user asked for and nothing else. With a draft note: `edit_note` on
-`drafts_feed` with the id and the new `markdown` (and `title`); the id and read link stay. Show
+`drafts_feed` (or on `feed`, for a draft there) with the id and the new `markdown` (and
+`title`); the id stays. Show
 the changed parts, or the whole note when asked. Every round ends with the question whether to
 post.
 
@@ -91,9 +98,11 @@ not approval of the next, and changes after the approval need a new one.
 2. **Choose the tags now: they can't be changed after posting.** Up to 10, lowercase letters,
    digits, `-`, `_`, `.` and `:`: the tags other instructions require, plus 2 to 4 topic tags,
    reusing the feed's existing ones (`list_notes` on `feed` shows them).
-3. `post_note` on `feed` with the `title`, `markdown`, `tags` and attachments. On the feed's
-   very first note, add `read_id` (the feed is created by its first note).
-4. Delete the draft note: `delete_note` on `drafts_feed`.
+3. With a draft on the feed: `edit_note` on `feed` with its id, `tags`, `draft: false` and
+   `date` set to now (publishing keeps the draft's date otherwise, which would place it in the
+   past). Otherwise `post_note` on `feed` with the `title`, `markdown`, `tags` and attachments; on
+   the feed's very first note, add `read_id` (the feed is created by its first note).
+4. With `drafts_feed`, delete the draft note there: `delete_note`.
 5. Give the user the read link `<url>/r/<read_id>/<id>`, then hand back to the calling skill
    or the user's instructions for what comes after.
 
@@ -105,7 +114,8 @@ post again, which gives the note a new id and date and breaks links to the old o
 
 ## List
 
-`list_notes` on `feed` for what's posted, on `drafts_feed` for open drafts, newest first.
+`list_notes` on `feed` for what's posted (drafts on the feed carry `draft: true`), on
+`drafts_feed` for open drafts there, newest first.
 
 ## Add a feed
 
@@ -113,8 +123,10 @@ post again, which gives the note a new id and date and breaks links to the old o
 here.
 
 **A feed the user already has:** ask for a short name, the feed name and the instance; get its
-read id with `get_feed`; ask whether they want a drafts feed (a random name,
-`drafts-$(openssl rand -hex 8)`, created by its first draft). Write the entry into
+read id with `get_feed`; ask where drafts should live: in the conversation, on the feed itself
+(`drafts: "feed"`: hidden from readers, the note keeps its id, but nobody without the feed name
+can review it), or in a drafts feed (`drafts_feed`, a random name `drafts-$(openssl rand -hex 8)`,
+created by its first draft: its read link can be sent to a reviewer). Write the entry into
 `feeds.json` (merge, mode 600) and confirm with the read link, never by repeating the feed
 name. On claude.ai, the entry goes into the project instructions instead.
 
