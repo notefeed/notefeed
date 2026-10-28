@@ -2,7 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { AuthError, EmptyNoteError, FeedExistsError, ReservedFeedError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
+import { AuthError, EmptyNoteError, FeedExistsError, TitleImageDraftError, ReservedFeedError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
 import { createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, resetFeedsForTests } from "./feeds";
 import { getSettings } from "./feedsettings";
@@ -12,7 +12,7 @@ import * as notes from "./notes";
 import { countNotes, createImageNote, createNote, getNote, isScheduled, listNotes, MarkdownNote } from "./notes";
 import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
-import { checkDate, createFeed, deleteFeed, setFeedImage, updateFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
+import { checkDate, createFeed, deleteFeed, setFeedImage, updateFeed, deleteNote, editContent, editMeta, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
 import { png } from "./testimages";
 
 // The text's write is the call after the pictures: a test makes it fail to see the pictures removed again.
@@ -432,5 +432,51 @@ describe("setFeedImage", () => {
     await expect(setFeedImage("none", "ip", img(1), {})).rejects.toBeInstanceOf(NotFoundError);
     await createNote("f", "hi");
     await expect(setFeedImage("f", "ip", async () => ({ body: new TextEncoder().encode("# no"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(UnsupportedTypeError);
+  });
+});
+
+// Drafts (#265): a post and an edit set the state; pictures follow their text; a draft picture is never the title image.
+describe("drafts", () => {
+  const meta = (id: string, m: { title?: string; draft?: boolean; date?: string }) => editMeta("f", id, "ip", async () => m, {});
+
+  test("a post as a draft makes the text and its pictures drafts", async () => {
+    const r = await post({ text: "hi ![](a.png)", pictures: [pic("a.png")], draft: true });
+    expect([r.note.draft, r.pictures[0].draft]).toEqual([true, true]);
+    const one = await postNote("f", "ip", async () => ({ body: new TextEncoder().encode("solo"), mediaType: "text/markdown", draft: true }), {});
+    expect(one.note.draft).toBe(true);
+  });
+
+  test("draft alone is an edit: it publishes and makes a draft again, keeping the date", async () => {
+    const r = await post({ text: "hi ![](a.png)", pictures: [pic("a.png")], date: "2025-03-01T08:00:00Z", draft: true });
+    const published = await meta(r.note.id, { draft: false });
+    expect([published.draft, published.date.toISOString()]).toEqual([false, "2025-03-01T08:00:00.000Z"]);
+    expect((await getNote("f", r.pictures[0].id))?.draft).toBe(false);
+    expect((await meta(r.note.id, { draft: true })).draft).toBe(true);
+    expect((await getNote("f", r.pictures[0].id))?.draft).toBe(true);
+    await expect(meta(r.note.id, {})).rejects.toThrow(/draft/);
+  });
+
+  test("a picture posted with a note follows it: its own draft state can't be changed (#265)", async () => {
+    const r = await post({ text: "hi ![](a.png)", pictures: [pic("a.png")], draft: true });
+    await expect(meta(r.pictures[0].id, { draft: false })).rejects.toThrow(/follows its note/);
+    expect((await getNote("f", r.pictures[0].id))?.draft).toBe(true);
+    const alone = await post({ pictures: [pic("b.png")], draft: true }); // a picture without a text has no note to follow
+    expect((await meta(alone.note.id, { draft: false })).draft).toBe(false);
+  });
+
+  test("an edit's new picture on a draft is a draft", async () => {
+    const r = await post({ text: "old", pictures: [], draft: true });
+    const e = await edit(r.note.id, { text: "new ![](b.png)", pictures: [pic("b.png")] });
+    expect(e.pictures[0].draft).toBe(true);
+  });
+
+  test("a draft picture cannot become the title image, and the title image's text cannot become a draft", async () => {
+    const d = await post({ text: "d ![](a.png)", pictures: [pic("a.png")], draft: true });
+    await expect(updateFeed("f", "ip", async () => ({ title: "", description: "", image: d.pictures[0].file }), {})).rejects.toBeInstanceOf(InvalidBodyError);
+    const p = await post({ text: "p ![](b.png)", pictures: [pic("b.png")] });
+    await updateFeed("f", "ip", async () => ({ title: "", description: "", image: p.pictures[0].file }), {});
+    await expect(meta(p.note.id, { draft: true })).rejects.toBeInstanceOf(TitleImageDraftError);
+    await expect(meta(p.pictures[0].id, { draft: true })).rejects.toThrow(/follows its note/);
+    expect((await getNote("f", p.note.id))?.draft).toBe(false);
   });
 });

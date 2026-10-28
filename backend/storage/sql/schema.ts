@@ -33,6 +33,8 @@ export interface Schema {
     date: Time;
     // 1: the bytes and the metadata are sealed with the feed's data key.
     sealed: ColumnType<number, number | undefined, number>;
+    // 1: a draft (#265), left out of every listing that does not ask for drafts. Plain, like `date`.
+    draft: ColumnType<number, number | undefined, number>;
   };
   tombstones: {
     name: string;

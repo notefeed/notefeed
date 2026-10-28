@@ -103,3 +103,14 @@ test("a scheduled note's card says Scheduled for", () => {
   expect(page).toContain(`Scheduled for ${when}`);
   expect(renderToStaticMarkup(<NoteArticle note={mdNote({ id: "p1", markdown: "# Earlier" })} back="/feed" />)).not.toContain("Scheduled");
 });
+
+test("a draft's card says Draft, beside Scheduled when it is both (#265)", () => {
+  const draft = (date = at0) => new MarkdownNote({ id: "d1", ext: "md", meta: {}, date, size: 7, draft: true }, "# Unready");
+  const html = list([draft(), mdNote({ id: "p1", markdown: "# Published" })]);
+  expect(html.match(/>Draft</g)).toHaveLength(1);
+  expect(html.indexOf(">Draft<")).toBeLessThan(html.indexOf("Published"));
+  const both = renderToStaticMarkup(<NoteArticle note={draft(new Date(Date.now() + 86_400_000))} back="/feed" />);
+  expect(both).toContain(">Draft<");
+  expect(both).toContain("Scheduled for");
+  expect(renderToStaticMarkup(<NoteArticle note={mdNote({ id: "p1", markdown: "# P" })} back="/feed" />)).not.toContain(">Draft<");
+});

@@ -19,6 +19,7 @@ export const ERROR_CODES = [
   "not_found",
   "feed_exists",
   "taken",
+  "title_image",
   "removed",
   "blocked",
   "unreadable",

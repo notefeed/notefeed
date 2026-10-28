@@ -26,18 +26,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--title", help="the note's title (default: taken from the text)")
     p.add_argument("--tag", action="append", help="label the note with this tag (repeat for several)")
     p.add_argument("--date", metavar="WHEN", help="the note's date, if not now: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note")
+    p.add_argument("--draft", action="store_true", help="post it as a draft: readers do not see it until it is published (update --publish)")
     p.add_argument("--attach", action="append", metavar="PATH", help="a picture to post with the note and refer to as ![](its file name); repeat for several")
     e = sub.add_parser("edit", help="replace a note's content; prints its URL")
     e.add_argument("id", help="the note's id")
     e.add_argument("text", nargs="?", help='the new markdown, or "-" to read stdin')
     e.add_argument("--file", help="replace it with this file (of the note's own type)")
     e.add_argument("--type", help="the file's media type, when the extension does not say")
-    u = sub.add_parser("update", help="set a note's title, alt text, tags and/or date; prints its URL")
+    u = sub.add_parser("update", help="set a note's title, alt text, tags, date and/or draft state; prints its URL")
     u.add_argument("id", help="the note's id")
     u.add_argument("--title", help='the note\'s title ("" removes it)')
     u.add_argument("--alt", help='a picture\'s alternative text ("" removes it)')
     u.add_argument("--tags", metavar="LIST", help='the note\'s tags, the whole new list, comma-separated ("" removes them)')
     u.add_argument("--date", metavar="WHEN", help="the note's new date: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note")
+    u.add_argument("--draft", action="store_true", help="make the note a draft: readers no longer see it")
+    u.add_argument("--publish", action="store_true", help="publish a draft: readers see it from now on, at its date")
     d = sub.add_parser("delete", help="delete a note; prints nothing")
     d.add_argument("id", help="the note's id")
     n = sub.add_parser("notes", help="print the newest notes: time, title, URL")
@@ -57,16 +60,20 @@ def main(argv: list[str] | None = None) -> int:
             no_text = bool(attachments) and args.text is None and not args.file
             content, media, name = (None, None, None) if no_text else _read(args)
             # The server refuses a file name next to attachments: the text has none then.
-            note = _client(args).post(content, type=media, title=args.title, tags=args.tag, date=args.date, name=None if attachments else name, attachments=attachments)
+            note = _client(args).post(content, type=media, title=args.title, tags=args.tag, date=args.date, draft=args.draft, name=None if attachments else name, attachments=attachments)
             print("\n".join([*([] if no_text else [note.url]), *(a.url for a in note.attachments)]))
         elif args.command == "edit":
             content, media, _ = _read(args)
             print(_client(args).edit(args.id, content, type=media).url)
         elif args.command == "update":
-            if args.title is None and args.alt is None and args.tags is None and args.date is None:
-                raise _UsageError("give --title, --alt, --tags and/or --date")
+            if args.draft and args.publish:
+                raise _UsageError("give --draft or --publish, not both")
+            # --draft makes the note a draft (#265), --publish publishes it; either alone is an update.
+            draft = True if args.draft else False if args.publish else None
+            if args.title is None and args.alt is None and args.tags is None and args.date is None and draft is None:
+                raise _UsageError("give --title, --alt, --tags, --date and/or --draft or --publish")
             tags = None if args.tags is None else [t.strip() for t in args.tags.split(",") if t.strip()]
-            print(_client(args).update(args.id, title=args.title, alt=args.alt, date=args.date, tags=tags).url)
+            print(_client(args).update(args.id, title=args.title, alt=args.alt, date=args.date, tags=tags, draft=draft).url)
         elif args.command == "delete":
             _client(args).delete(args.id)
         else:

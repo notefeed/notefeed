@@ -146,7 +146,7 @@ export class Client {
    */
   async post(
     content: string | Uint8Array | Blob | null,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; readId?: string; licenseKey?: string; attachments?: Attachment[] } = {},
+    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; draft?: boolean; readId?: string; licenseKey?: string; attachments?: Attachment[] } = {},
   ): Promise<Created & { attachments: Created[] }> {
     const { attachments = [], ...own } = options;
     if (content === null && attachments.length === 0) throw new ConfigError("no content and no attachments");
@@ -169,6 +169,7 @@ export class Client {
       ...(own.title && { "X-Note-Title": headerValue(own.title) }),
       ...(own.tags?.length && { "X-Note-Tags": own.tags.join(",") }),
       ...(own.date && { "X-Note-Date": dateString(own.date) }),
+      ...(own.draft && { "X-Note-Draft": "true" as const }),
       ...(own.readId && { "X-Read-Id": own.readId }),
       ...(own.licenseKey && { "X-License-Key": own.licenseKey }),
     };
@@ -178,7 +179,7 @@ export class Client {
 
   private async postOne(
     content: string | Uint8Array | Blob,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; readId?: string; licenseKey?: string },
+    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; draft?: boolean; readId?: string; licenseKey?: string },
   ): Promise<Created> {
     const feed = this.feedFor(options.feed);
     const { body, type } = asFile(content, options.type);
@@ -190,6 +191,7 @@ export class Client {
       ...(options.alt && { "X-Note-Alt": headerValue(options.alt) }),
       ...(options.name && { "X-Note-Name": headerValue(options.name) }),
       ...(options.date && { "X-Note-Date": dateString(options.date) }),
+      ...(options.draft && { "X-Note-Draft": "true" as const }),
       ...(options.readId && { "X-Read-Id": options.readId }),
       ...(options.licenseKey && { "X-License-Key": options.licenseKey }),
     };
@@ -204,8 +206,8 @@ export class Client {
     return this.call(editNote({ client: this.api, path: { feed, id }, body, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
-  /** Set a note's title, alt text (for pictures), tags and/or date (as in post(); a future one schedules the note); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
-  async update(id: string, meta: { title?: string; alt?: string; tags?: string[]; date?: string | Date }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
+  /** Set a note's title, alt text (for pictures), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (`false` publishes it, `true` hides it from readers again; its date stays); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
+  async update(id: string, meta: { title?: string; alt?: string; tags?: string[]; date?: string | Date; draft?: boolean }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
     const feed = this.feedFor(options.feed);
     const { date, ...rest } = meta;
     const body = { ...rest, ...(date !== undefined && { date: dateString(date) }) };

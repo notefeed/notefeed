@@ -100,6 +100,13 @@ export class FeedExistsError extends NotefeedError {
   }
 }
 
+/** A note was to become a draft while it, or a picture posted with it, is the feed's title image, which readers see (#265). */
+export class TitleImageDraftError extends NotefeedError {
+  constructor() {
+    super("title_image", "the feed's title image is a picture of this note: choose another title image first");
+  }
+}
+
 /** A chosen read id belongs to another feed or is held back for a reserved one. */
 export class ReadIdTakenError extends NotefeedError {
   constructor() {

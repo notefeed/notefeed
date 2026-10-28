@@ -36,6 +36,8 @@ class Note:
         name (str | Unset): The file name an image was posted with, when it came with one
         scheduled (bool | Unset): Present, and true, when the note's date is after now: it is stored, and readers see it
             from its date on. Absent for every other note
+        draft (bool | Unset): Present, and true, for a draft: only whoever can post to the feed sees it; readers do not,
+            until it is published (PATCH `draft: false`). Absent for every other note
         sender (None | str | Unset): Verified sign-in name of the poster; absent when the note was posted without a
             sign-in
         unreadable (bool | Unset): Present, and true, for a damaged note: its stored copy can't be decrypted. A list
@@ -57,6 +59,7 @@ class Note:
     alt: str | Unset = UNSET
     name: str | Unset = UNSET
     scheduled: bool | Unset = UNSET
+    draft: bool | Unset = UNSET
     sender: None | str | Unset = UNSET
     unreadable: bool | Unset = UNSET
 
@@ -87,6 +90,8 @@ class Note:
         name = self.name
 
         scheduled = self.scheduled
+
+        draft = self.draft
 
         sender: None | str | Unset
         if isinstance(self.sender, Unset):
@@ -119,6 +124,8 @@ class Note:
             field_dict["name"] = name
         if scheduled is not UNSET:
             field_dict["scheduled"] = scheduled
+        if draft is not UNSET:
+            field_dict["draft"] = draft
         if sender is not UNSET:
             field_dict["sender"] = sender
         if unreadable is not UNSET:
@@ -160,6 +167,8 @@ class Note:
 
         scheduled = d.pop("scheduled", UNSET)
 
+        draft = d.pop("draft", UNSET)
+
         def _parse_sender(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -185,6 +194,7 @@ class Note:
             alt=alt,
             name=name,
             scheduled=scheduled,
+            draft=draft,
             sender=sender,
             unreadable=unreadable,
         )

@@ -104,7 +104,7 @@ async function rewriteText(feed: string, t: NoteRef, names: Map<string, NoteRef>
     }
     if ((await read()) !== after) continue; // written over meanwhile
     if (pending.length === 0) return wrote;
-    const fresh = byName(await s.listNoteRefs(feed));
+    const fresh = byName(await s.listNoteRefs(feed, { drafts: true }));
     if (pending.every((n) => fresh.has(n))) return wrote; // stuck: they stay under their old ids, and their references as written
     names = fresh;
   }
@@ -144,12 +144,12 @@ async function followTitleImage(feed: string, names: Map<string, NoteRef>, left:
 async function migrateFeed(feed: string, left: Left): Promise<{ renamed: number; rewritten: number; titled: boolean }> {
   const s = storage();
   let renamed = 0;
-  for (const ref of await s.listNoteRefs(feed)) {
+  for (const ref of await s.listNoteRefs(feed, { drafts: true })) {
     const date = oldDate(ref.id);
     if (date === null) await keepDate(feed, ref, left);
     else if (await move(feed, ref, date, left)) renamed++;
   }
-  const notes = await s.listNoteRefs(feed);
+  const notes = await s.listNoteRefs(feed, { drafts: true });
   left.stuck += notes.filter((r) => oldDate(r.id) !== null).length;
   const names = byName(notes);
   const titled = await followTitleImage(feed, names, left);

@@ -42,6 +42,7 @@ const MESSAGES: Record<ErrorCode | "sign_in_failed", string> = {
   not_found: "Not found.",
   feed_exists: "This feed already exists, so it can't be given a password.",
   taken: "That read id is taken. Choose another.",
+  title_image: "This note's picture is the feed's title image. Choose another title image first, then make it a draft.",
   removed: "This feed was removed by the operator. Its name can't be used again.",
   blocked: "This image may not be posted here.",
   unreadable: UNREADABLE,

@@ -50,6 +50,10 @@ export type Note = {
      */
     scheduled?: true;
     /**
+     * Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note
+     */
+    draft?: true;
+    /**
      * The note's page in the web UI
      */
     url: string;
@@ -100,6 +104,10 @@ export type Created = {
      * Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link
      */
     file_url: string | null;
+    /**
+     * Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published
+     */
+    draft?: true;
 };
 
 /**
@@ -127,6 +135,10 @@ export type Posted = {
      * Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link
      */
     file_url: string | null;
+    /**
+     * Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published
+     */
+    draft?: true;
     /**
      * A multipart request's pictures, one per `file` part, in their order; absent for a raw body
      */
@@ -179,6 +191,10 @@ export type NoteEdited = {
      */
     scheduled?: true;
     /**
+     * Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note
+     */
+    draft?: true;
+    /**
      * The note's page in the web UI
      */
     url: string;
@@ -219,7 +235,7 @@ export type Error = {
     /**
      * Stable machine-readable code; absent only on a 500
      */
-    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'removed' | 'blocked' | 'unreadable' | 'unavailable' | 'busy';
+    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'title_image' | 'removed' | 'blocked' | 'unreadable' | 'unavailable' | 'busy';
 };
 
 export type NoteMeta = {
@@ -239,6 +255,10 @@ export type NoteMeta = {
      * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. The note's attachments move with it.
      */
     date?: string;
+    /**
+     * true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)
+     */
+    draft?: boolean;
 };
 
 export type PasswordJson = {
@@ -508,6 +528,10 @@ export type PostNoteData = {
          * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. Empty is now.
          */
         'X-Note-Date'?: string;
+        /**
+         * `true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published
+         */
+        'X-Note-Draft'?: 'true' | 'false';
     };
     path: {
         /**
@@ -521,7 +545,7 @@ export type PostNoteData = {
 
 export type PostNoteErrors = {
     /**
-     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
+     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
      */
     400: Error;
     /**
@@ -717,7 +741,7 @@ export type PatchNoteData = {
 
 export type PatchNoteErrors = {
     /**
-     * Invalid or reserved feed name; nothing to change; a bad title, alt text, tag or date; too many tags; alt for a note that has none; bad JSON
+     * Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, date or draft; too many tags; alt for a note that has none; bad JSON
      */
     400: Error;
     /**
@@ -728,6 +752,10 @@ export type PatchNoteErrors = {
      * No such note
      */
     404: Error;
+    /**
+     * The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)
+     */
+    409: Error;
     /**
      * Content-Type is not application/json
      */

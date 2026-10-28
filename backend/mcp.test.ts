@@ -513,6 +513,30 @@ describe("gate on a locked instance", () => {
   });
 });
 
+// Drafts (#265): post_note and post_file take draft, edit_note publishes or makes a draft again, lists mark them.
+describe("drafts", () => {
+  test("post_note as a draft is marked in the reply, list_notes and get_note", async () => {
+    const posted = (await call("post_note", { feed: "o", markdown: "# D", draft: true })).structuredContent;
+    expect(posted.draft).toBe(true);
+    const listed = (await call("list_notes", { feed: "o" })).structuredContent.notes;
+    expect(listed.find((n: { id: string }) => n.id === posted.id).draft).toBe(true);
+    expect((await call("get_note", { feed: "o", id: posted.id })).structuredContent.draft).toBe(true);
+  });
+
+  test("edit_note with only draft publishes, and makes a draft again", async () => {
+    const id = (await call("post_note", { feed: "o", markdown: "# D", date: "2025-03-01", draft: true })).structuredContent.id;
+    const published = (await call("edit_note", { feed: "o", id, draft: false })).structuredContent;
+    expect(published).toMatchObject({ id, date: "2025-03-01T00:00:00.000Z" });
+    expect(published).not.toHaveProperty("draft");
+    expect((await call("edit_note", { feed: "o", id, draft: true })).structuredContent.draft).toBe(true);
+  });
+
+  test("post_file as a draft", async () => {
+    const r = await call("post_file", { feed: "o", type: "text/markdown", data: Buffer.from("# F").toString("base64"), draft: true });
+    expect(r.structuredContent.draft).toBe(true);
+  });
+});
+
 describe("edit_note and delete_note", () => {
   test("edit_note date moves the note", async () => {
     const id = (await call("post_note", { feed: "o", markdown: "# Old" })).structuredContent.id;

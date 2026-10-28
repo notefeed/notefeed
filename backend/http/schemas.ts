@@ -23,6 +23,7 @@ export const NoteJson = z
     name: z.string().optional().describe("The file name an image was posted with, when it came with one"),
     date: z.iso.datetime().describe("Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it"),
     scheduled: z.literal(true).optional().describe("Present, and true, when the note's date is after now: it is stored, and readers see it from its date on. Absent for every other note"),
+    draft: z.literal(true).optional().describe("Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note"),
     url: z.url().describe("The note's page in the web UI"),
     sender: z.string().nullable().optional().describe("Verified sign-in name of the poster; absent when the note was posted without a sign-in"),
     tags: z.array(z.string()).describe("Labels the poster gave the note (not verified, and shown to readers like the note itself); empty when none"),
@@ -49,6 +50,7 @@ export const Created = z
     read_url: z.url().nullable().describe("The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds"),
     file: z.string().describe("The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting"),
     file_url: z.url().nullable().describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
+    draft: z.literal(true).optional().describe("Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published"),
   })
   .meta({ id: "Created" });
 export type Created = z.infer<typeof Created>;
@@ -88,6 +90,7 @@ export const MetaJson = z
     alt: NoteAlt.optional(),
     tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list (\`["ci","done"]\`): ${TAG_RULE}. Empty removes them all; omitted leaves them as they are.`),
     date: NoteDate.optional(),
+    draft: z.boolean().optional().describe("true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)"),
   })
   .meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
@@ -118,6 +121,7 @@ export const NoteTagsHeader = z
   .describe(`Tags for the note, comma-separated (\`ci,deploy\`): ${TAG_RULE}. For a raw markdown body; a JSON or form body's own \`tags\` wins. Empty is none.`);
 export const NoteTitleHeader = NoteTitle.describe("The note's title, for a raw body; a JSON or form body's own `title` wins. At most 100 characters, one line, with no control or text-direction override characters.");
 export const NoteDateHeader = z.string().describe(`${DATE_FORMAT}${DATE_RULE} Empty is now.`);
+export const NoteDraftHeader = z.enum(["true", "false"]).describe("`true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published");
 export const NoteAltHeader = NoteAlt.describe("For an image body: its alternative text; a form's own `alt` wins.");
 export const ReadIdHeader = z.string().describe("The read id the feed gets when this post creates it: 3 to 64 characters (a-z, 0-9, - and _), random when left out or empty, ignored for a feed that exists. A short readable one is guessable: protect the feed with a password if that matters. 409 when it is taken");
 export const LicenseKeyHeader = z

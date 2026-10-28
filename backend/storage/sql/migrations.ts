@@ -97,6 +97,15 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
         .execute();
     },
   },
+  // A note's draft flag (#265), plain beside its date: 1 for a draft, which listings leave out unless they ask. The index leads with it,
+  // so a reader's listing (draft = 0) and the owner's (both) are each one range of it.
+  "007_note_draft": {
+    async up(db: Kysely<any>) {
+      await db.schema.alterTable("notes").addColumn("draft", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema.dropIndex("notes_by_date").ifExists().execute();
+      await db.schema.createIndex("notes_by_draft_date").on("notes").columns(["feed", "draft", "date", "id"]).execute();
+    },
+  },
 });
 
 /** Every migration's name, in order; the tests check the count the migrator recorded against it, so a new one changes no test. */

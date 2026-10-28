@@ -3,8 +3,8 @@
 import { Note } from "./note";
 
 export class UnreadableNote extends Note {
-  constructor(id: string, ext: string, date: Date) {
-    super({ id, ext, meta: {}, date, size: 0 });
+  constructor(id: string, ext: string, date: Date, draft = false) {
+    super({ id, ext, meta: {}, date, size: 0, draft });
   }
   override get unreadable(): boolean {
     return true;

@@ -17,7 +17,7 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // The state of the note page's actions, for the two places they show: the bar (NoteActionsBar, in the shell's right column)
 // and the forms (NoteActionsPanel, under the note). `reportHref`: the note's Report link, in the bar (the note shows none).
 // `date`: the note's date, an ISO string. `tags`: the note's tags, as stored.
-export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, tags: savedTags, date: savedDate, error: initialError, images: imagesOn = true, imageBase, reportHref, children }: { feed: string; id: string; kind: KindName; markdown: string; title: string; alt: string; tags: string[]; date: string; error?: string; images?: boolean; imageBase?: string; reportHref?: string; children: ReactNode }) {
+export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, tags: savedTags, date: savedDate, draft: savedDraft = false, error: initialError, images: imagesOn = true, imageBase, reportHref, children }: { feed: string; id: string; kind: KindName; markdown: string; title: string; alt: string; tags: string[]; date: string; draft?: boolean; error?: string; images?: boolean; imageBase?: string; reportHref?: string; children: ReactNode }) {
   const page = `/${feed}`;
   const images = usePendingImages();
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, withPictures(noteErrorMessage, images.pending.length > 0));
@@ -28,6 +28,7 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
   // The date field holds the browser's time, which the server can't know: until the field is changed it shows the note's
   // date once hydrated (empty in the server's render, so both renders agree), and only a changed date is sent.
   const [changedDate, setDate] = useState<string | null>(null);
+  const [draft, setDraft] = useState(savedDraft); // a draft (#265): unticking publishes it, ticking hides it from readers again
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
   const date = changedDate ?? (hydrated ? localDateTime(new Date(savedDate)) : "");
   const { text: hasText, alt: hasAlt } = NOTE_KINDS[kind]; // what the edit form offers: a text, an alternative text
@@ -46,7 +47,7 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
     const dateChanged = changedDate !== null && changedDate !== "" && changedDate !== localDateTime(new Date(savedDate)); // emptied: kept
     const tagList = splitTags(tags);
     const tagsChanged = tagList.join(",") !== savedTags.join(","); // the server folds case and drops repeats: "CI" for "ci" is sent, and stored as before
-    const meta = { ...(title !== savedTitle && { title }), ...(hasAlt && alt !== savedAlt && { alt }), ...(tagsChanged && { tags: tagList }), ...(dateChanged && { date: new Date(changedDate).toISOString() }) };
+    const meta = { ...(title !== savedTitle && { title }), ...(hasAlt && alt !== savedAlt && { alt }), ...(tagsChanged && { tags: tagList }), ...(dateChanged && { date: new Date(changedDate).toISOString() }), ...(draft !== savedDraft && { draft }) };
     const metaChanged = Object.keys(meta).length > 0;
     if (!textChanged && !metaChanged) return setMode(null);
     const call = async () => {
@@ -71,7 +72,7 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
   const [copied, setCopied] = useState(false);
   const copyLink = () => copyText(window.location.href).then(() => setCopied(true), () => {});
 
-  const value = { back: page, mode, setMode, text, setText, title, setTitle, alt, setAlt, tags, setTags, date, setDate, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
+  const value = { back: page, mode, setMode, text, setText, title, setTitle, alt, setAlt, tags, setTags, date, setDate, draft, setDraft, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
   return <Actions.Provider value={value}>{children}</Actions.Provider>;
 }
 
@@ -98,6 +99,8 @@ type ActionsState = {
   setTags: (t: string) => void;
   date: string;
   setDate: (d: string) => void;
+  draft: boolean;
+  setDraft: (d: boolean) => void;
   hasText: boolean;
   hasAlt: boolean;
   images: ReturnType<typeof usePendingImages>;
@@ -119,7 +122,7 @@ const useActions = () => useContext(Actions)!;
 // Edit opens its form under the note: a sheet on a phone, a card from lg. On a phone the text box is shorter, so the fields below it and
 // Save fit on the screen without scrolling the sheet. Delete asks in a dialog (DeleteDialog).
 export function NoteActionsPanel() {
-  const { mode, setMode, text, setText, title, setTitle, alt, setAlt, tags, setTags, date, setDate, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
+  const { mode, setMode, text, setText, title, setTitle, alt, setAlt, tags, setTags, date, setDate, draft, setDraft, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
   return (
     <section aria-label="Edit or delete this note" className="mt-4 text-sm">
       {mode === "delete" && <DeleteDialog onSubmit={remove} onClose={() => setMode(null)} pending={pending} error={error} />}
@@ -165,6 +168,10 @@ export function NoteActionsPanel() {
                   Date (in your time; a later one schedules the note)
                 </label>
                 <input id="edit-date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} mt-1 max-w-md`} />
+                <label className="mt-3 flex items-center gap-2">
+                  <input id="edit-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
+                  Draft (readers don&apos;t see it, or its pictures, until it is published)
+                </label>
                 <div className="mt-4 flex gap-2">
                   <button type="submit" disabled={pending} className={primary}>
                     <Check aria-hidden className="h-4 w-4" />

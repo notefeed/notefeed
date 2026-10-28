@@ -51,13 +51,13 @@ export function isValidId(id: string): boolean {
 type NewNote = { ext: string; content: string | Uint8Array; meta: Meta };
 
 // `readId`: the read id of the feed the note went into (null: that feed has no read link).
-async function store(feed: string, base: string, { ext, content, meta }: NewNote, date: Date, wantedReadId?: string): Promise<{ id: string; readId: string | null }> {
+async function store(feed: string, base: string, { ext, content, meta }: NewNote, date: Date, wantedReadId?: string, draft = false): Promise<{ id: string; readId: string | null }> {
   // ponytail: checked, not locked. A post that is past ensureFeed when its feed is deleted and the name
   // re-created lands in the new feed (as do settings written after hasFeed); a per-feed lock would close it.
   for (let retried = false; ; retried = true) {
     const readId = await ensureFeed(feed, wantedReadId);
     try {
-      return { id: await storage().writeNote(feed, base, ext, content, meta, date.getTime()), readId };
+      return { id: await storage().writeNote(feed, base, ext, content, meta, date.getTime(), draft), readId };
     } catch (e) {
       // The listed feed is gone (deleted since ensureFeed, or its directory removed by hand): this is a new
       // feed. Once only: gone again means another delete, and that is an error.
@@ -67,8 +67,9 @@ async function store(feed: string, base: string, { ext, content, meta }: NewNote
   }
 }
 
-/** `id`: the id to store it under (a post that must know its text's id first), else a new one. `of`: on an attachment, its text note's id. */
-export type NewNoteOptions = { sender?: string; tags?: string[]; title?: string; alt?: string; name?: string; wantedReadId?: string; id?: string; of?: string };
+/** `id`: the id to store it under (a post that must know its text's id first), else a new one. `of`: on an attachment, its text note's id.
+ *  `draft`: stored as a draft, which readers do not see (#265). */
+export type NewNoteOptions = { sender?: string; tags?: string[]; title?: string; alt?: string; name?: string; wantedReadId?: string; id?: string; of?: string; draft?: boolean };
 
 /**
  * A new note of any type: `body` is its file, `ext` the extension its type stores it under. The type's own rules (`checkBody`) apply; a
@@ -84,10 +85,11 @@ export async function createNoteOf(feed: string, type: NoteType, ext: string, bo
   const { sender, tags = [], of } = opts;
   const name = cleanName(opts.name);
   const meta: Meta = { ...(sender !== undefined && { sender }), ...(tags.length && { tags }), ...(title && { title }), ...(alt && { alt }), ...(name && { name }), ...(of !== undefined && { of }) };
-  const { id, readId } = await store(feed, opts.id ?? newNoteId(), { ext, content: body, meta }, date, opts.wantedReadId);
+  const draft = opts.draft === true;
+  const { id, readId } = await store(feed, opts.id ?? newNoteId(), { ext, content: body, meta }, date, opts.wantedReadId, draft);
   logger("notes").info({ kind: type.name, bytes: body.length }, "note posted"); // never the feed, the id or the title
   notePosted(type.name);
-  return { note: type.read({ id, ext, meta, date, size: body.length }, Buffer.from(body)), readId };
+  return { note: type.read({ id, ext, meta, date, size: body.length, draft }, Buffer.from(body)), readId };
 }
 
 export const MARKDOWN = typeForExt("md")!;
@@ -111,6 +113,7 @@ type RefQuery = { upTo?: number; before?: string; limit?: number };
 
 // The notes of the feed (of a type), newest first by date, ties by id; `q` as storage's listNoteRefs. A type filter asks storage for
 // the whole list (images and texts interleave); so does a limited page that held a file that is no note (one placed by hand).
+// Drafts (#265) only on the owner's paths, those without `upTo`: every reader's path has one, so it never lists a draft.
 async function noteRefs(feed: string, typeName?: string, q: RefQuery = {}): Promise<NoteRef[]> {
   if (checkFeed(feed)) return [];
   // The feed's own title image (uploaded as one, not posted) is in no list: not the timeline, RSS, the APIs, counts or the free cap.
@@ -118,9 +121,10 @@ async function noteRefs(feed: string, typeName?: string, q: RefQuery = {}): Prom
   const own = settings.ownImage ? settings.image : null;
   const isNote = (e: NoteRef) => { const type = typeForExt(e.ext); return !!type && (typeName === undefined || type.name === typeName) && isValidId(e.id) && `${e.id}.${e.ext}` !== own; };
   const limit = typeName === undefined ? q.limit : undefined;
-  const refs = await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, limit });
+  const drafts = q.upTo === undefined;
+  const refs = await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, limit, drafts });
   const notes = refs.filter(isNote);
-  if (limit !== undefined && notes.length < refs.length) return (await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before })).filter(isNote).slice(0, q.limit);
+  if (limit !== undefined && notes.length < refs.length) return (await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, drafts })).filter(isNote).slice(0, q.limit);
   return q.limit === undefined ? notes : notes.slice(0, q.limit);
 }
 
@@ -147,7 +151,7 @@ export async function listNotes(feed: string, limit = 50, before?: string, tag?:
   const one = (ref: NoteRef): Promise<Note | null> =>
     readOf(feed, ref).catch((e) => {
       if (!(e instanceof UnreadableNoteError)) throw e;
-      return placeholders ? new UnreadableNote(ref.id, ref.ext, new Date(ref.date)) : null;
+      return placeholders ? new UnreadableNote(ref.id, ref.ext, new Date(ref.date), ref.draft) : null;
     });
   const read = async (page: NoteRef[]) => (await Promise.all(page.map(one))).filter((n) => n !== null); // null: deleted between the listing and the read
   if (tag === undefined) return read(refs.slice(0, limit));
@@ -174,6 +178,9 @@ export async function countNotes(feed: string, typeName?: string, asOf?: Date): 
 /** Whether the note is dated after `now`: stored, but hidden from readers until then. */
 export const isScheduled = (n: Note, now = new Date()): boolean => n.date.getTime() > now.getTime();
 
+/** Whether the note is a draft: stored, but hidden from readers until it is published (#265). */
+export const isDraft = (n: Note): boolean => n.draft;
+
 const FILE_RE = /^([A-Za-z0-9_-]{1,128})\.([A-Za-z0-9]{1,16})$/;
 
 /** Whether `file` (`<id>.<ext>`) is an image note of this feed: the check before a title image points at it. `asOf`: dated then or earlier. */
@@ -199,11 +206,11 @@ export async function namedFile(feed: string, name: string, asOf: Date): Promise
   return null;
 }
 
-/** Whether a reader may have `file` (`<id>.<ext>`) of the feed: its note is there and dated `asOf` or earlier. Reads no content. */
+/** Whether a reader may have `file` (`<id>.<ext>`) of the feed: its note is there, no draft, and dated `asOf` or earlier. Reads no content. */
 export async function fileVisible(feed: string, file: string, asOf: Date): Promise<boolean> {
   const m = FILE_RE.exec(file);
   const stored = m && !checkFeed(feed) && isValidId(m[1]) ? await storage().readNote(feed, m[1], [m[2]], () => false) : null;
-  return stored !== null && stored.date <= asOf.getTime();
+  return stored !== null && !stored.draft && stored.date <= asOf.getTime();
 }
 
 // The note, found by trying `exts` (a lookup by id alone) or the one extension a listing already knows.
@@ -211,15 +218,15 @@ async function readNoteAs(feed: string, id: string, exts: readonly string[]): Pr
   if (checkFeed(feed) || !isValidId(id)) return null;
   const stored = await storage().readNote(feed, id, exts, withContent).catch((e) => Promise.reject(unreadableNote(id, e)));
   const type = stored && typeForExt(stored.ext);
-  return stored && type ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size }, stored.content) : null;
+  return stored && type ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size, draft: stored.draft }, stored.content) : null;
 }
 
 const readOf = (feed: string, ref: NoteRef) => readNoteAs(feed, ref.id, [ref.ext]);
 
-/** `asOf`: a note dated after it is null, as a missing one (a reader's lookup). */
+/** `asOf`: a reader's lookup; a note dated after it, or a draft, is null, as a missing one. */
 export async function getNote(feed: string, id: string, asOf?: Date): Promise<Note | null> {
   const note = await readNoteAs(feed, id, NOTE_EXTS);
-  return note && asOf && isScheduled(note, asOf) ? null : note;
+  return note && asOf && (isScheduled(note, asOf) || note.draft) ? null : note;
 }
 
 /**
@@ -270,13 +277,31 @@ export async function changeDate(feed: string, id: string, date: Date): Promise<
   if (!note) return null;
   if (!(await storage().setDate(feed, id, NOTE_EXTS, date.getTime()))) return null;
   const shift = date.getTime() - note.date.getTime();
-  // ponytail: reads every sidecar of the feed to find the attachments, as a rare tag does; an index of `of` would fix it if feeds get large.
+  await Promise.all((await attachmentsOf(feed, id)).map((ref) => storage().setDate(feed, ref.id, [ref.ext], Math.max(0, ref.date + shift))));
+  return getNote(feed, id);
+}
+
+// The notes posted with the note `id` (their `of` is its id), drafts included.
+// ponytail: reads every sidecar of the feed to find the attachments, as a rare tag does; an index of `of` would fix it if feeds get large.
+async function attachmentsOf(feed: string, id: string): Promise<NoteRef[]> {
   const refs = (await noteRefs(feed)).filter((r) => r.id !== id);
+  const found: NoteRef[] = [];
   for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
     const chunk = refs.slice(i, i + READS_AT_ONCE);
     const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null))));
-    await Promise.all(chunk.filter((_, j) => metas[j]?.of === id).map((ref) => storage().setDate(feed, ref.id, [ref.ext], Math.max(0, ref.date + shift))));
+    found.push(...chunk.filter((_, j) => metas[j]?.of === id));
   }
+  return found;
+}
+
+/**
+ * Makes a note a draft or publishes it, and every note posted with it (an attachment, whose `of` is its id) along with it, so a draft's
+ * pictures never reach a reader before its text (#265). Dates, content and metadata stay. null: invalid feed or id, or no such note.
+ */
+export async function changeDraft(feed: string, id: string, draft: boolean): Promise<Note | null> {
+  if (checkFeed(feed) || !isValidId(id)) return null;
+  if (!(await storage().setDraft(feed, id, NOTE_EXTS, draft))) return null;
+  for (const ref of await attachmentsOf(feed, id)) await storage().setDraft(feed, ref.id, [ref.ext], draft);
   return getNote(feed, id);
 }
 

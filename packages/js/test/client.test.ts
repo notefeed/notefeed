@@ -149,6 +149,17 @@ describe("edit and delete", () => {
     expect(JSON.parse(server.requests[0].body.toString())).toEqual({ date: "2025-03-01T06:00:00.000Z" });
     expect(JSON.parse(server.requests[1].body.toString())).toEqual({ date: "2025-03-01" });
   });
+  test("draft goes as X-Note-Draft on a post, with or without attachments, and in the PATCH body (#265)", async () => {
+    server.reply(201, CREATED);
+    const c = new Client({ url: server.url, feed: "inbox" });
+    await c.post("x", { draft: true });
+    await c.post("x ![](a.png)", { draft: true, attachments: [{ name: "a.png", content: new Uint8Array([0x89, 0x50, 0x4e, 0x47]), type: "image/png" }] });
+    await c.post("x", { draft: false });
+    expect([server.requests[0].headers["x-note-draft"], server.requests[1].headers["x-note-draft"], server.requests[2].headers["x-note-draft"]]).toEqual(["true", "true", undefined]);
+    server.reply(200, note(10));
+    await c.update(ID, { draft: false });
+    expect(JSON.parse(server.requests[3].body.toString())).toEqual({ draft: false });
+  });
   test("update PATCHes the title and alt text as JSON", async () => {
     server.reply(200, note(10));
     const c = new Client({ url: server.url, feed: "inbox", password: "pw" });

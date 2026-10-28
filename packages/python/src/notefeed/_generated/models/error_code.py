@@ -20,6 +20,7 @@ class ErrorCode(StrEnum):
     REMOVED = "removed"
     RESERVED_FEED = "reserved_feed"
     TAKEN = "taken"
+    TITLE_IMAGE = "title_image"
     TOO_LARGE = "too_large"
     TOO_MANY_ATTEMPTS = "too_many_attempts"
     UNAVAILABLE = "unavailable"

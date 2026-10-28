@@ -30,6 +30,7 @@ export default defineConfig({
     // The "Report" link (issue #154) and the report page (issue #156): the open server has NOTEFEED_REPORT_URL and an endpoint
     // for the page (a stand-in the spec starts), the locked one (3101) has neither.
     { name: "report", testMatch: "report.spec.ts", use: { baseURL: "http://localhost:3100" } },
+    { name: "drafts", testMatch: "drafts.spec.ts", use: { baseURL: "http://localhost:3100" } },
     // A feed's page and its note bar on a phone (issues #202 and #203): the other projects run at desktop size.
     { name: "phone-webkit", testMatch: "phone.spec.ts", use: { ...devices["iPhone 13"], baseURL: "http://localhost:3100" } },
     { name: "phone-chromium", testMatch: "phone.spec.ts", use: { ...devices["Pixel 7"], baseURL: "http://localhost:3100" } },
@@ -42,7 +43,7 @@ export default defineConfig({
     { name: "legal", testMatch: "legal.spec.ts" },
     { name: "licenses", testMatch: "licenses.spec.ts", use: { baseURL: "http://localhost:3104" } },
     // The same notes and pictures specs on the SQLite backend with its images in a folder (needs Node 22, like the app itself).
-    { name: "sqlite", testMatch: ["notes.spec.ts", "images.spec.ts"], use: { baseURL: "http://localhost:3102" } },
+    { name: "sqlite", testMatch: ["notes.spec.ts", "images.spec.ts", "drafts.spec.ts"], use: { baseURL: "http://localhost:3102" } },
     // The pictures spec with the images in an S3-compatible store (a stand-in started by e2e/s3-setup.ts). The built app's fetch is
     // Next's, not plain Node's, and only this run sends an upload through it.
     { name: "s3", testMatch: ["images.spec.ts", "operator.spec.ts"], use: { baseURL: "http://localhost:3103" } },

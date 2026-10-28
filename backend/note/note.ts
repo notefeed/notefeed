@@ -8,7 +8,7 @@ import { mediaTypeOf } from "./media";
 /** `description` is HTML; `image` a picture the item shows, for a reader's thumbnail (a picture note has its enclosure instead). */
 export type RssContent = { description?: string; enclosure?: { url: string; length: number; type: string }; image?: { url: string; type: string } };
 
-export type NoteInit = { id: string; ext: string; meta: Meta; date: Date; size: number };
+export type NoteInit = { id: string; ext: string; meta: Meta; date: Date; size: number; draft?: boolean };
 
 export abstract class Note {
   readonly id: string;
@@ -17,13 +17,16 @@ export abstract class Note {
   /** Where the note is placed in its feed; a time still to come makes it scheduled, hidden from readers until then. */
   readonly date: Date;
   readonly size: number;
+  /** A draft (#265): only whoever can post to the feed sees it; readers do not, until it is published. */
+  readonly draft: boolean;
 
-  constructor({ id, ext, meta, date, size }: NoteInit) {
+  constructor({ id, ext, meta, date, size, draft = false }: NoteInit) {
     this.id = id;
     this.ext = ext;
     this.meta = meta;
     this.date = date;
     this.size = size;
+    this.draft = draft;
   }
 
   /** True for a note whose stored copy can't be decrypted (UnreadableNote): only its id, file and time are known. */

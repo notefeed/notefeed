@@ -77,7 +77,7 @@ Create the client with the server's URL and, usually, a default feed; every call
 | `licenses()` | `licenses()` | On notefeed.me: the `plans` (amounts in cents), `buy_url` (the license page) and `manage_url`, the payment provider's sign-in where buyers [manage their purchases](../hosted/licenses.md#cancelling-invoices-payment-method) by e-mail; no key opens it. Needs no feed. |
 | `read_notes(read_id, page_size=)`, `read_note(read_id, id)` | `readNotes(readId, { pageSize })`, `readNote(readId, id)` | Like `notes()` and `note()`, by the feed's [read id](../using/read-links.md): public, no password, never the name. |
 
-A note has `id`, `type`, `title`, `content` (absent for a picture), `file`, `file_url`, `size`, `tags`, `date`, `scheduled` (only for the owner, when the date is in the future) and `url`, and optionally `alt`, `name` and `sender`. Timeouts default to 10 seconds. Feed names are checked on the client, so a typo fails with a `ConfigError` before any request.
+A note has `id`, `type`, `title`, `content` (absent for a picture), `file`, `file_url`, `size`, `tags`, `date`, `scheduled` (only for the owner, when the date is in the future), `draft` (only for the owner, for a [draft](../using/posting.md#drafts)) and `url`, and optionally `alt`, `name` and `sender`. Timeouts default to 10 seconds. Feed names are checked on the client, so a typo fails with a `ConfigError` before any request.
 
 ## Errors
 
