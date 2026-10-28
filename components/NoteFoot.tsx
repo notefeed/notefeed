@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { CalendarClock, Flag, Hash } from "lucide-react";
+import { CalendarClock, Flag, Hash, PencilLine } from "lucide-react";
 import { chip } from "@/components/styles";
-import { isScheduled, type Note } from "@/backend";
+import { isDraft, isScheduled, type Note } from "@/backend";
 import { reportUrl } from "@/shared/report";
 
 // The foot of a note's card, one line: its tags, which link to the list filtered by that tag (`${base}?tag=…`), then who
 // posted it, when, and the Report link. No header row: the title is the first thing in the card. `open`: in a list, the note's page,
 // which its time links to (ADR 0040), named by the note's title for a screen reader.
-// A note dated after now is scheduled: only its owner's pages get it, and its card says so first. These are server components,
+// A note dated after now is scheduled, a draft (#265) is hidden until published: only its owner's pages get either, and its card says so first. These are server components,
 // so "now" is the server's alone and nothing differs at hydration.
 export function Foot({ note, base, when, open, report }: { note: Note; base: string; when: string; open?: string; report?: Report }) {
   const at = (
@@ -18,6 +18,12 @@ export function Foot({ note, base, when, open, report }: { note: Note; base: str
   return (
     <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
       <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+        {isDraft(note) && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[13px] text-carbon">
+            <PencilLine aria-hidden className="h-3 w-3" />
+            Draft
+          </span>
+        )}
         {isScheduled(note) && (
           <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[13px] text-carbon">
             <CalendarClock aria-hidden className="h-3 w-3" />

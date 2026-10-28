@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Camera, Hash, Plus, Send, X } from "lucide-react";
+import { CalendarClock, Camera, Hash, PencilLine, Plus, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, primary } from "@/components/styles";
@@ -73,6 +73,7 @@ export function Compose({
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState(initialTitle);
   const [date, setDate] = useState(""); // a datetime-local value, the browser's time: empty is now, a later time schedules the note
+  const [draft, setDraft] = useState(false); // a draft (#265): on the feed page only, readers see it once it is published
 
   const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
   // The page remounts this box empty. With pictures only, the answer is the first picture's.
@@ -87,6 +88,7 @@ export function Compose({
       ...(password && licenseKey && { "X-License-Key": licenseKey }),
       ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
       ...(date && { "X-Note-Date": new Date(date).toISOString() }),
+      ...(draft && { "X-Note-Draft": "true" as const }),
     };
     return run(
       e,
@@ -300,6 +302,11 @@ export function Compose({
                 </label>
                 <input id="note-date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={`${bare} text-[13px] ${date ? "" : "text-muted"}`} />
               </div>
+              <label className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 text-[13px]" title="A draft stays on this page: readers see it once it is published">
+                <PencilLine aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <input id="note-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
+                Draft
+              </label>
             </div>
           }
         >
