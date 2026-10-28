@@ -11,7 +11,7 @@ export async function footerLinks(): Promise<{ product: FooterLink[]; legal: Foo
   return {
     product: [
       { href: "https://docs.notefeed.me/", label: "Docs", external: true },
-      { href: "https://docs.notefeed.me/vision/", label: "Values", external: true }, // what notefeed stands for (docs/vision.md)
+      { href: "https://docs.notefeed.me/values/", label: "Values", external: true }, // what notefeed stands for (docs/values.md)
       { href: "https://github.com/notefeed/notefeed", label: "GitHub", external: true },
       ...(license ? [{ href: "/license", label: "License" }] : []),
       ...feeds,
