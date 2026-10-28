@@ -33,9 +33,9 @@ services:
 
 That is yours to decide, and for a public service worth a lawyer's look. A privacy page usually says who is responsible and how to reach them, where the instance is hosted, what is stored (notes, feeds, images, [what the logs hold](operating.md#logs)), for how long, [how long backups keep what was deleted](backups.md#how-long-a-backup-keeps-what-was-deleted), and which rights a person has. With [sign-in](sign-in/index.md#privacy-page-and-imprint) on, say what is stored about the people who sign in.
 
-## A report link on every note
+## A report link on every published note
 
-A public instance has to give readers a way to report content, and the report has to say which note is meant. `NOTEFEED_REPORT_URL` puts a **Report** link on every note, on the feed page, the note page and the read-only view. It is a URL template with `{read_id}`, `{note_id}` and `{file}` filled in, percent-encoded; the feed's name is never in it:
+A public instance has to give readers a way to report content, and the report has to say which note is meant. `NOTEFEED_REPORT_URL` puts a **Report** link on every published note (not on a draft or a scheduled note, which no reader sees), on the feed page, the note page and the read-only view. It is a URL template with `{read_id}`, `{note_id}` and `{file}` filled in, percent-encoded; the feed's name is never in it:
 
 ```yaml
 NOTEFEED_REPORT_URL: "https://report.example.com/?read_id={read_id}&note_id={note_id}"
