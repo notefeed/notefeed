@@ -13,7 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `app/` is the Next.js UI and routes; all server logic is in `backend/` (ADR 0003), code used by both in `shared/`. Every POST is a backend route handler (ADR 0005).
 - Storage is one interface, `backend/storage/types.ts`: file system (default), SQLite or PostgreSQL via Kysely, chosen by `NOTEFEED_STORAGE`. The contract suite `backend/storage/contract.ts` runs against every backend (ADR 0023); images go to the image store (ADR 0024).
-- API first and AI-native: everything the web UI can do is also in the REST API, both client packages and the MCP server, and the MCP tools matter most. A feature only the UI has is a gap.
+- Judge every change against `docs/vision.md` (the values, V1–V13) and cite the point it touches; changing that page needs my approval.
+- API first and AI-native (V11): everything the web UI can do is also in the REST API, both client packages and the MCP server, and the MCP tools matter most. A feature only the UI has is a gap.
 - Use the words in `CONTEXT.md`, not its _Avoid_ ones.
 
 ## Production (notefeed.me)

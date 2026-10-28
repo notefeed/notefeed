@@ -7,7 +7,7 @@ It exists because dashboards like [Glance](https://github.com/glanceapp/glance) 
 ![A notefeed feed page: a header with read-only, RSS and settings buttons, a compose box, and notes grouped by day](assets/screenshot-light.png#only-light)
 ![A notefeed feed page: a header with read-only, RSS and settings buttons, a compose box, and notes grouped by day](assets/screenshot-dark.png#only-dark)
 
-notefeed is private by default and stores nothing about a person. [Sign-in with a verified sender](self-hosting/sign-in/index.md) is opt-in.
+notefeed is private by default and stores nothing about a person. [Sign-in with a verified sender](self-hosting/sign-in/index.md) is opt-in. [What notefeed stands for](vision.md) says what it will stay: no accounts, no personal data, publishing rather than interacting.
 
 ## Two ways to use it
 
