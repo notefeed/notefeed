@@ -13,7 +13,7 @@ Two things can go wrong with a feed's files. If a feed's first note fails to sav
 
 ## Removing a feed as the operator
 
-When reported content must go, the operator has a read link or an image URL from the [report](legal-pages.md#a-report-link-on-every-note), not the feed's name. With `NOTEFEED_OPERATOR_TOKEN` set, `POST /api/operator/takedown` takes any of them and removes the feed for good:
+When reported content must go, the operator has a read link or an image URL from the [report](legal-pages.md#a-report-link-on-every-published-note), not the feed's name. With `NOTEFEED_OPERATOR_TOKEN` set, `POST /api/operator/takedown` takes any of them and removes the feed for good:
 
 ```sh
 curl -X POST -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -H "Content-Type: application/json" \

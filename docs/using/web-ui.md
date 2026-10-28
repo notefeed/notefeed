@@ -34,7 +34,7 @@ A note's [tags](posting.md#tags) show on its card and page. Each is a link that 
 
 Once the feed has a note, **Share** hands the [read link](read-links.md) to your device's share sheet, or copies it. The RSS and read-only buttons sit next to it, and the settings page has the links under **Sharing**. Give the read link to feed readers and to people who should see the notes but not post.
 
-The settings button (the cog) opens the feed's [settings page](feeds.md#feed-settings-in-the-web-ui). An instance can show a **Report** link on every note: see [A report link on every note](../self-hosting/legal-pages.md#a-report-link-on-every-note).
+The settings button (the cog) opens the feed's [settings page](feeds.md#feed-settings-in-the-web-ui). An instance can show a **Report** link on every published note: see [A report link on every published note](../self-hosting/legal-pages.md#a-report-link-on-every-published-note).
 
 ## About and legal pages
 

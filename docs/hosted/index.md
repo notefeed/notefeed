@@ -35,7 +35,7 @@ Every note on notefeed.me carries a **Report** link, on the feed page, the note 
 - **There is no appeal path yet** beyond writing to the address above.
 - **Nobody is identified.** There are no accounts and notes carry no sender, so a removal is not attributed to anyone and nobody can be barred from posting.
 
-How the link, the form and the removal work is in the self-hosting pages: [A report link on every note](../self-hosting/legal-pages.md#a-report-link-on-every-note) and [Removing a feed as the operator](../self-hosting/deleting.md#removing-a-feed-as-the-operator).
+How the link, the form and the removal work is in the self-hosting pages: [A report link on every published note](../self-hosting/legal-pages.md#a-report-link-on-every-published-note) and [Removing a feed as the operator](../self-hosting/deleting.md#removing-a-feed-as-the-operator).
 
 ## How it is run
 

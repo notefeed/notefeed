@@ -99,6 +99,7 @@ curl -X PATCH -H "Content-Type: application/json" -d '{"draft": false}' "$NOTEFE
 - Pictures posted with a draft are drafts too, and follow it when it is published or made a draft again. Such a picture's own state can't be changed (`400`): publish or hide its note.
 - A draft picture can't be the feed's title image, and a note whose picture is the title image can't become a draft (`409`, `title_image`).
 - A draft counts toward a feed's free note cap like any note.
+- A draft, like a scheduled note, has no **Report** link: no reader can see it to report it. It gets one once it is published.
 
 In the web UI it is the **Draft** box in the compose box and in a note's edit form. The [clients](../integrations/clients.md) take `draft` when posting and updating, the CLI `post --draft` and `update --draft` / `--publish`, MCP `post_note`, `post_file` and `edit_note` `draft`.
 

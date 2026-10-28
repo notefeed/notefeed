@@ -114,3 +114,14 @@ test("a draft's card says Draft, beside Scheduled when it is both (#265)", () =>
   expect(both).toContain("Scheduled for");
   expect(renderToStaticMarkup(<NoteArticle note={mdNote({ id: "p1", markdown: "# P" })} back="/feed" />)).not.toContain(">Draft<");
 });
+
+test("no Report link on a draft or a scheduled note: readers can't see them, nor can the operator by the read link (#327)", () => {
+  const report = { template: "https://r.example/?r={read_id}&n={note_id}&f={file}", readId: "rid" };
+  const draft = new MarkdownNote({ id: "d1", ext: "md", meta: {}, date: at0, size: 4, draft: true }, "# Hi");
+  const later = mdNote({ id: "s1", markdown: "# Hi", date: new Date(Date.now() + 86_400_000) });
+  const html = renderToStaticMarkup(<NoteList notes={[later, draft, mdNote({ id: "p1", markdown: "# Hi" })]} base="/feed" report={report} />);
+  expect(html.match(/>Report<\/a>/g)).toHaveLength(1);
+  expect(html).toContain("n=p1");
+  expect(renderToStaticMarkup(<NoteArticle note={draft} back="/feed" report={report} />)).not.toContain(">Report</a>");
+  expect(renderToStaticMarkup(<NoteArticle note={later} back="/feed" report={report} />)).not.toContain(">Report</a>");
+});
