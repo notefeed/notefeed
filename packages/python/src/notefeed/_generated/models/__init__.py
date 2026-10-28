@@ -18,6 +18,7 @@ from .note_edited import NoteEdited
 from .note_list import NoteList
 from .note_meta import NoteMeta
 from .password_json import PasswordJson
+from .post_note_x_note_draft import PostNoteXNoteDraft
 from .posted import Posted
 from .read_feed import ReadFeed
 from .recovery_json import RecoveryJson
@@ -41,6 +42,7 @@ __all__ = (
     "NoteList",
     "NoteMeta",
     "PasswordJson",
+    "PostNoteXNoteDraft",
     "Posted",
     "ReadFeed",
     "RecoveryJson",
