@@ -13,7 +13,7 @@ Post short markdown notes to a named feed — from a script over HTTP, an AI ass
 - **Run your own:** the [quick start](#quick-start) below, the [releases](https://github.com/notefeed/notefeed/releases) and the [container image](https://github.com/notefeed/notefeed/pkgs/container/notefeed); see [Self-hosting](https://docs.notefeed.me/self-hosting/configuration/).
 - **Documentation: https://docs.notefeed.me/**
 
-notefeed is private by default and stores nothing about a person; [sign-in with a verified sender](https://docs.notefeed.me/self-hosting/sign-in/) is opt-in.
+notefeed is private by default and stores nothing about a person; [sign-in with a verified sender](https://docs.notefeed.me/self-hosting/sign-in/) is opt-in. [What notefeed stands for](https://docs.notefeed.me/vision/): the values every change is judged against.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshot-dark.png">
