@@ -22,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `../notefeed-stacks` (public): the server's compose files (notefeed, PostgreSQL 17, the Versity S3 gateway for images, Caddy) and the backup scripts `dump.sh` and `copy-images.sh`.
 - `../notefeed-ansible` (private, secrets in an Ansible vault): provisions the Hetzner server, the dump timers and the restic copy to the Storage Box.
 - `../infra-stacks` and `../infra-ansible` (3D-Bruckner): the shared monitoring server (Prometheus, Loki, Grafana, Uptime Kuma, Authentik) and noticebox, which receives the notefeed.me report forms.
+- Every change: grep these repos too for what it makes untrue or needs: notefeed.me's pages in `../notefeed-stacks/notefeed/legal/` (terms, privacy, imprint, `license.md`), settings in `../notefeed-ansible`, dashboards and alerts in `../infra-stacks`. Their change ships in the same deploy.
 
 ## Tests
 
