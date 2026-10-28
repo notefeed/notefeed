@@ -1,5 +1,6 @@
 // The "Report" link on every note (issue #154): NOTEFEED_REPORT_URL on the open server (3100), unset on the locked one (3101).
 import { expect, test, type Page } from "@playwright/test";
+import { PNG } from "../backend/testimages";
 
 const feedName = () => `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const TEMPLATE = /^https:\/\/report\.example\.com\/\?r=([A-Za-z0-9_-]+)&n=([A-Za-z0-9_-]+)&f=\2\.md$/;
@@ -35,7 +36,7 @@ test("the link is on the feed page, the note page, the read-only view and its no
 test("a picture's link carries its file name", async ({ page, request }) => {
   const name = feedName();
   await post(page, name, "# First");
-  const posted = await request.post(`/api/v1/feeds/${name}/notes`, { headers: { "Content-Type": "image/png" }, data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]) });
+  const posted = await request.post(`/api/v1/feeds/${name}/notes`, { headers: { "Content-Type": "image/png" }, data: Buffer.from(PNG) });
   expect(posted.status()).toBe(201);
   const { id, file } = await posted.json();
   await page.reload();

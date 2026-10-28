@@ -288,7 +288,7 @@ test("a title image shows in the header and the read-only view, and can be remov
   await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toHaveCount(0);
 });
 
-// A noisy 4000×3000 JPEG: about 11 MB, as a phone's camera makes them, over the 5 MiB image limit.
+// A noisy 4000×3000 JPEG: 5 to 10 MB, as a phone's camera makes them.
 async function cameraPhoto(page: Page) {
   const b64 = await page.evaluate(async () => {
     const c = document.createElement("canvas");
@@ -297,7 +297,7 @@ async function cameraPhoto(page: Page) {
     const d = x.createImageData(c.width, c.height);
     for (let i = 0; i < d.data.length; i++) d.data[i] = Math.random() * 255;
     x.putImageData(d, 0, 0);
-    const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/jpeg", 0.95));
+    const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), "image/jpeg", 0.8));
     return await new Promise<string>((r) => {
       const reader = new FileReader();
       reader.onload = () => r((reader.result as string).split(",")[1]); // base64: an array of 11 million numbers is too much to send back
@@ -306,17 +306,17 @@ async function cameraPhoto(page: Page) {
   });
   const buffer = Buffer.from(b64, "base64");
   expect(buffer.length).toBeGreaterThan(5 * 1024 * 1024);
+  expect(buffer.length).toBeLessThan(10 * 1024 * 1024); // NOTEFEED_MAX_IMAGE_BYTES
   return { name: "IMG_0001.jpg", mimeType: "image/jpeg", buffer };
 }
 
-// What the server stores for an image on the page: at most 1 MB, as the browser sends it.
-async function storedBytes(page: Page, img: ReturnType<Page["locator"]>) {
-  const src = await img.getAttribute("src");
-  return (await (await page.request.get(src!)).body()).length;
+// The size the server stored an image on the page at: the browser sends a photo as it is, the server shrinks it (ADR 0049).
+async function storedSize(img: ReturnType<Page["locator"]>) {
+  await expect(img).toHaveJSProperty("complete", true);
+  return img.evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight]);
 }
 
-// The browser shrinks every picture to NOTEFEED_SHRINK_IMAGE_BYTES (1 MiB by default) before it goes up, so a photo straight from a camera is taken.
-test("a title image chosen from a phone's camera is shrunk to 1 MB and taken", async ({ page }) => {
+test("a title image chosen from a phone's camera is taken, and stored at 2560 px", async ({ page }) => {
   const name = feedName();
   await post(page, name, "# Phone");
   await page.setViewportSize({ width: 390, height: 844 }); // after posting: a phone has the compose bar as well as the box
@@ -324,19 +324,19 @@ test("a title image chosen from a phone's camera is shrunk to 1 MB and taken", a
   const photo = await cameraPhoto(page);
   await page.locator("summary", { hasText: "Title image" }).click();
   await choose(page, "Choose image", photo);
-  await expect(page.getByRole("status")).toHaveText("Saved.");
+  await expect(page.getByRole("status")).toHaveText("Saved.", { timeout: 30_000 }); // 5 to 10 MB up, then processed on the server
   const header = page.locator("header img:not([src=\"/icon.svg\"])");
   await expect(header).toBeVisible();
-  expect(await storedBytes(page, header)).toBeLessThanOrEqual(1024 * 1024);
+  expect(await storedSize(header)).toEqual([2560, 1920]);
 });
 
-test("a camera photo added in the compose box is shrunk to 1 MB and posted", async ({ page }) => {
+test("a camera photo added in the compose box is posted, and stored at 2560 px", async ({ page }) => {
   await page.goto(`/${feedName()}`);
   await choose(page, "Add image", await cameraPhoto(page));
   await page.getByRole("button", { name: "Post note" }).click();
   const img = page.locator("ol > li img");
-  await expect(img).toHaveCount(1);
-  expect(await storedBytes(page, img)).toBeLessThanOrEqual(1024 * 1024);
+  await expect(img).toHaveCount(1, { timeout: 30_000 });
+  expect(await storedSize(img)).toEqual([2560, 1920]);
 });
 
 test("a title typed in the compose box is the note's title in the list", async ({ page }) => {

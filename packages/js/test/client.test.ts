@@ -329,6 +329,7 @@ describe("errors map from the response's code", () => {
     ["auth", 401, AuthError],
     ["rate_limited", 429, RateLimitedError],
     ["too_many_attempts", 429, RateLimitedError],
+    ["busy", 503, RateLimitedError],
     ["not_found", 404, NotFoundError],
     ["feed_limit", 507, LimitReachedError],
     ["note_limit", 507, LimitReachedError],

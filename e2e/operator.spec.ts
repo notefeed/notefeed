@@ -1,6 +1,7 @@
 // The operator's endpoint in the built app, against the S3 stand-in of the "s3" project (e2e/s3-setup.ts): the listing goes through
 // the app's own fetch here, which the unit tests cannot show.
 import { expect, test } from "@playwright/test";
+import { png as pngOf } from "../backend/testimages";
 
 const URL = "/api/operator/images/unreferenced";
 const auth = { Authorization: `Bearer ${"e2e-operator-token-".padEnd(32, "x")}` };
@@ -32,7 +33,7 @@ test("the report and the clean-up answer for the S3 store, and leave an object w
 
 test("takedown (#155): the feed answers removed under both identifiers, the picture is gone from the store and refused again", async ({ request, page }) => {
   const feed = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xe2, 0xe2, Date.now() % 251]);
+  const png = Buffer.from(pngOf(Date.now() % 0x1000000)); // a picture of its own each run: the blocklist outlives the run
   const text = await request.post(`/api/v1/feeds/${feed}/notes`, { headers: { "Content-Type": "text/markdown" }, data: "# Reported" });
   expect(text.status()).toBe(201);
   const picture = await request.post(`/api/v1/feeds/${feed}/notes`, { headers: { "Content-Type": "image/png" }, data: png });

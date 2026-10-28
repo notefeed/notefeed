@@ -23,6 +23,7 @@ export const ERROR_CODES = [
   "blocked",
   "unreadable",
   "unavailable",
+  "busy",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

@@ -46,6 +46,7 @@ const MESSAGES: Record<ErrorCode | "sign_in_failed", string> = {
   blocked: "This image may not be posted here.",
   unreadable: UNREADABLE,
   unavailable: MAINTENANCE,
+  busy: "notefeed is busy with other pictures. Try again in {retry} seconds.",
   sign_in_failed: "Sign-in didn't work. Try again.",
 };
 

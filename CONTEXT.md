@@ -49,7 +49,7 @@ _Avoid_: System feed, official feed
 ### Notes
 
 **Note**:
-One posted item in a feed: a piece of markdown text or an image, stored exactly as posted.
+One posted item in a feed: a piece of markdown text or an image, stored as posted (an image as the server processed it: shrunk, without metadata).
 _Avoid_: Post, message, entry, item
 
 **Image**:

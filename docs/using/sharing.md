@@ -26,8 +26,7 @@ iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut t
 3. **Choose from List** with the dictionary's keys: the feed. **Get Dictionary Value** for that key: the password.
 4. **Ask for Input** (text, "Caption"), which may be left empty.
 5. **Repeat with Each** item of the Shortcut Input:
-    - **Convert Image** to **JPEG**, with **Preserve Metadata** off: iPhone photos are HEIC, which notefeed does not take, and this drops where the photo was taken.
-    - **Resize Image** to 2048 on the longest edge, so a photo stays under the 5 MiB limit.
+    - **Convert Image** to **JPEG**, with **Preserve Metadata** off: iPhone photos are HEIC, which notefeed does not take. (The server shrinks the photo and removes its metadata anyway.)
     - **Add to Variable** `Pictures`.
 6. **Get Contents of URL**: `https://<your instance>/<feed>` (the chosen feed), method **POST**, request body **Form** with a field `file` of type File set to `Pictures`, and, only when the caption is not empty (an **If** around it), a field `text` with the caption. Under **Headers** add `X-Feed-Password` with the password when it is not empty, and, on an instance with a password (`NOTEFEED_PASSWORD`), `Authorization` with `Bearer <instance password>`.
 7. **Show Result** or **Show Notification** with the answer.
@@ -40,4 +39,3 @@ With a caption, the pictures arrive as one note with them attached; without one,
 !!! note "On notefeed.me"
     Pictures need a license: on the free tier every picture is refused with `402`. See [Free tier and licenses](../hosted/licenses.md).
 
-The resize step goes away once the server shrinks pictures itself ([#312](https://github.com/notefeed/notefeed/issues/312)).

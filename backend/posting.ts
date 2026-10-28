@@ -10,6 +10,8 @@ import { assertFeed, createOpenFeed, deleteFeed as removeWholeFeed, feedCount, h
 import { attachLicense, checkLicenseKey, countingKeys, detachLicense } from "./licenseflow";
 import { hasActiveLicense, licensingOn, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
 import { isBlockedImage } from "./takedown";
+import { processImage } from "./imageprocess";
+import type { ImageType } from "../shared/images";
 import { capReached, rateLimit } from "./limits";
 import { logger } from "./log";
 import { MEDIA_TYPES } from "./note/media";
@@ -37,6 +39,16 @@ async function admit(feed: string, ip: string, access: FeedAccess): Promise<bool
 // An image the operator removed may not come back, in any feed (issue #155).
 async function refuseBlocked(body: Uint8Array): Promise<void> {
   if (await isBlockedImage(body)) throw new BlockedImageError();
+}
+
+// An image as it will be stored: decoded, shrunk and stripped (imageprocess.ts, ADR 0049). The takedown list is checked against
+// the bytes as sent and as stored: an entry made from either holds, so re-sending a removed original doesn't get around it.
+// The last check before anything is stored, after the cheap ones, so a request that is refused anyway costs no processing.
+async function prepareImage(body: Uint8Array, ext: string): Promise<Uint8Array> {
+  await refuseBlocked(body);
+  const stored = await processImage(body, ext as ImageType);
+  await refuseBlocked(stored);
+  return stored;
 }
 
 // NOTEFEED_MAX_FEEDS, for a post that would create the feed. Whether the feed exists.
@@ -169,17 +181,17 @@ export async function postNote(
   // Before createProtected: a refused note must not leave a protected, empty feed.
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
   type.checkBody(input.body);
-  if (type.name === "image") await refuseBlocked(input.body);
   checkLine("title", input.title, MAX_NOTE_TITLE);
   if (checkLine("alt", input.alt, MAX_ALT) && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
   const tags = checkTags(input.tags);
   const at = checkDate(input.date);
+  const body = type.name === "image" ? await prepareImage(input.body, ext) : input.body;
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
   // ponytail: checked, not locked. A protected creation can still complete in the few microseconds between
   // this check and createNoteOf's ensureFeed, which then finds the feed and writes into it: this one note is
   // then in the protected feed. A lock around creation, per feed, would close it.
-  const made = await createNoteOf(feed, type, ext, input.body, { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId }, at);
+  const made = await createNoteOf(feed, type, ext, body, { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId }, at);
   await licenseNewFeed(feed, licenseKey);
   await trimToFreeCap(feed);
   return { ...made, created };
@@ -218,8 +230,10 @@ export async function editContent(feed: string, id: string, ip: string, read: ()
   refuseImages(current.type.startsWith("image/")); // replacing a picture's bytes is an upload too
   await licenseForImages(feed, current.type.startsWith("image/"), undefined, ip);
   const { body, mediaType } = await read();
-  if (parseMediaType(mediaType)?.type.name === "image") await refuseBlocked(body);
-  const note = await replaceContent(feed, id, body, mediaType);
+  const parsed = parseMediaType(mediaType);
+  // A body of another type than the note's is refused by replaceContent, without being processed first.
+  const image = parsed?.type.name === "image" && parsed.mediaType === current.type;
+  const note = await replaceContent(feed, id, image ? await prepareImage(body, parsed.ext) : body, mediaType);
   if (!note) throw new NotFoundError("no such note");
   return note;
 }
@@ -404,7 +418,6 @@ export async function postWithPictures(
   const { text, title, ...input } = await read();
   const pictures = checkPictures(input.pictures);
   await licenseForImages(feed, pictures.length > 0, newFeedKey(proved, exists, input.licenseKey), ip);
-  for (const p of pictures) await refuseBlocked(p.body);
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
   checkLine("title", title, MAX_NOTE_TITLE);
@@ -413,6 +426,7 @@ export async function postWithPictures(
   await recheck(feed, ip, access, proved, input.password);
   await checkCap(feed, "markdown", text === undefined ? 0 : 1);
   await checkCap(feed, "image", pictures.length);
+  for (const p of pictures) p.body = await prepareImage(p.body, p.ext); // one at a time: a post never fills the queue alone
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
   const opts = { sender, tags, wantedReadId };
@@ -449,10 +463,10 @@ export async function editWithPictures(
   const input = await read();
   const pictures = checkPictures(input.pictures);
   await licenseForImages(feed, pictures.length > 0, undefined, ip); // an edit's feed exists
-  for (const p of pictures) await refuseBlocked(p.body);
   const plan = await checkText(input.text, pictures);
   const tags = checkTags(input.tags);
   await checkCap(feed, "image", pictures.length);
+  for (const p of pictures) p.body = await prepareImage(p.body, p.ext);
   const before = new Date(note.date.getTime() - 1);
   return storeWithPictures(feed, pictures, { sender, tags, of: id }, () => before, async (stored, sent) => {
     const edited = await replaceContent(feed, id, encoder.encode(applyImages(plan, sent)), MARKDOWN_TYPE);

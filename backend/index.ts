@@ -71,7 +71,6 @@ export const reportTemplate = config.reportUrl;
 export const reportEndpoint = config.reportEndpoint;
 /** Whether pictures can be posted (NOTEFEED_IMAGE_UPLOADS); off, the note boxes show no image control (issue #152). */
 export const imageUploadsOn = config.imageUploads;
-export const shrinkImageBytes = config.shrinkImageBytes;
 
 const PAGE = 50;
 

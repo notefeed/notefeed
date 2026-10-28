@@ -13,6 +13,7 @@ import { countNotes, createImageNote, createNote, getNote, isScheduled, listNote
 import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
 import { checkDate, createFeed, deleteFeed, setFeedImage, updateFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
+import { png } from "./testimages";
 
 // The text's write is the call after the pictures: a test makes it fail to see the pictures removed again.
 vi.mock("./notes", async (original) => {
@@ -40,7 +41,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const png = (n = 1) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, n]);
+
 const pic = (name: string, extra: Partial<Picture> = {}): Picture => ({ name, body: png(), mediaType: "image/png", ...extra });
 const post = (bundle: PostBundle, feed = "f", access = {}) => postWithPictures(feed, "ip", async () => bundle, access, "Ann");
 const edit = (id: string, b: { text: string; pictures: Picture[]; tags?: string[] }, feed = "f") => editWithPictures(feed, id, "ip", async () => b, {}, "Bob");
@@ -100,7 +101,7 @@ describe("postWithPictures", () => {
     ["a bad tag", { text: "x", pictures: [pic("a.png")], tags: ["no spaces"] }, InvalidBodyError],
   ];
   test.each(refused)("refuses %s with nothing stored and no feed created", async (_, bundle, error, name) => {
-    vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "50");
+    vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "150");
     const e = await post(bundle).catch((e: Error) => e);
     expect(e).toBeInstanceOf(error as typeof Error);
     if (name) expect((e as Error).message).toMatch(new RegExp(`^attachment "${name}": `));
@@ -367,7 +368,7 @@ test("what happens to feeds and notes is logged at info: the kind and the size, 
   }, "info");
   expect(logs).toEqual([
     { level: "info", component: "feeds", msg: "feed created", protected: false },
-    { level: "info", component: "notes", msg: "note posted", kind: "image", bytes: 9 },
+    { level: "info", component: "notes", msg: "note posted", kind: "image", bytes: expect.any(Number) },
     { level: "info", component: "notes", msg: "note posted", kind: "markdown", bytes: expect.any(Number) },
     { level: "info", component: "feeds", msg: "feed created", protected: true },
     { level: "info", component: "notes", msg: "note posted", kind: "markdown", bytes: 4 },

@@ -290,6 +290,14 @@ test("a removed price setting is a warning, without its value", () => {
   expect(JSON.stringify(warnings)).not.toContain("value");
 });
 
+test("NOTEFEED_SHRINK_IMAGE_BYTES is a warning: the server shrinks pictures now", () => {
+  const msg = "a setting is no longer read; the server shrinks every picture itself";
+  const warned = () => startupReport().warnings.filter(([, m]) => m === msg);
+  expect(warned()).toEqual([]);
+  vi.stubEnv("NOTEFEED_SHRINK_IMAGE_BYTES", "1048576");
+  expect(warned()).toEqual([["startup", msg, { setting: "NOTEFEED_SHRINK_IMAGE_BYTES" }]]);
+});
+
 test("a support address that is not one warns, without its value", () => {
   const warned = () => startupReport().warnings.filter(([, m]) => m.includes("NOTEFEED_SUPPORT_EMAIL"));
   expect(warned()).toEqual([]);

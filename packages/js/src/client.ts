@@ -30,7 +30,7 @@ export class NotefeedError extends Error {
 export class ConfigError extends NotefeedError {}
 /** Missing or wrong password on a locked instance. */
 export class AuthError extends NotefeedError {}
-/** Too many posts or wrong passwords. `retryAfter` is the wait in seconds, or null if none was given. */
+/** Too many posts or wrong passwords, or (code `busy`, 503) the server is busy processing other images. `retryAfter` is the wait in seconds, or null if none was given. */
 export class RateLimitedError extends NotefeedError {
   constructor(
     message: string,
@@ -350,7 +350,7 @@ export class Client {
       const raw = typeof error === "string" ? error : isObject(error) && Object.keys(error).length ? JSON.stringify(error) : "";
       message = `HTTP ${response.status}: ${raw.slice(0, 200).replace(/\s+/g, " ").trim()}`.replace(/: $/, "");
     }
-    if (code === "rate_limited" || code === "too_many_attempts" || response.status === 429) {
+    if (code === "rate_limited" || code === "too_many_attempts" || code === "busy" || response.status === 429) {
       const retry = response.headers.get("retry-after")?.trim() ?? "";
       throw new RateLimitedError(message, response.status, code, /^\d+$/.test(retry) ? Number(retry) : null);
     }

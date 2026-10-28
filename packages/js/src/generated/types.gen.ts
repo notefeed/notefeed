@@ -219,7 +219,7 @@ export type Error = {
     /**
      * Stable machine-readable code; absent only on a 500
      */
-    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'removed' | 'blocked' | 'unreadable' | 'unavailable';
+    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'removed' | 'blocked' | 'unreadable' | 'unavailable' | 'busy';
 };
 
 export type NoteMeta = {
@@ -501,7 +501,7 @@ export type PostNoteErrors = {
      */
     410: Error;
     /**
-     * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB
+     * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB
      */
     413: Error;
     /**
@@ -517,7 +517,7 @@ export type PostNoteErrors = {
      */
     451: Error;
     /**
-     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     * `unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After
      */
     503: Error;
     /**
@@ -760,7 +760,7 @@ export type EditNoteErrors = {
      */
     404: Error;
     /**
-     * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB
+     * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB
      */
     413: Error;
     /**
@@ -776,7 +776,7 @@ export type EditNoteErrors = {
      */
     451: Error;
     /**
-     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     * `unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After
      */
     503: Error;
     /**
@@ -1105,7 +1105,7 @@ export type SetFeedImageErrors = {
      */
     404: Error;
     /**
-     * An image over NOTEFEED_MAX_IMAGE_BYTES
+     * An image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels
      */
     413: Error;
     /**
@@ -1121,7 +1121,7 @@ export type SetFeedImageErrors = {
      */
     451: Error;
     /**
-     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     * `unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After
      */
     503: Error;
     /**

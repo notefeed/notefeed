@@ -56,6 +56,15 @@ const err = (description: string) => ({ description, schema: ErrorJson }) satisf
 const RETRY = { "Retry-After": { description: "Seconds to wait before trying again", type: "integer" } } as const;
 // Only on an instance whose main key is in a key service (NOTEFEED_KMS, issue #215).
 const UNAVAILABLE = { ...err("The key service is unreachable: the instance is down for maintenance; try again after Retry-After"), headers: RETRY };
+// Where images are stored: they are processed first (ADR 0049), a few at a time.
+const UNAVAILABLE_OR_BUSY = {
+  ...err("`unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After"),
+  headers: RETRY,
+};
+// What happens to every image that is stored, whichever way it comes.
+const PROCESSED =
+  "An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), " +
+  "and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`. ";
 const MULTIPART =
   "A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), " +
   `\`file\` parts (up to ${MAX_ATTACHMENTS} pictures, each with its file name and image \`Content-Type\`) and \`alt.<file name>\` fields. ` +
@@ -151,9 +160,10 @@ const OPS: AnyOp[] = [
     summary: "Post a note",
     description:
       "The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most " +
-      `${MAX_BYTES} bytes), or an image, \`image/png\`, \`image/jpeg\`, \`image/gif\` or \`image/webp\` (at most NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). ` +
+      `${MAX_BYTES} bytes), or an image, \`image/png\`, \`image/jpeg\`, \`image/gif\` or \`image/webp\` (at most NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). ` +
       "Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). " +
-      "It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS position stays in an image). " +
+      "Markdown is stored byte for byte. " +
+      PROCESSED +
       "Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; " +
       `${PASSWORD_RULE}) and with the read id in \`X-Read-Id\`; both are only used by the post that creates the feed. ` +
       "Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. " +
@@ -188,11 +198,11 @@ const OPS: AnyOp[] = [
       403: IMAGES_OFF,
       409: err("A password was sent for a feed that already exists without one: it can't be claimed; or the chosen read id is taken"),
       410: REMOVED,
-      413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB`),
+      413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB, and never over 64 MiB`),
       415: err("Content-Type missing or not one of the accepted types, or the body (or a multipart body's picture) is not what it declares"),
       429: { ...err("Too many posts, or wrong passwords, from this client"), headers: RETRY },
       451: BLOCKED,
-      503: UNAVAILABLE,
+      503: UNAVAILABLE_OR_BUSY,
       507: err("NOTEFEED_MAX_FEEDS, NOTEFEED_MAX_NOTES_PER_FEED or NOTEFEED_MAX_IMAGES_PER_FEED reached"),
     },
   }).handle(({ req, params }) => handlePostNote(req, params.feed)),
@@ -251,7 +261,9 @@ const OPS: AnyOp[] = [
     summary: "Replace a note's content",
     description:
       "The body is the new file, with the same rules as posting: a `Content-Type` that is one of the accepted types, a body that is what it declares. " +
-      "A note keeps its type, so the type must be the note's own (`415` otherwise). Id, creation time and metadata stay: " +
+      "A note keeps its type, so the type must be the note's own (`415` otherwise). " +
+      PROCESSED +
+      "Id, creation time and metadata stay: " +
       "the title of a markdown note without one set follows the new text. Change the title, alt text or tags with `PATCH`. " +
       "Needs the feed's password if it has one, and counts against the post rate limit. Read links can't edit. " +
       MULTIPART +
@@ -271,11 +283,11 @@ const OPS: AnyOp[] = [
       402: LICENSE_REQUIRED,
       403: IMAGES_OFF,
       404: err("No such note"),
-      413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB`),
+      413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB, and never over 64 MiB`),
       415: err("Content-Type missing, not accepted or not the note's own type (a multipart body is for a markdown note), or the body (or a picture) is not what it declares"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
       451: BLOCKED,
-      503: UNAVAILABLE,
+      503: UNAVAILABLE_OR_BUSY,
       507: err("NOTEFEED_MAX_IMAGES_PER_FEED reached"),
     },
     before: passwordAndFeed,
@@ -479,7 +491,8 @@ const OPS: AnyOp[] = [
     summary: "Set the feed's title image",
     description:
       "Uploads the image (its bytes, of the type `Content-Type` declares) as the feed's own title image: it is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read API, counts), so it is no post. " +
-      "A previous title image uploaded this way is deleted; a posted image picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The feed must exist.",
+      "A previous title image uploaded this way is deleted; a posted image picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The feed must exist. " +
+      PROCESSED.trim(),
     tags: ["Feeds"],
     password: true,
     params: { feed: FeedParam },
@@ -492,11 +505,11 @@ const OPS: AnyOp[] = [
       402: LICENSE_REQUIRED,
       403: IMAGES_OFF,
       404: err("No such feed"),
-      413: err("An image over NOTEFEED_MAX_IMAGE_BYTES"),
+      413: err("An image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels"),
       415: err("Not an image, or the body is not what it declares"),
       429: { ...err("Too many posts, or wrong passwords, from this client"), headers: RETRY },
       451: BLOCKED,
-      503: UNAVAILABLE,
+      503: UNAVAILABLE_OR_BUSY,
       507: err("NOTEFEED_MAX_IMAGES_PER_FEED reached"),
     },
     before: passwordAndFeed,

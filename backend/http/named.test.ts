@@ -8,6 +8,8 @@ import { resetRateLimitsForTests } from "../limits";
 import { createNote } from "../notes";
 import { API_PREFIX, dispatch } from "./api";
 import { fileRoute } from "./files";
+import { processImage } from "../imageprocess";
+import { png } from "../testimages";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
@@ -18,7 +20,7 @@ beforeEach(async () => {
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_IMAGE_UPLOADS"]) delete process.env[k];
 });
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+const PNG = png(1);
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
   const segments = url.pathname.slice(API_PREFIX.length + 1).split("/").map(decodeURIComponent);
@@ -55,7 +57,7 @@ test("a picture is served by its name with its own type; a note's own file name 
   const pic = await post(PNG as BodyInit, { "x-note-name": "logo.png" }, "image/png");
   const byName = await fileRoute((await readIdOf("f"))!, "logo.png");
   expect([byName.status, byName.headers.get("content-type")]).toEqual([200, "image/png"]);
-  expect([...new Uint8Array(await byName.arrayBuffer())]).toEqual([...PNG]);
+  expect([...new Uint8Array(await byName.arrayBuffer())]).toEqual([...(await processImage(PNG, "png"))]);
   // A name that is another note's file name never takes its address.
   await post("# Impostor", { "x-note-name": pic.file });
   expect((await raw(pic.file)).type).toBe("image/png");

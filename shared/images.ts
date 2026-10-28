@@ -2,6 +2,10 @@
 export type ImageType = "png" | "jpg" | "gif" | "webp";
 
 const CONTENT_TYPES: Record<ImageType, string> = { png: "image/png", jpg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+// The largest request body: Next's proxy buffers a body up to this (next.config.ts) and passes on the rest cut off. A post's pictures
+// arrive as they are, up to 10 MiB each (NOTEFEED_MAX_IMAGE_BYTES), and are shrunk on the server (ADR 0049); so are MCP's, as base64.
+export const MAX_REQUEST_BYTES = 64 * 1024 * 1024;
+
 export const IMAGE_EXTS = Object.keys(CONTENT_TYPES) as ImageType[];
 
 const starts = (b: Uint8Array, at: number, sig: number[] | string) =>
