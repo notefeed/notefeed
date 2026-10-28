@@ -87,26 +87,35 @@ test("the report page posts to the inbox with the note's ids and shows the answe
 
   // Refused by the inbox (the browser's own check is skipped): the answer is shown, the text stays.
   await page.getByLabel("What is wrong").fill("This note shows my address.");
+  await page.getByLabel("I believe in good faith").check();
   await page.getByLabel("Reason").evaluate((el) => el.removeAttribute("required"));
   await page.getByRole("button", { name: "Send report" }).click();
   await expect(page.locator("ul[role=alert]")).toContainText("Reason is required");
   await expect(page.getByLabel("What is wrong")).toHaveValue("This note shows my address.");
 
   await page.getByLabel("Reason").selectOption("Personal data");
+  await page.getByLabel("Your name").fill("Ada Reporter");
+  // The good-faith statement (Art. 16(2)(d) DSA) is required: without it the browser keeps the form.
+  await page.getByLabel("I believe in good faith").uncheck();
+  await page.getByRole("button", { name: "Send report" }).click();
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await page.getByLabel("I believe in good faith").check();
   await page.getByRole("button", { name: "Send report" }).click();
   await expect(page.getByRole("status")).toContainText("Report sent");
   const last = received.at(-1)!;
   expect(last.url).toBe("/f/notefeed-report");
   expect(last.type).toBe("application/json");
-  expect(JSON.parse(last.body)).toMatchObject({ read_id: "r1d", note_id: "20260930T100000Z-abc", file: "20260930T100000Z-abc.md", reason: "Personal data", text: "This note shows my address.", email: "", _gotcha: "" });
+  expect(JSON.parse(last.body)).toMatchObject({ read_id: "r1d", note_id: "20260930T100000Z-abc", file: "20260930T100000Z-abc.md", reason: "Personal data", text: "This note shows my address.", name: "Ada Reporter", email: "", good_faith: "Yes", _gotcha: "" });
 });
 
 test("the inbox's redirects land on the page: sent, or back with the errors and what was typed", async ({ page }) => {
   await page.goto("/report?sent=1");
   await expect(page.getByRole("heading", { level: 1, name: "Report sent" })).toBeVisible();
-  await page.goto("/report?read_id=r1d&text=Only+text&error=Reason+is+required");
+  await page.goto("/report?read_id=r1d&text=Only+text&name=Ada&good_faith=Yes&error=Reason+is+required");
   await expect(page.locator("ul[role=alert]")).toContainText("Reason is required");
   await expect(page.getByLabel("What is wrong")).toHaveValue("Only text");
+  await expect(page.getByLabel("Your name")).toHaveValue("Ada");
+  await expect(page.getByLabel("I believe in good faith")).toBeChecked();
   await expect(page.locator('input[name="read_id"]')).toHaveValue("r1d");
 });
 

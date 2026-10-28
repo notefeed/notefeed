@@ -5,7 +5,7 @@ import { useState } from "react";
 // The reasons the operator's inbox knows (the `reason` field of the notefeed-report form in noticebox).
 export const REASONS = ["Illegal content", "Personal data", "Copyright", "Spam", "Other"] as const;
 
-export type ReportValues = { read_id: string; note_id: string; file: string; reason: string; text: string; email: string };
+export type ReportValues = { read_id: string; note_id: string; file: string; reason: string; text: string; name: string; email: string; good_faith: string };
 
 const field = "w-full rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none";
 
@@ -61,11 +61,20 @@ export function ReportForm({ endpoint, values, errors: initialErrors }: { endpoi
         What is wrong
       </label>
       <textarea id="report-text" name="text" required rows={6} maxLength={4000} defaultValue={values.text} className={field} />
+      <label htmlFor="report-name" className="mt-4 mb-1 block text-sm text-muted">
+        Your name
+      </label>
+      <input id="report-name" name="name" type="text" maxLength={200} defaultValue={values.name} autoComplete="name" className={field} />
       <label htmlFor="report-email" className="mt-4 mb-1 block text-sm text-muted">
         Your email, if you want an answer
       </label>
       <input id="report-email" name="email" type="email" maxLength={254} defaultValue={values.email} autoComplete="email" className={field} />
-      <p className="mt-1 text-sm text-muted">Optional. The operator uses it only to answer you, then removes it.</p>
+      <p className="mt-1 text-sm text-muted">Both optional. The operator uses them only to answer you, then removes them.</p>
+      {/* The statement a notice under Art. 16(2)(d) DSA carries; the inbox takes it as a select with the one option "Yes". */}
+      <label className="mt-4 flex items-start gap-2">
+        <input type="checkbox" name="good_faith" value="Yes" required defaultChecked={values.good_faith === "Yes"} className="mt-1" />
+        <span>I believe in good faith that what I wrote here is accurate and complete.</span>
+      </label>
       <div className="absolute -left-[10000px] h-px w-px overflow-hidden" aria-hidden="true">
         <label>
           Leave this field empty <input type="text" name="_gotcha" tabIndex={-1} autoComplete="off" />

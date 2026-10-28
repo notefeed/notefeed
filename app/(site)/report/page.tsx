@@ -23,7 +23,9 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
     file: one(q.file).slice(0, 200),
     reason: one(q.reason).slice(0, 200),
     text: one(q.text).slice(0, 4000),
+    name: one(q.name).slice(0, 200),
     email: one(q.email).slice(0, 254),
+    good_faith: one(q.good_faith).slice(0, 10),
   };
   const errors = all(q.error).slice(0, 10).map((e) => e.slice(0, 200));
   const sent = one(q.sent) === "1";
