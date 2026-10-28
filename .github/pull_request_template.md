@@ -1,5 +1,5 @@
 ## What and why
 
-## Vision
+## Values
 
-- [ ] Touches a point of [the vision](https://docs.notefeed.me/vision/): which (V…), and how it keeps to it
+- [ ] Touches a point of [the values](https://docs.notefeed.me/values/): which (V…), and how it keeps to it
