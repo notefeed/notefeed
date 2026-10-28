@@ -200,7 +200,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     // With an image store, the object is written first and the row second: a row never names bytes that are not there. If the row
     // does not come to be, the object is removed again.
     // Encrypted, the bytes are sealed for the id the note gets; should that id be taken, they are sealed (and stored) again for the next.
-    async writeNote(feed, base, ext, content, meta, date) {
+    async writeNote(feed, base, ext, content, meta, date, draft = false) {
       const db = await open();
       const f = ident("feed", feed);
       // Plain, the insert itself finds out that the feed is gone (a foreign key); encrypted, its key is needed first.
@@ -217,7 +217,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
           if (key && (n === 1 || fkey)) await stored(key, out);
           const r = await db
             .insertInto("notes")
-            .values({ feed: f, id, ext, content: key ? EMPTY : out, blob_key: key, size: data.byteLength, metadata: metaOut(fkey, id, ext, meta), created_at: now, updated_at: now, date, sealed: fkey ? 1 : 0 })
+            .values({ feed: f, id, ext, content: key ? EMPTY : out, blob_key: key, size: data.byteLength, metadata: metaOut(fkey, id, ext, meta), created_at: now, updated_at: now, date, sealed: fkey ? 1 : 0, draft: draft ? 1 : 0 })
             .onConflict((oc) => oc.columns(["feed", "id"]).doNothing())
             .executeTakeFirst();
           if (changed(r.numInsertedOrUpdatedRows)) return id;
@@ -229,9 +229,11 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       }
     },
 
-    // `before` is looked up first, within `upTo`, for its (date, id); the page is then the rows after it in the order (notes_by_date).
-    async listNoteRefs(feed, { upTo, before, limit } = {}) {
-      let q = (await open()).selectFrom("notes").select(["id", "ext", "date"]).where("feed", "=", ident("feed", feed));
+    // `before` is looked up first, within `upTo` and `drafts`, for its (date, id); the page is then the rows after it in the order
+    // (notes_by_draft_date).
+    async listNoteRefs(feed, { upTo, before, limit, drafts } = {}) {
+      let q = (await open()).selectFrom("notes").select(["id", "ext", "date", "draft"]).where("feed", "=", ident("feed", feed));
+      if (drafts !== true) q = q.where("draft", "=", 0);
       if (upTo !== undefined) q = q.where("date", "<=", upTo);
       if (before !== undefined) {
         const at = await q.where("id", "=", before).executeTakeFirst();
@@ -241,15 +243,15 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       }
       if (limit !== undefined) q = q.limit(limit);
       const rows = await q.orderBy("date", "desc").orderBy("id", "desc").execute();
-      if (upTo === undefined && before === undefined && limit === undefined) noteFeedSize(rows.length); // only a whole listing is the feed's size
-      return rows.map((r) => ({ id: r.id, ext: r.ext, date: Number(r.date) }));
+      if (upTo === undefined && before === undefined && limit === undefined && drafts === true) noteFeedSize(rows.length); // only a whole listing is the feed's size
+      return rows.map((r) => ({ id: r.id, ext: r.ext, date: Number(r.date), draft: Number(r.draft) === 1 }));
     },
 
     async readNote(feed, id, exts, withContent) {
       if (exts.length === 0) return null;
       const db = await open();
       const row = await withFeed(db, feed)
-        .select(["notes.ext", "notes.metadata", "notes.updated_at", "notes.date", "notes.size", "notes.sealed", "feeds.name", "feeds.data_key", "feeds.key_id"])
+        .select(["notes.ext", "notes.metadata", "notes.updated_at", "notes.date", "notes.draft", "notes.size", "notes.sealed", "feeds.name", "feeds.data_key", "feeds.key_id"])
         .where("notes.id", "=", id)
         .where("notes.ext", "in", exts)
         .executeTakeFirst();
@@ -265,7 +267,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
         if (bytesKey === undefined) return null;
         content = contentIn(bytesKey, id, row.ext, found);
       }
-      return { ext: row.ext, content, size: Number(row.size), meta: metaIn(key, id, row.ext, row.metadata), mtime: new Date(Number(row.updated_at)), date: Number(row.date) };
+      return { ext: row.ext, content, size: Number(row.size), meta: metaIn(key, id, row.ext, row.metadata), mtime: new Date(Number(row.updated_at)), date: Number(row.date), draft: Number(row.draft) === 1 };
     },
 
     async readMeta(feed, ref) {
@@ -344,6 +346,12 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       return changed(r.numUpdatedRows);
     },
 
+    async setDraft(feed, id, exts, draft) {
+      if (exts.length === 0) return false;
+      const r = await (await open()).updateTable("notes").set({ draft: draft ? 1 : 0 }).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
+      return changed(r.numUpdatedRows);
+    },
+
     // The content and the metadata are bound to the note's name: opened under the old one, sealed under the new. A sealed image gets a
     // copy sealed for the new name under a new key first (a plain one keeps its key: its bytes are not bound to a name); then, in one
     // transaction, the new row goes in and the old one out; the old object goes last, as in replaceNote. The delete names the state it
@@ -377,7 +385,7 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
             .execute(async (tx) => {
               const r = await tx
                 .insertInto("notes")
-                .values({ feed: f, id: newId, ext, content, blob_key: blobKey, size: Number(row.size), metadata, created_at: Number(row.created_at), updated_at: Number(row.updated_at), date: Number(row.date), sealed: row.sealed })
+                .values({ feed: f, id: newId, ext, content, blob_key: blobKey, size: Number(row.size), metadata, created_at: Number(row.created_at), updated_at: Number(row.updated_at), date: Number(row.date), sealed: row.sealed, draft: row.draft })
                 .onConflict((oc) => oc.columns(["feed", "id"]).doNothing())
                 .executeTakeFirst();
               if (!changed(r.numInsertedOrUpdatedRows)) return false;

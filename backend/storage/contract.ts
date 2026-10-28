@@ -77,7 +77,7 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         await s.writeNote("f", "a", "md", "x", { sender: "S" }, 0);
         await s.writeNote("f", "b", "png", new Uint8Array([1]), {}, 0);
         const refs = (await s.listNoteRefs("f")).sort((x, y) => x.id.localeCompare(y.id));
-        expect(refs).toEqual([{ id: "a", ext: "md", date: 0 }, { id: "b", ext: "png", date: 0 }]);
+        expect(refs).toEqual([{ id: "a", ext: "md", date: 0, draft: false }, { id: "b", ext: "png", date: 0, draft: false }]);
         expect(await s.listNoteRefs("missing")).toEqual([]);
       });
       t("readMeta reads only the metadata", async ({ storage: s }) => {
@@ -91,7 +91,7 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         const n = await s.readNote("f", id, MD, () => true);
         expect([text(n?.content), n?.meta]).toEqual(["new", { sender: "S" }]);
         expect(await s.replaceNote("f", "nope", MD, "x")).toBe(false);
-        expect(await s.listNoteRefs("f")).toEqual([{ id, ext: "md", date: 0 }]);
+        expect(await s.listNoteRefs("f")).toEqual([{ id, ext: "md", date: 0, draft: false }]);
       });
       t("updateMeta sets, removes with null, and is false for a missing note", async ({ storage: s }) => {
         const id = await s.writeNote("f", "a", "md", "x", { sender: "S", title: "T" }, 0);
@@ -117,7 +117,7 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         await s.writeNote("f", "a", "md", "x", { of: "t" }, 1000);
         const n = await s.readNote("f", "a", MD, () => true);
         expect([n?.date, n?.meta]).toEqual([1000, { of: "t" }]);
-        expect(await s.listNoteRefs("f")).toEqual([{ id: "a", ext: "md", date: 1000 }]);
+        expect(await s.listNoteRefs("f")).toEqual([{ id: "a", ext: "md", date: 1000, draft: false }]);
       });
       // a=1000, b=3000, c=2000, d=2000
       const dated = async (s: Storage) => {
@@ -141,7 +141,7 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
       t("setDate moves a note in the order", async ({ storage: s }) => {
         await dated(s);
         expect(await s.setDate("f", "a", MD, 4000)).toBe(true);
-        expect(await s.listNoteRefs("f", { limit: 1 })).toEqual([{ id: "a", ext: "md", date: 4000 }]);
+        expect(await s.listNoteRefs("f", { limit: 1 })).toEqual([{ id: "a", ext: "md", date: 4000, draft: false }]);
         expect((await s.readNote("f", "a", MD, () => true))?.date).toBe(4000);
         expect(await s.setDate("f", "nope", MD, 4000)).toBe(false);
       });
@@ -152,13 +152,55 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         const n = await s.readNote("f", "a", MD, () => true);
         expect([n?.meta, n?.date]).toEqual([{}, 6]);
       });
+      // Drafts (#265): a plaintext flag beside the date; listed only when asked for, so a reader's listing that forgets it stays safe.
+      const drafted = async (s: Storage) => {
+        await s.writeNote("f", "a", "md", "a", {}, 1000);
+        await s.writeNote("f", "b", "md", "b", {}, 2000, true);
+        await s.writeNote("f", "c", "md", "c", {}, 3000);
+      };
+      t("drafts are left out unless asked for", async ({ storage: s }) => {
+        await drafted(s);
+        expect(await ids(s)).toEqual(["c", "a"]);
+        expect(await ids(s, { drafts: true })).toEqual(["c", "b", "a"]);
+        expect((await s.listNoteRefs("f", { drafts: true })).map((r) => r.draft)).toEqual([false, true, false]);
+        expect(await ids(s, { drafts: true, upTo: 2000, limit: 1 })).toEqual(["b"]);
+      });
+      t("before at a left-out draft gives none", async ({ storage: s }) => {
+        await drafted(s);
+        expect(await ids(s, { before: "b" })).toEqual([]);
+        expect(await ids(s, { before: "b", drafts: true })).toEqual(["a"]);
+      });
+      t("setDraft flips the flag and keeps date and metadata", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "x", { title: "T" }, 5);
+        expect(await s.setDraft("f", "a", MD, true)).toBe(true);
+        let n = await s.readNote("f", "a", MD, () => true);
+        expect([n?.draft, n?.date, n?.meta]).toEqual([true, 5, { title: "T" }]);
+        expect(await ids(s)).toEqual([]);
+        expect(await s.setDraft("f", "a", MD, false)).toBe(true);
+        n = await s.readNote("f", "a", MD, () => true);
+        expect([n?.draft, n?.date, n?.meta]).toEqual([false, 5, { title: "T" }]);
+        expect(await s.setDraft("f", "nope", MD, true)).toBe(false);
+      });
+      t("updateMeta, setDate and renameNote keep the draft flag", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "x", { title: "T" }, 5, true);
+        expect(await s.updateMeta("f", "a", MD, { title: "U" })).toBe(true);
+        expect(await s.setDate("f", "a", MD, 6)).toBe(true);
+        expect(await s.renameNote("f", "a", "md", "z")).toBe(true);
+        const n = await s.readNote("f", "z", MD, () => true);
+        expect([n?.draft, n?.date, n?.meta]).toEqual([true, 6, { title: "U" }]);
+      });
+      t("a note written without the flag is published", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "x", {}, 5);
+        expect((await s.readNote("f", "a", MD, () => true))?.draft).toBe(false);
+        expect(await ids(s)).toEqual(["a"]);
+      });
       t("renameNote keeps content, metadata and date", async ({ storage: s }) => {
         await s.writeNote("f", "a", "md", "text", { title: "T" }, 5);
         expect(await s.renameNote("f", "a", "md", "z")).toBe(true);
         expect(await s.readNote("f", "a", MD, () => true)).toBeNull();
         const n = await s.readNote("f", "z", MD, () => true);
         expect([text(n?.content), n?.meta, n?.date, n?.size]).toEqual(["text", { title: "T" }, 5, 4]);
-        expect(await s.listNoteRefs("f")).toEqual([{ id: "z", ext: "md", date: 5 }]);
+        expect(await s.listNoteRefs("f")).toEqual([{ id: "z", ext: "md", date: 5, draft: false }]);
         expect(await s.renameNote("f", "nope", "md", "y")).toBe(false);
       });
       t("renameNote onto a taken id is false and both notes stay", async ({ storage: s }) => {
@@ -309,7 +351,7 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         await s.createFeed(name, id);
         expect(await s.feedForReadId(id)).toBe(name);
         await s.writeNote(name, "a", "md", "x", {}, 0);
-        expect(await s.listNoteRefs(name)).toEqual([{ id: "a", ext: "md", date: 0 }]);
+        expect(await s.listNoteRefs(name)).toEqual([{ id: "a", ext: "md", date: 0, draft: false }]);
       });
       t("takedown (#155): the tombstone keeps the name and the read id out of use, the content goes, the blocklist holds", async ({ storage: s }) => {
         await s.writeNote("f", "a", "md", "x", {}, 0);
@@ -347,7 +389,7 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         await s.writeNote("f", "a", "md", "x", {}, 0);
         await s.forgetFeed("f", "not-its-id");
         expect(await s.feedReadId("f")).toBe("rid-f");
-        expect(await s.listNoteRefs("f")).toEqual([{ id: "a", ext: "md", date: 0 }]);
+        expect(await s.listNoteRefs("f")).toEqual([{ id: "a", ext: "md", date: 0, draft: false }]);
       });
     });
   });

@@ -111,6 +111,8 @@ describe.skipIf(!supported)("sqlite", () => {
     const raw = new Database(a.url.slice("file:".length));
     // Back to the schema of 001: the later migrations' columns and tables go, and so do their records, in order.
     raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
+    raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");
+    raw.exec("create index notes_by_date on notes (feed, date, id)");
     raw.exec("drop index notes_by_date; alter table notes drop column date; delete from kysely_migration where name = '005_note_date'");
     raw.exec("drop index notes_by_sealed; alter table notes drop column sealed; drop table keyring; alter table feeds drop column key_id; alter table feeds drop column data_key; alter table feeds drop column name_sealed; alter table feeds drop column read_id_sealed; delete from kysely_migration where name = '004_encryption'");
     raw.exec("alter table notes drop column blob_key; alter table notes drop column size; drop table tombstones; drop table blocked_images; delete from kysely_migration where name in ('002_image_store', '003_takedown')");
@@ -133,11 +135,13 @@ describe.skipIf(!supported)("sqlite", () => {
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
     raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
+    raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");
+    raw.exec("create index notes_by_date on notes (feed, date, id)");
     raw.exec("drop index notes_by_date; alter table notes drop column date; delete from kysely_migration where name = '005_note_date'");
     raw.close();
     const again = createSqlStorage(() => connect("sqlite", a.url));
     open.push({ storage: again, root: a.root });
-    expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 0 }]);
+    expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 0, draft: false }]);
     expect((await again.readNote("f", "t", ALL, () => true))?.meta).toEqual({ title: "T" });
     expect(await again.migrationPending()).toBe(true); // stored before the migration ran: it gives the note its mtime
   });
@@ -188,7 +192,7 @@ describe.skipIf(!supported)("sqlite", () => {
       const listed = await s.readNote("f", "p", ALL, () => false);
       expect(listed).toMatchObject({ ext: "png", size: PNG.byteLength, meta: { alt: "a" } });
       expect(listed?.content.byteLength).toBe(0);
-      expect(await s.listNoteRefs("f")).toEqual([{ id: "p", ext: "png", date: 0 }]);
+      expect(await s.listNoteRefs("f")).toEqual([{ id: "p", ext: "png", date: 0, draft: false }]);
       expect(await s.readMeta("f", { id: "p", ext: "png" })).toEqual({ alt: "a" });
       expect(calls).toEqual([]);
       expect((await s.readNote("f", "p", ALL, () => true))?.content).toEqual(PNG);
@@ -533,7 +537,7 @@ describe.skipIf(!supported)("sqlite", () => {
     const again = createSqlStorage(() => connect("sqlite", a.url));
     open.push({ storage: again, root: a.root });
     expect(await again.feedReadId("f")).toBe("rid-f");
-    expect(await again.listNoteRefs("f")).toEqual([{ id: "n", ext: "md", date: 0 }]);
+    expect(await again.listNoteRefs("f")).toEqual([{ id: "n", ext: "md", date: 0, draft: false }]);
   });
 
   test("a database made by a newer notefeed fails with a clear message", async () => {
