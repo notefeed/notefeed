@@ -63,8 +63,10 @@ export const fullDate = (d: Date) => d.toLocaleString("en-GB", { dateStyle: "med
 // Where a reader reports a note (issue #154): the operator's URL template with the read id, never the feed name, so the link is the
 // same on the feed page and in the read-only view. `report` is unset while the instance has no template, or the feed no read link.
 export type Report = { template: string; readId: string };
+// None on a draft or a scheduled note (#327): no reader sees it, and the operator's link to it by the read id answers 404; whoever can
+// see it can remove it. It gets the link once readers see it.
 function ReportLink({ note, report }: { note: Note; report?: Report }) {
-  if (!report) return null;
+  if (!report || isDraft(note) || isScheduled(note)) return null;
   return (
     <a href={reportUrl(report.template, { readId: report.readId, noteId: note.id, file: note.file })} rel="nofollow noopener" className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-carbon">
       <Flag aria-hidden className="h-3.5 w-3.5" />
