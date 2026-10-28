@@ -70,7 +70,11 @@ _Avoid_: Created at, timestamp, publish date
 
 **Scheduled note**:
 A note whose date is after now. Readers do not see it until its date; the owner sees it, marked as scheduled.
-_Avoid_: Draft, queued post
+_Avoid_: Queued post
+
+**Draft**:
+A note that readers do not see until it is published, whatever its date; the owner sees it on the feed, marked as a draft. Its pictures are drafts with it. Publishing changes only that: a draft dated in the future becomes a scheduled note.
+_Avoid_: Unpublished note, hidden note, private note
 
 **Sender**:
 The verified identity of the person who posted a note. Present only when the note was posted by someone signed in.

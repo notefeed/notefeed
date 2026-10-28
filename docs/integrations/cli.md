@@ -26,6 +26,8 @@ notefeed post --attach out/a.png --attach out/b.png   # only pictures, no text
 notefeed update Vq3xH8mTn2KfLw0aZr9bYe --title "Backup" --alt "…"
 notefeed post "# Old entry" --date 2025-03-01   # dated in the past; a future date schedules the note
 notefeed update Vq3xH8mTn2KfLw0aZr9bYe --date 2026-12-01T09:00:00+01:00   # move a note
+notefeed post "# Not yet" --draft             # a draft: readers don't see it
+notefeed update Vq3xH8mTn2KfLw0aZr9bYe --publish   # publish it at its date (--draft hides it again)
 notefeed notes                             # the newest 20: time, title, URL
 notefeed notes --limit 100 --json          # one JSON object per line
 notefeed notes --tag ci                     # only notes with this tag
