@@ -30,7 +30,7 @@ const text: LicenseText = {
 };
 const month: Plan = { period: "month", name: "Monthly", description: "Line one\nLine two", amount: 199, currency: "EUR", taxIncluded: true };
 const year: Plan = { ...month, period: "year", name: "Yearly", description: "", amount: 1990 };
-const render = (plans: Plan[], cap = 1000) => renderToStaticMarkup(<BuyLicense text={text} intro={<p>The intro</p>} fineprint={<p>The fine print</p>} plans={plans} cap={cap} />);
+const render = (plans: Plan[], cap = 1000) => renderToStaticMarkup(<BuyLicense text={text} intro={<p>The intro</p>} fineprint={<p>The fine print</p>} plans={plans} cap={cap} account="https://pay.example/my-orders" />);
 
 test("a tile per plan with the provider's name and price, the words from license.md; the description is the checkout's", () => {
   const html = render([month, year]);
@@ -69,4 +69,11 @@ test("no plans: no buy button, and a line that licenses can't be bought now", ()
 
 test("no tax included: no VAT line", () => {
   expect(render([{ ...month, taxIncluded: false }])).not.toContain("VAT included");
+});
+
+test("purchases are managed at the provider's sign-in, with no field for a key (#316)", () => {
+  const html = render([]);
+  expect(html).toContain('href="https://pay.example/my-orders"');
+  expect(html).toContain("Manage your purchases");
+  expect(html).not.toContain('id="manage-key"');
 });

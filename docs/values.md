@@ -114,11 +114,11 @@ ADRs: [0014](https://github.com/notefeed/notefeed/blob/main/docs/adr/0014-privat
 
 ### V13. A license is the proof for exactly one feed {#v13}
 
-A license lifts the limits for one feed. In notefeed its key acts on that one feed only: it attaches to it, keeps its limits lifted and recovers its password. The key is also the buyer's way into the payment provider's customer portal, which shows the buyer's billing, other licenses bought by the same buyer included ([#316](https://github.com/notefeed/notefeed/issues/316)). So give scripts, assistants and co-authors the feed password, not the key.
+A license lifts the limits for one feed. In notefeed its key acts on that one feed only: it attaches to it, keeps its limits lifted and recovers its password. It opens nothing at the payment provider: the buyer manages their purchases there by signing in with their e-mail address, because the provider's pages show the buyer and every license they bought ([ADR 0050](https://github.com/notefeed/notefeed/blob/main/docs/adr/0050-a-license-key-opens-no-provider-page.md)). Still, give scripts, assistants and co-authors the feed password, not the key: the key resets the feed's password.
 
-**Rules out:** one key for several feeds, a key that changes another feed in notefeed, a license tied to a person in notefeed.
+**Rules out:** one key for several feeds, a key that changes another feed, a key that opens the buyer's account at the payment provider, a license tied to a person in notefeed.
 
-ADRs: [0029](https://github.com/notefeed/notefeed/blob/main/docs/adr/0029-licenses-per-feed-on-the-saas.md), [0037](https://github.com/notefeed/notefeed/blob/main/docs/adr/0037-feed-password-recovery-by-license-key.md), [0043](https://github.com/notefeed/notefeed/blob/main/docs/adr/0043-a-license-without-a-feed-password.md).
+ADRs: [0029](https://github.com/notefeed/notefeed/blob/main/docs/adr/0029-licenses-per-feed-on-the-saas.md), [0037](https://github.com/notefeed/notefeed/blob/main/docs/adr/0037-feed-password-recovery-by-license-key.md), [0043](https://github.com/notefeed/notefeed/blob/main/docs/adr/0043-a-license-without-a-feed-password.md), [0050](https://github.com/notefeed/notefeed/blob/main/docs/adr/0050-a-license-key-opens-no-provider-page.md).
 
 ## Changing this page
 

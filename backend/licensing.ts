@@ -19,6 +19,9 @@ export const licensingOn = (): boolean => config.paymentProvider() !== "";
 export const freeNoteCap = config.freeNoteCap;
 /** The plans for sale, as the provider holds them (ADR 0035); none without a provider. */
 export const licensePlans = async (): Promise<Plan[]> => (await paymentProvider()?.plans()) ?? [];
+// Where buyers manage their purchases themselves, at the provider, by the e-mail address they bought with; null where no
+// licenses are sold. A key never leads there: the provider's pages show the buyer and all their licenses, keys included (#316).
+export const licenseAccountUrl = (): string | null => paymentProvider()?.accountUrl ?? null;
 
 const state = processState("licenses", () => ({}) as { file?: string; keys?: string; db?: LicenseDb });
 

@@ -8,12 +8,11 @@
 //   DELETE /api/licenses/attach    {"feed"} takes the license off; needs write access to the feed
 //   POST   /<feed>/license         {"key"} and DELETE: the same for the feed's settings page, under the feed's path, where the
 //                                  unlock cookie of a protected feed is sent (it never reaches /api/licenses)
-//   POST   /api/licenses/portal    {"key"} the provider's page for the holder of the key: cancelling, payment method, invoices
 // All of them are 404 while no payment provider is configured.
 import { InvalidBodyError, NotefeedError, NotFoundError, RateLimitedError } from "../errors";
 import { checkFeedAccess } from "../feedlock";
 import { checkFeed } from "../feednames";
-import { attachLicense, countingKeys, detachLicense, keyOfCheckout, portalFor, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
+import { attachLicense, countingKeys, detachLicense, keyOfCheckout, receiveWebhook, startCheckout, WebhookRejectedError } from "../licenseflow";
 import { licensingOn } from "../licensing";
 import { clientIp, rateLimit } from "../limits";
 import { logger } from "../log";
@@ -103,18 +102,6 @@ async function attachOrDetach(req: Request, feedOf: (b: Record<string, unknown>)
     }
     await countingKeys(ip, () => attachLicense(feed, typeof b.key === "string" ? b.key.trim() : ""));
     return json({ ok: true });
-  } catch (e) {
-    return failed(e);
-  }
-}
-
-export async function portalRoute(req: Request): Promise<Response> {
-  if (!licensingOn()) return off();
-  try {
-    const wait = rateLimit(clientIp(req.headers));
-    if (wait !== null) throw new RateLimitedError(wait);
-    const b = await body(req, 4096);
-    return json(await portalFor(typeof b.key === "string" ? b.key.trim() : ""));
   } catch (e) {
     return failed(e);
   }

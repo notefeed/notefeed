@@ -26,7 +26,7 @@ export { noteOutcome } from "./requestscope";
 export { hasLegalPage, licensePageOn, readLegalPage, readLicensePage, readNotice, type LegalPage } from "./legal";
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
-export { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, portalRoute, webhookRoute } from "./http/licenses";
+export { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, webhookRoute } from "./http/licenses";
 export { moveImagesRoute, resealRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
 export { feedCookieName, feedUnlocked } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
@@ -38,7 +38,7 @@ export { mcpRoute } from "./mcp";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
 export { authServerRoute, authorizeRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
 
-export { freeNoteCap, freeTier, isLicensed, licensePlans, licensingOn } from "./licensing";
+export { freeNoteCap, freeTier, isLicensed, licenseAccountUrl, licensePlans, licensingOn } from "./licensing";
 
 export const instanceTitle = config.title;
 /** The address of the footer's Support link; "" for none. */

@@ -9,7 +9,7 @@ import { createNote } from "../notes";
 import { resetPlansForTests } from "../payments/creem";
 import { cancelled, fakeKey, fakeSignature } from "../payments/fake";
 import { API_PREFIX, dispatch } from "./api";
-import { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, portalRoute, webhookRoute } from "./licenses";
+import { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, webhookRoute } from "./licenses";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -56,7 +56,6 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect((await checkoutRoute(post("/api/licenses/checkout", {}))).status).toBe(404);
     expect((await webhookRoute(webhook([]))).status).toBe(404);
     expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key: "k" }))).status).toBe(404);
-    expect((await portalRoute(post("/api/licenses/portal", { key: "k" }))).status).toBe(404);
     expect((await keyRoute(post("/api/licenses/key", { checkout: "fake_1" }))).status).toBe(404);
   });
 
@@ -271,14 +270,8 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect(await isLicensed("f")).toBe(false);
   });
 
-  test("the key opens the provider's page for its subscription; anything else is refused", async () => {
-    const key = await buy("sub_1");
-    const res = await portalRoute(post("/api/licenses/portal", { key: ` ${key} ` }));
-    expect(res.status).toBe(200);
-    expect((await res.json()).url).toBe("https://fake.invalid/portal/sub_1");
-    expect((await portalRoute(post("/api/licenses/portal", { key: "x".repeat(22) }))).status).toBe(400);
-    expect((await portalRoute(post("/api/licenses/portal", { key: "f" }))).status).toBe(400);
-    expect((await portalRoute(post("/api/licenses/portal", {}))).status).toBe(400);
+  test("no route turns a key into the provider's portal (#316)", async () => {
+    expect(await import("./licenses")).not.toHaveProperty("portalRoute");
   });
 });
 

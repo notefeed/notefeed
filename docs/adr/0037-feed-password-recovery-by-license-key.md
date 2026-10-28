@@ -18,7 +18,7 @@ A feed password is stored only as a hash (ADR 0008), so a lost one can be remove
 
 ## Decision Outcome
 
-Chosen: the key recovers the password. The password stays what it is for, a secret to share with scripts and co-authors; the key stays the buyer's, because it also opens the provider's portal with the buyer's name, invoices and the subscription. A key used as the password would put the billing into every script, and would leave a feed unprotected when its key moves to another feed.
+Chosen: the key recovers the password. The password stays what it is for, a secret to share with scripts and co-authors; the key stays the buyer's, because it also opens the provider's portal with the buyer's name, invoices and the subscription (no longer since ADR 0050: a key opens no provider page; it stays the buyer's because it resets the password). A key used as the password would put the billing into every script, and would leave a feed unprotected when its key moves to another feed.
 
 * **Where:** the unlock screen of a protected feed, on an instance that sells licenses, has **Forgot the password?** with the license key and a new password. It posts `action=recover` to `/<feed>/access`, the form route that already unlocks, changes and removes (same-origin only).
 * **Proof:** the key must be the license attached to this feed: found by its hash, its feed must be this one. A key on another feed or on none proves nothing.

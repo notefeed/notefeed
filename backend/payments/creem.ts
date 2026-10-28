@@ -76,6 +76,9 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
     return (await Promise.all(sold.map(([period, id]) => product(period, id)))).filter((p): p is Plan => p !== null);
   };
   return {
+    // Creem's own sign-in for customers: the e-mail address bought with, then a link by mail (#316).
+    accountUrl: "https://creem.io/my-orders/login",
+
     async plans() {
       const key = `${base} ${productId} ${yearlyProductId}`;
       if (plansCache.key !== key) resetPlansForTests();
@@ -154,16 +157,6 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
         default:
           return [];
       }
-    },
-
-    // The portal is the customer's, so the subscription is looked up first: its `customer` is the id, or the customer itself.
-    async portalUrl(providerRef) {
-      const subscription = await call("reading a subscription", `/subscriptions?subscription_id=${encodeURIComponent(providerRef)}`);
-      const customer = str(subscription?.customer) ?? str(obj(subscription?.customer)?.id);
-      if (!customer) throw new Error("creem: the subscription has no customer");
-      const url = str((await call("creating a portal link", "/customers/billing", { customer_id: customer }))?.customer_portal_link);
-      if (!url) throw new Error("creem: the portal has no customer_portal_link");
-      return { url };
     },
 
     async cancel(providerRef) {

@@ -51,20 +51,10 @@ describe("Creem", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  test("the portal link is the customer's, found through the subscription", async () => {
-    const fetch = vi.fn(async (url: string) =>
-      url.includes("/subscriptions") ? Response.json({ id: "sub_1", customer: { id: "cust_1", email: "a@b.test" } }) : Response.json({ customer_portal_link: "https://creem.io/portal/x" }),
-    );
-    expect(await creem(fetch as never).portalUrl("sub_1")).toEqual({ url: "https://creem.io/portal/x" });
-    const [[read, readInit], [made, madeInit]] = fetch.mock.calls as unknown as [string, RequestInit][];
-    expect(read).toBe("https://test-api.creem.io/v1/subscriptions?subscription_id=sub_1");
-    expect(readInit.method).toBe("GET");
-    expect(made).toBe("https://test-api.creem.io/v1/customers/billing");
-    expect(JSON.parse(String(madeInit.body))).toEqual({ customer_id: "cust_1" });
-    // The customer can be its id alone.
-    const plain = vi.fn(async (url: string) => (url.includes("/subscriptions") ? Response.json({ customer: "cust_2" }) : Response.json({ customer_portal_link: "https://creem.io/portal/y" })));
-    expect(await creem(plain as never).portalUrl("sub_2")).toEqual({ url: "https://creem.io/portal/y" });
-    await expect(creem((async () => new Response("no", { status: 404 })) as never).portalUrl("sub_3")).rejects.toThrow(/404/);
+  test("buyers manage their purchases at Creem's own login, never through a key (#316)", () => {
+    const provider = creem(vi.fn() as never);
+    expect(provider.accountUrl).toBe("https://creem.io/my-orders/login");
+    expect("portalUrl" in provider).toBe(false);
   });
 
   test("cancelling ends a subscription at once, and leaves an order alone", async () => {
