@@ -14,9 +14,9 @@ type Io = {
 class UsageError extends Error {}
 
 const USAGE = [
-  "usage: notefeed post <text | - | --file PATH> [--type MEDIA_TYPE] [--title TITLE] [--tag TAG]... [--attach PATH]... [--date WHEN] [--url URL] [--feed FEED] [--password PASSWORD]",
+  "usage: notefeed post <text | - | --file PATH> [--type MEDIA_TYPE] [--title TITLE] [--tag TAG]... [--attach PATH]... [--date WHEN] [--draft] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed edit <id> <text | - | --file PATH> [--type MEDIA_TYPE] [--url URL] [--feed FEED] [--password PASSWORD]",
-  "       notefeed update <id> [--title TITLE] [--alt ALT] [--tags LIST] [--date WHEN] [--url URL] [--feed FEED] [--password PASSWORD]",
+  "       notefeed update <id> [--title TITLE] [--alt ALT] [--tags LIST] [--date WHEN] [--draft | --publish] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed delete <id> [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed notes [--limit N] [--tag TAG] [--json] [--url URL] [--feed FEED] [--password PASSWORD]",
 ].join("\n");
@@ -41,6 +41,8 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
         tag: { type: "string", multiple: true },
         tags: { type: "string" },
         date: { type: "string" },
+        draft: { type: "boolean" },
+        publish: { type: "boolean" },
         attach: { type: "string", multiple: true },
         limit: { type: "string" },
         json: { type: "boolean" },
@@ -64,7 +66,7 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
       const noText = attachments.length > 0 && text === undefined && !values.file;
       const input = noText ? { content: null, type: undefined, name: undefined } : await read(text, values.file, values.type, io);
       // The server refuses a file name next to attachments: the text has none then.
-      const note = await client(values).post(input.content, { type: input.type, title: values.title, tags: values.tag, date: values.date, name: attachments.length ? undefined : input.name, attachments });
+      const note = await client(values).post(input.content, { type: input.type, title: values.title, tags: values.tag, date: values.date, draft: values.draft, name: attachments.length ? undefined : input.name, attachments });
       io.stdout.write(`${[...(noText ? [] : [note.url]), ...note.attachments.map((a) => a.url)].join("\n")}\n`);
       return 0;
     }
@@ -75,10 +77,13 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
       return 0;
     }
     if (command === "update" && text !== undefined && !rest.length) {
-      if (values.title === undefined && values.alt === undefined && values.tags === undefined && values.date === undefined) throw new UsageError("give --title, --alt, --tags and/or --date");
+      if (values.draft && values.publish) throw new UsageError("give --draft or --publish, not both");
+      // --draft makes the note a draft (#265), --publish publishes it; either alone is an update.
+      const draft = values.draft ? true : values.publish ? false : undefined;
+      if (values.title === undefined && values.alt === undefined && values.tags === undefined && values.date === undefined && draft === undefined) throw new UsageError("give --title, --alt, --tags, --date and/or --draft or --publish");
       // --tags is the whole new list, comma-separated; "" removes them all.
       const tags = values.tags?.split(",").map((t) => t.trim()).filter(Boolean);
-      const note = await client(values).update(text, { title: values.title, alt: values.alt, tags, date: values.date });
+      const note = await client(values).update(text, { title: values.title, alt: values.alt, tags, date: values.date, draft });
       io.stdout.write(`${note.url}\n`);
       return 0;
     }

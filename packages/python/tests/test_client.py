@@ -688,3 +688,14 @@ def test_a_rate_limit_keeps_retry_after(server):
     with pytest.raises(RateLimitedError) as e:
         Client(server.url, "inbox").post("x", attachments=[Attachment("a.png", PNG, "image/png")])
     assert e.value.retry_after == 7
+
+
+def test_draft_goes_as_x_note_draft_on_a_post_and_in_the_patch_body(server):
+    c = Client(server.url, "inbox")
+    c.post("x", draft=True)
+    c.post("x ![](a.png)", draft=True, attachments=[Attachment("a.png", PNG, "image/png")])
+    c.post("x", draft=False)
+    assert [q["headers"].get("X-Note-Draft") for q in server.requests] == ["true", "true", None]
+    server.reply(200, note(10))
+    c.update("i", draft=False)
+    assert json.loads(server.requests[3]["body"]) == {"draft": False}

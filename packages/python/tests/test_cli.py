@@ -463,3 +463,17 @@ def test_attach_with_a_markdown_file_is_one_request_with_its_text(server, tmp_pa
     server.reply(201, {**_TEXT, "attachments": [_img(1)]})
     assert main(["post", "--file", str(d / "notes.md"), "--attach", str(d / "chart.png"), "--url", server.url, "--feed", "inbox"]) == 0
     assert _parts(server)[0] == ("text", "text.md", "text/markdown", b"# x")
+
+
+def test_post_draft_and_update_publish_or_draft(server, capsys):
+    server.reply(201, CREATED)
+    assert main(["post", "hi", "--draft", "--url", server.url, "--feed", "inbox"]) == 0
+    assert server.requests[0]["headers"]["X-Note-Draft"] == "true"
+    server.reply(200, NOTE)
+    server.reply(200, NOTE)
+    assert main(["update", "i", "--publish", "--url", server.url, "--feed", "inbox"]) == 0
+    assert main(["update", "i", "--draft", "--url", server.url, "--feed", "inbox"]) == 0
+    assert [json.loads(q["body"]) for q in server.requests[1:]] == [{"draft": False}, {"draft": True}]
+    capsys.readouterr()
+    assert main(["update", "i", "--draft", "--publish", "--url", server.url, "--feed", "inbox"]) == 2
+    assert "--publish" in capsys.readouterr().err
