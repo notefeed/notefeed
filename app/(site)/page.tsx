@@ -76,6 +76,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           </div>
         ))}
       </div>
+      <p className="mt-6 text-center text-[13px] text-muted">
+        No accounts, no personal data, readers stay invisible.{" "}
+        <a href="https://docs.notefeed.me/vision/" className="text-ink underline hover:text-carbon">
+          What notefeed stands for
+        </a>
+      </p>
     </>
   );
 }

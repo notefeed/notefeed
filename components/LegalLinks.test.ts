@@ -51,5 +51,9 @@ test("the feeds the operator lists come after the product links; other reserved 
   vi.stubEnv("NOTEFEED_RESERVED_FEEDS", "releases,admin,blog,www");
   vi.stubEnv("NOTEFEED_FOOTER_FEEDS", "releases,blog");
   vi.stubEnv("NOTEFEED_RESERVED_PASSWORD", "operator-pass-1");
-  expect((await footerLinks()).product.map((l) => l.label)).toEqual(["Docs", "GitHub", "Releases", "Blog"]);
+  expect((await footerLinks()).product.map((l) => l.label)).toEqual(["Docs", "Values", "GitHub", "Releases", "Blog"]);
+});
+
+test("the Values link is the vision page in the docs, on every instance", async () => {
+  expect((await footerLinks()).product.find((l) => l.label === "Values")).toEqual({ href: "https://docs.notefeed.me/vision/", label: "Values", external: true });
 });
