@@ -7,6 +7,11 @@ export type LicensePeriod = "month" | "year";
 /** A product the provider sells, as it holds it. `amount` is in the currency's minor unit (cents). */
 export type Plan = { period: LicensePeriod; name: string; description: string; amount: number; currency: string; taxIncluded: boolean };
 
+/** How buyers manage their purchases: at the provider, signed in by e-mail; no key opens it (#316, ADR 0050). Said the same on the
+ *  license page, in the API and over MCP. */
+export const MANAGE_PURCHASES =
+  "Your purchases are managed at the payment provider: sign in there with the e-mail address you bought with to cancel a license, change how you pay, get an invoice or find a key again. A license key doesn't open it, so a key you hand on shows nobody your purchases.";
+
 export type LicenseFeature = { text: string; included: boolean };
 
 /** license.md: the free tile, what every plan tile shows besides the provider's name and price, the intro (Markdown, "" for none) and the fine print below the tiles (Markdown). */

@@ -455,3 +455,27 @@ describe.skipIf(!supported)("giving an open feed a password", () => {
     expect(await opens("N3wPassw0rd!")).toBe(true);
   });
 });
+
+// Everything the license page tells a person, for scripts and agents too (V11): what is sold, where to buy it, and where buyers
+// manage their purchases, which no key opens (#316).
+describe("what licenses there are, through the API", () => {
+  const get = () => dispatch(new Request(`https://notefeed.test${API_PREFIX}/licenses`, { headers: { host: "notefeed.test" } }), ["licenses"]);
+
+  test("the plans, the license page and the provider's own sign-in for buyers", async () => {
+    const res = await get();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.buy_url).toBe("https://notefeed.test/license");
+    expect(body.manage_url).toBe("https://fake.invalid/my-orders");
+    expect(body.manage).toMatch(/e-mail address you bought with/);
+    expect(body.plans).toEqual([
+      { period: "month", name: "Monthly", description: "", amount: 199, currency: "EUR", tax_included: true },
+      { period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", tax_included: true },
+    ]);
+  });
+
+  test("an instance that sells no licenses answers 404", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "");
+    expect((await get()).status).toBe(404);
+  });
+});

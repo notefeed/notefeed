@@ -92,9 +92,9 @@ const call = async (tool: string, args: Record<string, unknown>) => {
 describe("protocol", () => {
   test("tools/list", async () => {
     const tools = (await (await rpc("tools/list")).json()).result.tools;
-    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_note", "list_notes", "post_file", "post_note", "recover_feed_password", "set_feed_image", "update_feed"]);
+    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_licenses", "get_note", "list_notes", "post_file", "post_note", "recover_feed_password", "set_feed_image", "update_feed"]);
     for (const t of tools) {
-      expect(t.annotations?.readOnlyHint === true).toBe(["get_feed", "get_note", "list_notes"].includes(t.name));
+      expect(t.annotations?.readOnlyHint === true).toBe(["get_feed", "get_licenses", "get_note", "list_notes"].includes(t.name));
       expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "recover_feed_password", "set_feed_image", "delete_feed"].includes(t.name));
       expect(t.annotations?.idempotentHint === true).toBe(["edit_note", "update_feed", "set_feed_image"].includes(t.name));
       expect(t.outputSchema.type).toBe("object");
@@ -337,6 +337,17 @@ describe("tools", () => {
     expect((await call("list_notes", { feed: "p", password: "N3wPassw0rd!" })).isError).toBeUndefined();
     const removed = await call("recover_feed_password", { feed: "p", license_key: key });
     expect(removed.structuredContent).toMatchObject({ protected: false });
+  });
+
+  test("get_licenses tells what is sold, where to buy it and that buyers manage it at the provider by e-mail (#316)", async () => {
+    expect((await call("get_licenses", {})).content[0].text).toBe("licenses are not sold on this instance");
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const { structuredContent } = await call("get_licenses", {});
+    expect(structuredContent.plans.map((p: { period: string }) => p.period)).toEqual(["month", "year"]);
+    expect(structuredContent.buy_url).toMatch(/\/license$/);
+    expect(structuredContent.manage_url).toBe("https://fake.invalid/my-orders");
+    expect(structuredContent.manage).toMatch(/doesn't open it/);
   });
 
   test("recover_feed_password is refused where licenses are not sold", async () => {

@@ -9,7 +9,8 @@ import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
 import { MAX_BYTES, countNotes, getNote, isScheduled, listNotes, type Note } from "../notes";
-import { freeTier } from "../licensing";
+import { freeTier, licenseAccountUrl, licensePlans } from "../licensing";
+import { MANAGE_PURCHASES } from "../../shared/plans";
 import { PASSWORD_RULE } from "../../shared/password";
 import { TAG_RULE } from "../tags";
 import { API_PREFIX, feedPath, imagePath, publicUrl, readPath, rssPath } from "../urls";
@@ -23,6 +24,7 @@ import {
   CurrentPasswordHeader,
   ErrorJson,
   FeedJson,
+  LicensesJson,
   FeedParam,
   FeedPasswordHeader,
   LicenseKeyHeader,
@@ -137,6 +139,15 @@ async function page(notes: (limit: number, before?: string, tag?: string) => Pro
 }
 
 // The feed as the Feeds API shows it; the feed must exist. No read link while it has no notes (ADR 0008).
+/** What licenses are sold, where to buy them and where buyers manage them (ADR 0050), for the API and MCP alike.
+ *  NotFoundError where no licenses are sold. */
+export async function licensesJson(headers: Headers): Promise<z.infer<typeof LicensesJson>> {
+  const manage = licenseAccountUrl();
+  if (!manage) throw new NotFoundError("licenses are not sold on this instance");
+  const plans = (await licensePlans()).map(({ taxIncluded, ...p }) => ({ ...p, tax_included: taxIncluded }));
+  return { plans, buy_url: `${publicUrl(headers)}/license`, manage_url: manage, manage: MANAGE_PURCHASES };
+}
+
 export async function feedJson(feed: string, headers: Headers): Promise<z.infer<typeof FeedJson>> {
   const readId = (await countNotes(feed)) ? await readIdOf(feed) : null;
   const { title, description, image, showSender } = await getSettings(feed);
@@ -777,6 +788,22 @@ const OPS: AnyOp[] = [
 
   op({
     method: "GET",
+    path: `${API_PREFIX}/licenses`,
+    operationId: "getLicenses",
+    summary: "What licenses are sold, where to buy them and where to manage them",
+    description:
+      "Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license lifts a feed's free tier; a person buys it on `buy_url` and gets a key to put on a feed. " +
+      "Cancelling, the payment method and invoices are at the payment provider, where buyers sign in with the e-mail address they bought with (`manage_url`); no license key opens it (ADR 0050).",
+    tags: ["Licenses"],
+    params: {},
+    responses: {
+      200: { description: "The plans, the license page and the provider's sign-in for buyers", schema: LicensesJson },
+      404: err("Licenses are not sold on this instance"),
+    },
+  }).handle(async ({ req }) => ({ status: 200, body: await licensesJson(req.headers) })),
+
+  op({
+    method: "GET",
     path: `${API_PREFIX}/openapi.json`,
     operationId: "getOpenApi",
     summary: "This API's OpenAPI document",
@@ -878,6 +905,7 @@ export function openApiDocument(serverUrl: string): Json {
     tags: [
       { name: "Feeds", description: "By the feed's name, the write key. Need the instance password when one is set." },
       { name: "Read", description: "By the feed's read id. Public and read-only." },
+      { name: "Licenses", description: "Where licenses are sold: what they cost, where to buy them and where buyers manage them. Public." },
       { name: "Meta", description: "About the API itself." },
     ],
     paths,

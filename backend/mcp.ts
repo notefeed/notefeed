@@ -6,9 +6,9 @@ import { config } from "./config";
 import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoundError, TooManyAttemptsError, UnsupportedTypeError } from "./errors";
 import { changePassword, checkFeedAccess, recoverPassword } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
-import { feedJson } from "./http/api";
+import { feedJson, licensesJson } from "./http/api";
 import { sender } from "./http/request";
-import { FeedJson, FreeTierJson } from "./http/schemas";
+import { FeedJson, FreeTierJson, LicensesJson } from "./http/schemas";
 import { clientIp } from "./limits";
 import { runningVersion } from "./version";
 import { ACCEPTED_TYPES } from "./note/media";
@@ -205,6 +205,18 @@ function server(h: Headers): McpServer {
       if (!(await hasFeed(feed))) throw new NotFoundError("no such feed");
       return ok(await feedJson(feed, h));
     }),
+  );
+
+  s.registerTool(
+    "get_licenses",
+    {
+      description:
+        "Only on an instance that sells licenses. What a license costs (plans, amounts in cents), where a person buys one (buy_url, the license page: the key comes after paying) and where buyers manage their purchases: cancelling, the payment method, invoices and their keys are at the payment provider (manage_url), signed in with the e-mail address they bought with. No license key opens that page. A key goes on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.",
+      inputSchema: z.object({}),
+      outputSchema: z.object(LicensesJson.shape),
+      annotations: { readOnlyHint: true },
+    },
+    guard(async () => ok(await licensesJson(h))),
   );
 
   s.registerTool(

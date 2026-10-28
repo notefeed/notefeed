@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
 import { card, primary, secondary } from "@/components/styles";
-import { formatPrice, freePrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
+import { MANAGE_PURCHASES, formatPrice, freePrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
 
 const KEY = /^[A-Za-z0-9_-]{22,64}$/;
 
@@ -195,9 +195,7 @@ function ManageLicense({ account }: { account: string }) {
         </span>
         Cancel, payment and invoices
       </h2>
-      <p className="mt-3 text-muted">
-        Your purchases are managed at the payment provider: sign in there with the e-mail address you bought with to cancel a license, change how you pay or get an invoice. A license key doesn&apos;t open it, so a key you hand on shows nobody your purchases.
-      </p>
+      <p className="mt-3 text-muted">{MANAGE_PURCHASES}</p>
       <a href={account} className={`${secondary} mt-4 inline-flex`}>
         Manage your purchases
       </a>

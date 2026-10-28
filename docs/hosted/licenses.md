@@ -41,7 +41,7 @@ A key notefeed does not know counts as a wrong password, wherever it is sent.
 
 ## Cancelling, invoices, payment method
 
-Your purchases live at the payment provider, Creem. Sign in at [creem.io/my-orders/login](https://creem.io/my-orders/login) with the e-mail address you bought with; Creem mails you a link. There you cancel a license, change how you pay or download invoices, and find your keys again. The [license page](https://notefeed.me/license) links there. A license key does not open these pages, so a key you hand on shows nobody your purchases. The provider's receipt is your record of the purchase.
+Your purchases live at the payment provider, Creem. Sign in at [creem.io/my-orders/login](https://creem.io/my-orders/login) with the e-mail address you bought with; Creem mails you a link. There you cancel a license, change how you pay or download invoices, and find your keys again. The [license page](https://notefeed.me/license) links there. A license key does not open these pages, so a key you hand on shows nobody your purchases. The provider's receipt is your record of the purchase. Scripts and agents find the same links with `GET /api/v1/licenses`, the MCP tool `get_licenses` or `licenses()` in the client packages.
 
 ## A lost feed password
 
