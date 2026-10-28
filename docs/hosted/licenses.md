@@ -41,11 +41,11 @@ A key notefeed does not know counts as a wrong password, wherever it is sent.
 
 ## Cancelling, invoices, payment method
 
-The subscription lives at the payment provider. The [license page](https://notefeed.me/license) opens its portal for your key: cancel there, change how you pay, or download invoices. The provider's receipt is your record of the purchase.
+Your purchases live at the payment provider, Creem. Sign in at [creem.io/my-orders/login](https://creem.io/my-orders/login) with the e-mail address you bought with; Creem mails you a link. There you cancel a license, change how you pay or download invoices, and find your keys again. The [license page](https://notefeed.me/license) links there. A license key does not open these pages, so a key you hand on shows nobody your purchases. The provider's receipt is your record of the purchase. Scripts and agents find the same links with `GET /api/v1/licenses`, the MCP tool `get_licenses` or `licenses()` in the client packages.
 
 ## A lost feed password
 
-The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?** (or, in a browser that is still unlocked, **Forgot the current password?** under *Feed password* in the settings), enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. Scripts and agents do the same with `POST /api/v1/feeds/<feed>/password/recover` and JSON `{"key": "…", "password": "…"}`, the MCP tool `recover_feed_password`, or `recoverFeedPassword` / `recover_feed_password` in the client packages. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it is also the way to the subscription and its invoices.
+The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?** (or, in a browser that is still unlocked, **Forgot the current password?** under *Feed password* in the settings), enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. Scripts and agents do the same with `POST /api/v1/feeds/<feed>/password/recover` and JSON `{"key": "…", "password": "…"}`, the MCP tool `recover_feed_password`, or `recoverFeedPassword` / `recover_feed_password` in the client packages. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it can reset the feed's password.
 
 ## When a license ends
 

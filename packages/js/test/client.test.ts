@@ -244,6 +244,14 @@ describe("feed settings and deletion", () => {
     expect(made.headers["x-feed-password"]).toBeUndefined();
     expect([bare.path, JSON.parse(bare.body.toString())]).toEqual(["/api/v1/feeds/other", {}]);
   });
+  test("licenses GETs what is sold, where to buy it and where buyers manage it, without a feed or a feed password", async () => {
+    const LICENSES = { plans: [{ period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", tax_included: true }], buy_url: "https://n.test/license", manage_url: "https://pay.test/login", manage: "Sign in there." };
+    server.reply(200, LICENSES);
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
+    expect(await c.licenses()).toEqual(LICENSES);
+    const [got] = server.requests;
+    expect([got.method, got.path, got.headers["x-feed-password"]]).toEqual(["GET", "/api/v1/licenses", undefined]);
+  });
   test("recoverFeedPassword POSTs the key and the new password, without a feed password", async () => {
     server.reply(204, "", "text/plain");
     server.reply(204, "", "text/plain");

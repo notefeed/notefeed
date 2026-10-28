@@ -16,8 +16,9 @@ import httpx
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
 from ._generated.api.feeds import change_feed_password, create_feed, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, recover_feed_password, remove_feed_image, set_feed_image, update_feed
+from ._generated.api.licenses import get_licenses
 from ._generated.api.read import get_read_note, list_read_notes
-from ._generated.models import CreateFeedJson, Created, Feed, FeedSettings, LicenseKey, Note, NoteList, NoteMeta, PasswordJson, RecoveryJson
+from ._generated.models import CreateFeedJson, Created, Feed, FeedSettings, LicenseKey, Licenses, Note, NoteList, NoteMeta, PasswordJson, RecoveryJson
 from ._generated.types import UNSET, File
 
 
@@ -415,6 +416,10 @@ class Client:
         return self._pages(
             lambda before: list_read_notes._get_kwargs(read_id=read_id, limit=page_size, before=before, tag=tag or UNSET)
         )
+
+    def licenses(self) -> Licenses:
+        """What licenses are sold (plans, amounts in cents), where a person buys one (`buy_url`) and where buyers manage their purchases at the payment provider, signed in by e-mail (`manage_url`); no key opens that page. Only where licenses are sold."""
+        return self._parse(Licenses, self._call(get_licenses._get_kwargs()))
 
     def read_note(self, read_id: str, id: str) -> Note:
         return self._parse(Note, self._call(get_read_note._get_kwargs(read_id=read_id, id=id)))

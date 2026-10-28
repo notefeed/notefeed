@@ -365,6 +365,50 @@ export type ReadFeed = {
     image_url: string | null;
 };
 
+export type Licenses = {
+    /**
+     * What is sold right now, monthly then yearly; empty while the payment provider can't be read
+     */
+    plans: Array<{
+        /**
+         * How long one payment lasts; the license renews until cancelled
+         */
+        period: 'month' | 'year';
+        /**
+         * The plan's name, as the payment provider holds it
+         */
+        name: string;
+        /**
+         * The plan's description from the payment provider, possibly empty
+         */
+        description: string;
+        /**
+         * The price per period in the currency's smallest unit (cents)
+         */
+        amount: number;
+        /**
+         * ISO 4217 code, e.g. EUR
+         */
+        currency: string;
+        /**
+         * Whether the amount includes VAT
+         */
+        tax_included: boolean;
+    }>;
+    /**
+     * The license page: a person buys there, and gets the key after paying
+     */
+    buy_url: string;
+    /**
+     * The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it
+     */
+    manage_url: string;
+    /**
+     * How managing a purchase works, in a sentence to show a person
+     */
+    manage: string;
+};
+
 export type ListNotesData = {
     body?: never;
     headers?: {
@@ -1541,6 +1585,31 @@ export type GetReadNoteResponses = {
 };
 
 export type GetReadNoteResponse = GetReadNoteResponses[keyof GetReadNoteResponses];
+
+export type GetLicensesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/licenses';
+};
+
+export type GetLicensesErrors = {
+    /**
+     * Licenses are not sold on this instance
+     */
+    404: Error;
+};
+
+export type GetLicensesError = GetLicensesErrors[keyof GetLicensesErrors];
+
+export type GetLicensesResponses = {
+    /**
+     * The plans, the license page and the provider's sign-in for buyers
+     */
+    200: Licenses;
+};
+
+export type GetLicensesResponse = GetLicensesResponses[keyof GetLicensesResponses];
 
 export type GetOpenApiData = {
     body?: never;

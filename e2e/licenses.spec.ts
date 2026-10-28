@@ -72,6 +72,9 @@ test("the license page sells a month or a year, and the yearly checkout comes ba
   await expect(monthly.getByRole("button", { name: "Subscribe" })).toBeVisible();
   await yearly.getByRole("button", { name: "Subscribe" }).click();
   await expect(page.getByRole("heading", { name: "Your license key" })).toBeVisible();
+  // Cancelling and invoices are at the provider, by the buyer's e-mail; no key opens them (#316).
+  await expect(page.getByRole("link", { name: "Manage your purchases" })).toHaveAttribute("href", "https://fake.invalid/my-orders");
+  await expect(page.getByRole("button", { name: "Manage subscription" })).toHaveCount(0);
   await expect(page.locator("code")).toHaveText(/^[A-Za-z0-9_-]{22}$/);
   await expect(page.getByText("The key is also in the payment provider's receipt e-mail")).toBeVisible();
 });

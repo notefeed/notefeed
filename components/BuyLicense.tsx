@@ -4,8 +4,8 @@ import { Check, KeyRound, ReceiptText, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
-import { card, field, primary, secondary } from "@/components/styles";
-import { formatPrice, freePrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
+import { card, primary, secondary } from "@/components/styles";
+import { MANAGE_PURCHASES, formatPrice, freePrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
 
 const KEY = /^[A-Za-z0-9_-]{22,64}$/;
 
@@ -20,8 +20,8 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
 // (ADR 0035): its name and price from the provider, the rest from license.md, each with a button that opens the
 // provider's checkout, and license.md's fine print below them. After: the key the provider issued, asked for by the checkout id
 // the buyer came back with (the provider may still be finishing, so it is asked again for a while); it is also in the provider's
-// receipt and customer portal. Below both: the way to the provider's page for a license one holds, by its key.
-export function BuyLicense({ text, intro, fineprint, plans, cap }: { text: LicenseText; intro: ReactNode; fineprint?: ReactNode; plans: Sold[]; cap: number }) {
+// receipt and customer portal. Below both: the way to the provider's pages, where buyers sign in by their e-mail (#316).
+export function BuyLicense({ text, intro, fineprint, plans, cap, account }: { text: LicenseText; intro: ReactNode; fineprint?: ReactNode; plans: Sold[]; cap: number; account: string }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -125,7 +125,7 @@ export function BuyLicense({ text, intro, fineprint, plans, cap }: { text: Licen
           {fineprint && <div className="mt-3 text-[12px] text-muted">{fineprint}</div>}
         </section>
       )}
-      <ManageLicense bought={key} />
+      <ManageLicense account={account} />
     </div>
   );
 }
@@ -184,23 +184,9 @@ function Feature({ off = false, children }: { off?: boolean; children: ReactNode
   );
 }
 
-// Cancelling, the payment method and the invoices are the payment provider's pages. The key opens them: whoever holds it bought the license.
-function ManageLicense({ bought }: { bought: string }) {
-  const [typed, setTyped] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function open() {
-    setBusy(true);
-    setError("");
-    try {
-      window.location.assign(await urlFrom("/api/licenses/portal", { key: (bought || typed).trim() }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-      setBusy(false);
-    }
-  }
-
+// Cancelling, the payment method and the invoices are the payment provider's pages, where buyers sign in with the e-mail
+// address they bought with. No key opens them: they show the buyer and every license bought, keys included (#316).
+function ManageLicense({ account }: { account: string }) {
   return (
     <section aria-labelledby="manage" className={`${card} p-5 sm:p-6`}>
       <h2 id="manage" className="flex items-center gap-2 text-[17px] font-bold">
@@ -209,33 +195,10 @@ function ManageLicense({ bought }: { bought: string }) {
         </span>
         Cancel, payment and invoices
       </h2>
-      <p className="mt-3 text-muted">
-        {bought
-          ? "The subscription is managed at the payment provider. Come back to this page with your key to cancel it, change how you pay or get an invoice."
-          : "The subscription is managed at the payment provider. Enter your license key to cancel it, change how you pay or get an invoice."}
-      </p>
-      <form
-        className="mt-4 flex flex-wrap gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void open();
-        }}
-      >
-        {!bought && (
-          <>
-            <label htmlFor="manage-key" className="sr-only">
-              License key
-            </label>
-            <input id="manage-key" value={typed} onChange={(e) => setTyped(e.target.value)} required maxLength={64} autoComplete="off" spellCheck={false} aria-describedby="manage-error" placeholder="License key" className={`${field} flex-1 font-mono sm:min-w-64`} />
-          </>
-        )}
-        <button type="submit" disabled={busy} className={secondary}>
-          Manage subscription
-        </button>
-      </form>
-      <p id="manage-error" role="alert" className="mt-2 text-error empty:hidden">
-        {error}
-      </p>
+      <p className="mt-3 text-muted">{MANAGE_PURCHASES}</p>
+      <a href={account} className={`${secondary} mt-4 inline-flex`}>
+        Manage your purchases
+      </a>
     </section>
   );
 }

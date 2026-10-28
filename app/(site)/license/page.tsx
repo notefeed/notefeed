@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BuyLicense } from "@/components/BuyLicense";
 import { NoteView } from "@/components/NoteView";
-import { freeNoteCap, licensePlans, licensingOn, readLicensePage } from "@/backend";
+import { freeNoteCap, licenseAccountUrl, licensePlans, licensingOn, readLicensePage } from "@/backend";
 
 export const metadata: Metadata = { title: "License" };
 
@@ -21,6 +21,7 @@ export default async function LicensePage() {
         fineprint={text.fineprint && <NoteView markdown={text.fineprint} />}
         plans={await licensePlans()}
         cap={freeNoteCap()}
+        account={licenseAccountUrl() ?? ""}
       />
     </main>
   );

@@ -24,6 +24,10 @@
       "description": "By the feed's read id. Public and read-only."
     },
     {
+      "name": "Licenses",
+      "description": "Where licenses are sold: what they cost, where to buy them and where buyers manage them. Public."
+    },
+    {
       "name": "Meta",
       "description": "About the API itself."
     }
@@ -2756,6 +2760,39 @@
         }
       }
     },
+    "/api/v1/licenses": {
+      "get": {
+        "operationId": "getLicenses",
+        "summary": "What licenses are sold, where to buy them and where to manage them",
+        "description": "Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license lifts a feed's free tier; a person buys it on `buy_url` and gets a key to put on a feed. Cancelling, the payment method and invoices are at the payment provider, where buyers sign in with the e-mail address they bought with (`manage_url`); no license key opens it (ADR 0050).",
+        "tags": [
+          "Licenses"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The plans, the license page and the provider's sign-in for buyers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Licenses"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Licenses are not sold on this instance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/openapi.json": {
       "get": {
         "operationId": "getOpenApi",
@@ -3433,6 +3470,80 @@
           "title",
           "description",
           "image_url"
+        ],
+        "additionalProperties": false
+      },
+      "Licenses": {
+        "type": "object",
+        "properties": {
+          "plans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "period": {
+                  "type": "string",
+                  "enum": [
+                    "month",
+                    "year"
+                  ],
+                  "description": "How long one payment lasts; the license renews until cancelled"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The plan's name, as the payment provider holds it"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "The plan's description from the payment provider, possibly empty"
+                },
+                "amount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "The price per period in the currency's smallest unit (cents)"
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 code, e.g. EUR"
+                },
+                "tax_included": {
+                  "type": "boolean",
+                  "description": "Whether the amount includes VAT"
+                }
+              },
+              "required": [
+                "period",
+                "name",
+                "description",
+                "amount",
+                "currency",
+                "tax_included"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What is sold right now, monthly then yearly; empty while the payment provider can't be read"
+          },
+          "buy_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The license page: a person buys there, and gets the key after paying"
+          },
+          "manage_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it"
+          },
+          "manage": {
+            "type": "string",
+            "description": "How managing a purchase works, in a sentence to show a person"
+          }
+        },
+        "required": [
+          "plans",
+          "buy_url",
+          "manage_url",
+          "manage"
         ],
         "additionalProperties": false
       }

@@ -1,5 +1,5 @@
 // What notefeed needs from a payment provider (ADR 0029): the plans it sells (ADR 0035), a checkout to send the buyer to, the license key it issued for
-// that checkout, the provider's webhook turned into events about a license, a link to the provider's page for the buyer, and a way to end a subscription. Everything provider-specific stays behind this; backend/licenseflow.ts is the only caller.
+// that checkout, the provider's webhook turned into events about a license, where buyers manage their purchases, and a way to end a subscription. Everything provider-specific stays behind this; backend/licenseflow.ts is the only caller.
 
 /** What a webhook says about a license. `providerRef` is the provider's subscription id; `validUntil` is when the paid period ends (ms). */
 export type LicenseEvent =
@@ -38,8 +38,10 @@ export interface PaymentProvider {
   /** Verifies the signature over the raw body and returns the events it holds (none for an event kind notefeed does not use).
    *  Throws WebhookRejectedError for a bad signature or a body that is not the provider's. */
   parseWebhook(rawBody: string, headers: Headers): Promise<LicenseEvent[]>;
-  /** The provider's own page for the buyer of this license: cancelling, the payment method, the invoices. A link that works for a while. */
-  portalUrl(providerRef: string): Promise<{ url: string }>;
+  /** Where buyers manage their purchases themselves (cancelling, the payment method, the invoices), signing in at the provider
+   *  with the e-mail address they bought with. Never reached through a license key: the provider's pages show the buyer and
+   *  every license they bought, keys included (#316). */
+  readonly accountUrl: string;
   /** Ends the subscription at once, so that a refunded one is not charged again. Nothing to do for a reference that is no subscription. */
   cancel(providerRef: string): Promise<void>;
 }

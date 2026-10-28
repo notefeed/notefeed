@@ -480,6 +480,17 @@ def test_create_feed_posts_the_protection_and_returns_the_feed(server):
     assert (bare["path"], json.loads(bare["body"])) == ("/api/v1/feeds/other", {})
 
 
+def test_licenses_gets_what_is_sold_and_where_buyers_manage_it_without_a_feed_password(server):
+    server.reply(200, {"plans": [{"period": "year", "name": "Yearly", "description": "", "amount": 1990, "currency": "EUR", "tax_included": True}], "buy_url": "https://n.test/license", "manage_url": "https://pay.test/login", "manage": "Sign in there."})
+    c = Client(server.url, "inbox", feed_password="fp")
+    got = c.licenses()
+    assert (got.buy_url, got.manage_url, got.manage) == ("https://n.test/license", "https://pay.test/login", "Sign in there.")
+    assert [(p.period.value, p.amount, p.tax_included) for p in got.plans] == [("year", 1990, True)]
+    (req,) = server.requests
+    assert (req["method"], req["path"]) == ("GET", "/api/v1/licenses")
+    assert "X-Feed-Password" not in req["headers"]
+
+
 def test_recover_feed_password_posts_the_key_and_the_new_password_without_a_feed_password(server):
     server.reply(204, "")
     server.reply(204, "")

@@ -3,13 +3,13 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
-import type { Created, Error as ApiError, Feed, FeedSettings, Note, NoteList } from "./generated/types.gen.js";
+import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getLicenses, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
+import type { Created, Error as ApiError, Feed, FeedSettings, Licenses, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
 export type ErrorCode = NonNullable<ApiError["code"]>;
 
-export type { Created, Feed, FeedSettings, Note };
+export type { Created, Feed, FeedSettings, Licenses, Note };
 /** A picture posted with a note: `![](name)` in the markdown refers to it. `type` as for post(). */
 export type Attachment = { name: string; content: Uint8Array | Blob; type?: string; alt?: string };
 /** `timeoutMs` (default 10000) limits each whole request, including reading the answer. */
@@ -299,6 +299,12 @@ export class Client {
     return this.pages((before) =>
       listReadNotes({ client: this.api, path: { readId }, query: { limit: options.pageSize, before, tag: options.tag }, ...this.opts() }),
     );
+  }
+
+  /** What licenses are sold (plans, amounts in cents), where a person buys one (`buy_url`) and where buyers manage their purchases
+   *  at the payment provider, signed in by e-mail (`manage_url`); no key opens that page. Only where licenses are sold. */
+  async licenses(): Promise<Licenses> {
+    return this.call(getLicenses({ client: this.api, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
   async readNote(readId: string, id: string): Promise<Note> {
