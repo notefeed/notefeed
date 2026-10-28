@@ -123,6 +123,9 @@ jobs:
           curl -fsS -H 'Content-Type: text/markdown' --data-binary 'smoke' http://localhost:3000/smoke-feed-4f9c2a7e1b
           owner=$(stat -c %u data/smoke-feed-4f9c2a7e1b/*.md)
           [ "$owner" = "$(id -u)" ] || { echo "::error::the note belongs to uid $owner, not $(id -u)"; exit 1; }
+          # A picture is processed by sharp's WebAssembly build, the only one in the image (ADR 0049).
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWMwXpVmvCqNAUIBACKWBQ1W9VvXAAAAAElFTkSuQmCC' | base64 -d > pixel.png
+          curl -fsS -H 'Content-Type: image/png' --data-binary @pixel.png http://localhost:3000/smoke-feed-4f9c2a7e1b || { docker logs notefeed; exit 1; }
 
   # Main pushes build :main + :latest; vX.Y.Z tags build :X.Y.Z/:X.Y/:X + :latest and a
   # GitHub release (same scheme as the MCP repos). The client packages release from the

@@ -128,7 +128,11 @@ def sync_detailed(
     is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read
     API, counts), so it is no post. A previous title image uploaded this way is deleted; a posted image
     picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The
-    feed must exist.
+    feed must exist. An image is stored processed, not as sent: turned the way its EXIF orientation
+    says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at
+    quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS
+    position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body
+    that does not decode as the image it declares is `415`.
 
     Args:
         feed (str):
@@ -169,7 +173,11 @@ def sync(
     is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read
     API, counts), so it is no post. A previous title image uploaded this way is deleted; a posted image
     picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The
-    feed must exist.
+    feed must exist. An image is stored processed, not as sent: turned the way its EXIF orientation
+    says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at
+    quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS
+    position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body
+    that does not decode as the image it declares is `415`.
 
     Args:
         feed (str):
@@ -205,7 +213,11 @@ async def asyncio_detailed(
     is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read
     API, counts), so it is no post. A previous title image uploaded this way is deleted; a posted image
     picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The
-    feed must exist.
+    feed must exist. An image is stored processed, not as sent: turned the way its EXIF orientation
+    says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at
+    quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS
+    position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body
+    that does not decode as the image it declares is `415`.
 
     Args:
         feed (str):
@@ -244,7 +256,11 @@ async def asyncio(
     is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read
     API, counts), so it is no post. A previous title image uploaded this way is deleted; a posted image
     picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The
-    feed must exist.
+    feed must exist. An image is stored processed, not as sent: turned the way its EXIF orientation
+    says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at
+    quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS
+    position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body
+    that does not decode as the image it declares is `415`.
 
     Args:
         feed (str):

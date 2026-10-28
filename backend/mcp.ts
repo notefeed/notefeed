@@ -16,6 +16,7 @@ import { parseMediaType } from "./note/types";
 import { logger } from "./log";
 import { checkLine, getNote, isScheduled, listNotes, MAX_NOTE_TITLE, type Note } from "./notes";
 import { verify } from "./oauth/tokens";
+import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
 import { checkTags, TAG_RULE } from "./tags";
 import { checkDate, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
@@ -28,6 +29,8 @@ const SECRET_NOTE = "The feed name works like a password: anyone who knows it ca
 const feed = z.string().regex(FEED_RE);
 const password = z.string().optional();
 const PROTECTED = "A protected feed needs its password as password.";
+// Every picture is processed on the server (ADR 0049): an assistant should send the file it has, not shrink it first.
+const PICTURES = "Send a picture as it is, full size (up to 10 MiB, 100 megapixels): it is stored turned upright, at most 2560 px on its long side and without metadata (EXIF, GPS position). If the server answers busy, try again after a few seconds.";
 const NoteSummary = z.object({
   id: z.string(),
   type: z.string(),
@@ -81,7 +84,7 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "post_note",
     {
-      description: `Post a markdown note to a feed; the feed is created by its first note; a password given then protects the feed for good, and is refused on a feed that already exists. attachments are pictures posted with the note, each as a note of its own: write ![](name) in the markdown where one goes (a name with spaces as ![](<name with spaces>) or ![](name%20with%20spaces); a title after it is fine; an attachment the text never refers to is added at the end); all or nothing, a refusal posts nothing. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Post a markdown note to a feed; the feed is created by its first note; a password given then protects the feed for good, and is refused on a feed that already exists. attachments are pictures posted with the note, each as a note of its own: write ![](name) in the markdown where one goes (a name with spaces as ![](<name with spaces>) or ![](name%20with%20spaces); a title after it is fine; an attachment the text never refers to is added at the end); all or nothing, a refusal posts nothing. ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         markdown: z.string(),
@@ -284,7 +287,7 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "set_feed_image",
     {
-      description: `Set the feed's title image, shown in its header: the image as base64 in data, its media type in type (image/png, image/jpeg, image/gif or image/webp). It is the feed's own image, in no list (timeline, RSS, counts), so it is no post; a previous one set this way is deleted. To remove the title image, use update_feed with image "". To use a picture already posted, use update_feed's image instead. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Set the feed's title image, shown in its header: the image as base64 in data, its media type in type (image/png, image/jpeg, image/gif or image/webp). It is the feed's own image, in no list (timeline, RSS, counts), so it is no post; a previous one set this way is deleted. To remove the title image, use update_feed with image "". To use a picture already posted, use update_feed's image instead. ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, type: z.string().describe("The image's media type"), data: z.string().describe("The image's bytes, base64"), password }),
       outputSchema: FeedOut,
       annotations: { destructiveHint: true, idempotentHint: true },
@@ -317,7 +320,7 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "post_file",
     {
-      description: `Post a file as a note, as base64 in data, with its media type in type: ${ACCEPTED_TYPES}. Nothing is guessed: the data must be what type says (an image has its format's signature, markdown is UTF-8). The feed is created by its first note. Returns the note's id, its file name and its public URL (public like the feed's read link). Pictures are stored as sent, EXIF included. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Post a file as a note, as base64 in data, with its media type in type: ${ACCEPTED_TYPES}. Nothing is guessed: the data must be what type says (an image has its format's signature, markdown is UTF-8). The feed is created by its first note. Returns the note's id, its file name and its public URL (public like the feed's read link). ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         type: z.string().describe("The file's media type"),
@@ -337,10 +340,8 @@ function server(h: Headers): McpServer {
   return s;
 }
 
-// The SDK's default of 4 MiB would refuse a valid 3 MB picture (base64 is a third larger); 16 MiB holds the largest picture (10 MiB) in base64.
-// ponytail: one cap for every call; several large pictures in one call need a bigger one.
-const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
-
+// The SDK's default of 4 MiB would refuse a valid 3 MB picture (base64 is a third larger). Pictures are sent full size and shrunk here
+// (ADR 0049), so a call takes what Next's proxy passes on: several full-size photos in base64.
 // "auto" answers with one JSON body unless a tool emits mid-call notifications, which ours never do.
 const handler = createMcpHandler(({ requestInfo }) => server(requestInfo!.headers), { legacy: "reject", maxRequestBodySize: MAX_REQUEST_BYTES });
 

@@ -193,6 +193,7 @@ def test_a_base_url_with_a_prefix_and_trailing_slash_keeps_the_prefix(server):
         ("auth", 401, AuthError),
         ("rate_limited", 429, RateLimitedError),
         ("too_many_attempts", 429, RateLimitedError),
+        ("busy", 503, RateLimitedError),
         ("not_found", 404, NotFoundError),
         ("feed_limit", 507, LimitReachedError),
         ("note_limit", 507, LimitReachedError),

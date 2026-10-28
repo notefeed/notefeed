@@ -124,8 +124,8 @@ export class UnsupportedTypeError extends NotefeedError {
   }
 }
 export class ImageTooLargeError extends NotefeedError {
-  constructor() {
-    super("too_large", "image exceeds the size limit");
+  constructor(message = "image exceeds the size limit") {
+    super("too_large", message);
   }
 }
 export class InvalidBodyError extends NotefeedError {
@@ -169,6 +169,14 @@ export class KeyServiceUnavailableError extends NotefeedError {
   readonly digest = UNAVAILABLE_DIGEST;
   constructor() {
     super("unavailable", "the key service is unreachable");
+  }
+}
+
+/** Too many images are being processed (backend/imageprocess.ts): 503 with Retry-After, like a rate limit but for everyone. */
+export class BusyError extends NotefeedError {
+  readonly retryAfter = 5;
+  constructor() {
+    super("busy", "too many images are being processed, try again shortly");
   }
 }
 

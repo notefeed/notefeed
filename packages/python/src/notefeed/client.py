@@ -42,7 +42,7 @@ class AuthError(NotefeedError):
 
 
 class RateLimitedError(NotefeedError):
-    """Too many posts or wrong passwords. `retry_after` is the wait in seconds, or None if none was given."""
+    """Too many posts or wrong passwords, or (code `busy`, 503) the server is busy processing other images. `retry_after` is the wait in seconds, or None if none was given."""
 
     def __init__(self, message: str, status: int | None = None, code: str | None = None, retry_after: int | None = None):
         super().__init__(message, status, code)
@@ -73,6 +73,7 @@ _BY_CODE: dict[str, type[NotefeedError]] = {
     "auth": AuthError,
     "rate_limited": RateLimitedError,
     "too_many_attempts": RateLimitedError,
+    "busy": RateLimitedError,
     "not_found": NotFoundError,
     "feed_limit": LimitReachedError,
     "note_limit": LimitReachedError,

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -11,6 +11,8 @@ import { createNote, getNote, listNotes } from "./notes";
 import { storage } from "./storage";
 import { mcpRoute } from "./mcp";
 import { sign } from "./oauth/tokens";
+import { loadSharp } from "./imageprocess";
+import { PNG } from "./testimages";
 
 // Log lines, captured per test.
 let logs: string[] = [];
@@ -188,7 +190,7 @@ describe("tools", () => {
     expect(listed.map((n: { id: string; tags: string[] }) => [n.id, n.tags])).toEqual([[r.structuredContent.id, ["ci", "env:prod"]]]);
     expect((await call("post_note", { feed: "a", markdown: "# x", tags: ["no good"] })).isError).toBe(true);
     for (const title of ["a\u009bb", "a\u202eb", "a\u2028b"]) expect((await call("post_note", { feed: "a", markdown: "# x", title })).isError, JSON.stringify(title)).toBe(true);
-    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]).toString("base64");
+    const png = Buffer.from(PNG).toString("base64");
     for (const alt of ["a\u009bb", "a\u202eb", "a\u2028b"]) expect((await call("post_file", { feed: "a", type: "image/png", data: png, alt })).isError, JSON.stringify(alt)).toBe(true);
   });
 
@@ -344,7 +346,7 @@ describe("tools", () => {
 
   test("set_feed_image sets the feed's own title image, which is no post (#310)", async () => {
     await call("post_note", { feed: "i", markdown: "# hi" });
-    const data = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]).toString("base64");
+    const data = Buffer.from(PNG).toString("base64");
     expect((await call("set_feed_image", { feed: "i", type: "image/png", data })).structuredContent.image_url).toMatch(/\.png$/);
     expect((await call("list_notes", { feed: "i" })).structuredContent.notes).toHaveLength(1);
     expect((await call("set_feed_image", { feed: "i", type: "text/markdown", data })).isError).toBe(true);
@@ -573,7 +575,7 @@ describe("feed tools", () => {
 });
 
 describe("post_note attachments", () => {
-  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("rest")]).toString("base64");
+  const png = Buffer.from(PNG).toString("base64");
   const att = (name: string, extra: Record<string, unknown> = {}) => ({ name, type: "image/png", data: png, ...extra });
   test("posts the images, then the text with the references swapped or appended", async () => {
     const r = (await call("post_note", { feed: "f", markdown: "hi ![](a.png)", attachments: [att("a.png"), att("b.png", { alt: "B" })] })).structuredContent;
@@ -615,13 +617,15 @@ describe("post_note attachments", () => {
     expect(r.content[0].text).toMatch(/^attachment "a\.png": .*base64/);
     expect(await hasFeed("f")).toBe(false);
   });
-  test("a valid 6 MB picture is accepted", async () => {
-    vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "8388608"); // afterEach unstubs it, also when the call throws
-    const big = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(6_000_000, 1)]).toString("base64");
-    const r = await call("post_note", { feed: "f", markdown: "x", attachments: [att("a.png", { data: big })] });
+  test("a full-size photo over 5 MB is accepted as it is, and stored shrunk to 2560 px", async () => {
+    const photo = await loadSharp()({ create: { width: 4000, height: 3000, channels: 3, background: "#888", noise: { type: "gaussian", mean: 128, sigma: 30 } } }).jpeg({ quality: 95 }).toBuffer();
+    expect(photo.length).toBeGreaterThan(5 * 1024 * 1024);
+    expect(photo.length).toBeLessThan(10 * 1024 * 1024);
+    const r = await call("post_note", { feed: "f", markdown: "x", attachments: [att("a.jpg", { type: "image/jpeg", data: photo.toString("base64") })] });
     expect(r.isError).toBeFalsy();
-    expect(r.structuredContent.attachments).toHaveLength(1);
-  });
+    const stored = await readFile(join(process.env.DATA_DIR!, "f", r.structuredContent.attachments[0].file));
+    expect(await loadSharp()(stored).metadata()).toMatchObject({ width: 2560, height: 1920 });
+  }, 60_000);
   test("an oversized image is refused before anything is posted", async () => {
     vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "10");
     const small = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString("base64");
@@ -665,7 +669,7 @@ describe("post_note attachments", () => {
 });
 
 describe("post_file", () => {
-  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("rest")]).toString("base64");
+  const png = Buffer.from(PNG).toString("base64");
   test("stores a picture as a note of its own, and update_feed can make it the title image", async () => {
     await call("post_note", { feed: "i", markdown: "# Hi" });
     const r = (await call("post_file", { feed: "i", type: "image/png", data: png, title: "Cat", alt: "a cat", name: "cat.png" })).structuredContent;
@@ -690,7 +694,7 @@ describe("post_file", () => {
     expect((await call("get_note", { feed: "t", id: r.id })).structuredContent).toMatchObject({ type: "text/markdown", content: "# From a file" });
   });
   test("post_file cleans the file name like the HTTP post does", async () => {
-    const data = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("x")]).toString("base64");
+    const data = Buffer.from(PNG).toString("base64");
     const r = (await call("post_file", { feed: "names", type: "image/png", data, name: "../my\ncat/pic.png" })).structuredContent;
     const sidecar = JSON.parse(await (await import("node:fs/promises")).readFile(join(process.env.DATA_DIR!, "names", `.${r.file}.json`), "utf8"));
     expect(sidecar.name).toBe("..mycatpic.png");

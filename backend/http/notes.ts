@@ -1,6 +1,7 @@
 // POST /api/v1/feeds/<feed>/notes, also POST /<feed> (proxy.ts rewrites it): the only way to post a
 // note, for scripts, the client packages and the web UI's compose box alike.
 import { decodeHeaderValue } from "../../shared/headers";
+import { MAX_REQUEST_BYTES } from "../../shared/images";
 import { safeName } from "../../shared/links";
 import { config } from "../config";
 import { ImageTooLargeError, InvalidBodyError, NoteTooLargeError, UnsupportedTypeError } from "../errors";
@@ -69,7 +70,7 @@ export async function readMultipart(req: Request, kind: "post"): Promise<PostBun
 export async function readMultipart(req: Request, kind: "post" | "edit"): Promise<PostBundle> {
   const header = headerOf(req);
   if (header("x-note-alt") || header("x-note-name")) throw new InvalidBodyError("with a multipart body, send alt texts as alt.<file name> fields and the file name with each file");
-  const bytes = await readCapped(req, MAX_BYTES + MAX_ATTACHMENTS * config.maxImageBytes() + MULTIPART_SLACK);
+  const bytes = await readCapped(req, Math.min(MAX_BYTES + MAX_ATTACHMENTS * config.maxImageBytes() + MULTIPART_SLACK, MAX_REQUEST_BYTES));
   if (!bytes) throw new NoteTooLargeError();
   const form = await parseForm(bytes, req.headers).catch(() => {
     throw new InvalidBodyError("not a valid multipart body");

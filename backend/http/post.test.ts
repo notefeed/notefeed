@@ -9,6 +9,8 @@ import { resetRateLimitsForTests } from "../limits";
 import { countNotes, getNote } from "../notes";
 import { API_PREFIX, dispatch } from "./api";
 import { readMultipart } from "./notes";
+import { processImage } from "../imageprocess";
+import { GIF, JPG, PNG, WEBP } from "../testimages";
 
 const BASE = "http://localhost:3000";
 let dir: string;
@@ -21,10 +23,6 @@ beforeEach(async () => {
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_MAX_IMAGE_BYTES", "NOTEFEED_MAX_IMAGES_PER_FEED", "NOTEFEED_MAX_NOTES_PER_FEED"]) delete process.env[k];
 });
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
-const GIF = new TextEncoder().encode("GIF89a\x01\x00");
-const WEBP = new TextEncoder().encode("RIFF\x10\x00\x00\x00WEBPVP8 ");
 
 // POST /feeds/<feed>/notes: the body is the file, Content-Type says what it is.
 function post(body: BodyInit | null, type: string | null, headers: Record<string, string> = {}, feed = "f") {
@@ -103,16 +101,16 @@ describe("images", () => {
     ["image/jpeg", JPG, "jpg"],
     ["image/gif", GIF, "gif"],
     ["image/webp", WEBP, "webp"],
-  ] as const)("%s is stored as .%s, byte for byte", async (type, bytes, ext) => {
+  ] as const)("%s is stored as .%s, as processImage makes it", async (type, bytes, ext) => {
     const res = await post(bytes as BodyInit, type);
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.file).toBe(`${body.id}.${ext}`);
-    expect([...(await stored(body.file))]).toEqual([...bytes]);
+    expect([...(await stored(body.file))]).toEqual([...(await processImage(bytes, ext))]);
   });
   test("over NOTEFEED_MAX_IMAGE_BYTES is 413, over 100 KiB of markdown is 413", async () => {
-    process.env.NOTEFEED_MAX_IMAGE_BYTES = "20";
-    expect((await post(new Uint8Array([...PNG, ...new Uint8Array(20)]) as BodyInit, "image/png")).status).toBe(413);
+    process.env.NOTEFEED_MAX_IMAGE_BYTES = "200";
+    expect((await post(new Uint8Array([...PNG, ...new Uint8Array(200)]) as BodyInit, "image/png")).status).toBe(413);
     delete process.env.NOTEFEED_MAX_IMAGE_BYTES;
     expect((await post("a".repeat(102401), "text/markdown")).status).toBe(413);
     expect((await post("a".repeat(102400), "text/markdown")).status).toBe(201);
@@ -367,16 +365,16 @@ describe("multipart: a text with its pictures", () => {
   test("an oversize picture or a body over the request cap is 413, and nothing is created", async () => {
     process.env.NOTEFEED_MAX_IMAGE_BYTES = "20";
     // Both are `too_large`; the message says which: the picture's is ImageTooLargeError's, after its name.
-    const picture = await sendForm([["text", "# a"], ["file", png("a.png", new Uint8Array([...PNG, ...new Uint8Array(20)]))]]);
+    const picture = await sendForm([["text", "# a"], ["file", png("a.png", new Uint8Array([...PNG, ...new Uint8Array(200)]))]]);
     expect([picture.status, await picture.json()]).toEqual([413, { code: "too_large", error: 'attachment "a.png": image exceeds the size limit' }]);
-    // The cap is 102400 + 10 * 20 bytes + 64 KiB of framing: an alt text that long would be a 400 if it were read. NoteTooLargeError, naming no picture.
-    const request = await sendForm([["file", png("a.png")], ["alt.a.png", "a".repeat(102400 + 200 + 65536 + 1)]]);
+    // The cap is 102400 + 10 * 200 bytes + 64 KiB of framing: an alt text that long would be a 400 if it were read. NoteTooLargeError, naming no picture.
+    const request = await sendForm([["file", png("a.png")], ["alt.a.png", "a".repeat(102400 + 2000 + 65536 + 1)]]);
     expect([request.status, await request.json()]).toEqual([413, { code: "too_large", error: "note exceeds 100 KB" }]);
     expect(await hasFeed("f")).toBe(false);
   });
   test("a request at every limit at once passes the request cap: 10 pictures at the image limit and a text at the markdown limit", async () => {
-    process.env.NOTEFEED_MAX_IMAGE_BYTES = "20";
-    const full = new Uint8Array([...PNG, ...new Uint8Array(20 - PNG.length)]);
+    process.env.NOTEFEED_MAX_IMAGE_BYTES = "200";
+    const full = new Uint8Array([...PNG, ...new Uint8Array(200 - PNG.length)]); // what follows the PNG's end is not decoded
     const files = Array.from({ length: 10 }, (_, i) => ["file", png(`${i}.png`, full)] as [string, File]);
     const req = (text: string) => new Request(`${BASE}${API_PREFIX}/feeds/f/notes`, { method: "POST", body: form([["text", text], ...files]) });
     // Read as the request cap sees it: a text of exactly MAX_BYTES can't be stored with pictures, their references make it longer.

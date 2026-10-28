@@ -5,7 +5,6 @@ import { useCallback, useState, type FormEvent } from "react";
 import { setFeedImage } from "@/app/_lib/api";
 import { contentTypeOf, sniffImage } from "@/shared/images";
 import { errorMessage, imageErrorMessage } from "@/app/_lib/messages";
-import { shrinkImage } from "@/app/_lib/shrinkImage";
 
 type Result = { data?: unknown; error?: { code?: string; error?: string }; response?: Response };
 
@@ -51,14 +50,13 @@ const typeOfBytes = async (file: File) => {
 /**
  * The multipart body of a note with its pictures (POST or PUT): the text as a `text/markdown` file part (a field's line breaks
  * would be sent as CRLF), none when `text` is undefined; one `file` part per picture, named by its token (the name the text refers
- * to it by), shrunk to NOTEFEED_SHRINK_IMAGE_BYTES (shrinkImage), of the type its bytes say; an `alt.<token>` field for each alt text given.
+ * to it by), as it is (the server shrinks it, ADR 0049), of the type its bytes say; an `alt.<token>` field for each alt text given.
  */
 export async function multipartBody(text: string | undefined, pictures: { token: string; file: File }[], alts: Record<string, string> = {}): Promise<FormData> {
   const form = new FormData();
   if (text !== undefined) form.append("text", new Blob([text], { type: "text/markdown" }), "text.md");
   for (const { token, file } of pictures) {
-    const sent = await shrinkImage(file);
-    form.append("file", new File([sent], token, { type: await typeOfBytes(sent) }));
+    form.append("file", new File([file], token, { type: await typeOfBytes(file) }));
   }
   for (const [token, alt] of Object.entries(alts)) form.append(`alt.${token}`, alt);
   return form;
@@ -71,8 +69,7 @@ export const multipart = (form: FormData) => ({ body: form as never });
 // The feed's own title image (#310): PUT /api/v1/feeds/<feed>/image, so it is no post. Returns its file name, for the settings form.
 export async function putFeedImage(feed: string, file: File): Promise<{ file: string } | { error: string }> {
   try {
-    const sent = await shrinkImage(file);
-    const { data, error, response } = await setFeedImage({ baseUrl: window.location.origin, path: { feed }, body: sent, headers: { "Content-Type": await typeOfBytes(sent) } });
+    const { data, error, response } = await setFeedImage({ baseUrl: window.location.origin, path: { feed }, body: file, headers: { "Content-Type": await typeOfBytes(file) } });
     if (!response) throw new Error("no response");
     if (response.ok && data?.image_url) return { file: data.image_url.split("/").at(-1)! };
     return { error: imageErrorMessage((error as { code?: string } | undefined)?.code ?? "unknown", response.headers.get("retry-after")) ?? "Something went wrong." };

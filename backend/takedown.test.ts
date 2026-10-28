@@ -13,12 +13,15 @@ import { API_PREFIX, dispatch } from "./http/api";
 import { fileRoute } from "./http/files";
 import { takedownRoute } from "./http/operator";
 import { rssRoute } from "./http/rss";
-import { readIdOfTarget } from "./takedown";
+import { imageHash, readIdOfTarget } from "./takedown";
+import { processImage } from "./imageprocess";
+import { storage } from "./storage";
+import { png } from "./testimages";
 
 const TOKEN = "operator-token-".padEnd(40, "x");
 const BASE = "http://localhost:3000";
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7, 7]);
-const PNG2 = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 8, 8]);
+const PNG = png(1);
+const PNG2 = png(2);
 let root: string;
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "notefeed-takedown-"));
@@ -115,6 +118,16 @@ describe("a feed taken down by its image URL", () => {
     expect((await takedown(rid, "Bearer wrong")).status).toBe(401);
     vi.stubEnv("NOTEFEED_OPERATOR_TOKEN", "");
     expect((await takedown(rid)).status).toBe(404);
+  });
+
+  test("an image is refused when the blocklist holds it as sent or as stored (ADR 0049)", async () => {
+    await createNote("elsewhere", "# ok");
+    // As sent: an entry made from an original, as every entry was before images were processed. As stored: one made from a stored file.
+    await storage().blockImages([imageHash(PNG)]);
+    expect((await upload("elsewhere", PNG)).status).toBe(451);
+    await storage().blockImages([imageHash(await processImage(PNG2, "png"))]);
+    expect((await upload("elsewhere", PNG2)).status).toBe(451);
+    expect((await upload("elsewhere", png(3))).status).toBe(201);
   });
 
   test("the tombstones and the blocklist survive a restart, and a folder that came back is removed again", async () => {

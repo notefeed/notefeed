@@ -10,6 +10,7 @@ import { createNote } from "../notes";
 import { saveSettings } from "../feedsettings";
 import { API_PREFIX, dispatch } from "./api";
 import { rssRoute } from "./rss";
+import { png as pngOf } from "../testimages";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
@@ -63,7 +64,7 @@ describe("POST /feeds/{feed}", () => {
 describe("PUT and DELETE /feeds/{feed}/image", () => {
   test("sets the title image without a post; DELETE removes it; a non-image is 415; a missing feed 404", async () => {
     expect((await post("img", "# hi")).status).toBe(201);
-    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+    const png = pngOf(1);
     const set = await call("PUT", "/feeds/img/image", { body: png, headers: { "content-type": "image/png" } });
     expect(set.status).toBe(200);
     expect((await json(set)).image_url).toMatch(/\/r\/[^/]+\/[^/]+\.png$/);

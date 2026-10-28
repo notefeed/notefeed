@@ -11,6 +11,7 @@ import { countingKeys, hashKey } from "./licenseflow";
 import { freeTier, isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
 import { countNotes, createNote } from "./notes";
 import { createFeed, deleteFeed, postNote, postWithPictures, setLicense } from "./posting";
+import { png as pngOf } from "./testimages";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -32,7 +33,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+const png = pngOf(1);
 const text = (feed: string, body = "hi", password?: string, licenseKey?: string) =>
   postNote(feed, "ip", async () => ({ body: new TextEncoder().encode(body), mediaType: "text/markdown", password, licenseKey }), {});
 // A key as the checkout hands it out (22 characters of base64url).

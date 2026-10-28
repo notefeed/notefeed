@@ -14,6 +14,8 @@ import { feedSettingsRoute } from "./feedforms";
 import { renderMetrics, resetMetricsForTest } from "../metrics";
 import { fileRoute } from "./files";
 import { rssRoute } from "./rss";
+import { processImage } from "../imageprocess";
+import { png } from "../testimages";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
@@ -24,7 +26,7 @@ beforeEach(async () => {
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_TITLE", "NOTEFEED_MAX_IMAGE_BYTES", "NOTEFEED_MAX_IMAGES_PER_FEED", "NOTEFEED_IMAGE_UPLOADS"]) delete process.env[k];
 });
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+const PNG = png(1);
 const HTML_IN_PNG = new Uint8Array([...PNG, ...new TextEncoder().encode("<html><script>alert(1)</script></html>")]);
 
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
@@ -213,7 +215,7 @@ describe("GET /r/{readId}/{file}", () => {
     const rid = (await readIdOf("locked"))!;
     const res = await get(rid, file);
     expect(res.status).toBe(200);
-    expect(new Uint8Array(await res.arrayBuffer())).toEqual(PNG);
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(await processImage(PNG, "png"));
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("cache-control")).toBe("private, no-cache"); // a picture can be replaced or taken down: the browser asks again (ETag), no shared cache keeps it
@@ -277,13 +279,13 @@ describe("GET /r/{readId}/{file}", () => {
     expect(again.status).toBe(304);
     expect(await again.text()).toBe("");
     expect(again.headers.get("etag")).toBe(etag);
-    const PNG2 = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9, 9, 9, 9]);
+    const PNG2 = png(2);
     const put = await call("PUT", `/feeds/pics/notes/${id}`, { body: PNG2 as BodyInit, headers: { "content-type": "image/png" } });
     expect(put.status).toBe(200);
     const changed = await fileRoute(rid, file, etag);
     expect(changed.status).toBe(200);
     expect(changed.headers.get("etag")).not.toBe(etag);
-    expect([...new Uint8Array(await changed.arrayBuffer())]).toEqual([...PNG2]);
+    expect([...new Uint8Array(await changed.arrayBuffer())]).toEqual([...(await processImage(PNG2, "png"))]);
     expect((await fileRoute(rid, file, '"other"')).status).toBe(200);
   });
   test("the feed's name never serves it", async () => {

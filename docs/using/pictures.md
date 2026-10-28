@@ -14,8 +14,8 @@ The answer is that of any [post](posting.md), with the picture's `file` and `fil
 What to know:
 
 - **Types:** PNG, JPEG, GIF and WebP. The bytes must be that format, whatever the header says; SVG is refused because it can carry script.
-- **Size:** at most 5 MiB by default (`NOTEFEED_MAX_IMAGE_BYTES`). The web pages shrink a picture to 1 MiB before uploading it, so a phone photo fits; the API takes what it is sent.
-- **Stored as sent:** no resizing, no re-encoding, and no metadata removed. A photo's EXIF data, which can include where it was taken, stays in the file. Remove it first if that matters.
+- **Size:** send a picture as it is, full size: at most 10 MiB as sent by default (`NOTEFEED_MAX_IMAGE_BYTES`) and 100 megapixels, so a photo straight from a phone fits. Larger is `413`.
+- **Shrunk and stripped on the server:** every picture, however it is posted (web page, API, the clients, MCP), is stored turned the way the camera held it, at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP stays animated), and without metadata: EXIF data such as where a photo was taken, the camera and the time is removed. A file that only starts like a picture is refused (`415`). When the server is busy with many pictures at once it answers `503` (`busy`) with `Retry-After`.
 - **As public as the read link.** A picture is served at `/r/<read id>/<file>` with no password, even on a locked instance or a protected feed, so that feed readers can show it. Don't post anything you would not give to everyone who has the read link.
 - **`![](file)` follows the read id**, so it keeps working if the read id changes; a full URL is shown as written.
 - **Edit and delete** like any note: `DELETE` removes the file, `PUT` replaces the bytes with another picture of the same type, `PATCH` changes title or alt text.

@@ -20,7 +20,7 @@ Type markdown into the box and press **Post** or ++ctrl+enter++ (++cmd+enter++ o
 
 ### Adding an image
 
-The **Add image** button in the box's toolbar takes PNG, JPEG, GIF or WebP files; pasting or dropping an image works too. Each picture waits in the box with a small preview, and `![](name)` goes into the text. When you post, text and pictures are sent in [one request](pictures.md#posting-a-note-with-its-pictures). If something is refused, the page says why and keeps your text and pictures; nothing is half-posted. Pictures are posted as they are, EXIF data included, and are as public as the [read link](#the-read-link): see [Pictures](pictures.md).
+The **Add image** button in the box's toolbar takes PNG, JPEG, GIF or WebP files; pasting or dropping an image works too. Each picture waits in the box with a small preview, and `![](name)` goes into the text. When you post, text and pictures are sent in [one request](pictures.md#posting-a-note-with-its-pictures). If something is refused, the page says why and keeps your text and pictures; nothing is half-posted. Pictures go up as they are and the server shrinks them and removes their EXIF data; they are as public as the [read link](#the-read-link): see [Pictures](pictures.md).
 
 ### Reading, editing and deleting
 

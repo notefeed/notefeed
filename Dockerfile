@@ -7,7 +7,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build && mkdir /data
+# Images are processed by sharp's WebAssembly build only (ADR 0049): the proxy's trace still brings the native packages along, so remove them.
+RUN npm run build && mkdir /data \
+ && find .next/standalone/node_modules/@img -mindepth 1 -maxdepth 1 -name 'sharp-*' ! -name sharp-wasm32 -exec rm -rf {} +
 
 # Runtime: only the standalone server and its traced deps; no full node_modules. Distroless: Node and the libraries it links against,
 # and no shell, package manager or npm, so nothing of that kind can be vulnerable or be used by someone who got in.
