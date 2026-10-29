@@ -599,6 +599,31 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       if (readId !== undefined && (await db.selectFrom("tombstones").select("name").where("read_id", "=", ident("read_id", readId)).executeTakeFirst())) return true;
       return false;
     },
+    // The tombstones first, so from here on the notes are not served (the callers ask isRemovedNote); then the rows, then their
+    // objects, as deleteNote; then the mark, through writeNote like any note. A crash in between leaves notes nobody is served,
+    // which the operator's next takedown of the same post removes.
+    async takedownNotes(feed, notes, mark) {
+      const db = await open();
+      const f = ident("feed", feed);
+      const ids = notes.map((n) => n.id);
+      let keys: string[] = [];
+      if (ids.length > 0) {
+        try {
+          await db.insertInto("note_tombstones").values(ids.map((id) => ({ feed: f, id, removed_at: Date.now() }))).onConflict((oc) => oc.columns(["feed", "id"]).doNothing()).execute();
+        } catch (e) {
+          if (isForeignKey(e)) throw new FeedGoneError();
+          throw e;
+        }
+        const rows = await db.deleteFrom("notes").where("feed", "=", f).where("id", "in", ids).returning("blob_key").execute();
+        keys = rows.flatMap((r) => (r.blob_key ? [r.blob_key] : []));
+        await drop(keys);
+      }
+      if (mark) await this.writeNote(feed, mark.id, "removed", EMPTY, {}, mark.date, mark.draft);
+      return { keys };
+    },
+    async isRemovedNote(feed, id) {
+      return !!(await (await open()).selectFrom("note_tombstones").select("id").where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst());
+    },
     async blockImages(hashes) {
       if (hashes.length === 0) return;
       const now = Date.now();

@@ -94,6 +94,11 @@ export interface Storage {
    *  `removed` false: there was no such feed; the tombstone is recorded all the same. `keys`: the image store objects removed, for the operator's purge. */
   takedownFeed(feed: string, readId: string | null): Promise<{ removed: boolean; keys: string[] }>;
   isRemoved(q: { feed?: string; readId?: string }): Promise<boolean>;
+  // The takedown of one post (issue #159): a note tombstone holds a removed note's id in its feed for good, and goes with the feed.
+  /** Records a tombstone for every one of `notes` first, then deletes them, then writes `mark` as `<id>.removed` (no content, no
+   *  metadata) when it is given. `keys`: the image store objects removed, for the operator's purge. */
+  takedownNotes(feed: string, notes: Pick<NoteRef, "id" | "ext">[], mark: { id: string; date: number; draft: boolean } | null): Promise<{ keys: string[] }>;
+  isRemovedNote(feed: string, id: string): Promise<boolean>;
   blockImages(hashes: string[]): Promise<void>;
   isBlockedImage(hash: string): Promise<boolean>;
 }

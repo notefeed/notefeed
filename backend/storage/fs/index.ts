@@ -5,7 +5,7 @@ import { config } from "../../config";
 import type { Storage } from "../types";
 import { isErrno } from "./fs";
 import { createFeedMethods, type FeedDeps } from "./feedindex";
-import { deleteNote, hasNotes, listNoteRefs, noteUsage, readFeedFile, readMeta, readNote, renameNote, replaceNote, setDate, setDraft, updateMeta, writeNote } from "./notes";
+import { deleteNote, hasNotes, isRemovedNote, listNoteRefs, noteUsage, readFeedFile, readMeta, readNote, renameNote, replaceNote, setDate, setDraft, takedownNotes, updateMeta, writeNote } from "./notes";
 import { readHash, removeHash, writeHash } from "./password";
 import { readSettings, writeSettings } from "./settings";
 
@@ -18,6 +18,7 @@ export function createFsStorage(deps: FeedDeps): Storage {
   return {
     ...feeds,
     writeNote, listNoteRefs, readNote, readMeta, replaceNote, updateMeta, setDate, setDraft, renameNote, deleteNote, readFile: readFeedFile,
+    takedownNotes, isRemovedNote,
     readSettings, writeSettings, readHash, writeHash, removeHash,
     // Nothing here is bound to a key: the answer is for the database backends' start while the key service is down. The marker is a
     // dot file in DATA_DIR (never a feed's name); without it, a listing per feed until one has a note.

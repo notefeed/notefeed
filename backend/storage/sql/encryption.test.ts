@@ -220,6 +220,8 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       await s.createFeed("two", "Rid-Two");
       await s.writeNote("one", "n", "md", "note text", { tags: ["t"] }, 0);
       await s.writeNote("one", "p", "png", PNG, {}, 0);
+      await s.writeNote("one", "x", "md", "taken down", {}, 0);
+      await s.takedownNotes("one", [{ id: "x", ext: "md" }], null);
       await s.createFeed("gone", "Rid-Gone");
       await s.takedownFeed("gone", null);
       await s.close();
@@ -237,9 +239,10 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
         png: (await s.readFile("one", "p.png"))?.equals(PNG),
         gone: await s.isRemoved({ feed: "gone" }),
         goneId: await s.isRemoved({ readId: "Rid-Gone" }),
+        removedNote: await s.isRemovedNote("one", "x"),
       };
     }
-    const expected = { feeds: ["one", "two"], one: "one", rid: "Rid-Two", hash: "hash-one", title: "Title One", note: "note text", meta: { tags: ["t"] }, png: true, gone: true, goneId: true };
+    const expected = { feeds: ["one", "two"], one: "one", rid: "Rid-Two", hash: "hash-one", title: "Title One", note: "note text", meta: { tags: ["t"] }, png: true, gone: true, goneId: true, removedNote: true };
 
     test("an existing plain database is converted at start", async () => {
       const url = await database();
