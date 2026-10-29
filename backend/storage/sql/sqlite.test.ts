@@ -110,6 +110,7 @@ describe.skipIf(!supported)("sqlite", () => {
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
     // Back to the schema of 001: the later migrations' columns and tables go, and so do their records, in order.
+    raw.exec("drop table note_tombstones; delete from kysely_migration where name = '008_note_tombstones'");
     raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
     raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");
     raw.exec("create index notes_by_date on notes (feed, date, id)");
@@ -134,6 +135,7 @@ describe.skipIf(!supported)("sqlite", () => {
     await a.storage.close();
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
+    raw.exec("drop table note_tombstones; delete from kysely_migration where name = '008_note_tombstones'");
     raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
     raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");
     raw.exec("create index notes_by_date on notes (feed, date, id)");
