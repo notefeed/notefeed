@@ -29,6 +29,8 @@ What happens:
 
 The log says that a feed was removed and how much went, never which one or who reported it. Tombstones and the blocklist are data, in the database or in `DATA_DIR/.tombstones` and `.blocklist`, so a restore from before the takedown brings the feed back: run the takedown again then. Backups made before still hold the content; what to do with them is the operator's procedure.
 
+Keep the record of each takedown with the report it answered: what was removed, when and why. The metrics count takedowns over time (`notefeed_feeds_deleted_total` and `notefeed_notes_deleted_total` with `reason="takedown"`, see [Operating](operating.md)).
+
 ## Removing one post as the operator
 
 When the rest of the feed is fine, the smaller measure removes only the reported post ([ADR 0052](../adr/0052-the-operator-takes-down-one-post.md)): with `"scope": "note"`, the target is the note's read URL (`/r/<read id>/<note id>`, from the report's read id and note id), an image URL, or `<read id>/<note id>`.
