@@ -3444,13 +3444,13 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
-            "description": "The feed's text notes now"
+            "description": "The feed's notes now: texts, images and the operator's marks alike"
           },
           "cap": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
-            "description": "How many text notes a free feed keeps; past it, each new note drops the oldest one"
+            "description": "How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind"
           }
         },
         "required": [

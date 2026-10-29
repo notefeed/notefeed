@@ -72,16 +72,17 @@ export async function requireLicense(feed: string): Promise<void> {
   if (!(await isLicensed(feed))) throw new LicenseRequiredError();
 }
 
-/** A free feed's notes against the cap (issue #183), for its owner; null when no cap applies: licensed, or no payment provider. */
+/** A free feed's notes against the cap (issue #183), for its owner; null when no cap applies: licensed, or no payment provider. Every
+ *  note counts: a text, an image (one kept from a license that lapsed) and the operator's mark (#159). */
 export async function freeTier(feed: string): Promise<{ notes: number; cap: number } | null> {
   if (await isLicensed(feed)) return null;
-  return { notes: await countNotes(feed, "markdown"), cap: config.freeNoteCap() };
+  return { notes: await countNotes(feed), cap: config.freeNoteCap() };
 }
 
-/** After a note is stored: a free feed drops its oldest notes past the cap, so a write is never refused. Images are not counted: a free feed has none. */
+/** After a note is stored: a free feed drops its oldest notes past the cap, of any kind, so a write is never refused. */
 export async function trimToFreeCap(feed: string): Promise<void> {
   if (await isLicensed(feed)) return;
-  const excess = await idsBeyond(feed, config.freeNoteCap(), "markdown");
+  const excess = await idsBeyond(feed, config.freeNoteCap());
   for (const id of excess) await removeNote(feed, id, "free_cap");
   if (excess.length) log.info({ dropped: excess.length }, "oldest notes dropped, the feed is on the free tier"); // never the feed's name
 }

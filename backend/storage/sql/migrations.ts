@@ -106,7 +106,8 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
       await db.schema.createIndex("notes_by_draft_date").on("notes").columns(["feed", "draft", "date", "id"]).execute();
     },
   },
-  // The takedown of one post (issue #159): the ids of a feed's notes the operator removed, held for good and gone with the feed. `feed`
+  // The takedown of one post (issue #159): the ids of a feed's notes the operator removed, held for good and gone with the feed, with
+  // their post's date and draft flag (plain, like the notes'), so readers are told only of what they could have seen. `feed`
   // is the notes' own key (a fingerprint once the feed is sealed), so the keyring's sealing pass moves them with the notes.
   "008_note_tombstones": {
     async up(db: Kysely<any>) {
@@ -115,6 +116,8 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
         .addColumn("feed", "text", (c) => c.notNull())
         .addColumn("id", "text", (c) => c.notNull())
         .addColumn("removed_at", "bigint", (c) => c.notNull())
+        .addColumn("date", "bigint", (c) => c.notNull())
+        .addColumn("draft", "integer", (c) => c.notNull())
         .addPrimaryKeyConstraint("note_tombstones_pk", ["feed", "id"])
         .addForeignKeyConstraint("note_tombstones_feed_fk", ["feed"], "feeds", ["name"], (c) => c.onDelete("cascade"))
         .execute();

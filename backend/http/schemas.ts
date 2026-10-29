@@ -163,8 +163,8 @@ export const FeedSettingsJson = z
   .meta({ id: "FeedSettings" });
 export const FreeTierJson = z
   .object({
-    notes: z.number().int().describe("The feed's text notes now"),
-    cap: z.number().int().describe("How many text notes a free feed keeps; past it, each new note drops the oldest one"),
+    notes: z.number().int().describe("The feed's notes now: texts, images and the operator's marks alike"),
+    cap: z.number().int().describe("How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind"),
   })
   .meta({ id: "FreeTier" });
 export const LicensesJson = z

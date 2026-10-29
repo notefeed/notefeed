@@ -57,7 +57,7 @@ function metrics(): Metrics {
         active: new Gauge({ name: "notefeed_feeds_active", help: "Feeds with a note written within the last day, 7 or 30 days, as of the last count", labelNames: ["within"], registers: [] }),
         notes: new Gauge({ name: "notefeed_notes", help: "Stored notes by kind, as of the last count", labelNames: ["kind"], registers: [] }),
         bytes: new Gauge({ name: "notefeed_notes_bytes", help: "Bytes of the stored notes by kind (an image's bytes wherever the image store keeps them), as of the last count", labelNames: ["kind"], registers: [] }),
-        nearCap: new Gauge({ name: "notefeed_feeds_free_cap", help: "Feeds by their markdown notes against the free tier's cap: near (80% or more), at it, or over it (a license, or one lapsed since); only with licensing on", labelNames: ["notes"], registers: [] }),
+        nearCap: new Gauge({ name: "notefeed_feeds_free_cap", help: "Feeds by their notes against the free tier's cap: near (80% or more), at it, or over it (a license, or one lapsed since); only with licensing on", labelNames: ["notes"], registers: [] }),
         licenses: new Gauge({ name: "notefeed_licenses", help: "Licenses: active (paid, on a feed), unattached (paid, the key not entered) and lapsed; only with licensing on", labelNames: ["state"], registers: [] }),
         dbBytes: new Gauge({ name: "notefeed_database_size_bytes", help: "The database's size on disk (PostgreSQL or SQLite storage), as of the last count", registers: [] }),
         dbConnections: new Gauge({ name: "notefeed_database_connections", help: "Open connections to the PostgreSQL database, from every client, as of the last count", registers: [] }),

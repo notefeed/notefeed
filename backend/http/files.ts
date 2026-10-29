@@ -33,7 +33,7 @@ async function serveFile(readId: string, file: string, ifNoneMatch?: string | nu
   noteRoute("/r/[readId]/files/[file]"); // reached by a rewrite: the path has the shape of a note's page
   const feed = await feedForReadId(readId);
   const id = NAME_RE.exec(file) && file.slice(0, file.indexOf("."));
-  if (feed && id && (await isRemovedNote(feed, id))) return new Response("removed by the operator", { status: 410 }); // #159
+  if (feed && id && (await isRemovedNote(feed, id, new Date()))) return new Response("removed by the operator", { status: 410 }); // #159
   const now = new Date();
   let stored: string | null = null;
   let bytes: Buffer | null;

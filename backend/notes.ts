@@ -39,6 +39,8 @@ export const newNoteId = (): string => randomBytes(16).toString("base64url");
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 // The extensions that are notes, in the order a lookup tries them.
 const NOTE_EXTS = NOTE_TYPES.flatMap((t) => t.exts);
+// The extensions an edit reaches: every type but the operator's mark (#159), so an edit that raced a takedown finds no note.
+const EDIT_EXTS = NOTE_TYPES.filter((t) => t.name !== "removed").flatMap((t) => t.exts);
 const withContent = (ext: string) => typeForExt(ext)?.needsContent ?? false;
 // Sidecars read at once when a whole feed's metadata is looked through: more under one Promise.all can run out of file descriptors.
 const READS_AT_ONCE = 64;
@@ -193,9 +195,9 @@ export async function hasImageNote(feed: string, file: string, asOf?: Date): Pro
 /** The file (`<id>.<ext>`) of the newest note named `name` and dated `asOf` or earlier, which /r/<read id>/<name> serves (#250); null
  *  when there is none. Reads metadata only; a note whose metadata can't be read never matches. Deleting that note makes the one
  *  before it of the same name the newest again. */
-export async function namedFile(feed: string, name: string, asOf: Date): Promise<string | null> {
+export async function namedFile(feed: string, name: string, asOf?: Date): Promise<string | null> {
   if (checkFeed(feed) || cleanName(name) !== name) return null;
-  const refs = await noteRefs(feed, undefined, { upTo: asOf.getTime() });
+  const refs = await noteRefs(feed, undefined, asOf ? { upTo: asOf.getTime() } : {}); // without asOf, drafts and scheduled notes too
   // ponytail: reads sidecars newest first until one matches, as a rare tag does; a name index would fix it if feeds get large.
   for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
     const chunk = refs.slice(i, i + READS_AT_ONCE);
@@ -223,14 +225,16 @@ async function readNoteAs(feed: string, id: string, exts: readonly string[]): Pr
 
 const readOf = (feed: string, ref: NoteRef) => readNoteAs(feed, ref.id, [ref.ext]);
 
-/** Whether the operator removed this note (#159): its id answers 410 for good, while its mark is there and after. */
-export async function isRemovedNote(feed: string, id: string): Promise<boolean> {
-  return !checkFeed(feed) && isValidId(id) && (await storage().isRemovedNote(feed, id));
+/** Whether the operator removed this note (#159): its id answers 410 for good, while its mark is there and after. `asOf`: a reader's
+ *  lookup, which is told only of a note it could have seen then; a removed draft or a post dated later is a missing one to it. */
+export async function isRemovedNote(feed: string, id: string, asOf?: Date): Promise<boolean> {
+  const stone = !checkFeed(feed) && isValidId(id) ? await storage().removedNote(feed, id) : null;
+  return !!stone && (!asOf || (!stone.draft && stone.date <= asOf.getTime()));
 }
 
 /** The same, as the refusal every read and edit of one note gives. */
-export async function refuseRemovedNote(feed: string, id: string): Promise<void> {
-  if (await isRemovedNote(feed, id)) throw new RemovedNoteError();
+export async function refuseRemovedNote(feed: string, id: string, asOf?: Date): Promise<void> {
+  if (await isRemovedNote(feed, id, asOf)) throw new RemovedNoteError();
 }
 
 /** `asOf`: a reader's lookup; a note dated after it, or a draft, is null, as a missing one. */
@@ -253,7 +257,7 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
   const note = await getNote(feed, id);
   if (!note) return null;
   if (note.type !== parsed.mediaType) throw new UnsupportedTypeError(`this note is ${note.type}: send that Content-Type`);
-  if (!(await storage().replaceNote(feed, id, NOTE_EXTS, body))) return null;
+  if (!(await storage().replaceNote(feed, id, EDIT_EXTS, body))) return null;
   noteEdited(parsed.type.name, "content");
   return getNote(feed, id);
 }
@@ -270,7 +274,7 @@ export async function changeMeta(feed: string, id: string, edit: { title?: strin
   if (alt !== undefined && !typeForExt(note.ext)?.hasAlt) throw new InvalidBodyError("alt is for image notes");
   // Tags are replaced as a whole list, an empty one removes them (#244).
   const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }), ...(tags !== undefined && { tags: tags.length ? tags : null }) };
-  if (!(await storage().updateMeta(feed, id, NOTE_EXTS, patch))) return null;
+  if (!(await storage().updateMeta(feed, id, EDIT_EXTS, patch))) return null;
   noteEdited(typeForExt(note.ext)?.name ?? "unknown", "meta");
   return getNote(feed, id);
 }
@@ -285,7 +289,7 @@ export async function changeDate(feed: string, id: string, date: Date): Promise<
   if (checkFeed(feed) || !isValidId(id)) return null;
   const note = await getNote(feed, id);
   if (!note) return null;
-  if (!(await storage().setDate(feed, id, NOTE_EXTS, date.getTime()))) return null;
+  if (!(await storage().setDate(feed, id, EDIT_EXTS, date.getTime()))) return null;
   const shift = date.getTime() - note.date.getTime();
   await Promise.all((await attachmentsOf(feed, id)).map((ref) => storage().setDate(feed, ref.id, [ref.ext], Math.max(0, ref.date + shift))));
   return getNote(feed, id);
@@ -293,7 +297,7 @@ export async function changeDate(feed: string, id: string, date: Date): Promise<
 
 // The notes posted with the note `id` (their `of` is its id), drafts included.
 // ponytail: reads every sidecar of the feed to find the attachments, as a rare tag does; an index of `of` would fix it if feeds get large.
-async function attachmentsOf(feed: string, id: string): Promise<NoteRef[]> {
+export async function attachmentsOf(feed: string, id: string): Promise<NoteRef[]> {
   const refs = (await noteRefs(feed)).filter((r) => r.id !== id);
   const found: NoteRef[] = [];
   for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
@@ -310,7 +314,7 @@ async function attachmentsOf(feed: string, id: string): Promise<NoteRef[]> {
  */
 export async function changeDraft(feed: string, id: string, draft: boolean): Promise<Note | null> {
   if (checkFeed(feed) || !isValidId(id)) return null;
-  if (!(await storage().setDraft(feed, id, NOTE_EXTS, draft))) return null;
+  if (!(await storage().setDraft(feed, id, EDIT_EXTS, draft))) return null;
   for (const ref of await attachmentsOf(feed, id)) await storage().setDraft(feed, ref.id, [ref.ext], draft);
   return getNote(feed, id);
 }

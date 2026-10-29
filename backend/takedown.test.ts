@@ -5,7 +5,10 @@ import { appendFile, mkdtemp, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi, afterEach } from "vitest";
-import { createNote } from "./notes";
+import { changeDate, changeDraft, changeMeta, createNote, replaceContent } from "./notes";
+import { isRemovedReadNote } from "./index";
+import { CipherError } from "./storage/cipher";
+import { FeedGoneError } from "./storage/types";
 import { feedForReadId, hasFeed, isRemovedFeed, readIdOf, resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
 import { logsOf } from "./log";
@@ -260,6 +263,57 @@ describe("a post taken down", () => {
     expect(own.find((n: { id: string }) => n.id === text.id)).toMatchObject({ removed: true, draft: true });
   });
 
+  test("a draft image is named by the name it was posted with too", async () => {
+    const pic = await (await upload("good", PNG, { "x-note-name": "draft.png", "x-note-draft": "true" })).json();
+    const res = await takedownNote(`/r/${(await readIdOf("good"))!}/draft.png`);
+    expect(res.status).toBe(200);
+    expect((await res.json()).notes).toEqual([pic.id]);
+  });
+
+  test("a hidden post's removal stays hidden from readers: its id is a missing one to them while its mark is a draft", async () => {
+    const { rid, text, images } = await postWithTwo("good", { "x-note-draft": "true" });
+    await takedownNote(`/r/${rid}/${text.id}`);
+    expect((await call("GET", `/read/${rid}/notes/${text.id}`)).status).toBe(404);
+    expect((await fileRoute(rid, images[0].file)).status).toBe(404);
+    expect(await isRemovedReadNote(rid, text.id)).toBe(false);
+    expect((await call("GET", `/feeds/good/notes/${text.id}`)).status).toBe(410); // the owner is told
+  });
+
+  test("an edit never reaches a mark, so one that raced the takedown changes nothing", async () => {
+    const { rid, text } = await postWithTwo();
+    await takedownNote(`/r/${rid}/${text.id}`);
+    expect(await changeMeta("good", text.id, { title: "back" })).toBeNull();
+    expect(await replaceContent("good", text.id, new TextEncoder().encode("# back"), "text/markdown").catch(() => null)).toBeNull(); // refused or not found
+    expect(await changeDate("good", text.id, new Date(0))).toBeNull();
+    expect(await changeDraft("good", text.id, true)).toBeNull();
+    expect((await readList(rid)).find((n) => n.id === text.id)).toMatchObject({ removed: true, date: expect.any(String) });
+    expect((await readList(rid)).find((n) => n.id === text.id)?.date).not.toBe(new Date(0).toISOString());
+  });
+
+  test("a damaged note is taken down by its id, with the attachments posted with it", async () => {
+    const { rid, text, images } = await postWithTwo();
+    const s = storage();
+    const [readNote, readMeta, readFile] = [s.readNote.bind(s), s.readMeta.bind(s), s.readFile.bind(s)];
+    vi.spyOn(s, "readNote").mockImplementation(async (f, id, ...rest) => (id === text.id ? Promise.reject(new CipherError()) : readNote(f, id, ...rest)));
+    vi.spyOn(s, "readMeta").mockImplementation(async (f, ref) => (ref.id === text.id ? Promise.reject(new CipherError()) : readMeta(f, ref)));
+    vi.spyOn(s, "readFile").mockImplementation(async (f, name) => (name.startsWith(text.id) ? Promise.reject(new CipherError()) : readFile(f, name)));
+    const res = await takedownNote(`/r/${rid}/${text.id}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect([...body.notes].sort()).toEqual([text.id, ...images.map((i) => i.id)].sort());
+    expect(body.blocked).toBe(2);
+    vi.restoreAllMocks();
+    expect((await readList(rid)).filter((n) => n.removed).map((n) => n.id)).toEqual([text.id]);
+  });
+
+  test("a feed deleted while it is taken down is 404, not a failure", async () => {
+    const { rid, text } = await postWithTwo();
+    vi.spyOn(storage(), "takedownNotes").mockRejectedValueOnce(new FeedGoneError());
+    const res = await takedownNote(`/r/${rid}/${text.id}`);
+    expect(res.status).toBe(404);
+    vi.restoreAllMocks();
+  });
+
   test("a note nobody has is 404; a target that names no note is 400; an unknown scope is 400", async () => {
     const { rid } = await postWithTwo();
     expect((await takedownNote(`/r/${rid}/${"Z".repeat(22)}`)).status).toBe(404);
@@ -275,6 +329,7 @@ test("noteOfTarget: a note's read URL, an image URL, <read id>/<note>; a feed's 
   expect(noteOfTarget("/r/abc-123/pic.png")).toEqual({ readId: "abc-123", note: "pic.png" });
   expect(noteOfTarget(" abc-123/n0te-id ")).toEqual({ readId: "abc-123", note: "n0te-id" });
   expect(noteOfTarget("https://notes.example.com/r/abc-123/my%20logo.png")).toEqual({ readId: "abc-123", note: "my logo.png" });
+  expect(noteOfTarget("https://notes.example.com/r/abc-123/n0te-id/")).toEqual({ readId: "abc-123", note: "n0te-id" });
   for (const bad of ["", "abc-123", "https://notes.example.com/r/abc-123", "/r/abc-123/", "/r/abc-123/feed.xml", "/r/abc-123/a/b", "not a url"]) expect(noteOfTarget(bad), bad).toBeNull();
 });
 

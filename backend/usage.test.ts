@@ -72,8 +72,8 @@ test("countUsage: kinds by extension, the windows of activity, and files that ar
   });
 });
 
-test("countUsage: near the cap is 80% of it or more, at it is the cap exactly, over it more (a license); images do not count", () => {
-  const c = countUsage([feed({ notes: md(7) }), feed({ notes: md(8) }), feed({ notes: md(9) }), feed({ notes: md(10) }), feed({ notes: { ...md(11), png: { count: 50, bytes: 1 } } }), feed({ notes: { png: { count: 50, bytes: 1 } } })], 10, NOW);
+test("countUsage: near the cap is 80% of it or more, at it is the cap exactly, over it more (a license); every note counts, images and marks too", () => {
+  const c = countUsage([feed({ notes: md(7) }), feed({ notes: md(8) }), feed({ notes: { ...md(6), png: { count: 2, bytes: 1 } } }), feed({ notes: { ...md(9), removed: { count: 1, bytes: 0 } } }), feed({ notes: { png: { count: 50, bytes: 1 } } }), feed({ notes: { txt: { count: 50, bytes: 1 } } })], 10, NOW);
   expect(c.freeCap).toEqual({ near: 2, at: 1, over: 1 });
 });
 

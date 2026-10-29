@@ -58,6 +58,8 @@ export interface Schema {
     feed: string;
     id: string;
     removed_at: Time;
+    date: Time;
+    draft: number;
   };
   blocked_images: {
     hash: string;

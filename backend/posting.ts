@@ -123,11 +123,13 @@ async function licenseForImages(feed: string, images: boolean, key: string | und
   else await requireLicense(feed);
 }
 
-// The caps are per type: images have their own, the notes limit counts the markdown ones. `adding` notes of that type; a feed that does not exist yet counts as empty.
-async function checkCap(feed: string, typeName: string, adding: number): Promise<void> {
-  const image = typeName === "image";
-  const max = image ? config.maxImagesPerFeed() : config.maxNotesPerFeed();
-  if (adding && max && (await countNotes(feed, typeName)) + adding > max) throw image ? capReached("image", new ImageLimitError()) : capReached("note", new NoteLimitError());
+// The notes limit counts every note of the feed (texts, images, the operator's marks); images have a limit of their own as well.
+// `adding`: the notes a write adds, and how many of them are images. A feed that does not exist yet counts as empty.
+async function checkCaps(feed: string, adding: { notes: number; images: number }): Promise<void> {
+  const maxImages = config.maxImagesPerFeed();
+  if (adding.images && maxImages && (await countNotes(feed, "image")) + adding.images > maxImages) throw capReached("image", new ImageLimitError());
+  const maxNotes = config.maxNotesPerFeed();
+  if (adding.notes && maxNotes && (await countNotes(feed)) + adding.notes > maxNotes) throw capReached("note", new NoteLimitError());
 }
 
 // What a post carries: the file (`body`) and the type the poster declared for it (`mediaType`, a Content-Type), with the optional
@@ -178,7 +180,7 @@ export async function postNote(
   const { type, ext } = parsed;
   refuseImages(type.name === "image");
   await licenseForImages(feed, type.name === "image", newFeedKey(proved, exists, input.licenseKey), ip);
-  if (exists) await checkCap(feed, type.name, 1);
+  if (exists) await checkCaps(feed, { notes: 1, images: type.name === "image" ? 1 : 0 });
   // Before createProtected: a refused note must not leave a protected, empty feed.
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
   type.checkBody(input.body);
@@ -444,8 +446,7 @@ export async function postWithPictures(
   const tags = checkTags(input.tags);
   const at = checkDate(input.date) ?? new Date();
   await recheck(feed, ip, access, proved, input.password);
-  await checkCap(feed, "markdown", text === undefined ? 0 : 1);
-  await checkCap(feed, "image", pictures.length);
+  await checkCaps(feed, { notes: (text === undefined ? 0 : 1) + pictures.length, images: pictures.length });
   for (const p of pictures) p.body = await prepareImage(p.body, p.ext); // one at a time: a post never fills the queue alone
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
@@ -486,7 +487,7 @@ export async function editWithPictures(
   await licenseForImages(feed, pictures.length > 0, undefined, ip); // an edit's feed exists
   const plan = await checkText(input.text, pictures);
   const tags = checkTags(input.tags);
-  await checkCap(feed, "image", pictures.length);
+  await checkCaps(feed, { notes: pictures.length, images: pictures.length });
   for (const p of pictures) p.body = await prepareImage(p.body, p.ext);
   const before = new Date(note.date.getTime() - 1);
   return storeWithPictures(feed, pictures, { sender, tags, of: id, draft: note.draft }, () => before, async (stored, sent) => {

@@ -6,7 +6,7 @@ This page is about [notefeed.me](https://notefeed.me) only. A notefeed you run y
 
 Every feed on notefeed.me starts on the free tier, with nothing to sign up for:
 
-- **It keeps its newest 100 notes.** At the cap, each new note drops the oldest one; a post is never refused for it.
+- **It keeps its newest 100 notes.** Every note counts: a text, a picture kept from a license that ran out, and the mark the operator leaves where a post was removed. At the cap, each new note drops the oldest one; a post is never refused for it.
 - **No pictures.** A picture, posted on its own or with a note, is refused with `402` (`license_required`).
 - **No feed password.** A [feed password](../using/feed-passwords.md) needs a license: on the post that creates the feed, with the key next to the password (below), or later, once the feed has one ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)). Without one it is refused with `402`. A license needs no password, though: an open feed can be licensed too.
 

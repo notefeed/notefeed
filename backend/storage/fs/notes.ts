@@ -340,29 +340,38 @@ export async function deleteNote(feed: string, id: string, exts: readonly string
   return gone;
 }
 
-// The takedown of one post (issue #159): `.removed-notes` in the feed folder holds one removed note id per line, appended to (a
-// line is small, and append is atomic for one). A dot file is never a note, and the folder goes with the feed. The tombstones first,
-// then the notes, then the mark, as in the database backends.
+// The takedown of one post (issue #159): `.removed-notes` in the feed folder holds one JSON line per removed note (its id, and its
+// post's date and draft flag), appended to (a line is small, and append is atomic for one). A dot file is never a note, and the folder
+// goes with the feed. The tombstones first, then the notes, then the mark, as in the database backends. The first line of an id holds.
 const removedNotesFile = (feed: string) => join(feedDir(feed), ".removed-notes");
 
-export async function takedownNotes(feed: string, notes: { id: string; ext: string }[], mark: { id: string; date: number; draft: boolean } | null): Promise<{ keys: string[] }> {
+export async function takedownNotes(feed: string, notes: { id: string; ext: string }[], post: { date: number; draft: boolean }, markId: string | null): Promise<{ keys: string[] }> {
   if (notes.length > 0) {
     try {
-      await appendFile(/*turbopackIgnore: true*/ removedNotesFile(feed), notes.map((n) => `${n.id}\n`).join(""), { mode: 0o600 });
+      await appendFile(/*turbopackIgnore: true*/ removedNotesFile(feed), notes.map((n) => JSON.stringify({ id: n.id, date: post.date, draft: post.draft }) + "\n").join(""), { mode: 0o600 });
     } catch (e) {
       if (isErrno(e, "ENOENT")) throw new FeedGoneError();
       throw e;
     }
     for (const n of notes) await deleteNote(feed, n.id, [n.ext]);
   }
-  if (mark) await writeNote(feed, mark.id, "removed", "", {}, mark.date, mark.draft);
+  if (markId) await writeNote(feed, markId, "removed", "", {}, post.date, post.draft);
   return { keys: [] };
 }
 
-export async function isRemovedNote(feed: string, id: string): Promise<boolean> {
+export async function removedNote(feed: string, id: string): Promise<{ date: number; draft: boolean } | null> {
   const raw = await readFile(/*turbopackIgnore: true*/ removedNotesFile(feed), "utf8").catch((e) => {
     if (isGone(e)) return "";
     throw e;
   });
-  return raw.split("\n").includes(id);
+  for (const line of raw.split("\n")) {
+    if (!line.includes(id)) continue;
+    try {
+      const t = JSON.parse(line);
+      if (t.id === id) return { date: Number(t.date) || 0, draft: t.draft === true };
+    } catch {
+      // a line cut short by a crash: not a record
+    }
+  }
+  return null;
 }

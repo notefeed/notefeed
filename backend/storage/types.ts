@@ -94,11 +94,14 @@ export interface Storage {
    *  `removed` false: there was no such feed; the tombstone is recorded all the same. `keys`: the image store objects removed, for the operator's purge. */
   takedownFeed(feed: string, readId: string | null): Promise<{ removed: boolean; keys: string[] }>;
   isRemoved(q: { feed?: string; readId?: string }): Promise<boolean>;
-  // The takedown of one post (issue #159): a note tombstone holds a removed note's id in its feed for good, and goes with the feed.
-  /** Records a tombstone for every one of `notes` first, then deletes them, then writes `mark` as `<id>.removed` (no content, no
-   *  metadata) when it is given. `keys`: the image store objects removed, for the operator's purge. */
-  takedownNotes(feed: string, notes: Pick<NoteRef, "id" | "ext">[], mark: { id: string; date: number; draft: boolean } | null): Promise<{ keys: string[] }>;
-  isRemovedNote(feed: string, id: string): Promise<boolean>;
+  // The takedown of one post (issue #159): a note tombstone holds a removed note's id in its feed for good, with the post's date and
+  // draft flag (whether readers saw it, and from when), and goes with the feed.
+  /** Records a tombstone for every one of `notes` first (`post`: the post's date in ms and draft flag), then deletes them, then writes
+   *  the mark `<markId>.removed` (no content, no metadata, the post's date and draft flag) when `markId` is given. `keys`: the image
+   *  store objects removed, for the operator's purge. A note already tombstoned keeps its first record. */
+  takedownNotes(feed: string, notes: Pick<NoteRef, "id" | "ext">[], post: { date: number; draft: boolean }, markId: string | null): Promise<{ keys: string[] }>;
+  /** The tombstone of a removed note: the date and draft flag of the post it was in; null for a note never removed. */
+  removedNote(feed: string, id: string): Promise<{ date: number; draft: boolean } | null>;
   blockImages(hashes: string[]): Promise<void>;
   isBlockedImage(hash: string): Promise<boolean>;
 }

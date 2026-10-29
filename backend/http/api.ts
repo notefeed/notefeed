@@ -789,8 +789,8 @@ const OPS: AnyOp[] = [
     },
   }).handle(async ({ req, params }) => {
     const feed = await readFeed(params.readId);
-    if (feed) await refuseRemovedNote(feed, params.id);
     const asOf = new Date(); // a scheduled note is a missing one to readers
+    if (feed) await refuseRemovedNote(feed, params.id, asOf);
     const found = feed ? await getNote(feed, params.id, asOf) : null;
     if (!feed || !found) throw new NotFoundError("no such note");
     const [note] = forReaders([found], await getSettings(feed, asOf));

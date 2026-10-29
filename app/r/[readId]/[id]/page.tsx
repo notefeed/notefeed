@@ -27,7 +27,7 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
     );
   }
   // A note the operator removed (#159): its mark, or after its owner deleted the mark, the same words.
-  if (note?.removed || (!note && (await isRemovedReadNote(readId, id)))) {
+  if (note?.removed || (!note && (await isRemovedReadNote(readId, id, asOf)))) {
     return (
       <AppShell>
         <RemovedNote id={id} back={readPath(readId)} terms={await hasLegalPage("terms")} />

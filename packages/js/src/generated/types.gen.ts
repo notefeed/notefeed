@@ -334,11 +334,11 @@ export type FeedSettings = {
 
 export type FreeTier = {
     /**
-     * The feed's text notes now
+     * The feed's notes now: texts, images and the operator's marks alike
      */
     notes: number;
     /**
-     * How many text notes a free feed keeps; past it, each new note drops the oldest one
+     * How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind
      */
     cap: number;
 };

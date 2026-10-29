@@ -136,9 +136,9 @@ export async function getReadFeedAbout(id: string): Promise<{ title: string; ima
 /** `asOf`: the request's time (shared with getReadPictures). */
 export { isRemovedNote };
 /** Whether the operator removed the note under this read id (#159): its page says so, with its mark and after the mark is deleted. */
-export async function isRemovedReadNote(readId: string, id: string): Promise<boolean> {
+export async function isRemovedReadNote(readId: string, id: string, asOf = new Date()): Promise<boolean> {
   const feed = await feedForReadId(readId);
-  return !!feed && (await isRemovedNote(feed, id));
+  return !!feed && (await isRemovedNote(feed, id, asOf)); // as a reader: only a note it could have seen
 }
 export async function getReadNote(readId: string, id: string, asOf = new Date()): Promise<Note | null> {
   const feed = await feedForReadId(readId);

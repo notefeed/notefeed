@@ -602,27 +602,29 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     // The tombstones first, so from here on the notes are not served (the callers ask isRemovedNote); then the rows, then their
     // objects, as deleteNote; then the mark, through writeNote like any note. A crash in between leaves notes that are still listed
     // but not served alone; the operator's next takedown of the same post removes them (backend/takedown.ts).
-    async takedownNotes(feed, notes, mark) {
+    async takedownNotes(feed, notes, post, markId) {
       const db = await open();
       const f = ident("feed", feed);
       const ids = notes.map((n) => n.id);
       let keys: string[] = [];
       if (ids.length > 0) {
         try {
-          await db.insertInto("note_tombstones").values(ids.map((id) => ({ feed: f, id, removed_at: Date.now() }))).onConflict((oc) => oc.columns(["feed", "id"]).doNothing()).execute();
+          await db.insertInto("note_tombstones").values(ids.map((id) => ({ feed: f, id, removed_at: Date.now(), date: post.date, draft: post.draft ? 1 : 0 }))).onConflict((oc) => oc.columns(["feed", "id"]).doNothing()).execute();
         } catch (e) {
           if (isForeignKey(e)) throw new FeedGoneError();
           throw e;
         }
-        const rows = await db.deleteFrom("notes").where("feed", "=", f).where("id", "in", ids).returning("blob_key").execute();
+        // By id and extension, as on the file system: the mark has the id of the text it stands for.
+        const rows = await db.deleteFrom("notes").where("feed", "=", f).where((eb) => eb.or(notes.map((n) => eb.and([eb("id", "=", n.id), eb("ext", "=", n.ext)])))).returning("blob_key").execute();
         keys = rows.flatMap((r) => (r.blob_key ? [r.blob_key] : []));
         await drop(keys);
       }
-      if (mark) await this.writeNote(feed, mark.id, "removed", EMPTY, {}, mark.date, mark.draft);
+      if (markId) await this.writeNote(feed, markId, "removed", EMPTY, {}, post.date, post.draft);
       return { keys };
     },
-    async isRemovedNote(feed, id) {
-      return !!(await (await open()).selectFrom("note_tombstones").select("id").where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst());
+    async removedNote(feed, id) {
+      const row = await (await open()).selectFrom("note_tombstones").select(["date", "draft"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst();
+      return row ? { date: Number(row.date), draft: row.draft === 1 } : null;
     },
     async blockImages(hashes) {
       if (hashes.length === 0) return;
