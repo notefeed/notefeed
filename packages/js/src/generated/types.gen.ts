@@ -705,6 +705,10 @@ export type GetNoteErrors = {
      */
     404: Error;
     /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
+    /**
      * Too many wrong passwords from this client
      */
     429: Error;
@@ -764,6 +768,10 @@ export type PatchNoteErrors = {
      * The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)
      */
     409: Error;
+    /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
     /**
      * Content-Type is not application/json
      */
@@ -839,6 +847,10 @@ export type EditNoteErrors = {
      * No such note
      */
     404: Error;
+    /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
     /**
      * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB
      */
@@ -1602,7 +1614,7 @@ export type GetReadNoteErrors = {
      */
     404: Error;
     /**
-     * The operator removed the feed this read id belonged to (`removed`)
+     * The operator removed the feed this read id belonged to, or this note (`removed`)
      */
     410: Error;
     /**

@@ -1,6 +1,6 @@
 // Notes: validation, ids and reading them back. Where they are kept is the storage backend's business (backend/storage).
 import { randomBytes } from "node:crypto";
-import { InvalidBodyError, UnreadableNoteError, UnsupportedTypeError } from "./errors";
+import { InvalidBodyError, RemovedNoteError, UnreadableNoteError, UnsupportedTypeError } from "./errors";
 import { assertFeed, checkFeed, ensureFeed, forgetFeed } from "./feeds";
 import { logger } from "./log";
 import { noteDeleted, noteEdited, notePosted, noteUnreadable } from "./metrics";
@@ -222,6 +222,16 @@ async function readNoteAs(feed: string, id: string, exts: readonly string[]): Pr
 }
 
 const readOf = (feed: string, ref: NoteRef) => readNoteAs(feed, ref.id, [ref.ext]);
+
+/** Whether the operator removed this note (#159): its id answers 410 for good, while its mark is there and after. */
+export async function isRemovedNote(feed: string, id: string): Promise<boolean> {
+  return !checkFeed(feed) && isValidId(id) && (await storage().isRemovedNote(feed, id));
+}
+
+/** The same, as the refusal every read and edit of one note gives. */
+export async function refuseRemovedNote(feed: string, id: string): Promise<void> {
+  if (await isRemovedNote(feed, id)) throw new RemovedNoteError();
+}
 
 /** `asOf`: a reader's lookup; a note dated after it, or a draft, is null, as a missing one. */
 export async function getNote(feed: string, id: string, asOf?: Date): Promise<Note | null> {

@@ -14,7 +14,7 @@ import { runningVersion } from "./version";
 import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
 import { logger } from "./log";
-import { checkLine, getNote, isDraft, isScheduled, listNotes, MAX_NOTE_TITLE, type Note } from "./notes";
+import { checkLine, getNote, isDraft, isScheduled, listNotes, MAX_NOTE_TITLE, refuseRemovedNote, type Note } from "./notes";
 import { verify } from "./oauth/tokens";
 import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
@@ -147,6 +147,7 @@ function server(h: Headers): McpServer {
     },
     guard(async ({ feed, id, password }) => {
       await checkAccess(feed, password);
+      await refuseRemovedNote(feed, id);
       const note = await getNote(feed, id);
       if (!note) throw new NotFoundError("no such note");
       return ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });

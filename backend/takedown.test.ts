@@ -253,3 +253,38 @@ test("noteOfTarget: a note's read URL, an image URL, <read id>/<note>; a feed's 
   expect(noteOfTarget("https://notes.example.com/r/abc-123/my%20logo.png")).toEqual({ readId: "abc-123", note: "my logo.png" });
   for (const bad of ["", "abc-123", "https://notes.example.com/r/abc-123", "/r/abc-123/", "/r/abc-123/feed.xml", "/r/abc-123/a/b", "not a url"]) expect(noteOfTarget(bad), bad).toBeNull();
 });
+
+test("a removed note answers 410 everywhere, with its mark and after the mark is deleted (#159)", async () => {
+  expect((await call("POST", "/feeds/good/notes", { body: "# bad", headers: { "content-type": "text/markdown" } })).status).toBe(201);
+  const pic = await (await upload("good", PNG)).json();
+  const text = (await (await call("GET", "/feeds/good/notes")).json()).notes.find((n: { type: string }) => n.type === "text/markdown");
+  const rid = (await readIdOf("good"))!;
+  await takedown(`/r/${rid}/${text.id}`, `Bearer ${TOKEN}`, { scope: "note" });
+  await takedown(`/r/${rid}/${pic.file}`, `Bearer ${TOKEN}`, { scope: "note" });
+  const gone = async (res: Response | Promise<Response>, what: string) => {
+    const r = await res;
+    expect(r.status, what).toBe(410);
+    expect(await r.json(), what).toEqual({ error: "this note was removed by the operator", code: "removed" });
+  };
+  const everywhere = async () => {
+    await gone(call("GET", `/feeds/good/notes/${text.id}`), "owner's GET");
+    await gone(call("GET", `/read/${rid}/notes/${text.id}`), "read API");
+    await gone(call("GET", `/read/${rid}/notes/${pic.id}`), "read API, image");
+    const file = await fileRoute(rid, pic.file);
+    expect(file.status).toBe(410);
+    expect(await file.text()).toBe("removed by the operator");
+  };
+  await everywhere();
+  await gone(call("PUT", `/feeds/good/notes/${text.id}`, { body: "# back", headers: { "content-type": "text/markdown" } }), "PUT content");
+  for (const patch of [{ title: "x" }, { date: "2020-01-01" }, { draft: false }, { tags: ["t"] }]) await gone(call("PATCH", `/feeds/good/notes/${text.id}`, { body: JSON.stringify(patch), headers: { "content-type": "application/json" } }), JSON.stringify(patch));
+  const form = new FormData();
+  form.append("text", "# back ![](a.png)");
+  form.append("file", new File([PNG2 as BlobPart], "a.png", { type: "image/png" }));
+  await gone(call("PUT", `/feeds/good/notes/${text.id}`, { body: form }), "PUT with pictures");
+  const marks = (await (await call("GET", "/feeds/good/notes")).json()).notes.filter((n: { removed?: true }) => n.removed);
+  expect(marks.map((n: { id: string; title: string }) => [n.id, n.title]).sort()).toEqual([[pic.id, ""], [text.id, ""]].sort());
+  expect((await call("DELETE", `/feeds/good/notes/${text.id}`)).status).toBe(204);
+  expect((await call("DELETE", `/feeds/good/notes/${pic.id}`)).status).toBe(204);
+  await everywhere();
+  await gone(call("PATCH", `/feeds/good/notes/${text.id}`, { body: JSON.stringify({ title: "x" }), headers: { "content-type": "application/json" } }), "PATCH after the mark");
+});

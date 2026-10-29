@@ -10,6 +10,7 @@ import { logTo } from "./log";
 import { createNote, getNote, listNotes } from "./notes";
 import { storage } from "./storage";
 import { mcpRoute } from "./mcp";
+import { takedownNote } from "./takedown";
 import { sign } from "./oauth/tokens";
 import { loadSharp } from "./imageprocess";
 import { PNG } from "./testimages";
@@ -221,6 +222,20 @@ describe("tools", () => {
     expect(l[0].sender).toBe("Ann");
     expect(l[1]).not.toHaveProperty("sender");
     expect((await call("get_note", { feed: "a", id: note.id })).structuredContent.sender).toBe("Ann");
+  });
+
+  test("a note the operator removed (#159): list_notes shows its mark, get_note and edit_note refuse it, delete_note removes the mark", async () => {
+    const { note } = await createNote("a", "# Bad");
+    await takedownNote(`${(await readIdOf("a"))!}/${note.id}`);
+    expect((await call("list_notes", { feed: "a" })).structuredContent.notes).toEqual([expect.objectContaining({ id: note.id, removed: true, type: "application/x-notefeed-removed", title: "" })]);
+    for (const [tool, args] of [["get_note", {}], ["edit_note", { title: "x" }], ["edit_note", { markdown: "# back" }]] as const) {
+      const r = await call(tool, { feed: "a", id: note.id, ...args });
+      expect(r.isError, tool).toBe(true);
+      expect(JSON.stringify(r.content), tool).toContain("removed by the operator");
+    }
+    expect((await call("delete_note", { feed: "a", id: note.id })).structuredContent).toEqual({ deleted: true });
+    expect((await call("list_notes", { feed: "a" })).structuredContent.notes).toEqual([]);
+    expect((await call("get_note", { feed: "a", id: note.id })).isError).toBe(true);
   });
 
   test("get_note", async () => {

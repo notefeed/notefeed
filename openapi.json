@@ -558,6 +558,16 @@
               }
             }
           },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many wrong passwords from this client",
             "headers": {
@@ -755,6 +765,16 @@
               }
             }
           },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB",
             "content": {
@@ -930,6 +950,16 @@
           },
           "409": {
             "description": "The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
             "content": {
               "application/json": {
                 "schema": {
@@ -2753,7 +2783,7 @@
             }
           },
           "410": {
-            "description": "The operator removed the feed this read id belonged to (`removed`)",
+            "description": "The operator removed the feed this read id belonged to, or this note (`removed`)",
             "content": {
               "application/json": {
                 "schema": {

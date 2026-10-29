@@ -18,7 +18,7 @@ import { MEDIA_TYPES } from "./note/media";
 import { planInWorker } from "./place";
 import { type NoteType, parseMediaType } from "./note/types";
 import { checkTags } from "./tags";
-import { changeDate, changeDraft, checkLine, checkMarkdown, countNotes, createNoteOf, encoder, getNote, MARKDOWN, hasImageNote, MAX_ALT, MAX_NOTE_TITLE, newNoteId, removeNote, replaceContent, changeMeta, type NewNoteOptions, type Note } from "./notes";
+import { changeDate, changeDraft, checkLine, checkMarkdown, countNotes, createNoteOf, encoder, getNote, MARKDOWN, hasImageNote, MAX_ALT, MAX_NOTE_TITLE, newNoteId, refuseRemovedNote, removeNote, replaceContent, changeMeta, type NewNoteOptions, type Note } from "./notes";
 
 const log = logger("posting");
 
@@ -226,6 +226,7 @@ export async function createFeed(feed: string, ip: string, input: { password?: s
 // Replacing a note's content, and changing its title or alt text: the same gate as posting, minus the caps.
 export async function editContent(feed: string, id: string, ip: string, read: () => Promise<{ body: Uint8Array; mediaType: string }>, access: FeedAccess): Promise<Note> {
   await admit(feed, ip, access);
+  await refuseRemovedNote(feed, id); // the operator's mark is not edited, and the note it stands for does not come back (#159)
   const current = await getNote(feed, id);
   if (!current) throw new NotFoundError("no such note"); // before the body is read: a missing note is 404 whatever the body
   refuseImages(current.type.startsWith("image/")); // replacing a picture's bytes is an upload too
@@ -243,6 +244,7 @@ export async function editContent(feed: string, id: string, ip: string, read: ()
 // `draft`: true makes the note a draft, false publishes it, its pictures along (#265); its date stays.
 export async function editMeta(feed: string, id: string, ip: string, read: () => Promise<{ title?: string; alt?: string; tags?: string[]; date?: string; draft?: boolean }>, access: FeedAccess): Promise<Note> {
   await admit(feed, ip, access);
+  await refuseRemovedNote(feed, id);
   const { date: given, draft, ...meta } = await read();
   const date = checkDate(given);
   const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined;
@@ -474,6 +476,7 @@ export async function editWithPictures(
   sender?: string,
 ): Promise<{ note: Note; pictures: Note[] }> {
   await admit(feed, ip, access);
+  await refuseRemovedNote(feed, id);
   // The note first, as on every other edit: a missing note is 404 and an image note 415 whatever its parts are.
   const note = await getNote(feed, id);
   if (!note) throw new NotFoundError("no such note");
