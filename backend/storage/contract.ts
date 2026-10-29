@@ -385,6 +385,37 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect(await s.isBlockedImage("b".repeat(64))).toBe(true);
         expect(await s.isBlockedImage("c".repeat(64))).toBe(false);
       });
+      t("note takedown (#159): tombstones first, the post goes, the mark stays deletable", async ({ storage: s }) => {
+        await s.writeNote("f", "t", "md", "x", {}, 10);
+        await s.writeNote("f", "p", "png", new Uint8Array([0x89, 0x50, 1]), { of: "t" }, 9);
+        await s.writeNote("f", "k", "md", "keep", {}, 11);
+        await s.takedownNotes("f", [{ id: "t", ext: "md" }, { id: "p", ext: "png" }], { date: 10, draft: false }, "t");
+        expect(await s.removedNote("f", "t")).toEqual({ date: 10, draft: false });
+        expect(await s.removedNote("f", "p")).toEqual({ date: 10, draft: false });
+        expect(await s.removedNote("f", "k")).toBeNull();
+        expect((await s.listNoteRefs("f")).map((r) => `${r.id}.${r.ext}`)).toEqual(["k.md", "t.removed"]);
+        expect(await s.readFile("f", "p.png")).toBeNull();
+        expect(await s.deleteNote("f", "t", ["removed"])).toBe(true);
+        expect(await s.removedNote("f", "t")).toEqual({ date: 10, draft: false }); // the tombstone outlives the mark
+        await s.takedownNotes("f", [], { date: 0, draft: false }, null); // a repeat writes nothing
+        expect((await s.listNoteRefs("f")).map((r) => r.id)).toEqual(["k"]);
+      });
+      t("a draft's mark is a draft (#159)", async ({ storage: s }) => {
+        await s.writeNote("f", "d", "md", "x", {}, 5, true);
+        await s.takedownNotes("f", [{ id: "d", ext: "md" }], { date: 5, draft: true }, "d");
+        expect(await s.removedNote("f", "d")).toEqual({ date: 5, draft: true });
+        await s.takedownNotes("f", [{ id: "d", ext: "md" }], { date: 9, draft: false }, null);
+        expect(await s.removedNote("f", "d")).toEqual({ date: 5, draft: true }); // the first record holds
+        expect(await s.listNoteRefs("f")).toEqual([]);
+        expect(await s.listNoteRefs("f", { drafts: true })).toEqual([{ id: "d", ext: "removed", date: 5, draft: true }]);
+      });
+      t("note tombstones go with the feed (#159)", async ({ storage: s }) => {
+        await s.writeNote("f", "t", "md", "x", {}, 0);
+        await s.takedownNotes("f", [{ id: "t", ext: "md" }], { date: 0, draft: false }, null);
+        await s.deleteFeed("f");
+        await s.createFeed("f", "rid-f2");
+        expect(await s.removedNote("f", "t")).toBeNull();
+      });
       t("forgetFeed never removes a feed that is still there under another id", async ({ storage: s }) => {
         await s.writeNote("f", "a", "md", "x", {}, 0);
         await s.forgetFeed("f", "not-its-id");

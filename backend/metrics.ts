@@ -45,7 +45,7 @@ function metrics(): Metrics {
         feedsDeleted: new Counter({ name: "notefeed_feeds_deleted_total", help: "Feeds removed: deleted by their owner, or taken down by the operator", labelNames: ["reason"], registers: [register] }),
         posted: new Counter({ name: "notefeed_notes_posted_total", help: "Notes posted, by kind", labelNames: ["kind"], registers: [register] }),
         edited: new Counter({ name: "notefeed_notes_edited_total", help: "Notes edited, by kind and by what changed (content or metadata)", labelNames: ["kind", "what"], registers: [register] }),
-        deleted: new Counter({ name: "notefeed_notes_deleted_total", help: "Notes deleted, by kind: by a writer, or dropped past the free tier's cap", labelNames: ["kind", "reason"], registers: [register] }),
+        deleted: new Counter({ name: "notefeed_notes_deleted_total", help: "Notes deleted, by kind: by a writer, dropped past the free tier's cap, or taken down by the operator", labelNames: ["kind", "reason"], registers: [register] }),
         licenses: new Counter({ name: "notefeed_license_events_total", help: "License events: bought, attached to a feed, renewed, lapsed", labelNames: ["event"], registers: [register] }),
       },
       // How much the instance holds, as of the last count (backend/usage.ts): counting means a pass over every feed, so it runs
@@ -57,7 +57,7 @@ function metrics(): Metrics {
         active: new Gauge({ name: "notefeed_feeds_active", help: "Feeds with a note written within the last day, 7 or 30 days, as of the last count", labelNames: ["within"], registers: [] }),
         notes: new Gauge({ name: "notefeed_notes", help: "Stored notes by kind, as of the last count", labelNames: ["kind"], registers: [] }),
         bytes: new Gauge({ name: "notefeed_notes_bytes", help: "Bytes of the stored notes by kind (an image's bytes wherever the image store keeps them), as of the last count", labelNames: ["kind"], registers: [] }),
-        nearCap: new Gauge({ name: "notefeed_feeds_free_cap", help: "Feeds by their markdown notes against the free tier's cap: near (80% or more), at it, or over it (a license, or one lapsed since); only with licensing on", labelNames: ["notes"], registers: [] }),
+        nearCap: new Gauge({ name: "notefeed_feeds_free_cap", help: "Feeds by their notes against the free tier's cap: near (80% or more), at it, or over it (a license, or one lapsed since); only with licensing on", labelNames: ["notes"], registers: [] }),
         licenses: new Gauge({ name: "notefeed_licenses", help: "Licenses: active (paid, on a feed), unattached (paid, the key not entered) and lapsed; only with licensing on", labelNames: ["state"], registers: [] }),
         dbBytes: new Gauge({ name: "notefeed_database_size_bytes", help: "The database's size on disk (PostgreSQL or SQLite storage), as of the last count", registers: [] }),
         dbConnections: new Gauge({ name: "notefeed_database_connections", help: "Open connections to the PostgreSQL database, from every client, as of the last count", registers: [] }),
@@ -166,7 +166,7 @@ export const feedCreated = (isProtected: boolean): void => void (config.metrics(
 export const feedRemoved = (reason: "deleted" | "takedown"): void => void (config.metrics() && metrics().events.feedsDeleted.inc({ reason }));
 export const notePosted = (kind: NoteKind): void => void (config.metrics() && metrics().events.posted.inc({ kind }));
 export const noteEdited = (kind: NoteKind, what: "content" | "meta"): void => void (config.metrics() && metrics().events.edited.inc({ kind, what }));
-export const noteDeleted = (kind: NoteKind, reason: "deleted" | "free_cap"): void => void (config.metrics() && metrics().events.deleted.inc({ kind, reason }));
+export const noteDeleted = (kind: NoteKind, reason: "deleted" | "free_cap" | "takedown"): void => void (config.metrics() && metrics().events.deleted.inc({ kind, reason }));
 export const licenseEvent = (event: "bought" | "attached" | "renewed" | "lapsed"): void => void (config.metrics() && metrics().events.licenses.inc({ event }));
 
 /** One count of what the instance holds (backend/usage.ts makes it). Numbers only: nothing in it names a feed. */

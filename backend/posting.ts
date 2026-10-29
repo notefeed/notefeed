@@ -18,7 +18,7 @@ import { MEDIA_TYPES } from "./note/media";
 import { planInWorker } from "./place";
 import { type NoteType, parseMediaType } from "./note/types";
 import { checkTags } from "./tags";
-import { changeDate, changeDraft, checkLine, checkMarkdown, countNotes, createNoteOf, encoder, getNote, MARKDOWN, hasImageNote, MAX_ALT, MAX_NOTE_TITLE, newNoteId, removeNote, replaceContent, changeMeta, type NewNoteOptions, type Note } from "./notes";
+import { changeDate, changeDraft, checkLine, checkMarkdown, countNotes, createNoteOf, encoder, getNote, MARKDOWN, hasImageNote, MAX_ALT, MAX_NOTE_TITLE, newNoteId, refuseRemovedNote, removeNote, replaceContent, changeMeta, type NewNoteOptions, type Note } from "./notes";
 
 const log = logger("posting");
 
@@ -123,11 +123,13 @@ async function licenseForImages(feed: string, images: boolean, key: string | und
   else await requireLicense(feed);
 }
 
-// The caps are per type: images have their own, the notes limit counts the markdown ones. `adding` notes of that type; a feed that does not exist yet counts as empty.
-async function checkCap(feed: string, typeName: string, adding: number): Promise<void> {
-  const image = typeName === "image";
-  const max = image ? config.maxImagesPerFeed() : config.maxNotesPerFeed();
-  if (adding && max && (await countNotes(feed, typeName)) + adding > max) throw image ? capReached("image", new ImageLimitError()) : capReached("note", new NoteLimitError());
+// The notes limit counts every note of the feed (texts, images, the operator's marks); images have a limit of their own as well.
+// `adding`: the notes a write adds, and how many of them are images. A feed that does not exist yet counts as empty.
+async function checkCaps(feed: string, adding: { notes: number; images: number }): Promise<void> {
+  const maxImages = config.maxImagesPerFeed();
+  if (adding.images && maxImages && (await countNotes(feed, "image")) + adding.images > maxImages) throw capReached("image", new ImageLimitError());
+  const maxNotes = config.maxNotesPerFeed();
+  if (adding.notes && maxNotes && (await countNotes(feed)) + adding.notes > maxNotes) throw capReached("note", new NoteLimitError());
 }
 
 // What a post carries: the file (`body`) and the type the poster declared for it (`mediaType`, a Content-Type), with the optional
@@ -178,7 +180,7 @@ export async function postNote(
   const { type, ext } = parsed;
   refuseImages(type.name === "image");
   await licenseForImages(feed, type.name === "image", newFeedKey(proved, exists, input.licenseKey), ip);
-  if (exists) await checkCap(feed, type.name, 1);
+  if (exists) await checkCaps(feed, { notes: 1, images: type.name === "image" ? 1 : 0 });
   // Before createProtected: a refused note must not leave a protected, empty feed.
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
   type.checkBody(input.body);
@@ -226,6 +228,7 @@ export async function createFeed(feed: string, ip: string, input: { password?: s
 // Replacing a note's content, and changing its title or alt text: the same gate as posting, minus the caps.
 export async function editContent(feed: string, id: string, ip: string, read: () => Promise<{ body: Uint8Array; mediaType: string }>, access: FeedAccess): Promise<Note> {
   await admit(feed, ip, access);
+  await refuseRemovedNote(feed, id); // the operator's mark is not edited, and the note it stands for does not come back (#159)
   const current = await getNote(feed, id);
   if (!current) throw new NotFoundError("no such note"); // before the body is read: a missing note is 404 whatever the body
   refuseImages(current.type.startsWith("image/")); // replacing a picture's bytes is an upload too
@@ -243,6 +246,7 @@ export async function editContent(feed: string, id: string, ip: string, read: ()
 // `draft`: true makes the note a draft, false publishes it, its pictures along (#265); its date stays.
 export async function editMeta(feed: string, id: string, ip: string, read: () => Promise<{ title?: string; alt?: string; tags?: string[]; date?: string; draft?: boolean }>, access: FeedAccess): Promise<Note> {
   await admit(feed, ip, access);
+  await refuseRemovedNote(feed, id);
   const { date: given, draft, ...meta } = await read();
   const date = checkDate(given);
   const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined;
@@ -442,8 +446,7 @@ export async function postWithPictures(
   const tags = checkTags(input.tags);
   const at = checkDate(input.date) ?? new Date();
   await recheck(feed, ip, access, proved, input.password);
-  await checkCap(feed, "markdown", text === undefined ? 0 : 1);
-  await checkCap(feed, "image", pictures.length);
+  await checkCaps(feed, { notes: (text === undefined ? 0 : 1) + pictures.length, images: pictures.length });
   for (const p of pictures) p.body = await prepareImage(p.body, p.ext); // one at a time: a post never fills the queue alone
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
@@ -474,6 +477,7 @@ export async function editWithPictures(
   sender?: string,
 ): Promise<{ note: Note; pictures: Note[] }> {
   await admit(feed, ip, access);
+  await refuseRemovedNote(feed, id);
   // The note first, as on every other edit: a missing note is 404 and an image note 415 whatever its parts are.
   const note = await getNote(feed, id);
   if (!note) throw new NotFoundError("no such note");
@@ -483,7 +487,7 @@ export async function editWithPictures(
   await licenseForImages(feed, pictures.length > 0, undefined, ip); // an edit's feed exists
   const plan = await checkText(input.text, pictures);
   const tags = checkTags(input.tags);
-  await checkCap(feed, "image", pictures.length);
+  await checkCaps(feed, { notes: pictures.length, images: pictures.length });
   for (const p of pictures) p.body = await prepareImage(p.body, p.ext);
   const before = new Date(note.date.getTime() - 1);
   return storeWithPictures(feed, pictures, { sender, tags, of: id, draft: note.draft }, () => before, async (stored, sent) => {

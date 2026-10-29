@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { feedForReadId, isRemovedReadId } from "../feeds";
 import { measured } from "../metrics";
 import { noteRoute } from "../requestscope";
-import { fileVisible, namedFile, unreadableNote } from "../notes";
+import { fileVisible, isRemovedNote, namedFile, unreadableNote } from "../notes";
 import { storage } from "../storage";
 import { IMAGE_EXTS, contentTypeOf } from "../../shared/images";
 
@@ -32,6 +32,8 @@ export const fileRoute = (readId: string, file: string, ifNoneMatch?: string | n
 async function serveFile(readId: string, file: string, ifNoneMatch?: string | null): Promise<Response> {
   noteRoute("/r/[readId]/files/[file]"); // reached by a rewrite: the path has the shape of a note's page
   const feed = await feedForReadId(readId);
+  const id = NAME_RE.exec(file) && file.slice(0, file.indexOf("."));
+  if (feed && id && (await isRemovedNote(feed, id, new Date()))) return new Response("removed by the operator", { status: 410 }); // #159
   const now = new Date();
   let stored: string | null = null;
   let bytes: Buffer | null;

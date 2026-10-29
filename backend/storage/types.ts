@@ -36,10 +36,11 @@ export interface Storage {
    * The stored notes of the feed, each once, newest first by `(date, id)`; the caller filters by type. An unknown feed lists as empty.
    * `upTo`: only notes dated then or earlier. `before`: only the notes after that one in this order; one that is not in the list (gone,
    * past `upTo`, or a draft left out) gives none. `limit`: at most that many. `drafts`: drafts too; without it they are left out, so a
-   * reader's listing that does not ask never has one (#265).
+   * reader's listing that does not ask never has one (#265). A note the operator removed is in no listing (#159), unless `removed`
+   * asks for those too: only the takedown does, to finish one that was cut short (the database backends never leave any).
    * A note stored before notes had a date has the metadata's `created`, else its mtime (file system), or 0 (SQL).
    */
-  listNoteRefs(feed: string, q?: { upTo?: number; before?: string; limit?: number; drafts?: boolean }): Promise<NoteRef[]>;
+  listNoteRefs(feed: string, q?: { upTo?: number; before?: string; limit?: number; drafts?: boolean; removed?: boolean }): Promise<NoteRef[]>;
   readNote(feed: string, id: string, exts: readonly string[], withContent: (ext: string) => boolean): Promise<StoredNote | null>;
   readMeta(feed: string, ref: Pick<NoteRef, "id" | "ext">): Promise<Meta | null>;
   replaceNote(feed: string, id: string, exts: readonly string[], content: string | Uint8Array): Promise<boolean>;
@@ -94,6 +95,14 @@ export interface Storage {
    *  `removed` false: there was no such feed; the tombstone is recorded all the same. `keys`: the image store objects removed, for the operator's purge. */
   takedownFeed(feed: string, readId: string | null): Promise<{ removed: boolean; keys: string[] }>;
   isRemoved(q: { feed?: string; readId?: string }): Promise<boolean>;
+  // The takedown of one post (issue #159): a note tombstone holds a removed note's id in its feed for good, with the post's date and
+  // draft flag (whether readers saw it, and from when), and goes with the feed.
+  /** Records a tombstone for every one of `notes` first (`post`: the post's date in ms and draft flag), then deletes them, then writes
+   *  the mark `<markId>.removed` (no content, no metadata, the post's date and draft flag) when `markId` is given. `keys`: the image
+   *  store objects removed, for the operator's purge. A note already tombstoned keeps its first record. */
+  takedownNotes(feed: string, notes: Pick<NoteRef, "id" | "ext">[], post: { date: number; draft: boolean }, markId: string | null): Promise<{ keys: string[] }>;
+  /** The tombstone of a removed note: the date and draft flag of the post it was in; null for a note never removed. */
+  removedNote(feed: string, id: string): Promise<{ date: number; draft: boolean } | null>;
   blockImages(hashes: string[]): Promise<void>;
   isBlockedImage(hash: string): Promise<boolean>;
 }

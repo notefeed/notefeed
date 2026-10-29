@@ -54,6 +54,13 @@ export interface Schema {
     name: string;
     at: Time;
   };
+  note_tombstones: {
+    feed: string;
+    id: string;
+    removed_at: Time;
+    date: Time;
+    draft: number;
+  };
   blocked_images: {
     hash: string;
     added_at: Time;

@@ -8,7 +8,7 @@ import { changePassword, checkFeedAccess, protectedFeed, recoverPassword, remove
 import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf } from "../feeds";
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
-import { MAX_BYTES, countNotes, getNote, isDraft, isScheduled, listNotes, type Note } from "../notes";
+import { MAX_BYTES, countNotes, getNote, isDraft, isScheduled, listNotes, refuseRemovedNote, type Note } from "../notes";
 import { freeTier, licenseAccountUrl, licensePlans } from "../licensing";
 import { MANAGE_PURCHASES } from "../../shared/plans";
 import { PASSWORD_RULE } from "../../shared/password";
@@ -79,6 +79,7 @@ const MULTIPART =
 const UNAUTHORIZED = err("The instance has a password, or the feed has its own, and it is missing or wrong");
 const REMOVED = err("The operator removed this feed for good (`removed`): its name cannot be used again");
 const REMOVED_READ = err("The operator removed the feed this read id belonged to (`removed`)");
+const REMOVED_NOTE = err("The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited");
 const BLOCKED = err("An image the operator removed, which may not be posted again in any feed (`blocked`)");
 const LICENSE_REQUIRED = err("Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds");
 const IMAGES_OFF = err("Image uploads are off on this instance (`NOTEFEED_IMAGE_UPLOADS=0`, code `images_off`): an image body, a picture replaced, or a multipart body with pictures. Stored pictures are still served");
@@ -101,7 +102,7 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   id: n.id,
   type: n.type,
   file: n.file,
-  file_url: files && files + n.file,
+  file_url: files && !n.removed ? files + n.file : null,
   size: n.size,
   title: n.title,
   ...(n.content !== undefined && { content: n.content }),
@@ -114,6 +115,7 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   ...(n.sender !== undefined && { sender: n.sender }),
   tags: n.tags,
   ...(n.unreadable && { unreadable: true as const }),
+  ...(n.removed && { removed: true as const }),
 });
 
 // The feed a read id shows, or null for one nobody has. A read id the operator removed is 410 (issue #159), as on the pages,
@@ -258,11 +260,13 @@ const OPS: AnyOp[] = [
       400: err("Invalid or reserved feed name"),
       401: UNAUTHORIZED,
       404: err("No such note"),
+      410: REMOVED_NOTE,
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
       503: UNAVAILABLE,
     },
     before: passwordFeedAndFeedPassword,
   }).handle(async ({ req, params }) => {
+    await refuseRemovedNote(params.feed, params.id);
     const note = await getNote(params.feed, params.id);
     if (!note) throw new NotFoundError("no such note");
     return { status: 200, body: noteJson(note, publicUrl(req.headers) + feedPath(params.feed), await filesOf(params.feed, req.headers)) };
@@ -297,6 +301,7 @@ const OPS: AnyOp[] = [
       402: LICENSE_REQUIRED,
       403: IMAGES_OFF,
       404: err("No such note"),
+      410: REMOVED_NOTE,
       413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB, and never over 64 MiB`),
       415: err("Content-Type missing, not accepted or not the note's own type (a multipart body is for a markdown note), or the body (or a picture) is not what it declares"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
@@ -339,6 +344,7 @@ const OPS: AnyOp[] = [
       400: err("Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, date or draft; too many tags; alt for a note that has none; bad JSON"),
       401: UNAUTHORIZED,
       404: err("No such note"),
+      410: REMOVED_NOTE,
       409: err("The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)"),
       415: err("Content-Type is not application/json"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
@@ -778,12 +784,13 @@ const OPS: AnyOp[] = [
     responses: {
       200: { description: "The note", schema: NoteJson },
       404: err("No such note, or a malformed or unknown read id"),
-      410: REMOVED_READ,
+      410: err("The operator removed the feed this read id belonged to, or this note (`removed`)"),
       503: UNAVAILABLE,
     },
   }).handle(async ({ req, params }) => {
     const feed = await readFeed(params.readId);
     const asOf = new Date(); // a scheduled note is a missing one to readers
+    if (feed) await refuseRemovedNote(feed, params.id, asOf);
     const found = feed ? await getNote(feed, params.id, asOf) : null;
     if (!feed || !found) throw new NotFoundError("no such note");
     const [note] = forReaders([found], await getSettings(feed, asOf));

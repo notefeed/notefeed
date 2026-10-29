@@ -64,3 +64,23 @@ test("every type of the registry is the UI's kind of the same name for each of i
     expect(NOTE_KINDS[t.name as keyof typeof NOTE_KINDS].alt).toBe(t.hasAlt);
   }
 });
+
+describe("the mark the operator leaves where a post was removed (#159)", () => {
+  const init = { id: "t", ext: "removed", meta: {}, date: new Date(10), size: 0 };
+  test("is a note of the type removed, with no content and an empty title", () => {
+    const mark = typeForExt("removed")!.read(init, Buffer.alloc(0));
+    expect(mark.removed).toBe(true);
+    expect(mark.title).toBe("");
+    expect(mark.content).toBeUndefined();
+    expect(mark.type).toBe("application/x-notefeed-removed");
+    expect(mark.rssContent("https://x/r/rid").description).toContain("Removed by the operator: this broke the content rules of this instance.");
+  });
+  test("can never be posted", () => {
+    expect(parseMediaType("application/x-notefeed-removed")).toBeNull();
+    expect(ACCEPTED_TYPES).not.toContain("removed");
+    expect(typeForExt("removed")!.verify(new Uint8Array(), "removed")).toBe(false);
+  });
+  test("other notes are not marks", () => {
+    expect(typeForExt("md")!.read({ ...init, ext: "md" }, Buffer.from("x")).removed).toBe(false);
+  });
+});

@@ -15,7 +15,7 @@ environment:
   NOTEFEED_MAX_IMAGES_PER_FEED: 200
 ```
 
-Over a cap, posting answers `507`; over the image size, `413`. The caps are checked, not locked, so several posts at the same moment can overshoot by a few. Delete notes or feeds to make room, see [Deleting notes and feeds](deleting.md).
+`NOTEFEED_MAX_NOTES_PER_FEED` counts every note of a feed, texts and images alike (and the mark the operator leaves where a post was [taken down](deleting.md#removing-one-post-as-the-operator)); `NOTEFEED_MAX_IMAGES_PER_FEED` counts the images on their own as well. Over a cap, posting answers `507`; over the image size, `413`. The caps are checked, not locked, so several posts at the same moment can overshoot by a few. Delete notes or feeds to make room, see [Deleting notes and feeds](deleting.md).
 
 ## No pictures at all
 

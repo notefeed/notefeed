@@ -60,6 +60,14 @@ _Avoid_: Picture, photo, media
 An image posted together with a text note in the same request and referred to from that text.
 _Avoid_: Upload, embed
 
+**Post**:
+What was posted together: a text note and its attachments, or an image posted alone. The operator's takedown of one note removes its whole post.
+_Avoid_: Thread, group
+
+**Mark**:
+What the operator leaves where a post was removed for breaking the content rules: a note with the post's id and date and nothing of its content. Whoever can post to the feed can delete it; the post does not come back.
+_Avoid_: Placeholder, stub, tombstone (that is the record that keeps the id out of use)
+
 **Metadata**:
 What is known about a note besides its content: title, sender, tags, alt text, file name and date. It is never part of the content.
 _Avoid_: Front matter, properties, sidecar

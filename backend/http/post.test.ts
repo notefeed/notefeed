@@ -115,15 +115,18 @@ describe("images", () => {
     expect((await post("a".repeat(102401), "text/markdown")).status).toBe(413);
     expect((await post("a".repeat(102400), "text/markdown")).status).toBe(201);
   });
-  test("the caps are per type: images have their own, the notes limit counts markdown", async () => {
+  test("the notes limit counts every note, texts and images alike; images have a limit of their own too", async () => {
     process.env.NOTEFEED_MAX_IMAGES_PER_FEED = "1";
-    process.env.NOTEFEED_MAX_NOTES_PER_FEED = "1";
+    process.env.NOTEFEED_MAX_NOTES_PER_FEED = "2";
     expect((await post(PNG as BodyInit, "image/png")).status).toBe(201);
-    expect((await post("# a", "text/markdown")).status).toBe(201);
     const image = await post(PNG as BodyInit, "image/png");
     expect([image.status, (await image.json()).code]).toEqual([507, "image_limit"]);
+    expect((await post("# a", "text/markdown")).status).toBe(201);
     const note = await post("# b", "text/markdown");
     expect([note.status, (await note.json()).code]).toEqual([507, "note_limit"]);
+    process.env.NOTEFEED_MAX_IMAGES_PER_FEED = "5";
+    const third = await post(PNG as BodyInit, "image/png");
+    expect([third.status, (await third.json()).code]).toEqual([507, "note_limit"]);
   });
 });
 

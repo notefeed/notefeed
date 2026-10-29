@@ -1,3 +1,5 @@
+import { REMOVED_TYPE } from "../../shared/notekinds";
+
 // The media types a note can be posted as, and the extension each is stored under. A leaf module (no note classes), so Note can use it.
 export const MEDIA_TYPES = [
   { mediaType: "text/markdown", ext: "md" },
@@ -10,8 +12,9 @@ export const MEDIA_TYPES = [
 /** For error messages: every media type a post may declare. */
 export const ACCEPTED_TYPES = MEDIA_TYPES.map((m) => m.mediaType).join(", ");
 
-/** The media type a stored extension is posted and listed as; `application/octet-stream` for one we don't know. */
-export const mediaTypeOf = (ext: string): string => MEDIA_TYPES.find((m) => m.ext === ext)?.mediaType ?? "application/octet-stream";
+/** The media type a stored extension is posted and listed as; `application/octet-stream` for one we don't know. The operator's mark
+ *  (`removed`, #159) is listed under its own type and is in MEDIA_TYPES on purpose not: nothing can be posted as one. */
+export const mediaTypeOf = (ext: string): string => (ext === "removed" ? REMOVED_TYPE : (MEDIA_TYPES.find((m) => m.ext === ext)?.mediaType ?? "application/octet-stream"));
 
 const UTF8 = /^charset=("?)utf-8\1$/i;
 

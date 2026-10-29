@@ -5,8 +5,9 @@ import { BackToFeed } from "@/components/BackToFeed";
 import { NoteArticle } from "@/components/NoteArticle";
 import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
+import { RemovedNote } from "@/components/RemovedNote";
 import { orDamaged } from "@/app/_lib/damaged";
-import { getReadFeedAbout, getReadNote, getReadPictures, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
+import { getReadFeedAbout, getReadNote, getReadPictures, hasLegalPage, instanceTitle, isRemovedReadId, isRemovedReadNote, readPath, reportTemplate } from "@/backend";
 import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,14 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
     return (
       <AppShell>
         <DamagedNote id={id} back={readPath(readId)} />
+      </AppShell>
+    );
+  }
+  // A note the operator removed (#159): its mark, or after its owner deleted the mark, the same words.
+  if (note?.removed || (!note && (await isRemovedReadNote(readId, id, asOf)))) {
+    return (
+      <AppShell>
+        <RemovedNote id={id} back={readPath(readId)} terms={await hasLegalPage("terms")} />
       </AppShell>
     );
   }

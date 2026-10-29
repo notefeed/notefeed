@@ -9,7 +9,8 @@ import { hasFeed, readIdOf, resetFeedsForTests } from "./feeds";
 import { authWait, resetRateLimitsForTests } from "./limits";
 import { countingKeys, hashKey } from "./licenseflow";
 import { freeTier, isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
-import { countNotes, createNote } from "./notes";
+import { countNotes, createImageNote, createNote, listNotes } from "./notes";
+import { storage } from "./storage";
 import { createFeed, deleteFeed, postNote, postWithPictures, setLicense } from "./posting";
 import { png as pngOf } from "./testimages";
 
@@ -69,6 +70,17 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       for (let i = 0; i < 5; i++) await createNote("f", `n${i}`, new Date(2026, 0, 1, 0, i));
       await text("f", "n5");
       expect(await countNotes("f", "markdown")).toBe(3);
+    });
+
+    test("a free feed counts every note against the cap, texts, images and the operator's marks, and drops the oldest of any kind", async () => {
+      await createImageNote("f", png, {}, new Date(2026, 0, 1, 0, 0)); // from before a license lapsed
+      await createNote("f", "taken down", new Date(2026, 0, 1, 0, 1));
+      const [down] = await listNotes("f");
+      await storage().takedownNotes("f", [{ id: down.id, ext: down.ext }], { date: down.date.getTime(), draft: false }, down.id);
+      await createNote("f", "kept", new Date(2026, 0, 1, 0, 2));
+      expect(await freeTier("f")).toEqual({ notes: 3, cap: 3 });
+      await text("f", "new");
+      expect((await listNotes("f")).map((n) => n.title || n.type)).toEqual(["new", "kept", "application/x-notefeed-removed"]);
     });
 
     test("a free feed's usage counts its text notes against the cap; a licensed feed has none", async () => {

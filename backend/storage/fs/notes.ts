@@ -5,7 +5,7 @@
 // Only regular files count: a folder, a symbolic link or an unreadable entry in a feed folder is "not a note", never an error.
 import { randomBytes } from "node:crypto";
 import type { Stats } from "node:fs";
-import { link, lstat, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { appendFile, link, lstat, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { countDir, countFile, noteFeedSize } from "../../metrics";
 import { applyPatch, hasMeta, parseMeta } from "../meta";
@@ -166,8 +166,11 @@ async function namesIn(feed: string): Promise<{ id: string; ext: string }[]> {
 
 // The caller filters by type. Each note's sidecar is read for its date (a note without one, its content file's mtime); the order,
 // `upTo`, `drafts`, `before` and `limit` are then applied here, in memory.
-export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number; drafts?: boolean } = {}): Promise<NoteRef[]> {
-  const names = await namesIn(feed);
+export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number; drafts?: boolean; removed?: boolean } = {}): Promise<NoteRef[]> {
+  // A note the operator removed is in no list, also while a takedown cut short has not deleted it yet (#159); the mark, which has
+  // the id of the text it stands for, is.
+  const [all, removed] = await Promise.all([namesIn(feed), q.removed ? new Map() : removedNotes(feed)]);
+  const names = removed.size ? all.filter((n) => n.ext === "removed" || !removed.has(n.id)) : all;
   noteFeedSize(names.length);
   const dateRef = async ({ id, ext }: { id: string; ext: string }): Promise<NoteRef | null> => {
     const raw = await sidecarOf(feed, id, ext);
@@ -338,4 +341,46 @@ export async function deleteNote(feed: string, id: string, exts: readonly string
     if (!isErrno(e, "ENOENT")) throw e;
   });
   return gone;
+}
+
+// The takedown of one post (issue #159): `.removed-notes` in the feed folder holds one JSON line per removed note (its id, and its
+// post's date and draft flag), appended to (a line is small, and append is atomic for one). A dot file is never a note, and the folder
+// goes with the feed. The tombstones first, then the notes, then the mark, as in the database backends. The first line of an id holds.
+const removedNotesFile = (feed: string) => join(feedDir(feed), ".removed-notes");
+
+export async function takedownNotes(feed: string, notes: { id: string; ext: string }[], post: { date: number; draft: boolean }, markId: string | null): Promise<{ keys: string[] }> {
+  if (notes.length > 0) {
+    try {
+      await appendFile(/*turbopackIgnore: true*/ removedNotesFile(feed), notes.map((n) => JSON.stringify({ id: n.id, date: post.date, draft: post.draft }) + "\n").join(""), { mode: 0o600 });
+    } catch (e) {
+      if (isErrno(e, "ENOENT")) throw new FeedGoneError();
+      throw e;
+    }
+    for (const n of notes) await deleteNote(feed, n.id, [n.ext]);
+  }
+  if (markId) await writeNote(feed, markId, "removed", "", {}, post.date, post.draft);
+  return { keys: [] };
+}
+
+// Every tombstone of the feed by id, the first line of an id holding. A line cut short by a crash is not a record.
+async function removedNotes(feed: string): Promise<Map<string, { date: number; draft: boolean }>> {
+  const raw = await readFile(/*turbopackIgnore: true*/ removedNotesFile(feed), "utf8").catch((e) => {
+    if (isGone(e)) return "";
+    throw e;
+  });
+  const stones = new Map<string, { date: number; draft: boolean }>();
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const t = JSON.parse(line);
+      if (typeof t.id === "string" && !stones.has(t.id)) stones.set(t.id, { date: Number(t.date) || 0, draft: t.draft === true });
+    } catch {
+      // cut short
+    }
+  }
+  return stones;
+}
+
+export async function removedNote(feed: string, id: string): Promise<{ date: number; draft: boolean } | null> {
+  return (await removedNotes(feed)).get(id) ?? null;
 }

@@ -10,7 +10,7 @@ export type Note = {
      */
     id: string;
     /**
-     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`
+     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)
      */
     type: string;
     /**
@@ -69,6 +69,10 @@ export type Note = {
      * Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note
      */
     unreadable?: true;
+    /**
+     * Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note
+     */
+    removed?: true;
 };
 
 export type NoteList = {
@@ -151,7 +155,7 @@ export type NoteEdited = {
      */
     id: string;
     /**
-     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`
+     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)
      */
     type: string;
     /**
@@ -210,6 +214,10 @@ export type NoteEdited = {
      * Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note
      */
     unreadable?: true;
+    /**
+     * Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note
+     */
+    removed?: true;
     /**
      * A multipart request's pictures, one per `file` part, in their order; absent for a raw body
      */
@@ -326,11 +334,11 @@ export type FeedSettings = {
 
 export type FreeTier = {
     /**
-     * The feed's text notes now
+     * The feed's notes now: texts, images and the operator's marks alike
      */
     notes: number;
     /**
-     * How many text notes a free feed keeps; past it, each new note drops the oldest one
+     * How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind
      */
     cap: number;
 };
@@ -697,6 +705,10 @@ export type GetNoteErrors = {
      */
     404: Error;
     /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
+    /**
      * Too many wrong passwords from this client
      */
     429: Error;
@@ -756,6 +768,10 @@ export type PatchNoteErrors = {
      * The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)
      */
     409: Error;
+    /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
     /**
      * Content-Type is not application/json
      */
@@ -831,6 +847,10 @@ export type EditNoteErrors = {
      * No such note
      */
     404: Error;
+    /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
     /**
      * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB
      */
@@ -1594,7 +1614,7 @@ export type GetReadNoteErrors = {
      */
     404: Error;
     /**
-     * The operator removed the feed this read id belonged to (`removed`)
+     * The operator removed the feed this read id belonged to, or this note (`removed`)
      */
     410: Error;
     /**

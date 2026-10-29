@@ -5,12 +5,13 @@ import { config } from "./config";
 import { identityOn, providers } from "./oidc/config";
 import { forReaders, getSettings } from "./feedsettings";
 import { isReadId, checkFeed, feedForReadId, hasFeed, readIdOf } from "./feeds";
-import { countNotes, getNote, ImageNote, isDraft, isScheduled, listNotes, MarkdownNote, type Note } from "./notes";
+import { countNotes, getNote, ImageNote, isDraft, isRemovedNote, isScheduled, listNotes, MarkdownNote, type Note } from "./notes";
 import { imagePath, readPath } from "./urls";
 
 // The notes the backend hands out; the classes are exported so a component test can build one.
 export { ImageNote, MarkdownNote };
 export { UnreadableNote } from "./note/unreadable";
+export { RemovedNote } from "./note/removed";
 export { UnreadableNoteError } from "./errors";
 export type { Note };
 // Dated after now: only its owner sees it, marked "Scheduled for" (components/NoteFoot.tsx).
@@ -133,6 +134,12 @@ export async function getReadFeedAbout(id: string): Promise<{ title: string; ima
 }
 
 /** `asOf`: the request's time (shared with getReadPictures). */
+export { isRemovedNote };
+/** Whether the operator removed the note under this read id (#159): its page says so, with its mark and after the mark is deleted. */
+export async function isRemovedReadNote(readId: string, id: string, asOf = new Date()): Promise<boolean> {
+  const feed = await feedForReadId(readId);
+  return !!feed && (await isRemovedNote(feed, id, asOf)); // as a reader: only a note it could have seen
+}
 export async function getReadNote(readId: string, id: string, asOf = new Date()): Promise<Note | null> {
   const feed = await feedForReadId(readId);
   const note = feed ? await getNote(feed, id, asOf) : null;

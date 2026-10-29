@@ -27,6 +27,8 @@ Every note has a date, now unless you give one: `client.post(text, { date: "2025
 
 A note posted with `draft: true` (`notefeed post "…" --draft`) is a draft: readers don't see it, or its pictures, until `client.update(id, { draft: false })` (`notefeed update <id> --publish`) publishes it at its date; `draft: true` (`--draft`) hides it again.
 
+Where the operator took a post down for breaking the instance's content rules, a list has a mark in its place: a note with `removed: true`, type `application/x-notefeed-removed`, the removed note's id and date, no content and `file_url` null. Getting it alone or editing it throws `NotFoundError` (code `removed`, 410), and so does the removed note's id after the mark is gone; `client.delete(id)` (`notefeed delete <id>`) takes the mark off the feed, and the note does not come back.
+
 `Client.fromEnv()` reads `NOTEFEED_URL` / `NOTEFEED_FEED` / `NOTEFEED_PASSWORD`; so does the `notefeed` command, unless given `--url` / `--feed` / `--password`.
 
 A feed can have its own password, which gates reading, listing and posting to it. Pass `feedPassword: "..."` to `new Client(...)` (or per call, e.g. `client.post(text, { feedPassword })`), or set `NOTEFEED_FEED_PASSWORD`, which `fromEnv()` and the `notefeed` command both read (there is deliberately no flag, so it stays out of shell history). It is sent as `X-Feed-Password`; `Authorization` stays the instance password. A feed password is 1 to 256 printable ASCII characters with no space at the start or end; an empty one is the same as none.

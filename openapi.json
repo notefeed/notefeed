@@ -558,6 +558,16 @@
               }
             }
           },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many wrong passwords from this client",
             "headers": {
@@ -755,6 +765,16 @@
               }
             }
           },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB",
             "content": {
@@ -930,6 +950,16 @@
           },
           "409": {
             "description": "The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
             "content": {
               "application/json": {
                 "schema": {
@@ -2753,7 +2783,7 @@
             }
           },
           "410": {
-            "description": "The operator removed the feed this read id belonged to (`removed`)",
+            "description": "The operator removed the feed this read id belonged to, or this note (`removed`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2856,7 +2886,7 @@
           },
           "type": {
             "type": "string",
-            "description": "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`"
+            "description": "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)"
           },
           "file": {
             "type": "string",
@@ -2933,6 +2963,11 @@
           },
           "unreadable": {
             "description": "Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note",
+            "type": "boolean",
+            "const": true
+          },
+          "removed": {
+            "description": "Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note",
             "type": "boolean",
             "const": true
           }
@@ -3114,7 +3149,7 @@
           },
           "type": {
             "type": "string",
-            "description": "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`"
+            "description": "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)"
           },
           "file": {
             "type": "string",
@@ -3191,6 +3226,11 @@
           },
           "unreadable": {
             "description": "Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note",
+            "type": "boolean",
+            "const": true
+          },
+          "removed": {
+            "description": "Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note",
             "type": "boolean",
             "const": true
           },
@@ -3404,13 +3444,13 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
-            "description": "The feed's text notes now"
+            "description": "The feed's notes now: texts, images and the operator's marks alike"
           },
           "cap": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
-            "description": "How many text notes a free feed keeps; past it, each new note drops the oldest one"
+            "description": "How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind"
           }
         },
         "required": [

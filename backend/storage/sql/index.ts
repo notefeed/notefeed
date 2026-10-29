@@ -599,6 +599,45 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       if (readId !== undefined && (await db.selectFrom("tombstones").select("name").where("read_id", "=", ident("read_id", readId)).executeTakeFirst())) return true;
       return false;
     },
+    // One transaction: the tombstones, the rows of the post, and the mark (a row like writeNote's, with no content), so a crash leaves
+    // all of it or none. The post's image objects go after the commit, as in deleteNote: a crash then leaves an object, never a row
+    // without its image. The feed's key is fetched before, as a key service answers over the network.
+    async takedownNotes(feed, notes, post, markId) {
+      const db = await open();
+      const f = ident("feed", feed);
+      const feedRow = ring ? await feedKeys(db, feed) : null;
+      if (ring && !feedRow) throw new FeedGoneError();
+      const fkey = feedRow ? await keyOf(feedRow) : null;
+      let keys: string[] = [];
+      try {
+        await db.transaction().execute(async (tx) => {
+          if (notes.length > 0) {
+            await tx.insertInto("note_tombstones").values(notes.map((n) => ({ feed: f, id: n.id, removed_at: Date.now(), date: post.date, draft: post.draft ? 1 : 0 }))).onConflict((oc) => oc.columns(["feed", "id"]).doNothing()).execute();
+            // By id and extension, as on the file system: the mark has the id of the text it stands for.
+            const rows = await tx.deleteFrom("notes").where("feed", "=", f).where((eb) => eb.or(notes.map((n) => eb.and([eb("id", "=", n.id), eb("ext", "=", n.ext)])))).returning("blob_key").execute();
+            keys = rows.flatMap((r) => (r.blob_key ? [r.blob_key] : []));
+          }
+          if (markId) {
+            const now = Date.now();
+            const content = fkey ? seal(fkey, EMPTY, na(markId, "removed", "content")) : EMPTY;
+            await tx
+              .insertInto("notes")
+              .values({ feed: f, id: markId, ext: "removed", content, blob_key: null, size: 0, metadata: metaOut(fkey, markId, "removed", {}), created_at: now, updated_at: now, date: post.date, sealed: fkey ? 1 : 0, draft: post.draft ? 1 : 0 })
+              .onConflict((oc) => oc.columns(["feed", "id"]).doNothing())
+              .execute();
+          }
+        });
+      } catch (e) {
+        if (isForeignKey(e)) throw new FeedGoneError();
+        throw e;
+      }
+      await drop(keys);
+      return { keys };
+    },
+    async removedNote(feed, id) {
+      const row = await (await open()).selectFrom("note_tombstones").select(["date", "draft"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst();
+      return row ? { date: Number(row.date), draft: row.draft === 1 } : null;
+    },
     async blockImages(hashes) {
       if (hashes.length === 0) return;
       const now = Date.now();

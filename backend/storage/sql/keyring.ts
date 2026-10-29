@@ -115,6 +115,7 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
       })
       .execute();
     await tx.updateTable("notes").set({ feed: name }).where("feed", "=", f.name).execute();
+    await tx.updateTable("note_tombstones").set({ feed: name }).where("feed", "=", f.name).execute(); // before the cascade below takes them
     await tx.deleteFrom("feeds").where("name", "=", f.name).execute();
   }
 

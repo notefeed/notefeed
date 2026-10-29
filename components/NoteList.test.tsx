@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-import { ImageNote, MarkdownNote, UnreadableNote } from "@/backend";
+import { ImageNote, MarkdownNote, RemovedNote, UnreadableNote } from "@/backend";
 import { NoteArticle } from "./NoteArticle";
 import { NoteList } from "./NoteList";
 
@@ -124,4 +124,15 @@ test("no Report link on a draft or a scheduled note: readers can't see them, nor
   expect(html).toContain("n=p1");
   expect(renderToStaticMarkup(<NoteArticle note={draft} back="/feed" report={report} />)).not.toContain(">Report</a>");
   expect(renderToStaticMarkup(<NoteArticle note={later} back="/feed" report={report} />)).not.toContain(">Report</a>");
+});
+
+test("the operator's mark (#159) says what happened, links the terms when there are some, and has no Report link", () => {
+  const at = new Date("2026-09-30T10:00:00Z");
+  const mark = new RemovedNote({ id: "m1", ext: "removed", meta: {}, date: at, size: 0 });
+  const report = { template: "https://r.example/?r={read_id}&n={note_id}&f={file}", readId: "rid" };
+  const html = renderToStaticMarkup(<NoteList notes={[mark]} base="/feed" imageBase="/r/rid/" report={report} terms />);
+  expect(html).toContain("Removed by the operator: this broke the content rules of this instance.");
+  expect(html).toMatch(/<a [^>]*href="\/terms"/);
+  expect(html).not.toContain("Report");
+  expect(renderToStaticMarkup(<NoteList notes={[mark]} base="/feed" />)).not.toContain('href="/terms"');
 });
