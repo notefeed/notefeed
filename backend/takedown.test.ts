@@ -1,7 +1,7 @@
 // The operator's takedown (#155) on the file system backend, end to end through the HTTP handlers: what a removed feed answers
 // under both identifiers, and that its images are refused everywhere afterwards. The SQL backends run the same storage contract
 // (backend/storage/contract.ts) and the route test in http/operator.test.ts.
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi, afterEach } from "vitest";
@@ -224,6 +224,30 @@ describe("a post taken down", () => {
     expect((await call("DELETE", `/feeds/good/notes/${text.id}`)).status).toBe(204);
     expect(await (await takedownNote(`/r/${rid}/${text.id}`)).json()).toMatchObject({ already_removed: true });
     expect((await readList(rid)).some((n) => n.removed)).toBe(false);
+  });
+
+  test("again by its image URL: already removed, for a lone image and for an attachment", async () => {
+    const { rid, images } = await postWithTwo();
+    const pic = await (await upload("good", png(3))).json();
+    for (const file of [pic.file, images[0].file]) {
+      expect((await takedownNote(`/r/${rid}/${file}`)).status, file).toBe(200);
+      const again = await takedownNote(`/r/${rid}/${file}`);
+      expect(again.status, file).toBe(200);
+      expect(await again.json(), file).toMatchObject({ already_removed: true });
+    }
+  });
+
+  test("a takedown cut short after its tombstones is finished by the next one", async () => {
+    const { rid, text, images } = await postWithTwo();
+    // What a crash between the tombstones and the deletions leaves: the ids recorded, the notes still there.
+    await appendFile(join(root, "good", ".removed-notes"), [text.id, ...images.map((i) => i.id)].map((id) => `${id}\n`).join(""));
+    const res = await takedownNote(`/r/${rid}/${text.id}`);
+    expect(await res.json()).toMatchObject({ removed: true, already_removed: false, blocked: 2 });
+    const list = await readList(rid);
+    expect(list.filter((n) => n.removed).map((n) => n.id)).toEqual([text.id]);
+    expect(list.some((n) => images.some((i) => i.id === n.id))).toBe(false);
+    await createNote("elsewhere", "# ok");
+    expect((await upload("elsewhere", PNG)).status).toBe(451);
   });
 
   test("a draft post leaves a draft mark: readers see nothing at its place, the owner sees the mark", async () => {

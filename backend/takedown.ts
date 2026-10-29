@@ -84,13 +84,16 @@ const ALREADY: NoteTakedown = { removed: false, already_removed: true, notes: []
 // The note a segment names: a file `<id>.<ext>` of a note, else the newest note posted under that name, else a note id.
 async function noteIdIn(feed: string, segment: string): Promise<string> {
   const file = /^([A-Za-z0-9_-]{1,128})\.[A-Za-z0-9]{1,16}$/.exec(segment);
+  if (file && (await storage().isRemovedNote(feed, file[1]))) return file[1]; // its file is gone, or is the mark's now
   if (file && (await getNote(feed, file[1]))?.file === segment) return file[1];
   const named = await namedFile(feed, segment, new Date(8.64e15));
   return named ? named.split(".")[0] : segment;
 }
 
 /** The takedown of one post (#159): the note a target names, the text note it was posted with, and every attachment of that text.
- *  Their images' hashes go on the blocklist; a mark (backend/note/removed.ts) takes the text's place. The answer never names the feed. */
+ *  Their images' hashes go on the blocklist first; then the storage records the tombstones, removes the notes and writes the mark
+ *  (backend/note/removed.ts) in the text's place. A takedown cut short is finished by the next one: whatever of the post is still
+ *  stored goes then. The answer never names the feed. */
 export async function takedownNote(target: string): Promise<NoteTakedown> {
   const named = noteOfTarget(target);
   if (!named) throw new InvalidRequestError("give a note's read URL, an image URL or <read id>/<note id>");
@@ -100,20 +103,27 @@ export async function takedownNote(target: string): Promise<NoteTakedown> {
     throw new NotFoundError("no feed has this read id");
   }
   const id = await noteIdIn(feed, named.note);
-  if (await storage().isRemovedNote(feed, id)) return ALREADY;
   const found = isValidId(id) ? await getNote(feed, id) : null;
-  if (!found) throw new NotFoundError("no such note");
-  const text = (found.of && (await getNote(feed, found.of))) || found;
+  if (!found) {
+    if (await storage().isRemovedNote(feed, id)) return ALREADY;
+    throw new NotFoundError("no such note");
+  }
+  const posted = found.of ? await getNote(feed, found.of) : null;
+  const text = posted ?? found;
   const attachments = (await listNotes(feed, Number.MAX_SAFE_INTEGER, undefined, undefined, "image")).filter((n) => n.of === text.id && n.id !== text.id);
-  const post: Note[] = [text, ...attachments];
+  const post: Note[] = [text, ...attachments].filter((n) => !n.removed); // the mark of a takedown cut short stays
+  if (post.length === 0) return ALREADY;
+  // The mark goes where the text was: not again when it is there, and at the text's id when a cut-short takedown already took the text.
+  const textGone = !posted && !!found.of && (await storage().isRemovedNote(feed, found.of));
+  const mark = text.removed ? null : { id: textGone ? found.of! : text.id, date: text.date.getTime(), draft: text.draft };
   const hashes = new Set<string>();
   for (const note of post) {
-    if (note.content !== undefined || note.removed) continue; // a text has no bytes to block
+    if (note.content !== undefined) continue; // a text has no bytes to block
     const bytes = await storage().readFile(feed, note.file);
     if (bytes) hashes.add(imageHash(bytes));
   }
-  const { keys } = await storage().takedownNotes(feed, post.map((n) => ({ id: n.id, ext: n.ext })), { id: text.id, date: text.date.getTime(), draft: text.draft });
-  await storage().blockImages([...hashes]);
+  await storage().blockImages([...hashes]); // before the bytes go: a takedown cut short never leaves them unblocked
+  const { keys } = await storage().takedownNotes(feed, post.map((n) => ({ id: n.id, ext: n.ext })), mark);
   for (const n of post) noteDeleted(typeForExt(n.ext)?.name ?? "unknown", "takedown");
   const notes = post.map((n) => n.id);
   log.info({ notes: notes.length, blocked: hashes.size, keys: keys.length }, "post removed by the operator");

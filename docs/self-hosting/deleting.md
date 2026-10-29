@@ -41,9 +41,9 @@ curl -X POST -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -H "Content-Typ
 
 What goes is the post: the note named, the text note it was posted with if it is an attachment, and every attachment of that text. A note that merely shows one of its images in its own text stays; the image answers `410` there. When more of the feed looks connected than one post, remove the feed (above).
 
-1. **A tombstone** is written for each removed note's id in its feed. From then on its page, its file and the API answer *removed by the operator* (`410`, `removed`), for good.
-2. **The notes and their image bytes go**; the answer lists the removed note ids (`notes`) and the `image_keys`, for the purge of backups, and never the feed's name.
-3. **The images' hashes** go on the blocklist, as for a feed.
+1. **The images' hashes** go on the blocklist, as for a feed.
+2. **A tombstone** is written for each removed note's id in its feed. From then on its file and the API answer *removed by the operator* (`410`, `removed`), and its page says so, for good.
+3. **The notes and their image bytes go**; the answer lists the removed note ids (`notes`) and the `image_keys`, for the purge of backups, and never the feed's name.
 4. **A mark** takes the post's place, with its date: *Removed by the operator: this broke the content rules of this instance.*, linked to the terms page when there is one. Readers see it in the list and in RSS; a client sees a note with `removed: true`. The owner can delete the mark like any note; the post does not come back.
 
-A takedown of the same post again answers `already_removed`. The note tombstones are data of the feed (a table in the database, `.removed-notes` in the feed's folder) and go when the feed goes.
+A takedown of the same post again answers `already_removed`, or, if the first one was cut short, removes what of the post is left. The note tombstones are data of the feed (a table in the database, `.removed-notes` in the feed's folder) and go when the feed goes.

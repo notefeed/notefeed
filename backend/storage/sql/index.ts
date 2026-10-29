@@ -600,8 +600,8 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       return false;
     },
     // The tombstones first, so from here on the notes are not served (the callers ask isRemovedNote); then the rows, then their
-    // objects, as deleteNote; then the mark, through writeNote like any note. A crash in between leaves notes nobody is served,
-    // which the operator's next takedown of the same post removes.
+    // objects, as deleteNote; then the mark, through writeNote like any note. A crash in between leaves notes that are still listed
+    // but not served alone; the operator's next takedown of the same post removes them (backend/takedown.ts).
     async takedownNotes(feed, notes, mark) {
       const db = await open();
       const f = ident("feed", feed);
