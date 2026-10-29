@@ -22,7 +22,7 @@ class NoteEdited:
         id (str): The note's id: 22 random characters (base64url) for notes made here, older notes may have another
             form; any name without a dot for a file placed by hand. It says nothing about the note's date
         type_ (str): The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or
-            `image/webp`
+            `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)
         file (str): The note's file name, `<id>.<extension>`
         file_url (None | str): Where the note's file is served, absolute, under the feed's read id (public like the read
             link); null while the feed has no read link
@@ -48,6 +48,10 @@ class NoteEdited:
             shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no
             content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other
             note
+        removed (bool | Unset): Present, and true, for the mark the operator left where a post was removed for breaking
+            the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an
+            empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit.
+            Deleting it works; the post does not come back. Absent for every other note
         attachments (list[Created] | Unset): A multipart request's pictures, one per `file` part, in their order; absent
             for a raw body
     """
@@ -68,6 +72,7 @@ class NoteEdited:
     draft: bool | Unset = UNSET
     sender: None | str | Unset = UNSET
     unreadable: bool | Unset = UNSET
+    removed: bool | Unset = UNSET
     attachments: list[Created] | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
@@ -108,6 +113,8 @@ class NoteEdited:
 
         unreadable = self.unreadable
 
+        removed = self.removed
+
         attachments: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.attachments, Unset):
             attachments = []
@@ -144,6 +151,8 @@ class NoteEdited:
             field_dict["sender"] = sender
         if unreadable is not UNSET:
             field_dict["unreadable"] = unreadable
+        if removed is not UNSET:
+            field_dict["removed"] = removed
         if attachments is not UNSET:
             field_dict["attachments"] = attachments
 
@@ -198,6 +207,8 @@ class NoteEdited:
 
         unreadable = d.pop("unreadable", UNSET)
 
+        removed = d.pop("removed", UNSET)
+
         _attachments = d.pop("attachments", UNSET)
         attachments: list[Created] | Unset = UNSET
         if _attachments is not UNSET:
@@ -224,6 +235,7 @@ class NoteEdited:
             draft=draft,
             sender=sender,
             unreadable=unreadable,
+            removed=removed,
             attachments=attachments,
         )
 

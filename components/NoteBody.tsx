@@ -3,7 +3,7 @@ import rehypeHighlight from "rehype-highlight";
 import type { PluggableList } from "unified";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
-import { kindOf, type KindName } from "@/shared/notekinds";
+import { kindOf, REMOVED_NOTE, type KindName } from "@/shared/notekinds";
 import { extractTitle } from "@/shared/notes";
 import { cleanLine } from "@/shared/links";
 import { headingsOf, type Heading } from "@/shared/markdown";
@@ -82,7 +82,17 @@ const image: Body = {
   },
 };
 
-const BODIES: Record<KindName, Body> = { markdown, image };
+// The operator's mark (#159): what happened, nothing of what was there. The terms link is the list's and the page's (NoteList, RemovedNote).
+const removed: Body = {
+  heading: () => undefined,
+  Content: () => (
+    <p role="status" className="text-muted">
+      {REMOVED_NOTE}
+    </p>
+  ),
+};
+
+const BODIES: Record<KindName, Body> = { markdown, image, removed };
 
 // Where a click on a note goes, the same for every kind (ADR 0038, 0040): in a list, a click anywhere on a note's card opens that
 // note (components/NoteCard.tsx), so nothing in the card's content links but what its text links to; on a note's own page, an

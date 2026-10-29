@@ -15,7 +15,11 @@ import { isRelativeLink } from "./links";
 
 type Listed = { id: string; type: string; file: string; content?: string };
 
-export type KindName = "markdown" | "image";
+export type KindName = "markdown" | "image" | "removed";
+
+/** The mark the operator leaves where a post was removed (#159, ADR 0052): its media type, and what it says. */
+export const REMOVED_TYPE = "application/x-notefeed-removed";
+export const REMOVED_NOTE = "Removed by the operator: this broke the content rules of this instance.";
 
 export type NoteKind = {
   /** The name of the backend's type (backend/note/types.ts). */
@@ -55,10 +59,12 @@ function referencedNames(markdown: string): string[] {
 const markdown: NoteKind = { name: "markdown", attachments: (content) => (content ? referencedNames(content) : []), attachable: false, text: true, alt: false };
 const image: NoteKind = { name: "image", attachments: () => [], attachable: true, text: false, alt: true };
 
-export const NOTE_KINDS: Record<KindName, NoteKind> = { markdown, image };
+const removed: NoteKind = { name: "removed", attachments: () => [], attachable: false, text: false, alt: false };
+
+export const NOTE_KINDS: Record<KindName, NoteKind> = { markdown, image, removed };
 
 /** The kind of a note with this media type: the one place that tells them apart by it. */
-export const kindOf = (mediaType: string): NoteKind => (mediaType.startsWith("image/") ? image : markdown);
+export const kindOf = (mediaType: string): NoteKind => (mediaType === REMOVED_TYPE ? removed : mediaType.startsWith("image/") ? image : markdown);
 
 /** The list without the attachments that another note in it shows. */
 export function withoutAttachments<T extends Listed>(notes: T[]): T[] {

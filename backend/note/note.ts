@@ -33,6 +33,10 @@ export abstract class Note {
   get unreadable(): boolean {
     return false;
   }
+  /** True for the mark the operator left where a post was removed (RemovedNote, #159). */
+  get removed(): boolean {
+    return false;
+  }
   /** The media type of the note's file, as it was posted. */
   get type(): string {
     return mediaTypeOf(this.ext);

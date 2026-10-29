@@ -101,7 +101,7 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   id: n.id,
   type: n.type,
   file: n.file,
-  file_url: files && files + n.file,
+  file_url: files && !n.removed ? files + n.file : null,
   size: n.size,
   title: n.title,
   ...(n.content !== undefined && { content: n.content }),
@@ -114,6 +114,7 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   ...(n.sender !== undefined && { sender: n.sender }),
   tags: n.tags,
   ...(n.unreadable && { unreadable: true as const }),
+  ...(n.removed && { removed: true as const }),
 });
 
 // The feed a read id shows, or null for one nobody has. A read id the operator removed is 410 (issue #159), as on the pages,

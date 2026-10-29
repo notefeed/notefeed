@@ -45,6 +45,7 @@ const NoteSummary = z.object({
   sender: z.string().optional(),
   tags: z.array(z.string()),
   unreadable: z.literal(true).optional().describe("A damaged note: its stored copy can't be decrypted, so its title and tags are empty and get_note refuses it. It can be deleted"),
+  removed: z.literal(true).optional().describe("The mark the operator left where a post was removed for breaking the content rules: it has the removed note's id and date and nothing else; get_note and edit_note refuse it. Deleting it works; the post does not come back"),
 });
 const NoteFull = NoteSummary.extend({ content: z.string().optional() }); // the text of a text type; a picture has none
 
@@ -67,7 +68,7 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
 
 function server(h: Headers): McpServer {
   const base = publicUrl(h);
-  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, date: n.date.toISOString(), ...(isScheduled(n) && { scheduled: true as const }), ...(isDraft(n) && { draft: true as const }), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }) });
+  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, date: n.date.toISOString(), ...(isScheduled(n) && { scheduled: true as const }), ...(isDraft(n) && { draft: true as const }), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }), ...(n.removed && { removed: true as const }) });
   // A reserved name must not reach the filesystem lookup, so it is checked first.
   const checkAccess = async (feed: string, password?: string) => {
     assertFeed(feed);

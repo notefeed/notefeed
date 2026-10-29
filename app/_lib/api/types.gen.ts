@@ -10,7 +10,7 @@ export type Note = {
      */
     id: string;
     /**
-     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`
+     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)
      */
     type: string;
     /**
@@ -69,6 +69,10 @@ export type Note = {
      * Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note
      */
     unreadable?: true;
+    /**
+     * Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note
+     */
+    removed?: true;
 };
 
 export type NoteList = {
@@ -151,7 +155,7 @@ export type NoteEdited = {
      */
     id: string;
     /**
-     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`
+     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)
      */
     type: string;
     /**
@@ -210,6 +214,10 @@ export type NoteEdited = {
      * Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note
      */
     unreadable?: true;
+    /**
+     * Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note
+     */
+    removed?: true;
     /**
      * A multipart request's pictures, one per `file` part, in their order; absent for a raw body
      */

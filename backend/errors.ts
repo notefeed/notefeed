@@ -159,6 +159,14 @@ export class NotFoundError extends NotefeedError {
   }
 }
 
+// A note the operator removed (issue #159): its id answers 410 for good, with its mark or after its owner deleted the mark, and the
+// mark itself can't be edited.
+export class RemovedNoteError extends NotefeedError {
+  constructor() {
+    super("removed", "this note was removed by the operator");
+  }
+}
+
 // A note whose stored copy does not decrypt (encryption at rest, issue #212): damaged or tampered with, never read as empty. The
 // operator gets a log line naming the note (backend/notes.ts).
 export class UnreadableNoteError extends NotefeedError {
