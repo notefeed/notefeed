@@ -111,7 +111,7 @@ export async function createImageNote(feed: string, bytes: Uint8Array, opts: New
   return { note: made.note as ImageNote, readId: made.readId };
 }
 
-type RefQuery = { upTo?: number; before?: string; limit?: number };
+type RefQuery = { upTo?: number; before?: string; limit?: number; removed?: boolean };
 
 // The notes of the feed (of a type), newest first by date, ties by id; `q` as storage's listNoteRefs. A type filter asks storage for
 // the whole list (images and texts interleave); so does a limited page that held a file that is no note (one placed by hand).
@@ -124,9 +124,9 @@ async function noteRefs(feed: string, typeName?: string, q: RefQuery = {}): Prom
   const isNote = (e: NoteRef) => { const type = typeForExt(e.ext); return !!type && (typeName === undefined || type.name === typeName) && isValidId(e.id) && `${e.id}.${e.ext}` !== own; };
   const limit = typeName === undefined ? q.limit : undefined;
   const drafts = q.upTo === undefined;
-  const refs = await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, limit, drafts });
+  const refs = await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, limit, drafts, removed: q.removed });
   const notes = refs.filter(isNote);
-  if (limit !== undefined && notes.length < refs.length) return (await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, drafts })).filter(isNote).slice(0, q.limit);
+  if (limit !== undefined && notes.length < refs.length) return (await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, drafts, removed: q.removed })).filter(isNote).slice(0, q.limit);
   return q.limit === undefined ? notes : notes.slice(0, q.limit);
 }
 
@@ -295,10 +295,10 @@ export async function changeDate(feed: string, id: string, date: Date): Promise<
   return getNote(feed, id);
 }
 
-// The notes posted with the note `id` (their `of` is its id), drafts included.
+// The notes posted with the note `id` (their `of` is its id), drafts included; with `removed`, also those a takedown cut short left (#159).
 // ponytail: reads every sidecar of the feed to find the attachments, as a rare tag does; an index of `of` would fix it if feeds get large.
-export async function attachmentsOf(feed: string, id: string): Promise<NoteRef[]> {
-  const refs = (await noteRefs(feed)).filter((r) => r.id !== id);
+export async function attachmentsOf(feed: string, id: string, removed = false): Promise<NoteRef[]> {
+  const refs = (await noteRefs(feed, undefined, { removed })).filter((r) => r.id !== id);
   const found: NoteRef[] = [];
   for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
     const chunk = refs.slice(i, i + READS_AT_ONCE);

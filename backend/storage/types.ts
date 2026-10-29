@@ -36,10 +36,11 @@ export interface Storage {
    * The stored notes of the feed, each once, newest first by `(date, id)`; the caller filters by type. An unknown feed lists as empty.
    * `upTo`: only notes dated then or earlier. `before`: only the notes after that one in this order; one that is not in the list (gone,
    * past `upTo`, or a draft left out) gives none. `limit`: at most that many. `drafts`: drafts too; without it they are left out, so a
-   * reader's listing that does not ask never has one (#265).
+   * reader's listing that does not ask never has one (#265). A note the operator removed is in no listing (#159), unless `removed`
+   * asks for those too: only the takedown does, to finish one that was cut short (the database backends never leave any).
    * A note stored before notes had a date has the metadata's `created`, else its mtime (file system), or 0 (SQL).
    */
-  listNoteRefs(feed: string, q?: { upTo?: number; before?: string; limit?: number; drafts?: boolean }): Promise<NoteRef[]>;
+  listNoteRefs(feed: string, q?: { upTo?: number; before?: string; limit?: number; drafts?: boolean; removed?: boolean }): Promise<NoteRef[]>;
   readNote(feed: string, id: string, exts: readonly string[], withContent: (ext: string) => boolean): Promise<StoredNote | null>;
   readMeta(feed: string, ref: Pick<NoteRef, "id" | "ext">): Promise<Meta | null>;
   replaceNote(feed: string, id: string, exts: readonly string[], content: string | Uint8Array): Promise<boolean>;

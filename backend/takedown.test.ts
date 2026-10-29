@@ -243,7 +243,12 @@ describe("a post taken down", () => {
   test("a takedown cut short after its tombstones is finished by the next one", async () => {
     const { rid, text, images } = await postWithTwo();
     // What a crash between the tombstones and the deletions leaves: the ids recorded, the notes still there.
-    await appendFile(join(root, "good", ".removed-notes"), [text.id, ...images.map((i) => i.id)].map((id) => `${id}\n`).join(""));
+    const stone = (id: string) => JSON.stringify({ id, date: 0, draft: false }) + "\n";
+    await appendFile(join(root, "good", ".removed-notes"), [text.id, ...images.map((i) => i.id)].map(stone).join(""));
+    // Until the next takedown, the feed's lists and RSS leave them out already.
+    expect((await readList(rid)).map((n) => n.id).filter((id) => id === text.id || images.some((i) => i.id === id))).toEqual([]);
+    expect((await (await call("GET", "/feeds/good/notes")).json()).notes.some((n: { id: string }) => n.id === text.id)).toBe(false);
+    expect(await (await rssRoute(new Request(`${BASE}/r/${rid}/feed.xml`), rid)).text()).not.toContain("bad");
     const res = await takedownNote(`/r/${rid}/${text.id}`);
     expect(await res.json()).toMatchObject({ removed: true, already_removed: false, blocked: 2 });
     const list = await readList(rid);

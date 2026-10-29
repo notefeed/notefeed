@@ -92,7 +92,10 @@ async function noteIdIn(feed: string, segment: string): Promise<string> {
 
 // A note as the takedown needs it, from the listing alone: a damaged note (one whose stored copy does not decrypt) is found too.
 async function storedRef(feed: string, id: string): Promise<NoteRef | undefined> {
-  return isValidId(id) ? (await storage().listNoteRefs(feed, { drafts: true })).find((r) => r.id === id && typeForExt(r.ext)) : undefined;
+  // `removed`: a note a takedown cut short left stored is found, to finish it; of a note and a mark with the same id, the note.
+  if (!isValidId(id)) return undefined;
+  const refs = (await storage().listNoteRefs(feed, { drafts: true, removed: true })).filter((r) => r.id === id && typeForExt(r.ext));
+  return refs.find((r) => r.ext !== "removed") ?? refs[0];
 }
 
 // The text an attachment was posted with, from its metadata; none for a damaged one, whose metadata can't be read.
@@ -121,7 +124,7 @@ export async function takedownNote(target: string): Promise<NoteTakedown> {
   }
   const of = found.ext === "removed" ? undefined : await postedWith(feed, found);
   const text = (of && (await storedRef(feed, of))) || found;
-  const post = [text, ...(await attachmentsOf(feed, text.id))].filter((r) => r.ext !== "removed"); // a cut-short takedown's mark stays
+  const post = [text, ...(await attachmentsOf(feed, text.id, true))].filter((r) => r.ext !== "removed"); // a cut-short takedown's mark stays
   if (post.length === 0) return ALREADY;
   // The mark goes where the text was: not again when it is there, and at the text's id when a cut-short takedown already took the text.
   const textGone = text === found && !!of && (await isRemovedNote(feed, of));

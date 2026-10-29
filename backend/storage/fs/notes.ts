@@ -166,8 +166,11 @@ async function namesIn(feed: string): Promise<{ id: string; ext: string }[]> {
 
 // The caller filters by type. Each note's sidecar is read for its date (a note without one, its content file's mtime); the order,
 // `upTo`, `drafts`, `before` and `limit` are then applied here, in memory.
-export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number; drafts?: boolean } = {}): Promise<NoteRef[]> {
-  const names = await namesIn(feed);
+export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number; drafts?: boolean; removed?: boolean } = {}): Promise<NoteRef[]> {
+  // A note the operator removed is in no list, also while a takedown cut short has not deleted it yet (#159); the mark, which has
+  // the id of the text it stands for, is.
+  const [all, removed] = await Promise.all([namesIn(feed), q.removed ? new Map() : removedNotes(feed)]);
+  const names = removed.size ? all.filter((n) => n.ext === "removed" || !removed.has(n.id)) : all;
   noteFeedSize(names.length);
   const dateRef = async ({ id, ext }: { id: string; ext: string }): Promise<NoteRef | null> => {
     const raw = await sidecarOf(feed, id, ext);
@@ -359,19 +362,25 @@ export async function takedownNotes(feed: string, notes: { id: string; ext: stri
   return { keys: [] };
 }
 
-export async function removedNote(feed: string, id: string): Promise<{ date: number; draft: boolean } | null> {
+// Every tombstone of the feed by id, the first line of an id holding. A line cut short by a crash is not a record.
+async function removedNotes(feed: string): Promise<Map<string, { date: number; draft: boolean }>> {
   const raw = await readFile(/*turbopackIgnore: true*/ removedNotesFile(feed), "utf8").catch((e) => {
     if (isGone(e)) return "";
     throw e;
   });
+  const stones = new Map<string, { date: number; draft: boolean }>();
   for (const line of raw.split("\n")) {
-    if (!line.includes(id)) continue;
+    if (!line.trim()) continue;
     try {
       const t = JSON.parse(line);
-      if (t.id === id) return { date: Number(t.date) || 0, draft: t.draft === true };
+      if (typeof t.id === "string" && !stones.has(t.id)) stones.set(t.id, { date: Number(t.date) || 0, draft: t.draft === true });
     } catch {
-      // a line cut short by a crash: not a record
+      // cut short
     }
   }
-  return null;
+  return stones;
+}
+
+export async function removedNote(feed: string, id: string): Promise<{ date: number; draft: boolean } | null> {
+  return (await removedNotes(feed)).get(id) ?? null;
 }

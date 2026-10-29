@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { KyselyPlugin } from "kysely";
 import { afterEach, describe, expect, test } from "vitest";
 import { describeStorage } from "../contract";
 import { createFsImageStore } from "../images/fs";
@@ -146,6 +147,29 @@ describe.skipIf(!supported)("sqlite", () => {
     expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 0, draft: false }]);
     expect((await again.readNote("f", "t", ALL, () => true))?.meta).toEqual({ title: "T" });
     expect(await again.migrationPending()).toBe(true); // stored before the migration ran: it gives the note its mtime
+  });
+
+  test("a note takedown that fails half way leaves nothing of itself: one transaction (#159)", async () => {
+    const a = await fresh();
+    await a.storage.createFeed("f", "rid-f");
+    await a.storage.writeNote("f", "t", "md", "x", {}, 5);
+    await a.storage.close();
+    // The insert of the mark, the last statement of the takedown, fails: the tombstone and the deletion before it must not stay.
+    let tombstoned = false;
+    const failing: KyselyPlugin = {
+      transformQuery(q) {
+        const table = (q.node as { into?: { table?: { identifier?: { name?: string } } } }).into?.table?.identifier?.name;
+        if (q.node.kind === "InsertQueryNode" && table === "note_tombstones") tombstoned = true;
+        else if (q.node.kind === "InsertQueryNode" && table === "notes" && tombstoned) throw new Error("crash");
+        return q.node;
+      },
+      transformResult: async (r) => r.result,
+    };
+    const again = createSqlStorage(async () => (await connect("sqlite", a.url)).withPlugin(failing));
+    open.push({ storage: again, root: a.root });
+    await expect(again.takedownNotes("f", [{ id: "t", ext: "md" }], { date: 5, draft: false }, "t")).rejects.toThrow("crash");
+    expect(await again.removedNote("f", "t")).toBeNull();
+    expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 5, draft: false }]);
   });
 
   test("migrationPending answers while the key service is down; what needs a key does not", async () => {
