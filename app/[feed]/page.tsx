@@ -14,7 +14,7 @@ import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
 import { createErrorMessage, errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
+import { checkFeed, feedCookieName, hasLegalPage, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
 import { sortTags } from "@/shared/tags";
 import { shareQuery } from "@/shared/share";
 
@@ -118,7 +118,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           <pre className="mt-3 overflow-x-auto rounded-xl bg-surface-2 p-3 text-left font-mono text-sm text-ink">{curlExample}</pre>
         </section>
       ) : (
-        <NoteList notes={notes} base={feedPath(feed)} imageBase={readId ? `${readPath(readId)}/` : undefined} posted={typeof posted === "string" ? posted : undefined} report={report(readId)} />
+        <NoteList notes={notes} base={feedPath(feed)} imageBase={readId ? `${readPath(readId)}/` : undefined} posted={typeof posted === "string" ? posted : undefined} report={report(readId)} terms={await hasLegalPage("terms")} />
       )}
     </AppShell>
   );
