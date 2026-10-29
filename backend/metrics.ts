@@ -45,7 +45,7 @@ function metrics(): Metrics {
         feedsDeleted: new Counter({ name: "notefeed_feeds_deleted_total", help: "Feeds removed: deleted by their owner, or taken down by the operator", labelNames: ["reason"], registers: [register] }),
         posted: new Counter({ name: "notefeed_notes_posted_total", help: "Notes posted, by kind", labelNames: ["kind"], registers: [register] }),
         edited: new Counter({ name: "notefeed_notes_edited_total", help: "Notes edited, by kind and by what changed (content or metadata)", labelNames: ["kind", "what"], registers: [register] }),
-        deleted: new Counter({ name: "notefeed_notes_deleted_total", help: "Notes deleted, by kind: by a writer, or dropped past the free tier's cap", labelNames: ["kind", "reason"], registers: [register] }),
+        deleted: new Counter({ name: "notefeed_notes_deleted_total", help: "Notes deleted, by kind: by a writer, dropped past the free tier's cap, or taken down by the operator", labelNames: ["kind", "reason"], registers: [register] }),
         licenses: new Counter({ name: "notefeed_license_events_total", help: "License events: bought, attached to a feed, renewed, lapsed", labelNames: ["event"], registers: [register] }),
       },
       // How much the instance holds, as of the last count (backend/usage.ts): counting means a pass over every feed, so it runs
@@ -166,7 +166,7 @@ export const feedCreated = (isProtected: boolean): void => void (config.metrics(
 export const feedRemoved = (reason: "deleted" | "takedown"): void => void (config.metrics() && metrics().events.feedsDeleted.inc({ reason }));
 export const notePosted = (kind: NoteKind): void => void (config.metrics() && metrics().events.posted.inc({ kind }));
 export const noteEdited = (kind: NoteKind, what: "content" | "meta"): void => void (config.metrics() && metrics().events.edited.inc({ kind, what }));
-export const noteDeleted = (kind: NoteKind, reason: "deleted" | "free_cap"): void => void (config.metrics() && metrics().events.deleted.inc({ kind, reason }));
+export const noteDeleted = (kind: NoteKind, reason: "deleted" | "free_cap" | "takedown"): void => void (config.metrics() && metrics().events.deleted.inc({ kind, reason }));
 export const licenseEvent = (event: "bought" | "attached" | "renewed" | "lapsed"): void => void (config.metrics() && metrics().events.licenses.inc({ event }));
 
 /** One count of what the instance holds (backend/usage.ts makes it). Numbers only: nothing in it names a feed. */

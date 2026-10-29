@@ -4,8 +4,9 @@
 //   /api/operator/images/unreferenced (issue #127)
 //     GET     what is in the store that no note names (count and bytes), without touching it
 //     DELETE  the same, and those objects are removed
-//   /api/operator/takedown (issue #155)
-//     POST    removes the feed a read link, a read id or an image URL names, for good, and blocklists its images
+//   /api/operator/takedown (issue #155, #159)
+//     POST    removes the feed a read link, a read id or an image URL names, for good, and blocklists its images; with
+//             "scope": "note", only the post a note's read URL or an image URL names, and leaves a mark in its place
 //   /api/operator/images/move (issue #128)
 //     POST    moves image bytes into the configured store, from the rows or from another store named in the JSON body
 //   /api/operator/reseal (issue #212)
@@ -23,7 +24,7 @@ import { createFsImageStore } from "../storage/images/fs";
 import { createS3ImageStore } from "../storage/images/s3";
 import type { ImageStore } from "../storage/images/types";
 import type { SqlStorage } from "../storage/sql";
-import { takedown } from "../takedown";
+import { takedown, takedownNote } from "../takedown";
 
 // An object younger than this is never counted or removed: its note's row may still be on its way (the object is written first).
 export const MIN_AGE_MS = 3_600_000;
@@ -73,15 +74,17 @@ export async function unreferencedImagesRoute(req: Request): Promise<Response> {
   });
 }
 
-// The body names the feed: `{"target": "<read link | read id | image URL>"}`. The answer says what went and never the feed's name;
+// The body names the feed: `{"target": "<read link | read id | image URL>"}`; with `"scope": "note"` the target names one post
+// (`<note read URL | image URL | read id>/<note>`), which goes with its attachments and leaves the mark (#159). The answer says what went and never the feed's name;
 // `image_keys` are the image store objects removed, for the operator's purge of backups.
 export async function takedownRoute(req: Request): Promise<Response> {
   const refused = gate(req);
   if (refused) return refused;
-  const body = (await req.json().catch(() => undefined)) as { target?: unknown } | undefined;
+  const body = (await req.json().catch(() => undefined)) as { target?: unknown; scope?: unknown } | undefined;
   if (typeof body?.target !== "string" || !body.target.trim()) return json({ error: 'the body is JSON with "target": a read link, a read id or an image URL' }, 400);
+  if (body.scope !== undefined && body.scope !== "feed" && body.scope !== "note") return json({ error: '"scope" is "feed" (the default) or "note"' }, 400);
   try {
-    return json(await takedown(body.target));
+    return json(body.scope === "note" ? await takedownNote(body.target) : await takedown(body.target));
   } catch (e) {
     if (e instanceof NotefeedError) return json({ error: e.message, code: e.code }, statusOf(e));
     log.error({ err: e }, "the takedown failed");

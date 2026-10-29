@@ -7,8 +7,10 @@ import { createHash } from "node:crypto";
 import { InvalidRequestError, NotFoundError } from "./errors";
 import { feedForReadId, isRemovedReadId, isReadId } from "./feeds";
 import { logger } from "./log";
-import { feedRemoved } from "./metrics";
-import { countNotes, listNotes } from "./notes";
+import { feedRemoved, noteDeleted } from "./metrics";
+import { countNotes, getNote, isValidId, listNotes, namedFile } from "./notes";
+import type { Note } from "./note/note";
+import { typeForExt } from "./note/types";
 import { storage } from "./storage";
 
 const log = logger("takedown");
@@ -53,6 +55,69 @@ export async function takedown(target: string): Promise<Takedown> {
   if (removed) feedRemoved("takedown");
   log.info({ notes, images, blocked: hashes.size, keys: keys.length }, "feed removed by the operator");
   return { removed, already_removed: false, notes, images, blocked: hashes.size, image_keys: keys };
+}
+
+/** The note a target names, for the takedown of one post (#159): a note's read URL (`/r/<read id>/<note id>`), an image URL
+ *  (`/r/<read id>/<file>`, by id or by the name it was posted with), as a URL or a path, or `<read id>/<note>`. A feed's read link, its
+ *  RSS feed or a bare read id names no note: null. */
+export function noteOfTarget(target: string): { readId: string; note: string } | null {
+  let path = target.trim();
+  if (/^https?:\/\//i.test(path)) {
+    if (!URL.canParse(path)) return null;
+    path = new URL(path).pathname;
+  }
+  const m = /^\/?(?:r\/)?([^/]+)\/([^/]+)$/.exec(path);
+  if (!m || (path.startsWith("/") && !path.startsWith("/r/"))) return null;
+  let readId: string, note: string;
+  try {
+    [readId, note] = [decodeURIComponent(m[1]), decodeURIComponent(m[2])];
+  } catch {
+    return null;
+  }
+  return isReadId(readId) && note !== "feed.xml" ? { readId, note } : null;
+}
+
+export type NoteTakedown = { removed: boolean; already_removed: boolean; notes: string[]; blocked: number; image_keys: string[] };
+
+const ALREADY: NoteTakedown = { removed: false, already_removed: true, notes: [], blocked: 0, image_keys: [] };
+
+// The note a segment names: a file `<id>.<ext>` of a note, else the newest note posted under that name, else a note id.
+async function noteIdIn(feed: string, segment: string): Promise<string> {
+  const file = /^([A-Za-z0-9_-]{1,128})\.[A-Za-z0-9]{1,16}$/.exec(segment);
+  if (file && (await getNote(feed, file[1]))?.file === segment) return file[1];
+  const named = await namedFile(feed, segment, new Date(8.64e15));
+  return named ? named.split(".")[0] : segment;
+}
+
+/** The takedown of one post (#159): the note a target names, the text note it was posted with, and every attachment of that text.
+ *  Their images' hashes go on the blocklist; a mark (backend/note/removed.ts) takes the text's place. The answer never names the feed. */
+export async function takedownNote(target: string): Promise<NoteTakedown> {
+  const named = noteOfTarget(target);
+  if (!named) throw new InvalidRequestError("give a note's read URL, an image URL or <read id>/<note id>");
+  const feed = await feedForReadId(named.readId);
+  if (!feed) {
+    if (await isRemovedReadId(named.readId)) return ALREADY;
+    throw new NotFoundError("no feed has this read id");
+  }
+  const id = await noteIdIn(feed, named.note);
+  if (await storage().isRemovedNote(feed, id)) return ALREADY;
+  const found = isValidId(id) ? await getNote(feed, id) : null;
+  if (!found) throw new NotFoundError("no such note");
+  const text = (found.of && (await getNote(feed, found.of))) || found;
+  const attachments = (await listNotes(feed, Number.MAX_SAFE_INTEGER, undefined, undefined, "image")).filter((n) => n.of === text.id && n.id !== text.id);
+  const post: Note[] = [text, ...attachments];
+  const hashes = new Set<string>();
+  for (const note of post) {
+    if (note.content !== undefined || note.removed) continue; // a text has no bytes to block
+    const bytes = await storage().readFile(feed, note.file);
+    if (bytes) hashes.add(imageHash(bytes));
+  }
+  const { keys } = await storage().takedownNotes(feed, post.map((n) => ({ id: n.id, ext: n.ext })), { id: text.id, date: text.date.getTime(), draft: text.draft });
+  await storage().blockImages([...hashes]);
+  for (const n of post) noteDeleted(typeForExt(n.ext)?.name ?? "unknown", "takedown");
+  const notes = post.map((n) => n.id);
+  log.info({ notes: notes.length, blocked: hashes.size, keys: keys.length }, "post removed by the operator");
+  return { removed: true, already_removed: false, notes, blocked: hashes.size, image_keys: keys };
 }
 
 /** Whether these image bytes are on the blocklist. */
