@@ -41,7 +41,7 @@ export class RateLimitedError extends NotefeedError {
     super(message, status, code);
   }
 }
-/** No such note, or a malformed read id; also a feed the operator removed for good (`removed`, 410). */
+/** No such note, or a malformed read id; also a feed or a note the operator removed for good (`removed`, 410). */
 export class NotFoundError extends NotefeedError {}
 /** The instance's feed or note limit, or the feed's image limit, is reached. */
 export class LimitReachedError extends NotefeedError {}

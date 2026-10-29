@@ -51,7 +51,7 @@ class RateLimitedError(NotefeedError):
 
 
 class NotFoundError(NotefeedError):
-    """No such note, or a malformed read id; also a feed the operator removed for good (`removed`, 410)."""
+    """No such note, or a malformed read id; also a feed or a note the operator removed for good (`removed`, 410)."""
 
 
 class LimitReachedError(NotefeedError):

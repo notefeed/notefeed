@@ -699,3 +699,12 @@ def test_draft_goes_as_x_note_draft_on_a_post_and_in_the_patch_body(server):
     server.reply(200, note(10))
     c.update("i", draft=False)
     assert json.loads(server.requests[3]["body"]) == {"draft": False}
+
+
+def test_the_operators_mark_comes_through_a_list_as_removed(server):
+    mark = {**note(10), "type": "application/x-notefeed-removed", "title": "", "size": 0, "file_url": None, "removed": True}
+    del mark["content"]
+    server.reply(200, {"notes": [mark, note(9)], "next": None})
+    got = list(Client(server.url, "inbox").notes())
+    assert [n.removed is True for n in got] == [True, False]  # absent is UNSET, as for draft
+    assert got[0].file_url is None and got[0].type_ == "application/x-notefeed-removed"

@@ -463,6 +463,14 @@ describe("reading", () => {
     });
   }
 
+  test("the operator's mark comes through notes() with removed: true (#159)", async () => {
+    const { content: _, ...rest } = note(10);
+    serveFeed([{ ...rest, type: "application/x-notefeed-removed", title: "", size: 0, file_url: null, removed: true }, note(9)]);
+    const got = await collect(new Client({ url: server.url, feed: "inbox" }).notes());
+    expect(got.map((n) => n.removed ?? false)).toEqual([true, false]);
+    expect(got[0].file_url).toBeNull();
+  });
+
   test("notes() walks every page via next → before, newest first", async () => {
     serveFeed([10, 11, 12, 13, 14].map(note));
     const got = await collect(new Client({ url: server.url, feed: "inbox" }).notes({ pageSize: 2 }));
