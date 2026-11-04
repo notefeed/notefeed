@@ -1,6 +1,7 @@
 // POST /api/v1/feeds/<feed>/notes, also POST /<feed> (proxy.ts rewrites it): the only way to post a
 // note, for scripts, the client packages and the web UI's compose box alike.
 import { decodeHeaderValue } from "../../shared/headers";
+import { MAX_REQUEST_BYTES } from "../../shared/images";
 import { safeName } from "../../shared/links";
 import { config } from "../config";
 import { ImageTooLargeError, InvalidBodyError, NoteTooLargeError, UnsupportedTypeError } from "../errors";
@@ -39,6 +40,7 @@ export async function readPost(req: Request): Promise<PostInput> {
     name: header("x-note-name"), // cleaned where the note is made (cleanName)
     tags: tagsFromHeader(req.headers.get("x-note-tags")),
     date: header("x-note-date"),
+    draft: draftHeader(req),
     readId: header("x-read-id"),
     licenseKey: header("x-license-key"),
   };
@@ -69,7 +71,7 @@ export async function readMultipart(req: Request, kind: "post"): Promise<PostBun
 export async function readMultipart(req: Request, kind: "post" | "edit"): Promise<PostBundle> {
   const header = headerOf(req);
   if (header("x-note-alt") || header("x-note-name")) throw new InvalidBodyError("with a multipart body, send alt texts as alt.<file name> fields and the file name with each file");
-  const bytes = await readCapped(req, MAX_BYTES + MAX_ATTACHMENTS * config.maxImageBytes() + MULTIPART_SLACK);
+  const bytes = await readCapped(req, Math.min(MAX_BYTES + MAX_ATTACHMENTS * config.maxImageBytes() + MULTIPART_SLACK, MAX_REQUEST_BYTES));
   if (!bytes) throw new NoteTooLargeError();
   const form = await parseForm(bytes, req.headers).catch(() => {
     throw new InvalidBodyError("not a valid multipart body");
@@ -86,7 +88,7 @@ export async function readMultipart(req: Request, kind: "post" | "edit"): Promis
   for (const name of alts.keys()) if (!pictures.some((p) => p.name === name)) throw new InvalidBodyError(`alt.${safeName(name)}: no file of that name`);
   for (const p of pictures) p.alt = alts.get(p.name) || undefined;
   if (kind === "edit" && text === undefined) throw new InvalidBodyError("send the note's new text as a text field");
-  return { text, pictures, title: header("x-note-title"), tags: tagsFromHeader(req.headers.get("x-note-tags")), date: header("x-note-date"), readId: header("x-read-id"), licenseKey: header("x-license-key") };
+  return { text, pictures, title: header("x-note-title"), tags: tagsFromHeader(req.headers.get("x-note-tags")), date: header("x-note-date"), draft: draftHeader(req), readId: header("x-read-id"), licenseKey: header("x-license-key") };
 }
 
 // The answer for one stored note; `readId` is its feed's.
@@ -99,6 +101,7 @@ export function createdOf(h: Headers, feed: string, readId: string | null, note:
     read_url: readId && base + rssPath(readId),
     file: note.file,
     file_url: readId && base + imagePath(readId, note.file),
+    ...(note.draft && { draft: true as const }),
   };
 }
 
@@ -122,6 +125,14 @@ export async function readMetaPatch(req: Request): Promise<{ title?: string; alt
   const parsed = MetaJson.safeParse(json);
   if (!parsed.success) throw new InvalidBodyError('JSON may carry "title", "alt" and "date" strings and a "tags" list of strings');
   return parsed.data;
+}
+
+// X-Note-Draft (#265): `true` or `false`, else a bad request; left out, undefined (published).
+function draftHeader(req: Request): boolean | undefined {
+  const v = req.headers.get("x-note-draft")?.trim().toLowerCase();
+  if (v === undefined || v === "") return undefined;
+  if (v !== "true" && v !== "false") throw new InvalidBodyError("X-Note-Draft must be true or false");
+  return v === "true";
 }
 
 // The postNote entry's handler (backend/http/api.ts). Refusals are thrown as domain errors.

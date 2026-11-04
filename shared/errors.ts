@@ -19,10 +19,12 @@ export const ERROR_CODES = [
   "not_found",
   "feed_exists",
   "taken",
+  "title_image",
   "removed",
   "blocked",
   "unreadable",
   "unavailable",
+  "busy",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

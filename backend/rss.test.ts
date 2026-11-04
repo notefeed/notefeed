@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { renderFeed } from "./rss";
 import { imgNote, mdNote } from "./note/testing";
+import { RemovedNote } from "./note/removed";
 
 const notes = [
   mdNote({ id: "20260929T140512Z-a-b", markdown: "# A & <B>\ncode: a]]>b ]]> end", date: new Date("2026-09-29T14:05:12Z"), tags: ["env:prod", "a&b"] }),
@@ -103,4 +104,11 @@ test("a sidecar title is the item's title, for an image and for markdown; tags a
 
 test("a markdown item has no enclosure", () => {
   expect(renderFeed([mdNote({ id: "m1", markdown: "x" })], photoOpts)).not.toContain("<enclosure");
+});
+
+test("the operator's mark (#159) is an item saying so, with no enclosure and no title of its own", () => {
+  const mark = new RemovedNote({ id: "m1", ext: "removed", meta: {}, date: new Date("2026-10-29T10:00:00Z"), size: 0 });
+  const item = renderFeed([mark], photoOpts).split("<item>")[1];
+  expect(item).toContain("Removed by the operator: this broke the content rules of this instance.");
+  expect(item).not.toContain("<enclosure");
 });

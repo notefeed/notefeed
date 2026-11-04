@@ -4,15 +4,19 @@ notefeed has an [MCP](https://modelcontextprotocol.io) endpoint at `/mcp`, so AI
 
 | Tool | What it does |
 |---|---|
-| `post_note` | Posts a markdown note. Takes `feed` and `markdown`, optionally `title`, `name` (a [file name](../using/read-links.md#files-by-name) the read link serves the newest note under), `tags`, `date` (any time from 1970 to 9999; a future time schedules the note), `read_id` (for the feed this post creates), `password`, `license_key` (notefeed.me: licenses the feed this post creates, open or protected) and `attachments`, a list of `{ name, type, data, alt }` with base64 pictures [posted with the note](../using/pictures.md#posting-a-note-with-its-pictures); write `![](name)` in `markdown` where one goes. |
-| `list_notes` | A feed's notes, newest first, without their text, each with its `date` (and `scheduled: true` when the date is in the future: readers do not see it yet). Takes `feed`, optionally `limit` (1–100), `before` and `tag`. |
-| `get_note` | One note with its content, its `date` and `scheduled`. Takes `feed` and `id`. |
-| `edit_note` | Replaces a note's markdown, sets its title, its `tags` (the whole list) or its `date` (also in the future, which schedules the note); its id stays. |
+| `post_note` | Posts a markdown note. Takes `feed` and `markdown`, optionally `title`, `name` (a [file name](../using/read-links.md#files-by-name) the read link serves the newest note under), `tags`, `date` (any time from 1970 to 9999; a future time schedules the note), `draft` (a [draft](../using/posting.md#drafts): readers do not see it until it is published), `read_id` (for the feed this post creates), `password`, `license_key` (notefeed.me: licenses the feed this post creates, open or protected) and `attachments`, a list of `{ name, type, data, alt }` with base64 pictures [posted with the note](../using/pictures.md#posting-a-note-with-its-pictures); write `![](name)` in `markdown` where one goes. |
+| `create_feed` | Creates a feed without a note, to reserve its name. Takes `feed`, optionally `password`, `read_id` and `license_key` (required on notefeed.me). A feed that exists is refused. |
+| `list_notes` | A feed's notes, newest first, without their text, each with its `date` (and `scheduled: true` when the date is in the future, `draft: true` for a draft: readers do not see either yet). Takes `feed`, optionally `limit` (1–100), `before` and `tag`. |
+| `get_note` | One note with its content, its `date`, `scheduled` and `draft`. Takes `feed` and `id`. |
+| `edit_note` | Replaces a note's markdown, sets its title, its `tags` (the whole list) its `date` (also in the future, which schedules the note) or `draft` (`false` publishes a draft, `true` hides the note from readers again); its id stays. |
 | `delete_note` | Deletes a note for good. Marked as destructive, so clients can ask you first. |
+| `set_feed_image` | Sets the feed's title image from base64 `data` and its `type`. It is the feed's own image, no post; a previous one set this way is deleted. Remove it with `update_feed` `image: ""`. |
 | `get_feed`, `update_feed`, `delete_feed` | The feed's title, description, title image and read link; change any of them (and the read id), or put a license on the feed with `license_key` (notefeed.me; empty takes it off); `new_password` sets or changes its password; delete the feed with everything in it. |
+| `recover_feed_password` | A lost password, on notefeed.me: the key of the license on the feed sets a new password (`new_password`) or, left out, removes it. A wrong key counts as a wrong password. |
+| `get_licenses` | On notefeed.me: what a license costs, the license page to buy one (`buy_url`), and where buyers manage their purchases (`manage_url`): cancelling, the payment method, invoices and keys are at the payment provider, signed in with the e-mail address bought with. No license key opens it. |
 | `post_file` | Posts a file as a note, as base64: `feed`, `type` (markdown or a picture type) and `data`, optionally `title`, `alt` and `name`. |
 
-The tools follow the same rules as the [API](../using/posting.md): size limit, rate limit, caps, and the first post creates the feed. Anyone who can post to a feed can use every tool on it, and a deleted note cannot be brought back, so think before giving an assistant a feed it should only add to. The endpoint speaks MCP 2026-07-28 and nothing older.
+The tools follow the same rules as the [API](../using/posting.md): size limit, rate limit, caps, and the first post creates the feed (or `create_feed`, without a note). Anyone who can post to a feed can use every tool on it, and a deleted note cannot be brought back, so think before giving an assistant a feed it should only add to. The endpoint speaks MCP 2026-07-28 and nothing older.
 
 ## Claude Code
 

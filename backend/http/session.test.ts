@@ -84,8 +84,15 @@ test("a wrong password bearer is a debug line", async () => {
   expect(await logsOf(() => expect(() => authorize(h, "ip")).toThrow(AuthError), "info")).toEqual([]);
 });
 
+test("a long share carried in next still logs in and comes back", async () => {
+  const next = `/?share_text=${encodeURIComponent("Grüße aus dem Artikel. ".repeat(300))}&shared=1`;
+  const res = await login({ password: "pw", next });
+  expect(res.headers.get("location")).toBe(next);
+  expect(sessionOk(sessionFrom(res))).toBe(true);
+});
+
 test("an oversized body is a failed login, not a crash", async () => {
-  const res = await login({ password: "x".repeat(10_000) });
+  const res = await login({ password: "x".repeat(100_000) });
   expect(res.headers.get("location")).toBe("/login?error=auth&next=%2F");
 });
 

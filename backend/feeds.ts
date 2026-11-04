@@ -69,6 +69,19 @@ export async function ensureFeed(feed: string, wanted?: string): Promise<string 
   return (await s.feedReadId(feed)) ?? null;
 }
 
+// An open feed without a note (#295): like ensureFeed, but false when the feed exists already.
+export async function createOpenFeed(feed: string, wanted?: string): Promise<boolean> {
+  const s = await prepared();
+  if (isHeldBack(feed)) throw new ReservedFeedError();
+  if (wanted !== undefined) checkReadId(wanted);
+  const { created } = await s.createFeed(feed, wanted ?? newReadId());
+  if (created) {
+    log.info({ protected: false }, "feed created"); // never its name
+    feedCreated(false);
+  }
+  return created;
+}
+
 // A protected feed: it appears already holding the hash and its read id. false = the feed exists.
 export async function createProtectedFeed(feed: string, hash: string, wanted?: string): Promise<boolean> {
   const s = await prepared();

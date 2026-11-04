@@ -33,7 +33,7 @@ const markPicturesInLinks = () => (tree: Hast) => {
 // `link` gives the page of the picture's own note (shared/notekinds.ts), which the picture then links to unless the text put it in a link.
 // `anchors` (a note's own page, #243): each heading gets an id and a link to itself. A picture's size comes from its link (shared/markdown.ts).
 // `plugins`: more rehype plugins, from a server component, so what they need stays out of the browser's bundle (code highlighting).
-// `diagrams` (a note's own page): a ```mermaid block is drawn in the browser, its source the fallback (MermaidBlock).
+// `diagrams` (a note's own page and the timeline, #301): a ```mermaid block is drawn in the browser, its source the fallback (MermaidBlock).
 export function NoteView({ markdown, imageBase, resolve, link, anchors = false, plugins = [], diagrams = false }: { markdown: string; imageBase?: string; resolve?: (src: string) => string | undefined; link?: (src: string) => string | undefined; anchors?: boolean; plugins?: PluggableList; diagrams?: boolean }) {
   return (
     <div className="md break-words">

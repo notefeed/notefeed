@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { KyselyPlugin } from "kysely";
 import { afterEach, describe, expect, test } from "vitest";
 import { describeStorage } from "../contract";
 import { createFsImageStore } from "../images/fs";
@@ -110,7 +111,10 @@ describe.skipIf(!supported)("sqlite", () => {
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
     // Back to the schema of 001: the later migrations' columns and tables go, and so do their records, in order.
+    raw.exec("drop table note_tombstones; delete from kysely_migration where name = '008_note_tombstones'");
     raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
+    raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");
+    raw.exec("create index notes_by_date on notes (feed, date, id)");
     raw.exec("drop index notes_by_date; alter table notes drop column date; delete from kysely_migration where name = '005_note_date'");
     raw.exec("drop index notes_by_sealed; alter table notes drop column sealed; drop table keyring; alter table feeds drop column key_id; alter table feeds drop column data_key; alter table feeds drop column name_sealed; alter table feeds drop column read_id_sealed; delete from kysely_migration where name = '004_encryption'");
     raw.exec("alter table notes drop column blob_key; alter table notes drop column size; drop table tombstones; drop table blocked_images; delete from kysely_migration where name in ('002_image_store', '003_takedown')");
@@ -132,14 +136,40 @@ describe.skipIf(!supported)("sqlite", () => {
     await a.storage.close();
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
+    raw.exec("drop table note_tombstones; delete from kysely_migration where name = '008_note_tombstones'");
     raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
+    raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");
+    raw.exec("create index notes_by_date on notes (feed, date, id)");
     raw.exec("drop index notes_by_date; alter table notes drop column date; delete from kysely_migration where name = '005_note_date'");
     raw.close();
     const again = createSqlStorage(() => connect("sqlite", a.url));
     open.push({ storage: again, root: a.root });
-    expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 0 }]);
+    expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 0, draft: false }]);
     expect((await again.readNote("f", "t", ALL, () => true))?.meta).toEqual({ title: "T" });
     expect(await again.migrationPending()).toBe(true); // stored before the migration ran: it gives the note its mtime
+  });
+
+  test("a note takedown that fails half way leaves nothing of itself: one transaction (#159)", async () => {
+    const a = await fresh();
+    await a.storage.createFeed("f", "rid-f");
+    await a.storage.writeNote("f", "t", "md", "x", {}, 5);
+    await a.storage.close();
+    // The insert of the mark, the last statement of the takedown, fails: the tombstone and the deletion before it must not stay.
+    let tombstoned = false;
+    const failing: KyselyPlugin = {
+      transformQuery(q) {
+        const table = (q.node as { into?: { table?: { identifier?: { name?: string } } } }).into?.table?.identifier?.name;
+        if (q.node.kind === "InsertQueryNode" && table === "note_tombstones") tombstoned = true;
+        else if (q.node.kind === "InsertQueryNode" && table === "notes" && tombstoned) throw new Error("crash");
+        return q.node;
+      },
+      transformResult: async (r) => r.result,
+    };
+    const again = createSqlStorage(async () => (await connect("sqlite", a.url)).withPlugin(failing));
+    open.push({ storage: again, root: a.root });
+    await expect(again.takedownNotes("f", [{ id: "t", ext: "md" }], { date: 5, draft: false }, "t")).rejects.toThrow("crash");
+    expect(await again.removedNote("f", "t")).toBeNull();
+    expect(await again.listNoteRefs("f")).toEqual([{ id: "t", ext: "md", date: 5, draft: false }]);
   });
 
   test("migrationPending answers while the key service is down; what needs a key does not", async () => {
@@ -188,7 +218,7 @@ describe.skipIf(!supported)("sqlite", () => {
       const listed = await s.readNote("f", "p", ALL, () => false);
       expect(listed).toMatchObject({ ext: "png", size: PNG.byteLength, meta: { alt: "a" } });
       expect(listed?.content.byteLength).toBe(0);
-      expect(await s.listNoteRefs("f")).toEqual([{ id: "p", ext: "png", date: 0 }]);
+      expect(await s.listNoteRefs("f")).toEqual([{ id: "p", ext: "png", date: 0, draft: false }]);
       expect(await s.readMeta("f", { id: "p", ext: "png" })).toEqual({ alt: "a" });
       expect(calls).toEqual([]);
       expect((await s.readNote("f", "p", ALL, () => true))?.content).toEqual(PNG);
@@ -533,7 +563,7 @@ describe.skipIf(!supported)("sqlite", () => {
     const again = createSqlStorage(() => connect("sqlite", a.url));
     open.push({ storage: again, root: a.root });
     expect(await again.feedReadId("f")).toBe("rid-f");
-    expect(await again.listNoteRefs("f")).toEqual([{ id: "n", ext: "md", date: 0 }]);
+    expect(await again.listNoteRefs("f")).toEqual([{ id: "n", ext: "md", date: 0, draft: false }]);
   });
 
   test("a database made by a newer notefeed fails with a clear message", async () => {

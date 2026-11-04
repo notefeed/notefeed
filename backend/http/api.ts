@@ -3,19 +3,20 @@
 // generated from. Each handler is typed from its own declared responses (see op() in dispatch.ts).
 import * as z from "zod";
 import { config } from "../config";
-import { InvalidBodyError, NotFoundError, RemovedFeedError } from "../errors";
-import { changePassword, checkFeedAccess, protectedFeed, removePassword } from "../feedlock";
+import { ImageTooLargeError, InvalidBodyError, NotFoundError, RemovedFeedError, UnsupportedTypeError } from "../errors";
+import { changePassword, checkFeedAccess, protectedFeed, recoverPassword, removePassword } from "../feedlock";
 import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf } from "../feeds";
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
-import { MAX_BYTES, countNotes, getNote, isScheduled, listNotes, type Note } from "../notes";
-import { freeTier } from "../licensing";
+import { MAX_BYTES, countNotes, getNote, isDraft, isScheduled, listNotes, refuseRemovedNote, type Note } from "../notes";
+import { freeTier, licenseAccountUrl, licensePlans } from "../licensing";
+import { MANAGE_PURCHASES } from "../../shared/plans";
 import { PASSWORD_RULE } from "../../shared/password";
 import { TAG_RULE } from "../tags";
 import { API_PREFIX, feedPath, imagePath, publicUrl, readPath, rssPath } from "../urls";
 import { MEDIA_TYPES } from "../note/media";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
-import { MAX_ATTACHMENTS, deleteFeed, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
+import { MAX_ATTACHMENTS, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
 import { MULTIPART_SLACK, createdOf, handlePostNote, readContent, readMetaPatch, readMultipart } from "./notes";
 import { authorize, feedAccess, mediaType, readCapped, sender } from "./request";
 import {
@@ -23,6 +24,7 @@ import {
   CurrentPasswordHeader,
   ErrorJson,
   FeedJson,
+  LicensesJson,
   FeedParam,
   FeedPasswordHeader,
   LicenseKeyHeader,
@@ -34,6 +36,7 @@ import {
   NoteNameHeader,
   NoteTitleHeader,
   NoteDateHeader,
+  NoteDraftHeader,
   ReadIdHeader,
   NoteIdParam,
   NoteEdited,
@@ -43,6 +46,8 @@ import {
   PageQuery,
   LicenseKeyJson,
   PasswordJson,
+  CreateFeedJson,
+  RecoveryJson,
   Posted,
   ReadFeedJson,
   ReadIdParam,
@@ -54,16 +59,27 @@ const err = (description: string) => ({ description, schema: ErrorJson }) satisf
 const RETRY = { "Retry-After": { description: "Seconds to wait before trying again", type: "integer" } } as const;
 // Only on an instance whose main key is in a key service (NOTEFEED_KMS, issue #215).
 const UNAVAILABLE = { ...err("The key service is unreachable: the instance is down for maintenance; try again after Retry-After"), headers: RETRY };
+// Where images are stored: they are processed first (ADR 0049), a few at a time.
+const UNAVAILABLE_OR_BUSY = {
+  ...err("`unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After"),
+  headers: RETRY,
+};
+// What happens to every image that is stored, whichever way it comes.
+const PROCESSED =
+  "An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), " +
+  "and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`. ";
 const MULTIPART =
   "A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), " +
   `\`file\` parts (up to ${MAX_ATTACHMENTS} pictures, each with its file name and image \`Content-Type\`) and \`alt.<file name>\` fields. ` +
   "The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, " +
-  "as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked before the first write, " +
+  "as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. " +
+  "Several pictures may have the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is 400. Everything is checked before the first write, " +
   "and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. " +
   "The answer has `attachments`, the stored pictures in the order of the `file` parts. ";
 const UNAUTHORIZED = err("The instance has a password, or the feed has its own, and it is missing or wrong");
 const REMOVED = err("The operator removed this feed for good (`removed`): its name cannot be used again");
 const REMOVED_READ = err("The operator removed the feed this read id belonged to (`removed`)");
+const REMOVED_NOTE = err("The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited");
 const BLOCKED = err("An image the operator removed, which may not be posted again in any feed (`blocked`)");
 const LICENSE_REQUIRED = err("Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds");
 const IMAGES_OFF = err("Image uploads are off on this instance (`NOTEFEED_IMAGE_UPLOADS=0`, code `images_off`): an image body, a picture replaced, or a multipart body with pictures. Stored pictures are still served");
@@ -86,7 +102,7 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   id: n.id,
   type: n.type,
   file: n.file,
-  file_url: files && files + n.file,
+  file_url: files && !n.removed ? files + n.file : null,
   size: n.size,
   title: n.title,
   ...(n.content !== undefined && { content: n.content }),
@@ -94,10 +110,12 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   ...("name" in n && typeof n.name === "string" && { name: n.name }),
   date: n.date.toISOString(),
   ...(isScheduled(n) && { scheduled: true as const }),
+  ...(isDraft(n) && { draft: true as const }),
   url: `${base}/${n.id}`,
   ...(n.sender !== undefined && { sender: n.sender }),
   tags: n.tags,
   ...(n.unreadable && { unreadable: true as const }),
+  ...(n.removed && { removed: true as const }),
 });
 
 // The feed a read id shows, or null for one nobody has. A read id the operator removed is 410 (issue #159), as on the pages,
@@ -125,6 +143,15 @@ async function page(notes: (limit: number, before?: string, tag?: string) => Pro
 }
 
 // The feed as the Feeds API shows it; the feed must exist. No read link while it has no notes (ADR 0008).
+/** What licenses are sold, where to buy them and where buyers manage them (ADR 0050), for the API and MCP alike.
+ *  NotFoundError where no licenses are sold. */
+export async function licensesJson(headers: Headers): Promise<z.infer<typeof LicensesJson>> {
+  const manage = licenseAccountUrl();
+  if (!manage) throw new NotFoundError("licenses are not sold on this instance");
+  const plans = (await licensePlans()).map(({ taxIncluded, ...p }) => ({ ...p, tax_included: taxIncluded }));
+  return { plans, buy_url: `${publicUrl(headers)}/license`, manage_url: manage, manage: MANAGE_PURCHASES };
+}
+
 export async function feedJson(feed: string, headers: Headers): Promise<z.infer<typeof FeedJson>> {
   const readId = (await countNotes(feed)) ? await readIdOf(feed) : null;
   const { title, description, image, showSender } = await getSettings(feed);
@@ -148,15 +175,16 @@ const OPS: AnyOp[] = [
     summary: "Post a note",
     description:
       "The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most " +
-      `${MAX_BYTES} bytes), or an image, \`image/png\`, \`image/jpeg\`, \`image/gif\` or \`image/webp\` (at most NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). ` +
+      `${MAX_BYTES} bytes), or an image, \`image/png\`, \`image/jpeg\`, \`image/gif\` or \`image/webp\` (at most NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). ` +
       "Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). " +
-      "It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS position stays in an image). " +
+      "Markdown is stored byte for byte. " +
+      PROCESSED +
       "Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; " +
       `${PASSWORD_RULE}) and with the read id in \`X-Read-Id\`; both are only used by the post that creates the feed. ` +
       "Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. " +
       "Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. " +
       "The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). " +
-      `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Date\` (where it is placed in the feed: a past date backdates it, a future one schedules it). ` +
+      `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Date\` (where it is placed in the feed: a past date backdates it, a future one schedules it), \`X-Note-Draft\` (\`true\`: a draft, which readers do not see until it is published). ` +
       MULTIPART +
       "The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. " +
       "A refused multipart post that would have created a protected feed creates nothing.",
@@ -172,24 +200,25 @@ const OPS: AnyOp[] = [
       "X-Note-Alt": NoteAltHeader,
       "X-Note-Name": NoteNameHeader,
       "X-Note-Date": NoteDateHeader,
+      "X-Note-Draft": NoteDraftHeader.optional(),
     },
     body: { ...Object.fromEntries(MEDIA_TYPES.map((m) => [m.mediaType, FileBody])), "multipart/form-data": MultipartNote },
     responses: {
       201: { description: "Stored: the note, and with a multipart body its pictures", schema: Posted },
       400: err(
-        "Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; " +
-          `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad or repeated file name, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
+        "Invalid or reserved feed name; a blank note; a bad title, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; " +
+          `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
       402: LICENSE_REQUIRED,
       403: IMAGES_OFF,
       409: err("A password was sent for a feed that already exists without one: it can't be claimed; or the chosen read id is taken"),
       410: REMOVED,
-      413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB`),
+      413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB, and never over 64 MiB`),
       415: err("Content-Type missing or not one of the accepted types, or the body (or a multipart body's picture) is not what it declares"),
       429: { ...err("Too many posts, or wrong passwords, from this client"), headers: RETRY },
       451: BLOCKED,
-      503: UNAVAILABLE,
+      503: UNAVAILABLE_OR_BUSY,
       507: err("NOTEFEED_MAX_FEEDS, NOTEFEED_MAX_NOTES_PER_FEED or NOTEFEED_MAX_IMAGES_PER_FEED reached"),
     },
   }).handle(({ req, params }) => handlePostNote(req, params.feed)),
@@ -231,11 +260,13 @@ const OPS: AnyOp[] = [
       400: err("Invalid or reserved feed name"),
       401: UNAUTHORIZED,
       404: err("No such note"),
+      410: REMOVED_NOTE,
       429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
       503: UNAVAILABLE,
     },
     before: passwordFeedAndFeedPassword,
   }).handle(async ({ req, params }) => {
+    await refuseRemovedNote(params.feed, params.id);
     const note = await getNote(params.feed, params.id);
     if (!note) throw new NotFoundError("no such note");
     return { status: 200, body: noteJson(note, publicUrl(req.headers) + feedPath(params.feed), await filesOf(params.feed, req.headers)) };
@@ -248,7 +279,9 @@ const OPS: AnyOp[] = [
     summary: "Replace a note's content",
     description:
       "The body is the new file, with the same rules as posting: a `Content-Type` that is one of the accepted types, a body that is what it declares. " +
-      "A note keeps its type, so the type must be the note's own (`415` otherwise). Id, creation time and metadata stay: " +
+      "A note keeps its type, so the type must be the note's own (`415` otherwise). " +
+      PROCESSED +
+      "Id, creation time and metadata stay: " +
       "the title of a markdown note without one set follows the new text. Change the title, alt text or tags with `PATCH`. " +
       "Needs the feed's password if it has one, and counts against the post rate limit. Read links can't edit. " +
       MULTIPART +
@@ -262,17 +295,18 @@ const OPS: AnyOp[] = [
       200: { description: "The note as it is now, and with a multipart body the new pictures", schema: NoteEdited },
       400: err(
         "Invalid or reserved feed name; a blank note; " +
-          `a multipart body with an unexpected part, no \`text\`, more than ${MAX_ATTACHMENTS} files, a bad or repeated file name, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
+          `a multipart body with an unexpected part, no \`text\`, more than ${MAX_ATTACHMENTS} files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
       402: LICENSE_REQUIRED,
       403: IMAGES_OFF,
       404: err("No such note"),
-      413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB`),
+      410: REMOVED_NOTE,
+      413: err(`Markdown over ${MAX_BYTES} bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over ${MAX_BYTES} bytes plus ${MAX_ATTACHMENTS} images plus ${MULTIPART_SLACK / 1024} KiB, and never over 64 MiB`),
       415: err("Content-Type missing, not accepted or not the note's own type (a multipart body is for a markdown note), or the body (or a picture) is not what it declares"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
       451: BLOCKED,
-      503: UNAVAILABLE,
+      503: UNAVAILABLE_OR_BUSY,
       507: err("NOTEFEED_MAX_IMAGES_PER_FEED reached"),
     },
     before: passwordAndFeed,
@@ -307,9 +341,11 @@ const OPS: AnyOp[] = [
     body: { "application/json": MetaJson },
     responses: {
       200: { description: "The note as it is now", schema: NoteJson },
-      400: err("Invalid or reserved feed name; nothing to change; a bad title, alt text, tag or date; too many tags; alt for a note that has none; bad JSON"),
+      400: err("Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, date or draft; too many tags; alt for a note that has none; bad JSON"),
       401: UNAUTHORIZED,
       404: err("No such note"),
+      410: REMOVED_NOTE,
+      409: err("The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)"),
       415: err("Content-Type is not application/json"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
       503: UNAVAILABLE,
@@ -342,6 +378,41 @@ const OPS: AnyOp[] = [
   }).handle(async ({ req, params }) => {
     await deleteNote(params.feed, params.id, clientIp(req.headers), feedAccess(req.headers, params.feed));
     return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/feeds/{feed}`,
+    operationId: "createFeed",
+    summary: "Create a feed without posting a note",
+    description:
+      "Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. " +
+      "Where licenses are sold a license key is required and goes on the new feed; free feeds start with their first note. A feed that exists is 409. " +
+      "Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    body: { "application/json": CreateFeedJson },
+    responses: {
+      201: { description: "The new feed", schema: FeedJson },
+      400: err(`Invalid or reserved feed name, bad JSON, a password that is not ${PASSWORD_RULE}, a read id that is invalid, or a key that is none`),
+      402: err("A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)"),
+      409: err("The feed exists already (`feed_exists`), or the read id is taken (`taken`)"),
+      410: REMOVED,
+      429: { ...err("Too many posts, or wrong keys, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+      507: err("NOTEFEED_MAX_FEEDS reached"),
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const bytes = await readCapped(req, 4096);
+    let body: ReturnType<typeof CreateFeedJson.safeParse> | undefined;
+    try {
+      body = CreateFeedJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes?.length ? bytes : new TextEncoder().encode("{}"))));
+    } catch {}
+    if (!body?.success) throw new InvalidBodyError('JSON with optional "password", "license_key" and "read_id" strings');
+    await createFeed(params.feed, clientIp(req.headers), { password: body.data.password, licenseKey: body.data.license_key, readId: body.data.read_id });
+    return { status: 201, body: await feedJson(params.feed, req.headers) };
   }),
 
   op({
@@ -436,6 +507,70 @@ const OPS: AnyOp[] = [
 
   op({
     method: "PUT",
+    path: `${API_PREFIX}/feeds/{feed}/image`,
+    operationId: "setFeedImage",
+    summary: "Set the feed's title image",
+    description:
+      "Uploads the image (its bytes, of the type `Content-Type` declares) as the feed's own title image: it is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read API, counts), so it is no post. " +
+      "A previous title image uploaded this way is deleted; a posted image picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The feed must exist. " +
+      PROCESSED.trim(),
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    headers: { "X-Feed-Password": FeedPasswordHeader },
+    body: Object.fromEntries(MEDIA_TYPES.filter((m) => m.mediaType.startsWith("image/")).map((m) => [m.mediaType, FileBody])),
+    responses: {
+      200: { description: "The feed, with its new title image", schema: FeedJson },
+      400: err("Invalid or reserved feed name"),
+      401: UNAUTHORIZED,
+      402: LICENSE_REQUIRED,
+      403: IMAGES_OFF,
+      404: err("No such feed"),
+      413: err("An image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels"),
+      415: err("Not an image, or the body is not what it declares"),
+      429: { ...err("Too many posts, or wrong passwords, from this client"), headers: RETRY },
+      451: BLOCKED,
+      503: UNAVAILABLE_OR_BUSY,
+      507: err("NOTEFEED_MAX_IMAGES_PER_FEED reached"),
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const mediaType = req.headers.get("content-type") ?? "";
+    await setFeedImage(params.feed, clientIp(req.headers), async () => {
+      const body = await readCapped(req, config.maxImageBytes());
+      if (body === null) throw new ImageTooLargeError();
+      if (!body.length) throw new UnsupportedTypeError("the body is empty: send an image, or DELETE to remove the title image");
+      return { body, mediaType };
+    }, feedAccess(req.headers, params.feed));
+    return { status: 200, body: await feedJson(params.feed, req.headers) };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/feeds/{feed}/image`,
+    operationId: "removeFeedImage",
+    summary: "Remove the feed's title image",
+    description: "The feed has no title image afterwards. One uploaded as the feed's own (setFeedImage) is deleted; a posted image that was the title image stays a post.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    headers: { "X-Feed-Password": FeedPasswordHeader },
+    responses: {
+      200: { description: "The feed, without a title image", schema: FeedJson },
+      400: err("Invalid or reserved feed name"),
+      401: UNAUTHORIZED,
+      404: err("No such feed"),
+      429: { ...err("Too many posts, or wrong passwords, from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    await setFeedImage(params.feed, clientIp(req.headers), async () => ({ body: new Uint8Array(), mediaType: "" }), feedAccess(req.headers, params.feed));
+    return { status: 200, body: await feedJson(params.feed, req.headers) };
+  }),
+
+  op({
+    method: "PUT",
     path: `${API_PREFIX}/feeds/{feed}/password`,
     operationId: "changeFeedPassword",
     summary: "Set or change a feed's password",
@@ -490,6 +625,40 @@ const OPS: AnyOp[] = [
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
     await removePassword(params.feed, req.headers.get("x-feed-password") ?? "", clientIp(req.headers));
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/feeds/{feed}/password/recover`,
+    operationId: "recoverFeedPassword",
+    summary: "Recover a feed's password with its license key",
+    description:
+      "Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license on this feed proves ownership instead of the current password (ADR 0037). " +
+      "With a new password the feed gets it (needs an active license, like any password change); with none, or an empty one, the password is removed, which a lapsed license's key may do too. " +
+      "A key that is not this feed's license is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before the key is tried.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    body: { "application/json": RecoveryJson },
+    responses: {
+      204: { description: "Set or removed; the old password and unlock cookies stop working" },
+      400: err(`Invalid or reserved feed name, bad JSON, or a new password that is not ${PASSWORD_RULE}`),
+      401: err("The key is not this feed's license, or the feed has no password"),
+      402: err("The key's license has lapsed, and a new password needs an active one (`license_required`)"),
+      404: err("Licenses are not sold on this instance, or the feed was deleted meanwhile"),
+      429: { ...err("Too many wrong passwords or keys from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const bytes = await readCapped(req, 4096);
+    let body: ReturnType<typeof RecoveryJson.safeParse> | undefined;
+    try {
+      body = RecoveryJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array())));
+    } catch {}
+    if (!body?.success) throw new InvalidBodyError('JSON needs a "key" string, and optionally a "password" string');
+    await recoverPassword(params.feed, body.data.key.trim(), body.data.password ?? "", clientIp(req.headers));
     return { status: 204, body: undefined };
   }),
 
@@ -615,17 +784,34 @@ const OPS: AnyOp[] = [
     responses: {
       200: { description: "The note", schema: NoteJson },
       404: err("No such note, or a malformed or unknown read id"),
-      410: REMOVED_READ,
+      410: err("The operator removed the feed this read id belonged to, or this note (`removed`)"),
       503: UNAVAILABLE,
     },
   }).handle(async ({ req, params }) => {
     const feed = await readFeed(params.readId);
     const asOf = new Date(); // a scheduled note is a missing one to readers
+    if (feed) await refuseRemovedNote(feed, params.id, asOf);
     const found = feed ? await getNote(feed, params.id, asOf) : null;
     if (!feed || !found) throw new NotFoundError("no such note");
     const [note] = forReaders([found], await getSettings(feed, asOf));
     return { status: 200, body: noteJson(note, publicUrl(req.headers) + readPath(params.readId), `${publicUrl(req.headers)}${readPath(params.readId)}/`) };
   }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/licenses`,
+    operationId: "getLicenses",
+    summary: "What licenses are sold, where to buy them and where to manage them",
+    description:
+      "Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license lifts a feed's free tier; a person buys it on `buy_url` and gets a key to put on a feed. " +
+      "Cancelling, the payment method and invoices are at the payment provider, where buyers sign in with the e-mail address they bought with (`manage_url`); no license key opens it (ADR 0050).",
+    tags: ["Licenses"],
+    params: {},
+    responses: {
+      200: { description: "The plans, the license page and the provider's sign-in for buyers", schema: LicensesJson },
+      404: err("Licenses are not sold on this instance"),
+    },
+  }).handle(async ({ req }) => ({ status: 200, body: await licensesJson(req.headers) })),
 
   op({
     method: "GET",
@@ -730,6 +916,7 @@ export function openApiDocument(serverUrl: string): Json {
     tags: [
       { name: "Feeds", description: "By the feed's name, the write key. Need the instance password when one is set." },
       { name: "Read", description: "By the feed's read id. Public and read-only." },
+      { name: "Licenses", description: "Where licenses are sold: what they cost, where to buy them and where buyers manage them. Public." },
       { name: "Meta", description: "About the API itself." },
     ],
     paths,

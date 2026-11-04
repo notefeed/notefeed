@@ -3,30 +3,34 @@
 import { config } from "./config";
 import { applyImages, type ImagePlan } from "../shared/imagePlan.mjs";
 import { isAttachmentName, MAX_ATTACHMENTS, safeName } from "../shared/links";
-import { BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, ImagesOffError, ImageTooLargeError, InvalidBodyError, NotefeedError, NoteLimitError, NotFoundError, RateLimitedError, RemovedFeedError, UnsupportedTypeError } from "./errors";
-import { type FeedAccess, checkFeedAccess, createProtected } from "./feedlock";
+import { AuthError, BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, ImagesOffError, ImageTooLargeError, InvalidBodyError, NotefeedError, NoteLimitError, NotFoundError, LicenseRequiredError, RateLimitedError, RemovedFeedError, ReservedFeedError, TitleImageDraftError, UnsupportedTypeError } from "./errors";
+import { type FeedAccess, checkFeedAccess, checkNewPassword, createProtected } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
-import { assertFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
+import { assertFeed, createOpenFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
 import { attachLicense, checkLicenseKey, countingKeys, detachLicense } from "./licenseflow";
-import { licensingOn, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
+import { hasActiveLicense, licensingOn, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
 import { isBlockedImage } from "./takedown";
+import { processImage } from "./imageprocess";
+import type { ImageType } from "../shared/images";
 import { capReached, rateLimit } from "./limits";
 import { logger } from "./log";
 import { MEDIA_TYPES } from "./note/media";
 import { planInWorker } from "./place";
 import { type NoteType, parseMediaType } from "./note/types";
 import { checkTags } from "./tags";
-import { changeDate, checkLine, checkMarkdown, countNotes, createNoteOf, encoder, getNote, MARKDOWN, hasImageNote, MAX_ALT, MAX_NOTE_TITLE, newNoteId, removeNote, replaceContent, changeMeta, type NewNoteOptions, type Note } from "./notes";
+import { changeDate, changeDraft, checkLine, checkMarkdown, countNotes, createNoteOf, encoder, getNote, MARKDOWN, hasImageNote, MAX_ALT, MAX_NOTE_TITLE, newNoteId, refuseRemovedNote, removeNote, replaceContent, changeMeta, type NewNoteOptions, type Note } from "./notes";
 
 const log = logger("posting");
 
 // The gate every write passes first: the feed's access, then the rate limit (counted once per request). Whether the
-// password was proved. An edit or delete targets an existing note, so its feed already exists, and the feed's
+// password was proved. Writes to a feed with an active license don't count against the per-IP limit (ADR 0046, #123): a paid
+// feed's CI bursts never get a 429 from it; wrong passwords and keys still count in their own bucket, checked before this. An edit or delete targets an existing note, so its feed already exists, and the feed's
 // protection can only be changed by a request that proved the password: no second access check after `read()`, unlike a post.
 async function admit(feed: string, ip: string, access: FeedAccess): Promise<boolean> {
   assertFeed(feed);
   if (await isRemovedFeed(feed)) throw new RemovedFeedError(); // the operator took the name out of use (issue #155): before any password is looked at
   const proved = await checkFeedAccess(feed, access, ip);
+  if (licensingOn() && (await hasActiveLicense(feed))) return proved;
   const wait = rateLimit(ip);
   if (wait !== null) throw new RateLimitedError(wait);
   return proved;
@@ -35,6 +39,16 @@ async function admit(feed: string, ip: string, access: FeedAccess): Promise<bool
 // An image the operator removed may not come back, in any feed (issue #155).
 async function refuseBlocked(body: Uint8Array): Promise<void> {
   if (await isBlockedImage(body)) throw new BlockedImageError();
+}
+
+// An image as it will be stored: decoded, shrunk and stripped (imageprocess.ts, ADR 0049). The takedown list is checked against
+// the bytes as sent and as stored: an entry made from either holds, so re-sending a removed original doesn't get around it.
+// The last check before anything is stored, after the cheap ones, so a request that is refused anyway costs no processing.
+async function prepareImage(body: Uint8Array, ext: string): Promise<Uint8Array> {
+  await refuseBlocked(body);
+  const stored = await processImage(body, ext as ImageType);
+  await refuseBlocked(stored);
+  return stored;
 }
 
 // NOTEFEED_MAX_FEEDS, for a post that would create the feed. Whether the feed exists.
@@ -109,17 +123,20 @@ async function licenseForImages(feed: string, images: boolean, key: string | und
   else await requireLicense(feed);
 }
 
-// The caps are per type: images have their own, the notes limit counts the markdown ones. `adding` notes of that type; a feed that does not exist yet counts as empty.
-async function checkCap(feed: string, typeName: string, adding: number): Promise<void> {
-  const image = typeName === "image";
-  const max = image ? config.maxImagesPerFeed() : config.maxNotesPerFeed();
-  if (adding && max && (await countNotes(feed, typeName)) + adding > max) throw image ? capReached("image", new ImageLimitError()) : capReached("note", new NoteLimitError());
+// The notes limit counts every note of the feed (texts, images, the operator's marks); images have a limit of their own as well.
+// `adding`: the notes a write adds, and how many of them are images. A feed that does not exist yet counts as empty.
+async function checkCaps(feed: string, adding: { notes: number; images: number }): Promise<void> {
+  const maxImages = config.maxImagesPerFeed();
+  if (adding.images && maxImages && (await countNotes(feed, "image")) + adding.images > maxImages) throw capReached("image", new ImageLimitError());
+  const maxNotes = config.maxNotesPerFeed();
+  if (adding.notes && maxNotes && (await countNotes(feed)) + adding.notes > maxNotes) throw capReached("note", new NoteLimitError());
 }
 
 // What a post carries: the file (`body`) and the type the poster declared for it (`mediaType`, a Content-Type), with the optional
 // metadata (`name` is the file name it came with) and, for the post that creates the feed, a password, a read id and the key of the
 // license the password needs (`licenseKey`). `date`: where the note is placed in the feed, if not now (X-Note-Date, read by checkDate).
-export type PostInput = { body: Uint8Array; mediaType: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string; password?: string; readId?: string; licenseKey?: string };
+// `draft`: stored as a draft, which readers do not see until it is published (X-Note-Draft, #265).
+export type PostInput = { body: Uint8Array; mediaType: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string; draft?: boolean; password?: string; readId?: string; licenseKey?: string };
 
 const DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(\.\d{1,9})?)?(?:(Z)|([+-])(\d{2}):(\d{2})))?$/;
 const DATE_RULE = "date must be an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date (2026-10-01), from 1970 to 9999";
@@ -163,52 +180,96 @@ export async function postNote(
   const { type, ext } = parsed;
   refuseImages(type.name === "image");
   await licenseForImages(feed, type.name === "image", newFeedKey(proved, exists, input.licenseKey), ip);
-  if (exists) await checkCap(feed, type.name, 1);
+  if (exists) await checkCaps(feed, { notes: 1, images: type.name === "image" ? 1 : 0 });
   // Before createProtected: a refused note must not leave a protected, empty feed.
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
   type.checkBody(input.body);
-  if (type.name === "image") await refuseBlocked(input.body);
   checkLine("title", input.title, MAX_NOTE_TITLE);
   if (checkLine("alt", input.alt, MAX_ALT) && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
   const tags = checkTags(input.tags);
   const at = checkDate(input.date);
+  const body = type.name === "image" ? await prepareImage(input.body, ext) : input.body;
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
   // ponytail: checked, not locked. A protected creation can still complete in the few microseconds between
   // this check and createNoteOf's ensureFeed, which then finds the feed and writes into it: this one note is
   // then in the protected feed. A lock around creation, per feed, would close it.
-  const made = await createNoteOf(feed, type, ext, input.body, { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId }, at);
+  const made = await createNoteOf(feed, type, ext, body, { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId, draft: input.draft }, at);
   await licenseNewFeed(feed, licenseKey);
   await trimToFreeCap(feed);
   return { ...made, created };
 }
 
 
+// A feed without a note (#295, ADR 0047): reserved now, with a password and a read id if given, as a first post would create it.
+// Where licenses are sold it needs a license key, which goes on the new feed (free feeds still start with their first note). It counts
+// as a post against the rate limit, and against NOTEFEED_MAX_FEEDS. A feed that exists is refused (409), whatever it holds.
+export async function createFeed(feed: string, ip: string, input: { password?: string; licenseKey?: string; readId?: string }): Promise<void> {
+  assertFeed(feed);
+  if (isHeldBack(feed)) throw new ReservedFeedError();
+  if (await isRemovedFeed(feed)) throw new RemovedFeedError();
+  const wait = rateLimit(ip);
+  if (wait !== null) throw new RateLimitedError(wait);
+  if (await feedCapped(feed)) throw new FeedExistsError("feed already exists");
+  const password = input.password || undefined; // empty means none
+  if (password !== undefined) checkNewPassword(password); // before the key is tried, as recovery does
+  const key = licensingOn() ? input.licenseKey?.trim() || undefined : undefined;
+  if (licensingOn() && !key) throw new LicenseRequiredError();
+  if (key) await countingKeys(ip, () => checkLicenseKey(key));
+  const readId = input.readId?.trim() || undefined;
+  if (password !== undefined) {
+    await createProtected(feed, password, readId).catch((e) => {
+      throw e instanceof AuthError ? new FeedExistsError("feed already exists") : e; // created by someone else meanwhile
+    });
+  } else if (!(await createOpenFeed(feed, readId))) throw new FeedExistsError("feed already exists");
+  if (key) await attachLicense(feed, key);
+}
+
 // Replacing a note's content, and changing its title or alt text: the same gate as posting, minus the caps.
 export async function editContent(feed: string, id: string, ip: string, read: () => Promise<{ body: Uint8Array; mediaType: string }>, access: FeedAccess): Promise<Note> {
   await admit(feed, ip, access);
+  await refuseRemovedNote(feed, id); // the operator's mark is not edited, and the note it stands for does not come back (#159)
   const current = await getNote(feed, id);
   if (!current) throw new NotFoundError("no such note"); // before the body is read: a missing note is 404 whatever the body
   refuseImages(current.type.startsWith("image/")); // replacing a picture's bytes is an upload too
   await licenseForImages(feed, current.type.startsWith("image/"), undefined, ip);
   const { body, mediaType } = await read();
-  if (parseMediaType(mediaType)?.type.name === "image") await refuseBlocked(body);
-  const note = await replaceContent(feed, id, body, mediaType);
+  const parsed = parseMediaType(mediaType);
+  // A body of another type than the note's is refused by replaceContent, without being processed first.
+  const image = parsed?.type.name === "image" && parsed.mediaType === current.type;
+  const note = await replaceContent(feed, id, image ? await prepareImage(body, parsed.ext) : body, mediaType);
   if (!note) throw new NotFoundError("no such note");
   return note;
 }
 
 // A note's title, alt text and date (at least one): every value is checked before the first change, the date by checkDate.
-export async function editMeta(feed: string, id: string, ip: string, read: () => Promise<{ title?: string; alt?: string; tags?: string[]; date?: string }>, access: FeedAccess): Promise<Note> {
+// `draft`: true makes the note a draft, false publishes it, its pictures along (#265); its date stays.
+export async function editMeta(feed: string, id: string, ip: string, read: () => Promise<{ title?: string; alt?: string; tags?: string[]; date?: string; draft?: boolean }>, access: FeedAccess): Promise<Note> {
   await admit(feed, ip, access);
-  const { date: given, ...meta } = await read();
+  await refuseRemovedNote(feed, id);
+  const { date: given, draft, ...meta } = await read();
   const date = checkDate(given);
   const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined;
-  if (date === undefined && !metaGiven) throw new InvalidBodyError("nothing to change: send title, alt, tags or date");
+  if (date === undefined && draft === undefined && !metaGiven) throw new InvalidBodyError("nothing to change: send title, alt, tags, date or draft");
+  if (draft !== undefined) {
+    // A picture posted with a note is a draft when its note is: published alone, it would show readers part of a draft (V3).
+    const of = (await getNote(feed, id))?.of;
+    if (of !== undefined && (await getNote(feed, of))) throw new InvalidBodyError("this picture follows its note: make the note a draft or publish it");
+  }
+  if (draft === true && (await isTitleImageOf(feed, id))) throw new TitleImageDraftError(); // before any change: all or nothing
   let note = metaGiven ? await changeMeta(feed, id, meta) : await getNote(feed, id);
   if (note && date) note = await changeDate(feed, id, date);
+  if (note && draft !== undefined) note = await changeDraft(feed, id, draft);
   if (!note) throw new NotFoundError("no such note");
   return note;
+}
+
+// Whether the feed's title image is the note `id` or a picture posted with it: such a note must not become a draft (readers see the image).
+async function isTitleImageOf(feed: string, id: string): Promise<boolean> {
+  const { image } = await getStoredSettings(feed);
+  const imageId = image.split(".")[0];
+  if (!image || imageId === id) return !!image;
+  return (await getNote(feed, imageId))?.of === id;
 }
 
 export async function deleteNote(feed: string, id: string, ip: string, access: FeedAccess): Promise<void> {
@@ -223,16 +284,51 @@ export async function updateFeed(feed: string, ip: string, read: () => Promise<u
   const given = checkSettings(await read()); // after admit: a refused request never has its body read
   if (!(await hasFeed(feed))) throw new NotFoundError("no such feed");
   // Only a given image is checked; an omitted one stays as stored, even if its file has been removed by hand.
-  if (given.image && !(await hasImageNote(feed, given.image))) throw new InvalidBodyError("image must be empty or the file of an image note of this feed");
+  // A draft picture would show readers what they must not see (#265).
+  if (given.image && (!(await hasImageNote(feed, given.image)) || (await getNote(feed, given.image.split(".")[0]))?.draft)) throw new InvalidBodyError("image must be empty or the file of an image note of this feed that is not a draft");
   const stored = await getStoredSettings(feed);
   const { readId, ...rest } = given;
   const newId = readId === undefined || readId === (await readIdOf(feed)) ? undefined : readId; // the page sends the current one back: no change
   if (newId !== undefined && isHeldBack(feed)) throw new InvalidBodyError("a reserved feed keeps its read id");
   // First, so a read id that is refused (taken, badly formed, not allowed) saves nothing.
   if (newId !== undefined) await setReadId(feed, newId === "" ? null : newId);
-  const checked = { ...rest, image: rest.image ?? stored.image, showSender: given.showSender ?? stored.showSender };
+  const image = rest.image ?? stored.image;
+  const ownImage = stored.ownImage && image === stored.image ? true : undefined; // another title image, or none: the own one goes (below)
+  const checked = { ...rest, image, showSender: given.showSender ?? stored.showSender, ...(ownImage && { ownImage }) };
   await saveSettings(feed, checked);
+  if (stored.ownImage && stored.image && stored.image !== image) await removeOwnImage(feed, stored.image);
   return checked;
+}
+
+// The feed's own title image (#310): uploaded as the title image, it is stored as an image note but marked in the settings, so it is
+// in no list and was never a post. Every check of posting a picture applies (access, rate limit, a license for images, caps, the
+// blocklist). A previous own image is deleted, as nobody posted it; a posted image picked as title image stays a post. The feed must
+// exist. `body` empty removes the title image.
+export async function setFeedImage(feed: string, ip: string, read: () => Promise<{ body: Uint8Array; mediaType: string }>, access: FeedAccess): Promise<FeedSettings> {
+  if (!(await hasFeed(feed))) {
+    await admit(feed, ip, access); // a stranger learns nothing a post wouldn't tell
+    throw new NotFoundError("no such feed");
+  }
+  let image = "";
+  const input = await (async () => {
+    const got = await read();
+    if (got.body.length && parseMediaType(got.mediaType)?.type.name !== "image") throw new UnsupportedTypeError("a title image must be an image");
+    return got;
+  })();
+  const stored = await getStoredSettings(feed);
+  if (input.body.length) image = (await postNote(feed, ip, async () => input, access)).note.file;
+  else await admit(feed, ip, access);
+  const now = await getStoredSettings(feed); // after the post: its title and description as they are now
+  const saved = { ...now, image, ...(image && { ownImage: true }) };
+  if (!image) delete (saved as FeedSettings).ownImage;
+  await saveSettings(feed, saved);
+  if (stored.ownImage && stored.image && stored.image !== image) await removeOwnImage(feed, stored.image);
+  return saved;
+}
+
+async function removeOwnImage(feed: string, file: string): Promise<void> {
+  const m = /^([A-Za-z0-9_-]{1,128})\./.exec(file);
+  if (m) await removeNote(feed, m[1]);
 }
 
 // A feed's license, entered (a key) or taken off (null) by whoever may write to the feed (#247): the gate of its settings. Entering
@@ -256,28 +352,30 @@ export { MAX_ATTACHMENTS }; // defined in shared/links.ts: the web box holds to 
 // A picture sent with a markdown text: `name` is the file name the text refers to it by (`![](name)`), kept with the stored note.
 export type Picture = { name: string; body: Uint8Array; mediaType: string; alt?: string };
 // A post of a text and its pictures. No `text`: just the pictures, each with the title. `date`, `password`, `readId` and `licenseKey` as in PostInput.
-export type PostBundle = { text?: string; pictures: Picture[]; title?: string; tags?: string[]; date?: string; password?: string; readId?: string; licenseKey?: string; name?: string };
+export type PostBundle = { text?: string; pictures: Picture[]; title?: string; tags?: string[]; date?: string; draft?: boolean; password?: string; readId?: string; licenseKey?: string; name?: string };
 
 const MARKDOWN_TYPE = "text/markdown";
 const IMAGE_TYPES = MEDIA_TYPES.filter((m) => m.mediaType.startsWith("image/")).map((m) => m.mediaType).join(", ");
 
+// A checked picture. `key`: what the text can call it by, its file name; a name sent more than once (a phone's every photo is
+// "image.jpg") gets a key no text can hold, so such pictures are appended, and only a text that names one of them is refused (checkText).
+type Checked = Picture & { type: NoteType; ext: string; key: string };
+
 // Every check a picture gets before anything is stored; a refusal names it (safeName: a refused name is not echoed as sent).
-function checkPictures(pictures: Picture[]): (Picture & { type: NoteType; ext: string })[] {
+function checkPictures(pictures: Picture[]): Checked[] {
   refuseImages(pictures.length > 0);
   if (pictures.length > MAX_ATTACHMENTS) throw new InvalidBodyError(`at most ${MAX_ATTACHMENTS} attachments`);
-  const seen = new Set<string>();
-  return pictures.map((p) => {
+  const repeated = repeatedNames(pictures);
+  return pictures.map((p, i) => {
     try {
       if (!isAttachmentName(p.name)) throw new InvalidBodyError("not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots");
-      if (seen.has(p.name)) throw new InvalidBodyError("the file name is given twice");
-      seen.add(p.name);
       const parsed = parseMediaType(p.mediaType);
       if (parsed?.type.name !== "image") throw new UnsupportedTypeError(`send a picture: ${IMAGE_TYPES}`);
       if (p.body.length > config.maxImageBytes()) throw new ImageTooLargeError();
       if (!parsed.type.verify(p.body, parsed.ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
       parsed.type.checkBody(p.body);
       checkLine("alt", p.alt, MAX_ALT);
-      return { ...p, type: parsed.type, ext: parsed.ext };
+      return { ...p, type: parsed.type, ext: parsed.ext, key: repeated.has(p.name) ? `\0${i}` : p.name }; // a file name holds no control character
     } catch (e) {
       if (e instanceof NotefeedError) e.message = `attachment "${safeName(p.name)}": ${e.message}`;
       throw e;
@@ -285,20 +383,26 @@ function checkPictures(pictures: Picture[]): (Picture & { type: NoteType; ext: s
   });
 }
 
+const repeatedNames = (pictures: { name: string }[]) => new Set(pictures.map((p) => p.name).filter((n, i, all) => all.indexOf(n) !== i));
+
 // The text as it will be stored, checked before the pictures are: each picture's place holds a file name as long as its stored one will be.
 // The text is parsed once, here, in a worker (place.ts); the plan it returns is applied again with the stored file names.
-// The length is that of a new id (newNoteId).
-async function checkText(text: string, pictures: { name: string; ext: string }[]): Promise<ImagePlan> {
+// The length is that of a new id (newNoteId). A text that refers to a name sent more than once is refused: which picture it means is a guess.
+async function checkText(text: string, pictures: { name: string; ext: string; key: string }[]): Promise<ImagePlan> {
   const id = newNoteId();
-  const plan = await planInWorker(text, new Set(pictures.map((p) => p.name)));
-  checkMarkdown(applyImages(plan, new Map(pictures.map((p) => [p.name, `${id}.${p.ext}`]))));
+  const repeated = repeatedNames(pictures);
+  const found = await planInWorker(text, new Set([...pictures.map((p) => p.key), ...repeated]));
+  const named = found.edits.find((e) => repeated.has(e.name));
+  if (named) throw new InvalidBodyError(`attachment "${safeName(named.name)}": the text refers to a file name given more than once`);
+  const plan = { ...found, unused: found.unused.filter((n) => !repeated.has(n)) };
+  checkMarkdown(applyImages(plan, new Map(pictures.map((p) => [p.key, `${id}.${p.ext}`]))));
   return plan;
 }
 
 // Stores the pictures in order, then whatever `then` stores (given the stored notes and the map of file name to stored file); if
 // any write fails, the pictures stored so far are removed and the error is rethrown. A picture that can't be removed is logged by its
 // note id (never the feed: its name is the write key), so an operator can find the stray file. `dateOf(i)`: picture i's date.
-async function storeWithPictures<T>(feed: string, pictures: (Picture & { type: NoteType; ext: string })[], opts: NewNoteOptions, dateOf: (i: number) => Date, then: (stored: Note[], sent: Map<string, string>, readId: string | null) => Promise<T>): Promise<T> {
+async function storeWithPictures<T>(feed: string, pictures: Checked[], opts: NewNoteOptions, dateOf: (i: number) => Date, then: (stored: Note[], sent: Map<string, string>, readId: string | null) => Promise<T>): Promise<T> {
   const stored: Note[] = [];
   try {
     let readId: string | null = null;
@@ -307,7 +411,7 @@ async function storeWithPictures<T>(feed: string, pictures: (Picture & { type: N
       stored.push(made.note);
       readId = made.readId;
     }
-    return await then(stored, new Map(pictures.map((p, i) => [p.name, stored[i].file])), readId);
+    return await then(stored, new Map(pictures.map((p, i) => [p.key, stored[i].file])), readId);
   } catch (e) {
     await Promise.all(
       stored.map(async (n) => {
@@ -336,18 +440,17 @@ export async function postWithPictures(
   const { text, title, ...input } = await read();
   const pictures = checkPictures(input.pictures);
   await licenseForImages(feed, pictures.length > 0, newFeedKey(proved, exists, input.licenseKey), ip);
-  for (const p of pictures) await refuseBlocked(p.body);
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
   checkLine("title", title, MAX_NOTE_TITLE);
   const tags = checkTags(input.tags);
   const at = checkDate(input.date) ?? new Date();
   await recheck(feed, ip, access, proved, input.password);
-  await checkCap(feed, "markdown", text === undefined ? 0 : 1);
-  await checkCap(feed, "image", pictures.length);
+  await checkCaps(feed, { notes: (text === undefined ? 0 : 1) + pictures.length, images: pictures.length });
+  for (const p of pictures) p.body = await prepareImage(p.body, p.ext); // one at a time: a post never fills the queue alone
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
-  const opts = { sender, tags, wantedReadId };
+  const opts = { sender, tags, wantedReadId, draft: input.draft };
   const id = text === undefined ? undefined : newNoteId();
   const dateOf = (i: number) => new Date(Math.max(0, at.getTime() - pictures.length + i)); // never before 1970
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined, of: id }, dateOf, async (stored, sent, readId) => {
@@ -374,6 +477,7 @@ export async function editWithPictures(
   sender?: string,
 ): Promise<{ note: Note; pictures: Note[] }> {
   await admit(feed, ip, access);
+  await refuseRemovedNote(feed, id);
   // The note first, as on every other edit: a missing note is 404 and an image note 415 whatever its parts are.
   const note = await getNote(feed, id);
   if (!note) throw new NotFoundError("no such note");
@@ -381,12 +485,12 @@ export async function editWithPictures(
   const input = await read();
   const pictures = checkPictures(input.pictures);
   await licenseForImages(feed, pictures.length > 0, undefined, ip); // an edit's feed exists
-  for (const p of pictures) await refuseBlocked(p.body);
   const plan = await checkText(input.text, pictures);
   const tags = checkTags(input.tags);
-  await checkCap(feed, "image", pictures.length);
+  await checkCaps(feed, { notes: pictures.length, images: pictures.length });
+  for (const p of pictures) p.body = await prepareImage(p.body, p.ext);
   const before = new Date(note.date.getTime() - 1);
-  return storeWithPictures(feed, pictures, { sender, tags, of: id }, () => before, async (stored, sent) => {
+  return storeWithPictures(feed, pictures, { sender, tags, of: id, draft: note.draft }, () => before, async (stored, sent) => {
     const edited = await replaceContent(feed, id, encoder.encode(applyImages(plan, sent)), MARKDOWN_TYPE);
     if (!edited) throw new NotFoundError("no such note");
     return { note: edited, pictures: stored };

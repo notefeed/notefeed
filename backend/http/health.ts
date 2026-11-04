@@ -1,9 +1,10 @@
 // GET /health: is this instance able to answer? Each part it needs is asked once: the storage by a lookup, the image store (when
 // NOTEFEED_IMAGES names one outside the database) and the key service (NOTEFEED_KMS) by their checks. 200 `{"status":"ok","checks":{…}}` when all answer, 503
-// `{"status":"unavailable","checks":{…}}` when one does not, with `checks` saying which. Open and without a switch: it says nothing but
+// `{"status":"unavailable","checks":{…}}` when one does not, with `checks` saying which, and either way the `version` it runs (#306). Open and without a switch: it says nothing but
 // that, and a probe has no credential. proxy.ts skips the lock for it, and the request log keeps it at `debug`
 // (backend/http/requestlog.ts), so a failure is logged here.
 import { logger } from "../log";
+import { runningVersion } from "../version";
 import { storage } from "../storage";
 import { createImageStore } from "../storage/images";
 import { keyServiceCheck } from "../storage/wrapper";
@@ -41,5 +42,5 @@ export async function healthRoute(): Promise<Response> {
   const [storageState, images, keys] = await Promise.all([storageCheck(), imagesCheck(), keyService && check("key service check failed", keyService)]);
   const checks = { storage: storageState, ...(images && { images }), ...(keys && { keys }) };
   const ok = Object.values(checks).every((c) => c === "ok");
-  return Response.json({ status: ok ? "ok" : "unavailable", checks }, { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+  return Response.json({ status: ok ? "ok" : "unavailable", checks, version: runningVersion().version }, { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
 }

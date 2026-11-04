@@ -49,7 +49,7 @@ _Avoid_: System feed, official feed
 ### Notes
 
 **Note**:
-One posted item in a feed: a piece of markdown text or an image, stored exactly as posted.
+One posted item in a feed: a piece of markdown text or an image, stored as posted (an image as the server processed it: shrunk, without metadata).
 _Avoid_: Post, message, entry, item
 
 **Image**:
@@ -59,6 +59,14 @@ _Avoid_: Picture, photo, media
 **Attachment**:
 An image posted together with a text note in the same request and referred to from that text.
 _Avoid_: Upload, embed
+
+**Post**:
+What was posted together: a text note and its attachments, or an image posted alone. The operator's takedown of one note removes its whole post.
+_Avoid_: Thread, group
+
+**Mark**:
+What the operator leaves where a post was removed for breaking the content rules: a note with the post's id and date and nothing of its content. Whoever can post to the feed can delete it; the post does not come back.
+_Avoid_: Placeholder, stub, tombstone (that is the record that keeps the id out of use)
 
 **Metadata**:
 What is known about a note besides its content: title, sender, tags, alt text, file name and date. It is never part of the content.
@@ -70,7 +78,11 @@ _Avoid_: Created at, timestamp, publish date
 
 **Scheduled note**:
 A note whose date is after now. Readers do not see it until its date; the owner sees it, marked as scheduled.
-_Avoid_: Draft, queued post
+_Avoid_: Queued post
+
+**Draft**:
+A note that readers do not see until it is published, whatever its date; the owner sees it on the feed, marked as a draft. Its pictures are drafts with it. Publishing changes only that: a draft dated in the future becomes a scheduled note.
+_Avoid_: Unpublished note, hidden note, private note
 
 **Sender**:
 The verified identity of the person who posted a note. Present only when the note was posted by someone signed in.

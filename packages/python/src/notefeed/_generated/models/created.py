@@ -5,6 +5,8 @@ from typing import Any, Self, TypeVar, cast
 
 from attrs import define as _attrs_define
 
+from ..types import UNSET, Unset
+
 T = TypeVar("T", bound="Created")
 
 
@@ -20,6 +22,8 @@ class Created:
         file (str): The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting
         file_url (None | str): Where the note's file is served, absolute, under the feed's read id (public like the read
             link); null while the feed has no read link
+        draft (bool | Unset): Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do
+            not see it, or its file, until it is published
     """
 
     id: str
@@ -28,6 +32,7 @@ class Created:
     read_url: None | str
     file: str
     file_url: None | str
+    draft: bool | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         id = self.id
@@ -44,6 +49,8 @@ class Created:
         file_url: None | str
         file_url = self.file_url
 
+        draft = self.draft
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -56,6 +63,8 @@ class Created:
                 "file_url": file_url,
             }
         )
+        if draft is not UNSET:
+            field_dict["draft"] = draft
 
         return field_dict
 
@@ -84,6 +93,8 @@ class Created:
 
         file_url = _parse_file_url(d.pop("file_url"))
 
+        draft = d.pop("draft", UNSET)
+
         created = cls(
             id=id,
             url=url,
@@ -91,6 +102,7 @@ class Created:
             read_url=read_url,
             file=file,
             file_url=file_url,
+            draft=draft,
         )
 
         return created

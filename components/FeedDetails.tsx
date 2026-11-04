@@ -6,7 +6,7 @@ import { deleteFeed, updateFeed } from "@/app/_lib/api";
 import { danger, field, primary, secondary } from "@/components/styles";
 import { DisclosureRow, FieldRow, Group } from "@/components/SettingsRows";
 import { feedDetailsErrorMessage } from "@/app/_lib/messages";
-import { postFile, useApiForm } from "@/app/_lib/useApiForm";
+import { putFeedImage, useApiForm } from "@/app/_lib/useApiForm";
 
 // A feed's title image, title and description, and deleting it: plain forms to POST /<feed>/details and /delete.
 // After the profile, the Sharing group: the read id first, then `sharing` (the read link rows); then `posting` (from a script,
@@ -45,7 +45,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
     setImageError(undefined);
     setPending(true);
     setUploading(true);
-    const up = await postFile(feed, file);
+    const up = await putFeedImage(feed, file); // the feed's own image, not a post (#310)
     setUploading(false);
     if ("error" in up) {
       setImageError(up.error);

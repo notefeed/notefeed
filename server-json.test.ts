@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 
-// server.json describes the hosted MCP server to registries and directories (M8ven reads it): a remote, so no environment
+// server.json describes the hosted MCP server to registries and directories: a remote, so no environment
 // variables of its own. Its version moves with every release, as the client packages' do.
 const json = (path: string) => JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8"));
 

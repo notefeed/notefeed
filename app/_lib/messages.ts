@@ -42,10 +42,12 @@ const MESSAGES: Record<ErrorCode | "sign_in_failed", string> = {
   not_found: "Not found.",
   feed_exists: "This feed already exists, so it can't be given a password.",
   taken: "That read id is taken. Choose another.",
+  title_image: "This note's picture is the feed's title image. Choose another title image first, then make it a draft.",
   removed: "This feed was removed by the operator. Its name can't be used again.",
   blocked: "This image may not be posted here.",
   unreadable: UNREADABLE,
   unavailable: MAINTENANCE,
+  busy: "notefeed is busy with other pictures. Try again in {retry} seconds.",
   sign_in_failed: "Sign-in didn't work. Try again.",
 };
 
@@ -72,6 +74,23 @@ export function recoverErrorMessage(code: unknown, retry?: unknown): string | un
 }
 
 // The same, for giving an open feed a password (ADR 0044).
+// The new feed's "Create feed without a note" (#295).
+export function createErrorMessage(code: unknown, retry?: unknown): string | undefined {
+  if (code === "license_required") return "Creating a feed without a note needs a license key: enter one above.";
+  if (code === "feed_exists") return "This feed exists already.";
+  if (code === "invalid_body") return `The password must be ${PASSWORD_RULE}, and the license key a valid one.`;
+  return errorMessage(code, retry);
+}
+
+// What a password change on the settings page just did (#296), shown in the password row.
+export function passwordNotice(saved: unknown): string | undefined {
+  const others = "Scripts and other browsers need the new password from now on; this browser stays unlocked.";
+  if (saved === "password-set") return `Password set. ${others}`;
+  if (saved === "password-changed") return `Password changed. ${others}`;
+  if (saved === "password-recovered") return `New password set with the license key. ${others}`;
+  return undefined;
+}
+
 export function protectErrorMessage(code: unknown, retry?: unknown): string | undefined {
   if (code === "auth") return "Someone has set a password on this feed meanwhile.";
   if (code === "license_required") return "A feed password needs a license: put one on this feed under License first.";

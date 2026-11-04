@@ -68,7 +68,7 @@ describe("readNote and listNoteRefs", () => {
     await utimes(join(dir, "m.md"), 1, 1);
     expect((await readNote("f", "c", EXTS, all))?.date).toBe(Date.parse("2026-01-02T03:04:05Z"));
     expect((await readNote("f", "m", EXTS, all))?.date).toBe(1000);
-    expect(await listNoteRefs("f")).toEqual([{ id: "c", ext: "md", date: Date.parse("2026-01-02T03:04:05Z") }, { id: "m", ext: "md", date: 1000 }]);
+    expect(await listNoteRefs("f")).toEqual([{ id: "c", ext: "md", date: Date.parse("2026-01-02T03:04:05Z"), draft: false }, { id: "m", ext: "md", date: 1000, draft: false }]);
   });
   test("a feed of more notes than are read at once lists every one, in order", async () => {
     for (let i = 0; i < 130; i++) await writeNote("f", `n${i}`, "md", "x", {}, i);

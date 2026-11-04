@@ -3,14 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { config } from "./config";
-import { AuthError, InvalidBodyError, LicenseRequiredError, NotFoundError, TooManyAttemptsError } from "./errors";
+import { AuthError, FeedExistsError, InvalidBodyError, LicenseRequiredError, NotFoundError, RateLimitedError, TooManyAttemptsError } from "./errors";
 import { changePassword, createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, readIdOf, resetFeedsForTests } from "./feeds";
 import { authWait, resetRateLimitsForTests } from "./limits";
 import { countingKeys, hashKey } from "./licenseflow";
 import { freeTier, isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
-import { countNotes, createNote } from "./notes";
-import { deleteFeed, postNote, postWithPictures, setLicense } from "./posting";
+import { countNotes, createImageNote, createNote, listNotes } from "./notes";
+import { storage } from "./storage";
+import { createFeed, deleteFeed, postNote, postWithPictures, setLicense } from "./posting";
+import { png as pngOf } from "./testimages";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -32,7 +34,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+const png = pngOf(1);
 const text = (feed: string, body = "hi", password?: string, licenseKey?: string) =>
   postNote(feed, "ip", async () => ({ body: new TextEncoder().encode(body), mediaType: "text/markdown", password, licenseKey }), {});
 // A key as the checkout hands it out (22 characters of base64url).
@@ -68,6 +70,17 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       for (let i = 0; i < 5; i++) await createNote("f", `n${i}`, new Date(2026, 0, 1, 0, i));
       await text("f", "n5");
       expect(await countNotes("f", "markdown")).toBe(3);
+    });
+
+    test("a free feed counts every note against the cap, texts, images and the operator's marks, and drops the oldest of any kind", async () => {
+      await createImageNote("f", png, {}, new Date(2026, 0, 1, 0, 0)); // from before a license lapsed
+      await createNote("f", "taken down", new Date(2026, 0, 1, 0, 1));
+      const [down] = await listNotes("f");
+      await storage().takedownNotes("f", [{ id: down.id, ext: down.ext }], { date: down.date.getTime(), draft: false }, down.id);
+      await createNote("f", "kept", new Date(2026, 0, 1, 0, 2));
+      expect(await freeTier("f")).toEqual({ notes: 3, cap: 3 });
+      await text("f", "new");
+      expect((await listNotes("f")).map((n) => n.title || n.type)).toEqual(["new", "kept", "application/x-notefeed-removed"]);
     });
 
     test("a free feed's usage counts its text notes against the cap; a licensed feed has none", async () => {
@@ -217,6 +230,33 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       await setLicense("open", "other-ip", KEY, {});
       expect(await isLicensed("open")).toBe(true);
       expect(authWait("other-ip")).toBeNull(); // a right key costs nothing
+    });
+
+    test("createFeed: a feed without a note needs a license key here; it is made protected or open, licensed, and only once (#295)", async () => {
+      await licenses().createLicense({ keyHash: hashKey(KEY), providerRef: "sub_1", validUntil: null });
+      await expect(createFeed("p", "ip", { password: "Passw0rd!x" })).rejects.toBeInstanceOf(LicenseRequiredError);
+      await expect(createFeed("p", "ip", { password: "Passw0rd!x", licenseKey: "y".repeat(22) })).rejects.toBeInstanceOf(InvalidBodyError);
+      await expect(createFeed("p", "ip", { password: " padded ", licenseKey: KEY })).rejects.toBeInstanceOf(InvalidBodyError);
+      expect(await hasFeed("p")).toBe(false);
+      await createFeed("p", "ip", { password: "Passw0rd!x", licenseKey: ` ${KEY} `, readId: "my-read-id" });
+      expect([await hasFeed("p"), await protectedFeed("p"), await isLicensed("p"), await readIdOf("p"), await countNotes("p")]).toEqual([true, true, true, "my-read-id", 0]);
+      await expect(createFeed("p", "ip", { licenseKey: KEY })).rejects.toBeInstanceOf(FeedExistsError);
+      await licenses().createLicense({ keyHash: hashKey("o".repeat(22)), providerRef: "sub_2", validUntil: null });
+      await createFeed("open", "ip", { licenseKey: "o".repeat(22) });
+      expect([await protectedFeed("open"), await isLicensed("open")]).toEqual([false, true]);
+    });
+
+    test("writes to a licensed feed skip the per-IP post limit; a free or lapsed feed's still count (ADR 0046, #123)", async () => {
+      vi.stubEnv("NOTEFEED_RATE_LIMIT", "2");
+      resetRateLimitsForTests();
+      await createNote("paid", "first");
+      await license("paid");
+      for (let i = 0; i < 5; i++) await text("paid", `burst ${i}`);
+      await text("free", "one");
+      await text("free", "two");
+      await expect(text("free", "three")).rejects.toBeInstanceOf(RateLimitedError);
+      await licenses().update("sub_1", { status: "lapsed" });
+      await expect(text("paid", "after")).rejects.toBeInstanceOf(RateLimitedError);
     });
 
     test("an existing password keeps protecting a lapsed feed, but it cannot be changed", async () => {

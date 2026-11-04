@@ -4,20 +4,22 @@ import * as z from "zod";
 import { bearerOf, checkBearer, locked } from "./auth";
 import { config } from "./config";
 import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoundError, TooManyAttemptsError, UnsupportedTypeError } from "./errors";
-import { changePassword, checkFeedAccess } from "./feedlock";
+import { changePassword, checkFeedAccess, recoverPassword } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
-import { feedJson } from "./http/api";
+import { feedJson, licensesJson } from "./http/api";
 import { sender } from "./http/request";
-import { FeedJson, FreeTierJson } from "./http/schemas";
+import { FeedJson, FreeTierJson, LicensesJson } from "./http/schemas";
 import { clientIp } from "./limits";
+import { runningVersion } from "./version";
 import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
 import { logger } from "./log";
-import { checkLine, getNote, isScheduled, listNotes, MAX_NOTE_TITLE, type Note } from "./notes";
+import { checkLine, getNote, isDraft, isScheduled, listNotes, MAX_NOTE_TITLE, refuseRemovedNote, type Note } from "./notes";
 import { verify } from "./oauth/tokens";
+import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
 import { checkTags, TAG_RULE } from "./tags";
-import { checkDate, deleteFeed, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
+import { checkDate, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
 import { getStoredSettings } from "./feedsettings";
 import { feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
@@ -27,16 +29,23 @@ const SECRET_NOTE = "The feed name works like a password: anyone who knows it ca
 const feed = z.string().regex(FEED_RE);
 const password = z.string().optional();
 const PROTECTED = "A protected feed needs its password as password.";
+// Every picture is processed on the server (ADR 0049): an assistant should send the file it has, not shrink it first.
+const PICTURES = "Send a picture as it is, full size (up to 10 MiB, 100 megapixels): it is stored turned upright, at most 2560 px on its long side and without metadata (EXIF, GPS position). If the server answers busy, try again after a few seconds.";
+// Drafts (#265): what a post takes, and what its answer says.
+const DRAFT_POST = z.boolean().optional().describe("Post it as a draft: only whoever can post to the feed sees it (on the feed page, here, in the API); readers do not, its pictures neither, until edit_note publishes it with draft false.");
+const DRAFT_OUT = z.literal(true).optional().describe("Only present when the note was stored as a draft");
 const NoteSummary = z.object({
   id: z.string(),
   type: z.string(),
   title: z.string(),
   date: z.string().describe("The note's date: where it sits in the feed, and when readers see it"),
   scheduled: z.literal(true).optional().describe("Only present for a note dated in the future: readers do not see it until then"),
+  draft: z.literal(true).optional().describe("Only present for a draft: readers do not see it until it is published with edit_note's draft false"),
   url: z.string(),
   sender: z.string().optional(),
   tags: z.array(z.string()),
   unreadable: z.literal(true).optional().describe("A damaged note: its stored copy can't be decrypted, so its title and tags are empty and get_note refuses it. It can be deleted"),
+  removed: z.literal(true).optional().describe("The mark the operator left where a post was removed for breaking the content rules: it has the removed note's id and date and nothing else; get_note and edit_note refuse it. Deleting it works; the post does not come back"),
 });
 const NoteFull = NoteSummary.extend({ content: z.string().optional() }); // the text of a text type; a picture has none
 
@@ -57,36 +66,32 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
   };
 }
 
-// Every tool declares all four hints (directories such as OpenAI's refuse a tool that leaves one out). None reaches beyond this
-// notefeed: openWorldHint is false throughout. A delete is idempotent: deleting again changes nothing more.
-const READS = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
-const ADDS = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
-const CHANGES = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false };
-
+// Every tool declares all four hints, as booleans: directories such as OpenAI's refuse a tool that leaves one out. Only get_licenses
+// reaches beyond this notefeed: its plans come from the payment provider.
 function server(h: Headers): McpServer {
   const base = publicUrl(h);
-  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, date: n.date.toISOString(), ...(isScheduled(n) && { scheduled: true as const }), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }) });
+  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, date: n.date.toISOString(), ...(isScheduled(n) && { scheduled: true as const }), ...(isDraft(n) && { draft: true as const }), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }), ...(n.removed && { removed: true as const }) });
   // A reserved name must not reach the filesystem lookup, so it is checked first.
   const checkAccess = async (feed: string, password?: string) => {
     assertFeed(feed);
     await checkFeedAccess(feed, { password }, clientIp(h));
   };
-  const s = new McpServer({ name: "notefeed", version: "1.0.0" });
+  const s = new McpServer({ name: "notefeed", version: runningVersion().version }); // the instance's version (#306)
 
   // One file as a note: the type must be accepted and the bytes must be what it says (postNote checks that); a picture is size-limited.
-  const postBytes = async (feed: string, f: { type: string; data: string; title?: string; alt?: string; name?: string; tags?: string[] }, password: string | undefined) => {
+  const postBytes = async (feed: string, f: { type: string; data: string; title?: string; alt?: string; name?: string; tags?: string[]; draft?: boolean }, password: string | undefined) => {
     const parsed = parseMediaType(f.type);
     if (!parsed) throw new UnsupportedTypeError();
     const body = Buffer.from(f.data, "base64");
     if (parsed.type.name === "image" && body.length > config.maxImageBytes()) throw new ImageTooLargeError();
-    return postNote(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType, title: f.title, alt: f.alt, name: f.name, tags: f.tags }), { password }, sender(h));
+    return postNote(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType, title: f.title, alt: f.alt, name: f.name, tags: f.tags, draft: f.draft }), { password }, sender(h));
   };
   const fileUrl = (readId: string | null, file: string) => (readId ? base + imagePath(readId, file) : "");
 
   s.registerTool(
     "post_note",
     {
-      description: `Post a markdown note to a feed; the feed is created by its first note; a password given then protects the feed for good, and is refused on a feed that already exists. attachments are pictures posted with the note, each as a note of its own: write ![](name) in the markdown where one goes (a name with spaces as ![](<name with spaces>) or ![](name%20with%20spaces); a title after it is fine; an attachment the text never refers to is added at the end); all or nothing, a refusal posts nothing. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Post a markdown note to a feed; the feed is created by its first note; a password given then protects the feed for good, and is refused on a feed that already exists. attachments are pictures posted with the note, each as a note of its own: write ![](name) in the markdown where one goes (a name with spaces as ![](<name with spaces>) or ![](name%20with%20spaces); a title after it is fine; an attachment the text never refers to is added at the end); all or nothing, a refusal posts nothing. ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         markdown: z.string(),
@@ -95,16 +100,17 @@ function server(h: Headers): McpServer {
         password,
         tags: z.array(z.string()).optional().describe(`Labels for the note, e.g. ["ci","deploy"]: ${TAG_RULE}. Not verified; readers see them.`),
         date: z.string().optional().describe("The note's date, if not now: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC), any time from 1970 to 9999. The note takes its place in the feed by this time. A future time schedules the note: readers see it from then on."),
+        draft: DRAFT_POST,
         read_id: z.string().optional().describe("Only when this post creates the feed: its read id (3 to 64 characters of a-z, 0-9, - and _), random when left out. A short readable one is guessable. Fails if taken."),
         license_key: z.string().optional().describe("Only on an instance that sells licenses, when this post creates the feed: the key of the license to put on it, with or without a password (a feed password is for licensed feeds; with a password and no key the post fails with license_required). A key that is none or has lapsed creates nothing. Ignored on an existing feed: use update_feed's license_key."),
         attachments: z
-          .array(z.object({ name: z.string().refine(isAttachmentName, "Not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots").describe("What the markdown calls it: ![](name). Any single path segment (no / or \\; spaces allowed, written <name with spaces> or name%20with%20spaces in the markdown); unique"), type: z.string().describe(`The picture's media type: ${ACCEPTED_TYPES}`), data: z.string().describe("The picture's bytes, standard base64 (not URL-safe)"), alt: z.string().optional().describe("Alternative text (at most 500 characters, one line; control and text-direction override characters are refused)") }))
+          .array(z.object({ name: z.string().refine(isAttachmentName, "Not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots").describe("What the markdown calls it: ![](name). Any single path segment (no / or \\; spaces allowed, written <name with spaces> or name%20with%20spaces in the markdown); unique when the markdown refers to it, else pictures of the same name are appended"), type: z.string().describe(`The picture's media type: ${ACCEPTED_TYPES}`), data: z.string().describe("The picture's bytes, standard base64 (not URL-safe)"), alt: z.string().optional().describe("Alternative text (at most 500 characters, one line; control and text-direction override characters are refused)") }))
           .optional(),
       }),
-      outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
-      annotations: ADDS,
+      outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), draft: DRAFT_OUT, attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    guard(async ({ feed, markdown, title, name, password, tags, date, read_id, license_key, attachments = [] }) => {
+    guard(async ({ feed, markdown, title, name, password, tags, date, draft, read_id, license_key, attachments = [] }) => {
       // Buffer.from skips what is not base64, so the data is checked here; the rest of the checks are postWithPictures's.
       const pictures = attachments.map((a) => {
         const clean = a.data.replace(/\s/g, "");
@@ -112,9 +118,9 @@ function server(h: Headers): McpServer {
         if (body.toString("base64").replace(/=+$/, "") !== clean.replace(/=+$/, "")) throw new InvalidBodyError(`attachment "${safeName(a.name)}": data is not valid base64`);
         return { name: a.name, body, mediaType: a.type, alt: a.alt };
       });
-      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, name, tags, date, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
+      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
       const feedUrl = base + feedPath(feed);
-      return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
+      return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), ...(note.draft && { draft: true as const }), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
     }),
   );
 
@@ -124,7 +130,7 @@ function server(h: Headers): McpServer {
       description: `List a feed's notes, newest first, without their content. Pass the returned next as before for the next page. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, limit: z.number().int().min(1).max(100).default(20), before: z.string().optional(), tag: z.string().optional().describe("Only notes carrying this tag"), password }),
       outputSchema: z.object({ notes: z.array(NoteSummary), next: z.string().nullable() }),
-      annotations: READS,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, limit, before, tag, password }) => {
       await checkAccess(feed, password);
@@ -140,10 +146,11 @@ function server(h: Headers): McpServer {
       description: `Get one note with its content (the text of a text note; a picture has none, use its URL). ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, id: z.string(), password }),
       outputSchema: NoteFull,
-      annotations: READS,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, id, password }) => {
       await checkAccess(feed, password);
+      await refuseRemovedNote(feed, id);
       const note = await getNote(feed, id);
       if (!note) throw new NotFoundError("no such note");
       return ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });
@@ -153,7 +160,7 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "edit_note",
     {
-      description: `Replace a note's markdown, set its title, its tags or its date, or any of them (an empty title removes it: the title follows the text again; tags replace the whole list, an empty one removes them; a future date schedules the note); its id stays. At least one of markdown, title, tags and date. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Replace a note's markdown, set its title, its tags, its date or whether it is a draft, or any of them (an empty title removes it: the title follows the text again; tags replace the whole list, an empty one removes them; a future date schedules the note; draft false publishes a draft, draft true hides a note from readers again); its id stays. At least one of markdown, title, tags, date and draft. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         id: z.string(),
@@ -161,18 +168,19 @@ function server(h: Headers): McpServer {
         title: z.string().optional(),
         tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list, e.g. ["ci","done"]: ${TAG_RULE}. Empty removes them; left out keeps them.`),
         date: z.string().optional().describe("The note's new date: an ISO 8601 date and time with its offset or a date alone (midnight UTC), any time from 1970 to 9999. A future time schedules the note."),
+        draft: z.boolean().optional().describe("false publishes the note: readers see it from then on. true makes it a draft again, hidden from readers (refused while a picture of it is the feed's title image). Its pictures follow (a picture posted with a note can't be set on its own), and its date stays: a past date places it there, a future one schedules it."),
         password,
       }),
       outputSchema: NoteFull,
-      annotations: CHANGES,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, id, markdown, title, tags, date, password }) => {
-      if (markdown === undefined && title === undefined && tags === undefined && date === undefined) throw new InvalidBodyError("nothing to change: send markdown, title, tags, date or several");
+    guard(async ({ feed, id, markdown, title, tags, date, draft, password }) => {
+      if (markdown === undefined && title === undefined && tags === undefined && date === undefined && draft === undefined) throw new InvalidBodyError("nothing to change: send markdown, title, tags, date, draft or several");
       checkLine("title", title, MAX_NOTE_TITLE);
       if (tags !== undefined) checkTags(tags);
       checkDate(date); // before the content is replaced: a bad title, tag or date must not leave a half edit
       let note = markdown === undefined ? undefined : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), { password });
-      if (title !== undefined || tags !== undefined || date !== undefined) note = await editMeta(feed, id, clientIp(h), async () => ({ title, tags, date }), { password });
+      if (title !== undefined || tags !== undefined || date !== undefined || draft !== undefined) note = await editMeta(feed, id, clientIp(h), async () => ({ title, tags, date, draft }), { password });
       return ok({ ...summary(feed, note!), ...(note!.content !== undefined && { content: note!.content }) });
     }),
   );
@@ -183,7 +191,7 @@ function server(h: Headers): McpServer {
       description: `Permanently delete a note. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, id: z.string(), password }),
       outputSchema: z.object({ deleted: z.literal(true) }),
-      annotations: CHANGES,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, id, password }) => {
       await deleteNote(feed, id, clientIp(h), { password });
@@ -201,13 +209,25 @@ function server(h: Headers): McpServer {
       description: `Get a feed's title, description, title image, whether it is protected, its read link (null while it has no notes), whether readers see who posted, and, on a free feed where licenses are sold, its notes against the free cap. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, password }),
       outputSchema: FeedOut,
-      annotations: READS,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, password }) => {
       await checkAccess(feed, password);
       if (!(await hasFeed(feed))) throw new NotFoundError("no such feed");
       return ok(await feedJson(feed, h));
     }),
+  );
+
+  s.registerTool(
+    "get_licenses",
+    {
+      description:
+        "Only on an instance that sells licenses. What a license costs (plans, amounts in cents), where a person buys one (buy_url, the license page: the key comes after paying) and where buyers manage their purchases: cancelling, the payment method, invoices and their keys are at the payment provider (manage_url), signed in with the e-mail address they bought with. No license key opens that page. A key goes on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.",
+      inputSchema: z.object({}),
+      outputSchema: z.object(LicensesJson.shape),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    guard(async () => ok(await licensesJson(h))),
   );
 
   s.registerTool(
@@ -225,7 +245,7 @@ function server(h: Headers): McpServer {
         password,
       }),
       outputSchema: FeedOut,
-      annotations: CHANGES,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, title, description, image, read_id, license_key, new_password, password }) => {
       const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined;
@@ -250,12 +270,69 @@ function server(h: Headers): McpServer {
   );
 
   s.registerTool(
+    "create_feed",
+    {
+      description: `Create a feed without posting a note, to reserve its name (feeds are otherwise created by their first note). password protects it from its first moment; read_id gives it that read link. Where licenses are sold, license_key is required and goes on the new feed. A feed that exists is refused. Set its title and description afterwards with update_feed. ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        password: z.string().optional().describe("A password for the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Left out: an open feed."),
+        license_key: z.string().optional().describe("The key of the license to put on the new feed; required where licenses are sold."),
+        read_id: z.string().optional().describe("The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one."),
+      }),
+      outputSchema: FeedOut,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    guard(async ({ feed, password, license_key, read_id }) => {
+      await createFeed(feed, clientIp(h), { password, licenseKey: license_key, readId: read_id });
+      return ok(await feedJson(feed, h));
+    }),
+  );
+
+  s.registerTool(
+    "recover_feed_password",
+    {
+      description: `For a lost feed password, only on an instance that sells licenses: the key of the license on this feed proves ownership instead of the current password. new_password becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. From then on every call for the feed needs the new password; the read link stays open. A key that is not this feed's license is refused and counts as a failed attempt, like a wrong password. To change a password you know, use update_feed's new_password. ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        license_key: z.string().describe("The key of the license on this feed, from the receipt or the provider's portal."),
+        new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end. Left out or empty removes the password."),
+      }),
+      outputSchema: FeedOut,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    },
+    guard(async ({ feed, license_key, new_password }) => {
+      assertFeed(feed); // a reserved name must not reach the lookup
+      await recoverPassword(feed, license_key.trim(), new_password ?? "", clientIp(h));
+      return ok(await feedJson(feed, h));
+    }),
+  );
+
+  s.registerTool(
+    "set_feed_image",
+    {
+      description: `Set the feed's title image, shown in its header: the image as base64 in data, its media type in type (image/png, image/jpeg, image/gif or image/webp). It is the feed's own image, in no list (timeline, RSS, counts), so it is no post; a previous one set this way is deleted. To remove the title image, use update_feed with image "". To use a picture already posted, use update_feed's image instead. ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
+      inputSchema: z.object({ feed, type: z.string().describe("The image's media type"), data: z.string().describe("The image's bytes, base64"), password }),
+      outputSchema: FeedOut,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    guard(async ({ feed, type, data, password }) => {
+      const parsed = parseMediaType(type);
+      if (parsed?.type.name !== "image") throw new UnsupportedTypeError("a title image must be an image");
+      const body = Buffer.from(data, "base64");
+      if (body.length > config.maxImageBytes()) throw new ImageTooLargeError();
+      if (!body.length) throw new UnsupportedTypeError("data is empty");
+      await setFeedImage(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType }), { password });
+      return ok(await feedJson(feed, h));
+    }),
+  );
+
+  s.registerTool(
     "delete_feed",
     {
       description: `Permanently delete a feed with all its notes, settings, password and read link. There is no undo. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, password }),
       outputSchema: z.object({ deleted: z.literal(true) }),
-      annotations: CHANGES,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, password }) => {
       await deleteFeed(feed, clientIp(h), { password });
@@ -266,7 +343,7 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "post_file",
     {
-      description: `Post a file as a note, as base64 in data, with its media type in type: ${ACCEPTED_TYPES}. Nothing is guessed: the data must be what type says (an image has its format's signature, markdown is UTF-8). The feed is created by its first note. Returns the note's id, its file name and its public URL (public like the feed's read link). Pictures are stored as sent, EXIF included. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Post a file as a note, as base64 in data, with its media type in type: ${ACCEPTED_TYPES}. Nothing is guessed: the data must be what type says (an image has its format's signature, markdown is UTF-8). The feed is created by its first note. Returns the note's id, its file name and its public URL (public like the feed's read link). ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         type: z.string().describe("The file's media type"),
@@ -274,23 +351,22 @@ function server(h: Headers): McpServer {
         title: z.string().optional().describe("The note's title (at most 100 characters, one line; control and text-direction override characters are refused)"),
         alt: z.string().optional().describe("Alternative text of a picture (at most 500 characters, one line; control and text-direction override characters are refused)"),
         name: z.string().optional().describe("The file's original name"),
+        draft: DRAFT_POST,
         password,
       }),
-      outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string() }),
-      annotations: ADDS,
+      outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string(), draft: DRAFT_OUT }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    guard(async ({ feed, type, data, title, alt, name, password }) => {
-      const { note, readId } = await postBytes(feed, { type, data, title, alt, name }, password);
-      return ok({ id: note.id, file: note.file, url: fileUrl(readId, note.file) });
+    guard(async ({ feed, type, data, title, alt, name, draft, password }) => {
+      const { note, readId } = await postBytes(feed, { type, data, title, alt, name, draft }, password);
+      return ok({ id: note.id, file: note.file, url: fileUrl(readId, note.file), ...(note.draft && { draft: true as const }) });
     }),
   );
   return s;
 }
 
-// The SDK's default of 4 MiB would refuse a valid 3 MB picture (base64 is a third larger); 16 MiB holds the largest picture (10 MiB) in base64.
-// ponytail: one cap for every call; several large pictures in one call need a bigger one.
-const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
-
+// The SDK's default of 4 MiB would refuse a valid 3 MB picture (base64 is a third larger). Pictures are sent full size and shrunk here
+// (ADR 0049), so a call takes what Next's proxy passes on: several full-size photos in base64.
 // "auto" answers with one JSON body unless a tool emits mid-call notifications, which ours never do.
 const handler = createMcpHandler(({ requestInfo }) => server(requestInfo!.headers), { legacy: "reject", maxRequestBodySize: MAX_REQUEST_BYTES });
 

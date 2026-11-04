@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-import { ImageNote, MarkdownNote, UnreadableNote } from "@/backend";
+import { ImageNote, MarkdownNote, RemovedNote, UnreadableNote } from "@/backend";
 import { NoteArticle } from "./NoteArticle";
 import { NoteList } from "./NoteList";
 
@@ -102,4 +102,37 @@ test("a scheduled note's card says Scheduled for", () => {
   const page = renderToStaticMarkup(<NoteArticle note={mdNote({ id: "s1", markdown: "# Later", date: later })} back="/feed" />);
   expect(page).toContain(`Scheduled for ${when}`);
   expect(renderToStaticMarkup(<NoteArticle note={mdNote({ id: "p1", markdown: "# Earlier" })} back="/feed" />)).not.toContain("Scheduled");
+});
+
+test("a draft's card says Draft, beside Scheduled when it is both (#265)", () => {
+  const draft = (date = at0) => new MarkdownNote({ id: "d1", ext: "md", meta: {}, date, size: 7, draft: true }, "# Unready");
+  const html = list([draft(), mdNote({ id: "p1", markdown: "# Published" })]);
+  expect(html.match(/>Draft</g)).toHaveLength(1);
+  expect(html.indexOf(">Draft<")).toBeLessThan(html.indexOf("Published"));
+  const both = renderToStaticMarkup(<NoteArticle note={draft(new Date(Date.now() + 86_400_000))} back="/feed" />);
+  expect(both).toContain(">Draft<");
+  expect(both).toContain("Scheduled for");
+  expect(renderToStaticMarkup(<NoteArticle note={mdNote({ id: "p1", markdown: "# P" })} back="/feed" />)).not.toContain(">Draft<");
+});
+
+test("no Report link on a draft or a scheduled note: readers can't see them, nor can the operator by the read link (#327)", () => {
+  const report = { template: "https://r.example/?r={read_id}&n={note_id}&f={file}", readId: "rid" };
+  const draft = new MarkdownNote({ id: "d1", ext: "md", meta: {}, date: at0, size: 4, draft: true }, "# Hi");
+  const later = mdNote({ id: "s1", markdown: "# Hi", date: new Date(Date.now() + 86_400_000) });
+  const html = renderToStaticMarkup(<NoteList notes={[later, draft, mdNote({ id: "p1", markdown: "# Hi" })]} base="/feed" report={report} />);
+  expect(html.match(/>Report<\/a>/g)).toHaveLength(1);
+  expect(html).toContain("n=p1");
+  expect(renderToStaticMarkup(<NoteArticle note={draft} back="/feed" report={report} />)).not.toContain(">Report</a>");
+  expect(renderToStaticMarkup(<NoteArticle note={later} back="/feed" report={report} />)).not.toContain(">Report</a>");
+});
+
+test("the operator's mark (#159) says what happened, links the terms when there are some, and has no Report link", () => {
+  const at = new Date("2026-09-30T10:00:00Z");
+  const mark = new RemovedNote({ id: "m1", ext: "removed", meta: {}, date: at, size: 0 });
+  const report = { template: "https://r.example/?r={read_id}&n={note_id}&f={file}", readId: "rid" };
+  const html = renderToStaticMarkup(<NoteList notes={[mark]} base="/feed" imageBase="/r/rid/" report={report} terms />);
+  expect(html).toContain("Removed by the operator: this broke the content rules of this instance.");
+  expect(html).toMatch(/<a [^>]*href="\/terms"/);
+  expect(html).not.toContain("Report");
+  expect(renderToStaticMarkup(<NoteList notes={[mark]} base="/feed" />)).not.toContain('href="/terms"');
 });

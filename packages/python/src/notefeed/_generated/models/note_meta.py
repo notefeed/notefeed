@@ -25,12 +25,16 @@ class NoteMeta:
         date (str | Unset): An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`,
             `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to
             9999. A time after now schedules it: readers see it from then on. The note's attachments move with it.
+        draft (bool | Unset): true makes the note a draft, which readers do not see; false publishes it. Its attachments
+            follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future
+            one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)
     """
 
     title: str | Unset = UNSET
     alt: str | Unset = UNSET
     tags: list[str] | Unset = UNSET
     date: str | Unset = UNSET
+    draft: bool | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         title = self.title
@@ -43,6 +47,8 @@ class NoteMeta:
 
         date = self.date
 
+        draft = self.draft
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update({})
@@ -54,6 +60,8 @@ class NoteMeta:
             field_dict["tags"] = tags
         if date is not UNSET:
             field_dict["date"] = date
+        if draft is not UNSET:
+            field_dict["draft"] = draft
 
         return field_dict
 
@@ -68,11 +76,14 @@ class NoteMeta:
 
         date = d.pop("date", UNSET)
 
+        draft = d.pop("draft", UNSET)
+
         note_meta = cls(
             title=title,
             alt=alt,
             tags=tags,
             date=date,
+            draft=draft,
         )
 
         return note_meta

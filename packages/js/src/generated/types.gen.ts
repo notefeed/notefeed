@@ -10,7 +10,7 @@ export type Note = {
      */
     id: string;
     /**
-     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`
+     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)
      */
     type: string;
     /**
@@ -50,6 +50,10 @@ export type Note = {
      */
     scheduled?: true;
     /**
+     * Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note
+     */
+    draft?: true;
+    /**
      * The note's page in the web UI
      */
     url: string;
@@ -65,6 +69,10 @@ export type Note = {
      * Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note
      */
     unreadable?: true;
+    /**
+     * Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note
+     */
+    removed?: true;
 };
 
 export type NoteList = {
@@ -100,6 +108,10 @@ export type Created = {
      * Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link
      */
     file_url: string | null;
+    /**
+     * Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published
+     */
+    draft?: true;
 };
 
 /**
@@ -128,6 +140,10 @@ export type Posted = {
      */
     file_url: string | null;
     /**
+     * Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published
+     */
+    draft?: true;
+    /**
      * A multipart request's pictures, one per `file` part, in their order; absent for a raw body
      */
     attachments?: Array<Created>;
@@ -139,7 +155,7 @@ export type NoteEdited = {
      */
     id: string;
     /**
-     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`
+     * The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)
      */
     type: string;
     /**
@@ -179,6 +195,10 @@ export type NoteEdited = {
      */
     scheduled?: true;
     /**
+     * Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note
+     */
+    draft?: true;
+    /**
      * The note's page in the web UI
      */
     url: string;
@@ -194,6 +214,10 @@ export type NoteEdited = {
      * Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note
      */
     unreadable?: true;
+    /**
+     * Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note
+     */
+    removed?: true;
     /**
      * A multipart request's pictures, one per `file` part, in their order; absent for a raw body
      */
@@ -219,7 +243,7 @@ export type Error = {
     /**
      * Stable machine-readable code; absent only on a 500
      */
-    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'removed' | 'blocked' | 'unreadable' | 'unavailable';
+    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'title_image' | 'removed' | 'blocked' | 'unreadable' | 'unavailable' | 'busy';
 };
 
 export type NoteMeta = {
@@ -239,6 +263,10 @@ export type NoteMeta = {
      * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. The note's attachments move with it.
      */
     date?: string;
+    /**
+     * true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)
+     */
+    draft?: boolean;
 };
 
 export type PasswordJson = {
@@ -246,6 +274,32 @@ export type PasswordJson = {
      * The new password: 1 to 256 printable ASCII characters, with no space at the start or end
      */
     password: string;
+};
+
+export type RecoveryJson = {
+    /**
+     * The license key on this feed, as the checkout or the receipt gave it
+     */
+    key: string;
+    /**
+     * The new password: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out removes the password
+     */
+    password?: string;
+};
+
+export type CreateFeedJson = {
+    /**
+     * A password that protects the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out: an open feed
+     */
+    password?: string;
+    /**
+     * Where licenses are sold, required: the key of the license to put on the new feed
+     */
+    license_key?: string;
+    /**
+     * The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one
+     */
+    read_id?: string;
 };
 
 export type LicenseKey = {
@@ -280,11 +334,11 @@ export type FeedSettings = {
 
 export type FreeTier = {
     /**
-     * The feed's text notes now
+     * The feed's notes now: texts, images and the operator's marks alike
      */
     notes: number;
     /**
-     * How many text notes a free feed keeps; past it, each new note drops the oldest one
+     * How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind
      */
     cap: number;
 };
@@ -337,6 +391,50 @@ export type ReadFeed = {
      * The feed's title image (absolute URL, served under the read id), or null
      */
     image_url: string | null;
+};
+
+export type Licenses = {
+    /**
+     * What is sold right now, monthly then yearly; empty while the payment provider can't be read
+     */
+    plans: Array<{
+        /**
+         * How long one payment lasts; the license renews until cancelled
+         */
+        period: 'month' | 'year';
+        /**
+         * The plan's name, as the payment provider holds it
+         */
+        name: string;
+        /**
+         * The plan's description from the payment provider, possibly empty
+         */
+        description: string;
+        /**
+         * The price per period in the currency's smallest unit (cents)
+         */
+        amount: number;
+        /**
+         * ISO 4217 code, e.g. EUR
+         */
+        currency: string;
+        /**
+         * Whether the amount includes VAT
+         */
+        tax_included: boolean;
+    }>;
+    /**
+     * The license page: a person buys there, and gets the key after paying
+     */
+    buy_url: string;
+    /**
+     * The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it
+     */
+    manage_url: string;
+    /**
+     * How managing a purchase works, in a sentence to show a person
+     */
+    manage: string;
 };
 
 export type ListNotesData = {
@@ -438,6 +536,10 @@ export type PostNoteData = {
          * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. Empty is now.
          */
         'X-Note-Date'?: string;
+        /**
+         * `true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published
+         */
+        'X-Note-Draft'?: 'true' | 'false';
     };
     path: {
         /**
@@ -451,7 +553,7 @@ export type PostNoteData = {
 
 export type PostNoteErrors = {
     /**
-     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
+     * Invalid or reserved feed name; a blank note; a bad title, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
      */
     400: Error;
     /**
@@ -475,7 +577,7 @@ export type PostNoteErrors = {
      */
     410: Error;
     /**
-     * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB
+     * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB
      */
     413: Error;
     /**
@@ -491,7 +593,7 @@ export type PostNoteErrors = {
      */
     451: Error;
     /**
-     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     * `unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After
      */
     503: Error;
     /**
@@ -603,6 +705,10 @@ export type GetNoteErrors = {
      */
     404: Error;
     /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
+    /**
      * Too many wrong passwords from this client
      */
     429: Error;
@@ -647,7 +753,7 @@ export type PatchNoteData = {
 
 export type PatchNoteErrors = {
     /**
-     * Invalid or reserved feed name; nothing to change; a bad title, alt text, tag or date; too many tags; alt for a note that has none; bad JSON
+     * Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, date or draft; too many tags; alt for a note that has none; bad JSON
      */
     400: Error;
     /**
@@ -658,6 +764,14 @@ export type PatchNoteErrors = {
      * No such note
      */
     404: Error;
+    /**
+     * The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)
+     */
+    409: Error;
+    /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
     /**
      * Content-Type is not application/json
      */
@@ -714,7 +828,7 @@ export type EditNoteData = {
 
 export type EditNoteErrors = {
     /**
-     * Invalid or reserved feed name; a blank note; a multipart body with an unexpected part, no `text`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
+     * Invalid or reserved feed name; a blank note; a multipart body with an unexpected part, no `text`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
      */
     400: Error;
     /**
@@ -734,7 +848,11 @@ export type EditNoteErrors = {
      */
     404: Error;
     /**
-     * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
+    /**
+     * Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB
      */
     413: Error;
     /**
@@ -750,7 +868,7 @@ export type EditNoteErrors = {
      */
     451: Error;
     /**
-     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     * `unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After
      */
     503: Error;
     /**
@@ -874,6 +992,60 @@ export type GetFeedResponses = {
 
 export type GetFeedResponse = GetFeedResponses[keyof GetFeedResponses];
 
+export type CreateFeedData = {
+    body: CreateFeedJson;
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}';
+};
+
+export type CreateFeedErrors = {
+    /**
+     * Invalid or reserved feed name, bad JSON, a password that is not 1 to 256 printable ASCII characters, with no space at the start or end, a read id that is invalid, or a key that is none
+     */
+    400: Error;
+    /**
+     * A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)
+     */
+    402: Error;
+    /**
+     * The feed exists already (`feed_exists`), or the read id is taken (`taken`)
+     */
+    409: Error;
+    /**
+     * The operator removed this feed for good (`removed`): its name cannot be used again
+     */
+    410: Error;
+    /**
+     * Too many posts, or wrong keys, from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+    /**
+     * NOTEFEED_MAX_FEEDS reached
+     */
+    507: Error;
+};
+
+export type CreateFeedError = CreateFeedErrors[keyof CreateFeedErrors];
+
+export type CreateFeedResponses = {
+    /**
+     * The new feed
+     */
+    201: Feed;
+};
+
+export type CreateFeedResponse = CreateFeedResponses[keyof CreateFeedResponses];
+
 export type UpdateFeedData = {
     body: FeedSettings;
     headers?: {
@@ -929,6 +1101,137 @@ export type UpdateFeedResponses = {
 };
 
 export type UpdateFeedResponse = UpdateFeedResponses[keyof UpdateFeedResponses];
+
+export type RemoveFeedImageData = {
+    body?: never;
+    headers?: {
+        /**
+         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
+         */
+        'X-Feed-Password'?: string;
+    };
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/image';
+};
+
+export type RemoveFeedImageErrors = {
+    /**
+     * Invalid or reserved feed name
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * No such feed
+     */
+    404: Error;
+    /**
+     * Too many posts, or wrong passwords, from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type RemoveFeedImageError = RemoveFeedImageErrors[keyof RemoveFeedImageErrors];
+
+export type RemoveFeedImageResponses = {
+    /**
+     * The feed, without a title image
+     */
+    200: Feed;
+};
+
+export type RemoveFeedImageResponse = RemoveFeedImageResponses[keyof RemoveFeedImageResponses];
+
+export type SetFeedImageData = {
+    /**
+     * The note, a file: its bytes, of the type `Content-Type` declares
+     */
+    body: Blob | File;
+    headers?: {
+        /**
+         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
+         */
+        'X-Feed-Password'?: string;
+    };
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/image';
+};
+
+export type SetFeedImageErrors = {
+    /**
+     * Invalid or reserved feed name
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds
+     */
+    402: Error;
+    /**
+     * Image uploads are off on this instance (`NOTEFEED_IMAGE_UPLOADS=0`, code `images_off`): an image body, a picture replaced, or a multipart body with pictures. Stored pictures are still served
+     */
+    403: Error;
+    /**
+     * No such feed
+     */
+    404: Error;
+    /**
+     * An image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels
+     */
+    413: Error;
+    /**
+     * Not an image, or the body is not what it declares
+     */
+    415: Error;
+    /**
+     * Too many posts, or wrong passwords, from this client
+     */
+    429: Error;
+    /**
+     * An image the operator removed, which may not be posted again in any feed (`blocked`)
+     */
+    451: Error;
+    /**
+     * `unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After
+     */
+    503: Error;
+    /**
+     * NOTEFEED_MAX_IMAGES_PER_FEED reached
+     */
+    507: Error;
+};
+
+export type SetFeedImageError = SetFeedImageErrors[keyof SetFeedImageErrors];
+
+export type SetFeedImageResponses = {
+    /**
+     * The feed, with its new title image
+     */
+    200: Feed;
+};
+
+export type SetFeedImageResponse = SetFeedImageResponses[keyof SetFeedImageResponses];
 
 export type RemoveFeedPasswordData = {
     body?: never;
@@ -1037,6 +1340,56 @@ export type ChangeFeedPasswordResponses = {
 };
 
 export type ChangeFeedPasswordResponse = ChangeFeedPasswordResponses[keyof ChangeFeedPasswordResponses];
+
+export type RecoverFeedPasswordData = {
+    body: RecoveryJson;
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/password/recover';
+};
+
+export type RecoverFeedPasswordErrors = {
+    /**
+     * Invalid or reserved feed name, bad JSON, or a new password that is not 1 to 256 printable ASCII characters, with no space at the start or end
+     */
+    400: Error;
+    /**
+     * The key is not this feed's license, or the feed has no password
+     */
+    401: Error;
+    /**
+     * The key's license has lapsed, and a new password needs an active one (`license_required`)
+     */
+    402: Error;
+    /**
+     * Licenses are not sold on this instance, or the feed was deleted meanwhile
+     */
+    404: Error;
+    /**
+     * Too many wrong passwords or keys from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type RecoverFeedPasswordError = RecoverFeedPasswordErrors[keyof RecoverFeedPasswordErrors];
+
+export type RecoverFeedPasswordResponses = {
+    /**
+     * Set or removed; the old password and unlock cookies stop working
+     */
+    204: void;
+};
+
+export type RecoverFeedPasswordResponse = RecoverFeedPasswordResponses[keyof RecoverFeedPasswordResponses];
 
 export type DeleteFeedLicenseData = {
     body?: never;
@@ -1261,7 +1614,7 @@ export type GetReadNoteErrors = {
      */
     404: Error;
     /**
-     * The operator removed the feed this read id belonged to (`removed`)
+     * The operator removed the feed this read id belonged to, or this note (`removed`)
      */
     410: Error;
     /**
@@ -1280,6 +1633,31 @@ export type GetReadNoteResponses = {
 };
 
 export type GetReadNoteResponse = GetReadNoteResponses[keyof GetReadNoteResponses];
+
+export type GetLicensesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/licenses';
+};
+
+export type GetLicensesErrors = {
+    /**
+     * Licenses are not sold on this instance
+     */
+    404: Error;
+};
+
+export type GetLicensesError = GetLicensesErrors[keyof GetLicensesErrors];
+
+export type GetLicensesResponses = {
+    /**
+     * The plans, the license page and the provider's sign-in for buyers
+     */
+    200: Licenses;
+};
+
+export type GetLicensesResponse = GetLicensesResponses[keyof GetLicensesResponses];
 
 export type GetOpenApiData = {
     body?: never;

@@ -3,8 +3,10 @@ import type { ErrorCode } from "../../shared/errors";
 import {
   AuthError,
   BlockedImageError,
+  BusyError,
   EmptyNoteError,
   FeedExistsError,
+  TitleImageDraftError,
   ImagesOffError,
   LicenseRequiredError,
   ImageTooLargeError,
@@ -19,6 +21,7 @@ import {
   NotefeedError,
   RateLimitedError,
   RemovedFeedError,
+  RemovedNoteError,
   ReservedFeedError,
   UnreadableNoteError,
   UnsupportedTypeError,
@@ -39,8 +42,10 @@ const STATUS: [new (...args: never[]) => NotefeedError, number][] = [
   [ImagesOffError, 403],
   [NotFoundError, 404],
   [FeedExistsError, 409],
+  [TitleImageDraftError, 409],
   [ReadIdTakenError, 409],
   [RemovedFeedError, 410],
+  [RemovedNoteError, 410],
   [NoteTooLargeError, 413],
   [ImageTooLargeError, 413],
   [UnsupportedTypeError, 415],
@@ -48,6 +53,7 @@ const STATUS: [new (...args: never[]) => NotefeedError, number][] = [
   [BlockedImageError, 451],
   [LimitReachedError, 507],
   [UnreadableNoteError, 500],
+  [BusyError, 503],
 ];
 
 export const statusOf = (e: NotefeedError) => STATUS.find(([cls]) => e instanceof cls)?.[1] ?? 500;
@@ -66,7 +72,7 @@ export function errorReply(e: unknown): ErrorReply {
     return { status: 500, body: { error: "internal error" } };
   }
   noteOutcome(e.code);
-  const headers = e instanceof RateLimitedError ? { "Retry-After": String(e.retryAfter) } : undefined;
+  const headers = e instanceof RateLimitedError || e instanceof BusyError ? { "Retry-After": String(e.retryAfter) } : undefined;
   return { status: statusOf(e), body: { error: e.message, code: e.code }, headers };
 }
 

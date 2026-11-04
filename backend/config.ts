@@ -197,13 +197,10 @@ export const config = {
   operatorToken: () => (Buffer.byteLength(env("NOTEFEED_OPERATOR_TOKEN")) >= 32 ? env("NOTEFEED_OPERATOR_TOKEN") : ""),
   operatorTokenTooShort: () => env("NOTEFEED_OPERATOR_TOKEN") !== "" && Buffer.byteLength(env("NOTEFEED_OPERATOR_TOKEN")) < 32,
   maxNotesPerFeed: () => Math.max(0, int("NOTEFEED_MAX_NOTES_PER_FEED", 0)),
-  // Bytes per uploaded image; 0 or below means the default, and nothing above 10 MiB: Next's proxy buffers a request
-  // body only up to that, so a larger image would arrive cut. Images per feed: 0 or below, no cap.
-  maxImageBytes: () => Math.min(positive("NOTEFEED_MAX_IMAGE_BYTES", 5242880), 10485760),
+  // Bytes per uploaded image, as sent (it is stored shrunk, ADR 0049); 0 or below means the default, 10 MiB, which is also the
+  // most: a phone photo fits, and more is refused before it costs any processing. Images per feed: 0 or below, no cap.
+  maxImageBytes: () => Math.min(positive("NOTEFEED_MAX_IMAGE_BYTES", 10485760), 10485760),
   maxImagesPerFeed: () => Math.max(0, int("NOTEFEED_MAX_IMAGES_PER_FEED", 0)),
-  // The size the web pages shrink a picture to before uploading it (app/_lib/shrinkImage.ts), 1 MiB by default; "0" sends
-  // pictures as they are, below 0 means the default, and never more than NOTEFEED_MAX_IMAGE_BYTES (the server would refuse it).
-  shrinkImageBytes: () => (int("NOTEFEED_SHRINK_IMAGE_BYTES", 1048576) === 0 ? 0 : Math.min(positive("NOTEFEED_SHRINK_IMAGE_BYTES", 1048576), config.maxImageBytes())),
   // "0" refuses every image upload (API, MCP, web UI; an image note, a replaced one or a picture sent with a text) with
   // `images_off`; stored images keep being served. Anything else is on.
   imageUploads: () => env("NOTEFEED_IMAGE_UPLOADS").trim() !== "0",

@@ -9,6 +9,11 @@ import { verify } from "../oauth/tokens";
 import { publicUrl } from "../urls";
 import { errorResponse } from "./errors";
 
+// The cap for the web UI's plain forms that carry what was shared to notefeed (shared/share.ts): the login's `next` and the
+// unlock form's `share`. A share arrives in a URL, which Node takes up to 16 KiB of headers for; in a form body it is
+// percent-encoded once more, at most three times as long.
+export const FORM_WITH_SHARE_BYTES = 4096 + 3 * 16 * 1024;
+
 // Reads at most `max` bytes; null (and the stream cancelled) as soon as the body is larger. A body that ends
 // before the Content-Length it declared was cut short on its way (a proxy's buffer limit, a dropped
 // connection): null too, so it is never stored. Content-Length can be absent (chunked) or too large for
@@ -82,7 +87,8 @@ export function seeOther(location: string, headers: HeadersInit = {}): Response 
 export function errorRedirect(page: string, e: unknown): Response {
   if (!(e instanceof NotefeedError)) throw e;
   const retry = e instanceof RateLimitedError ? `&retry=${e.retryAfter}` : "";
-  return seeOther(`${page}${page.includes("?") ? "&" : "?"}error=${e.code}${retry}`);
+  const [path, hash] = page.split("#"); // the query goes before a fragment such as #access
+  return seeOther(`${path}${path.includes("?") ? "&" : "?"}error=${e.code}${retry}${hash ? `#${hash}` : ""}`);
 }
 
 // Scripts send the bearer password. The web UI sends a session cookie (password or identity) instead, accepted only from

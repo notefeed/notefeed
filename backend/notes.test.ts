@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { EmptyNoteError, InvalidBodyError, InvalidFeedError, NoteTooLargeError, ReservedFeedError } from "./errors";
 import { hasFeed } from "./feeds";
-import { changeDate, cleanName, countNotes, type ImageNote, createImageNote, createNote, createNoteOf, getNote, MARKDOWN, isValidId, listNotes, removeNote, replaceContent } from "./notes";
+import { changeDate, changeDraft, cleanName, countNotes, type ImageNote, createImageNote, createNote, createNoteOf, fileVisible, getNote, idsBeyond, isDraft, isScheduled, MARKDOWN, isValidId, listNotes, namedFile, removeNote, replaceContent } from "./notes";
 import { storage } from "./storage";
 
 let root: string;
@@ -400,4 +400,65 @@ test("cleanName strips control characters (C0, C1), text-direction overrides and
   expect(cleanName("a\u200eb 图.png")).toBe("a\u200eb 图.png");
   expect(cleanName("\u009b\u202e")).toBeUndefined();
   expect(cleanName("a".repeat(300))).toHaveLength(200);
+});
+
+// Drafts (#265): the owner's paths (no `asOf`) have them, every reader path (with `asOf`) never does.
+describe("drafts", () => {
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+  const text = (s: string) => new TextEncoder().encode(s);
+  const post = async (id: string, draft: boolean, date = at("2026-01-01T10:00:00Z")) => {
+    const { note: pic } = await createImageNote("test", png, { of: id, name: `${id}.png`, draft }, new Date(date.getTime() - 1));
+    const { note } = await createNoteOf("test", MARKDOWN, "md", text(`# ${id}`), { id, draft }, date);
+    return { note, pic };
+  };
+
+  test("a draft is listed for the owner and left out for a reader", async () => {
+    await post("published", false);
+    const { note } = await post("drafted", true, at("2026-01-02T10:00:00Z"));
+    const now = new Date();
+    const owner = await listNotes("test");
+    expect(owner.find((n) => n.id === note.id)?.draft).toBe(true);
+    expect(isDraft(owner.find((n) => n.id === note.id)!)).toBe(true);
+    expect((await listNotes("test", 50, undefined, undefined, undefined, false, now)).map((n) => n.id)).not.toContain(note.id);
+    expect(await countNotes("test")).toBe(4);
+    expect(await countNotes("test", undefined, now)).toBe(2);
+    expect(await idsBeyond("test", 1)).toHaveLength(3);
+  });
+
+  test("a reader's lookup of a draft is null", async () => {
+    const { note } = await post("drafted", true);
+    expect(await getNote("test", note.id, new Date())).toBeNull();
+    expect((await getNote("test", note.id))?.id).toBe(note.id);
+  });
+
+  test("a draft picture is no file a reader may have", async () => {
+    const { pic } = await post("drafted", true);
+    const now = new Date();
+    expect(await fileVisible("test", pic.file, now)).toBe(false);
+    expect(await namedFile("test", "drafted.png", now)).toBeNull();
+    await changeDraft("test", "drafted", false);
+    expect(await fileVisible("test", pic.file, now)).toBe(true);
+    expect(await namedFile("test", "drafted.png", now)).toBe(pic.file);
+  });
+
+  test("changeDraft takes the attachments along and keeps dates", async () => {
+    const { note, pic } = await post("t", false);
+    const { pic: other } = await post("u", false);
+    expect((await changeDraft("test", note.id, true))?.draft).toBe(true);
+    expect((await getNote("test", pic.id))?.draft).toBe(true);
+    expect((await getNote("test", other.id))?.draft).toBe(false);
+    expect((await getNote("test", note.id))?.date).toEqual(note.date);
+    expect((await getNote("test", pic.id))?.date).toEqual(pic.date);
+    await changeDraft("test", note.id, false);
+    expect((await getNote("test", note.id))?.draft).toBe(false);
+    expect((await getNote("test", pic.id))?.draft).toBe(false);
+    expect(await changeDraft("test", "nope", true)).toBeNull();
+  });
+
+  test("a draft dated in the future becomes scheduled when published", async () => {
+    const { note } = await post("later", true, new Date(Date.now() + 86_400_000));
+    const published = (await changeDraft("test", note.id, false))!;
+    expect([isDraft(published), isScheduled(published)]).toEqual([false, true]);
+    expect(await getNote("test", note.id, new Date())).toBeNull();
+  });
 });

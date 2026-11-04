@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
+import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -32,7 +32,7 @@ export const listNotes = <ThrowOnError extends boolean = false>(options: Options
 /**
  * Post a note
  *
- * The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most 102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS position stays in an image). Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. A refused multipart post that would have created a protected feed creates nothing.
+ * The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most 102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). Markdown is stored byte for byte. An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`. Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it), `X-Note-Draft` (`true`: a draft, which readers do not see until it is published). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is 400. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. A refused multipart post that would have created a protected feed creates nothing.
  */
 export const postNote = <ThrowOnError extends boolean = false>(options: Options<PostNoteData, ThrowOnError>): RequestResult<PostNoteResponses, PostNoteErrors, ThrowOnError> => (options.client ?? client).post<PostNoteResponses, PostNoteErrors, ThrowOnError>({
     bodySerializer: null,
@@ -83,7 +83,7 @@ export const patchNote = <ThrowOnError extends boolean = false>(options: Options
 /**
  * Replace a note's content
  *
- * The body is the new file, with the same rules as posting: a `Content-Type` that is one of the accepted types, a body that is what it declares. A note keeps its type, so the type must be the note's own (`415` otherwise). Id, creation time and metadata stay: the title of a markdown note without one set follows the new text. Change the title, alt text or tags with `PATCH`. Needs the feed's password if it has one, and counts against the post rate limit. Read links can't edit. A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. On a `PUT` the `text` part is required and the note must be a markdown note; the note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever the body holds.
+ * The body is the new file, with the same rules as posting: a `Content-Type` that is one of the accepted types, a body that is what it declares. A note keeps its type, so the type must be the note's own (`415` otherwise). An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`. Id, creation time and metadata stay: the title of a markdown note without one set follows the new text. Change the title, alt text or tags with `PATCH`. Needs the feed's password if it has one, and counts against the post rate limit. Read links can't edit. A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is 400. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. On a `PUT` the `text` part is required and the note must be a markdown note; the note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever the body holds.
  */
 export const editNote = <ThrowOnError extends boolean = false>(options: Options<EditNoteData, ThrowOnError>): RequestResult<EditNoteResponses, EditNoteErrors, ThrowOnError> => (options.client ?? client).put<EditNoteResponses, EditNoteErrors, ThrowOnError>({
     bodySerializer: null,
@@ -119,6 +119,21 @@ export const getFeed = <ThrowOnError extends boolean = false>(options: Options<G
 });
 
 /**
+ * Create a feed without posting a note
+ *
+ * Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. Where licenses are sold a license key is required and goes on the new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.
+ */
+export const createFeed = <ThrowOnError extends boolean = false>(options: Options<CreateFeedData, ThrowOnError>): RequestResult<CreateFeedResponses, CreateFeedErrors, ThrowOnError> => (options.client ?? client).post<CreateFeedResponses, CreateFeedErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Change a feed's settings
  *
  * Replaces both the title (at most 100 characters) and the description (at most 500); surrounding whitespace is trimmed and control and text-direction override characters are refused. `show_sender` (default true) shows who posted each note to readers; omitted leaves it as it is. `read_id` gives the feed another read link (3 to 64 characters: a-z, 0-9, - and _; empty for a random one): the old id is freed and answers like an unknown read id until another feed takes it, and the notes are not edited (a relative image link follows the new id, a full URL does not). A short readable read id is guessable, so protect the feed with a password if that matters. An instance can turn chosen read ids off (NOTEFEED_ALLOW_CUSTOM_IDS=0): then only an empty `read_id` is accepted. `image` is the file name `uploadImage` returned for this feed (title image), empty to remove it, or omitted to leave it as it is; any other value is a 400. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed that exists: it is created by its first note. Read links can't change settings.
@@ -129,6 +144,33 @@ export const updateFeed = <ThrowOnError extends boolean = false>(options: Option
     ...options,
     headers: {
         'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove the feed's title image
+ *
+ * The feed has no title image afterwards. One uploaded as the feed's own (setFeedImage) is deleted; a posted image that was the title image stays a post.
+ */
+export const removeFeedImage = <ThrowOnError extends boolean = false>(options: Options<RemoveFeedImageData, ThrowOnError>): RequestResult<RemoveFeedImageResponses, RemoveFeedImageErrors, ThrowOnError> => (options.client ?? client).delete<RemoveFeedImageResponses, RemoveFeedImageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/image',
+    ...options
+});
+
+/**
+ * Set the feed's title image
+ *
+ * Uploads the image (its bytes, of the type `Content-Type` declares) as the feed's own title image: it is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read API, counts), so it is no post. A previous title image uploaded this way is deleted; a posted image picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The feed must exist. An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`.
+ */
+export const setFeedImage = <ThrowOnError extends boolean = false>(options: Options<SetFeedImageData, ThrowOnError>): RequestResult<SetFeedImageResponses, SetFeedImageErrors, ThrowOnError> => (options.client ?? client).put<SetFeedImageResponses, SetFeedImageErrors, ThrowOnError>({
+    bodySerializer: null,
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/image',
+    ...options,
+    headers: {
+        'Content-Type': 'image/png',
         ...options.headers
     }
 });
@@ -152,6 +194,21 @@ export const removeFeedPassword = <ThrowOnError extends boolean = false>(options
 export const changeFeedPassword = <ThrowOnError extends boolean = false>(options: Options<ChangeFeedPasswordData, ThrowOnError>): RequestResult<ChangeFeedPasswordResponses, ChangeFeedPasswordErrors, ThrowOnError> => (options.client ?? client).put<ChangeFeedPasswordResponses, ChangeFeedPasswordErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/feeds/{feed}/password',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Recover a feed's password with its license key
+ *
+ * Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license on this feed proves ownership instead of the current password (ADR 0037). With a new password the feed gets it (needs an active license, like any password change); with none, or an empty one, the password is removed, which a lapsed license's key may do too. A key that is not this feed's license is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before the key is tried.
+ */
+export const recoverFeedPassword = <ThrowOnError extends boolean = false>(options: Options<RecoverFeedPasswordData, ThrowOnError>): RequestResult<RecoverFeedPasswordResponses, RecoverFeedPasswordErrors, ThrowOnError> => (options.client ?? client).post<RecoverFeedPasswordResponses, RecoverFeedPasswordErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/password/recover',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -205,6 +262,13 @@ export const listReadNotes = <ThrowOnError extends boolean = false>(options: Opt
  * Public, like the read link. A read id the operator removed is `410`.
  */
 export const getReadNote = <ThrowOnError extends boolean = false>(options: Options<GetReadNoteData, ThrowOnError>): RequestResult<GetReadNoteResponses, GetReadNoteErrors, ThrowOnError> => (options.client ?? client).get<GetReadNoteResponses, GetReadNoteErrors, ThrowOnError>({ url: '/api/v1/read/{readId}/notes/{id}', ...options });
+
+/**
+ * What licenses are sold, where to buy them and where to manage them
+ *
+ * Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license lifts a feed's free tier; a person buys it on `buy_url` and gets a key to put on a feed. Cancelling, the payment method and invoices are at the payment provider, where buyers sign in with the e-mail address they bought with (`manage_url`); no license key opens it (ADR 0050).
+ */
+export const getLicenses = <ThrowOnError extends boolean = false>(options?: Options<GetLicensesData, ThrowOnError>): RequestResult<GetLicensesResponses, GetLicensesErrors, ThrowOnError> => (options?.client ?? client).get<GetLicensesResponses, GetLicensesErrors, ThrowOnError>({ url: '/api/v1/licenses', ...options });
 
 /**
  * This API's OpenAPI document

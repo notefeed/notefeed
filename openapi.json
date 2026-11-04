@@ -24,6 +24,10 @@
       "description": "By the feed's read id. Public and read-only."
     },
     {
+      "name": "Licenses",
+      "description": "Where licenses are sold: what they cost, where to buy them and where buyers manage them. Public."
+    },
+    {
       "name": "Meta",
       "description": "About the API itself."
     }
@@ -33,7 +37,7 @@
       "post": {
         "operationId": "postNote",
         "summary": "Post a note",
-        "description": "The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most 102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS position stays in an image). Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. A refused multipart post that would have created a protected feed creates nothing.",
+        "description": "The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most 102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). Markdown is stored byte for byte. An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`. Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it), `X-Note-Draft` (`true`: a draft, which readers do not see until it is published). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is 400. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. A refused multipart post that would have created a protected feed creates nothing.",
         "tags": [
           "Feeds"
         ],
@@ -125,6 +129,19 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-Note-Draft",
+            "in": "header",
+            "required": false,
+            "description": "`true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -184,7 +201,7 @@
             }
           },
           "400": {
-            "description": "Invalid or reserved feed name; a blank note; a bad title, alt text, tags or `X-Note-Date`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`",
+            "description": "Invalid or reserved feed name; a blank note; a bad title, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`",
             "content": {
               "application/json": {
                 "schema": {
@@ -244,7 +261,7 @@
             }
           },
           "413": {
-            "description": "Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB",
+            "description": "Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB",
             "content": {
               "application/json": {
                 "schema": {
@@ -292,7 +309,7 @@
             }
           },
           "503": {
-            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "description": "`unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After",
             "headers": {
               "Retry-After": {
                 "description": "Seconds to wait before trying again",
@@ -541,6 +558,16 @@
               }
             }
           },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many wrong passwords from this client",
             "headers": {
@@ -582,7 +609,7 @@
       "put": {
         "operationId": "editNote",
         "summary": "Replace a note's content",
-        "description": "The body is the new file, with the same rules as posting: a `Content-Type` that is one of the accepted types, a body that is what it declares. A note keeps its type, so the type must be the note's own (`415` otherwise). Id, creation time and metadata stay: the title of a markdown note without one set follows the new text. Change the title, alt text or tags with `PATCH`. Needs the feed's password if it has one, and counts against the post rate limit. Read links can't edit. A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. On a `PUT` the `text` part is required and the note must be a markdown note; the note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever the body holds.",
+        "description": "The body is the new file, with the same rules as posting: a `Content-Type` that is one of the accepted types, a body that is what it declares. A note keeps its type, so the type must be the note's own (`415` otherwise). An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`. Id, creation time and metadata stay: the title of a markdown note without one set follows the new text. Change the title, alt text or tags with `PATCH`. Needs the feed's password if it has one, and counts against the post rate limit. Read links can't edit. A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is 400. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. On a `PUT` the `text` part is required and the note must be a markdown note; the note keeps its own title and tags, `X-Note-Tags` goes on the new pictures. A raw body ignores `X-Note-Tags`. The note is looked up first: a missing note is `404` and an image note `415` whatever the body holds.",
         "tags": [
           "Feeds"
         ],
@@ -689,7 +716,7 @@
             }
           },
           "400": {
-            "description": "Invalid or reserved feed name; a blank note; a multipart body with an unexpected part, no `text`, more than 10 files, a bad or repeated file name, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`",
+            "description": "Invalid or reserved feed name; a blank note; a multipart body with an unexpected part, no `text`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`",
             "content": {
               "application/json": {
                 "schema": {
@@ -738,8 +765,18 @@
               }
             }
           },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "413": {
-            "description": "Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB",
+            "description": "Markdown over 102400 bytes, or an image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels (each picture of a multipart body too), or a multipart body over 102400 bytes plus 10 images plus 64 KiB, and never over 64 MiB",
             "content": {
               "application/json": {
                 "schema": {
@@ -787,7 +824,7 @@
             }
           },
           "503": {
-            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "description": "`unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After",
             "headers": {
               "Retry-After": {
                 "description": "Seconds to wait before trying again",
@@ -882,7 +919,7 @@
             }
           },
           "400": {
-            "description": "Invalid or reserved feed name; nothing to change; a bad title, alt text, tag or date; too many tags; alt for a note that has none; bad JSON",
+            "description": "Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, date or draft; too many tags; alt for a note that has none; bad JSON",
             "content": {
               "application/json": {
                 "schema": {
@@ -903,6 +940,26 @@
           },
           "404": {
             "description": "No such note",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The note, or a picture posted with it, is the feed's title image, so it cannot become a draft (`title_image`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
             "content": {
               "application/json": {
                 "schema": {
@@ -1077,6 +1134,140 @@
       }
     },
     "/api/v1/feeds/{feed}": {
+      "post": {
+        "operationId": "createFeed",
+        "summary": "Create a feed without posting a note",
+        "description": "Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. Where licenses are sold a license key is required and goes on the new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedJson"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name, bad JSON, a password that is not 1 to 256 printable ASCII characters, with no space at the start or end, a read id that is invalid, or a key that is none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feed exists already (`feed_exists`), or the read id is taken (`taken`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The operator removed this feed for good (`removed`): its name cannot be used again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many posts, or wrong keys, from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "NOTEFEED_MAX_FEEDS reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "operationId": "getFeed",
         "summary": "Get a feed's settings",
@@ -1430,6 +1621,327 @@
         }
       }
     },
+    "/api/v1/feeds/{feed}/image": {
+      "put": {
+        "operationId": "setFeedImage",
+        "summary": "Set the feed's title image",
+        "description": "Uploads the image (its bytes, of the type `Content-Type` declares) as the feed's own title image: it is shown in the feed's header and stored as an image note, but in no list (timeline, RSS, the read API, counts), so it is no post. A previous title image uploaded this way is deleted; a posted image picked with `updateFeed`'s `image` stays a post. The same checks as posting a picture apply. The feed must exist. An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "X-Feed-Password",
+            "in": "header",
+            "required": false,
+            "description": "The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "The note, a file: its bytes, of the type `Content-Type` declares"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "The note, a file: its bytes, of the type `Content-Type` declares"
+              }
+            },
+            "image/gif": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "The note, a file: its bytes, of the type `Content-Type` declares"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "The note, a file: its bytes, of the type `Content-Type` declares"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The feed, with its new title image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Image uploads are off on this instance (`NOTEFEED_IMAGE_UPLOADS=0`, code `images_off`): an image body, a picture replaced, or a multipart body with pictures. Stored pictures are still served",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "An image over NOTEFEED_MAX_IMAGE_BYTES or 100 megapixels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not an image, or the body is not what it declares",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many posts, or wrong passwords, from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "451": {
+            "description": "An image the operator removed, which may not be posted again in any feed (`blocked`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`unavailable`: the key service is unreachable, the instance is down for maintenance. `busy`: too many images are being processed at the moment. Either way, try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "NOTEFEED_MAX_IMAGES_PER_FEED reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removeFeedImage",
+        "summary": "Remove the feed's title image",
+        "description": "The feed has no title image afterwards. One uploaded as the feed's own (setFeedImage) is deleted; a posted image that was the title image stays a post.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "X-Feed-Password",
+            "in": "header",
+            "required": false,
+            "description": "The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The feed, without a title image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many posts, or wrong passwords, from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/feeds/{feed}/password": {
       "put": {
         "operationId": "changeFeedPassword",
@@ -1627,6 +2139,125 @@
           },
           "429": {
             "description": "Too many wrong passwords from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feeds/{feed}/password/recover": {
+      "post": {
+        "operationId": "recoverFeedPassword",
+        "summary": "Recover a feed's password with its license key",
+        "description": "Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license on this feed proves ownership instead of the current password (ADR 0037). With a new password the feed gets it (needs an active license, like any password change); with none, or an empty one, the password is removed, which a lapsed license's key may do too. A key that is not this feed's license is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before the key is tried.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryJson"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Set or removed; the old password and unlock cookies stop working"
+          },
+          "400": {
+            "description": "Invalid or reserved feed name, bad JSON, or a new password that is not 1 to 256 printable ASCII characters, with no space at the start or end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The key is not this feed's license, or the feed has no password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The key's license has lapsed, and a new password needs an active one (`license_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Licenses are not sold on this instance, or the feed was deleted meanwhile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong passwords or keys from this client",
             "headers": {
               "Retry-After": {
                 "description": "Seconds to wait before trying again",
@@ -2152,7 +2783,7 @@
             }
           },
           "410": {
-            "description": "The operator removed the feed this read id belonged to (`removed`)",
+            "description": "The operator removed the feed this read id belonged to, or this note (`removed`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2171,6 +2802,39 @@
                 }
               }
             },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/licenses": {
+      "get": {
+        "operationId": "getLicenses",
+        "summary": "What licenses are sold, where to buy them and where to manage them",
+        "description": "Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license lifts a feed's free tier; a person buys it on `buy_url` and gets a key to put on a feed. Cancelling, the payment method and invoices are at the payment provider, where buyers sign in with the e-mail address they bought with (`manage_url`); no license key opens it (ADR 0050).",
+        "tags": [
+          "Licenses"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The plans, the license page and the provider's sign-in for buyers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Licenses"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Licenses are not sold on this instance",
             "content": {
               "application/json": {
                 "schema": {
@@ -2222,7 +2886,7 @@
           },
           "type": {
             "type": "string",
-            "description": "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`"
+            "description": "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)"
           },
           "file": {
             "type": "string",
@@ -2273,6 +2937,11 @@
             "type": "boolean",
             "const": true
           },
+          "draft": {
+            "description": "Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note",
+            "type": "boolean",
+            "const": true
+          },
           "url": {
             "type": "string",
             "format": "uri",
@@ -2294,6 +2963,11 @@
           },
           "unreadable": {
             "description": "Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note",
+            "type": "boolean",
+            "const": true
+          },
+          "removed": {
+            "description": "Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note",
             "type": "boolean",
             "const": true
           }
@@ -2379,6 +3053,11 @@
               }
             ],
             "description": "Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"
+          },
+          "draft": {
+            "description": "Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published",
+            "type": "boolean",
+            "const": true
           }
         },
         "required": [
@@ -2436,6 +3115,11 @@
             ],
             "description": "Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"
           },
+          "draft": {
+            "description": "Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published",
+            "type": "boolean",
+            "const": true
+          },
           "attachments": {
             "description": "A multipart request's pictures, one per `file` part, in their order; absent for a raw body",
             "type": "array",
@@ -2465,7 +3149,7 @@
           },
           "type": {
             "type": "string",
-            "description": "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`"
+            "description": "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)"
           },
           "file": {
             "type": "string",
@@ -2516,6 +3200,11 @@
             "type": "boolean",
             "const": true
           },
+          "draft": {
+            "description": "Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note",
+            "type": "boolean",
+            "const": true
+          },
           "url": {
             "type": "string",
             "format": "uri",
@@ -2537,6 +3226,11 @@
           },
           "unreadable": {
             "description": "Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note",
+            "type": "boolean",
+            "const": true
+          },
+          "removed": {
+            "description": "Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note",
             "type": "boolean",
             "const": true
           },
@@ -2609,10 +3303,12 @@
               "not_found",
               "feed_exists",
               "taken",
+              "title_image",
               "removed",
               "blocked",
               "unreadable",
-              "unavailable"
+              "unavailable",
+              "busy"
             ]
           }
         },
@@ -2642,6 +3338,10 @@
           "date": {
             "type": "string",
             "description": "An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. The note's attachments move with it."
+          },
+          "draft": {
+            "description": "true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)",
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -2657,6 +3357,41 @@
         "required": [
           "password"
         ],
+        "additionalProperties": false
+      },
+      "RecoveryJson": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The license key on this feed, as the checkout or the receipt gave it"
+          },
+          "password": {
+            "description": "The new password: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out removes the password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "CreateFeedJson": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "description": "A password that protects the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out: an open feed",
+            "type": "string"
+          },
+          "license_key": {
+            "description": "Where licenses are sold, required: the key of the license to put on the new feed",
+            "type": "string"
+          },
+          "read_id": {
+            "description": "The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one",
+            "type": "string"
+          }
+        },
         "additionalProperties": false
       },
       "LicenseKey": {
@@ -2709,13 +3444,13 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
-            "description": "The feed's text notes now"
+            "description": "The feed's notes now: texts, images and the operator's marks alike"
           },
           "cap": {
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991,
-            "description": "How many text notes a free feed keeps; past it, each new note drops the oldest one"
+            "description": "How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind"
           }
         },
         "required": [
@@ -2823,6 +3558,80 @@
           "title",
           "description",
           "image_url"
+        ],
+        "additionalProperties": false
+      },
+      "Licenses": {
+        "type": "object",
+        "properties": {
+          "plans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "period": {
+                  "type": "string",
+                  "enum": [
+                    "month",
+                    "year"
+                  ],
+                  "description": "How long one payment lasts; the license renews until cancelled"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The plan's name, as the payment provider holds it"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "The plan's description from the payment provider, possibly empty"
+                },
+                "amount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "The price per period in the currency's smallest unit (cents)"
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 code, e.g. EUR"
+                },
+                "tax_included": {
+                  "type": "boolean",
+                  "description": "Whether the amount includes VAT"
+                }
+              },
+              "required": [
+                "period",
+                "name",
+                "description",
+                "amount",
+                "currency",
+                "tax_included"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What is sold right now, monthly then yearly; empty while the payment provider can't be read"
+          },
+          "buy_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The license page: a person buys there, and gets the key after paying"
+          },
+          "manage_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it"
+          },
+          "manage": {
+            "type": "string",
+            "description": "How managing a purchase works, in a sentence to show a person"
+          }
+        },
+        "required": [
+          "plans",
+          "buy_url",
+          "manage_url",
+          "manage"
         ],
         "additionalProperties": false
       }

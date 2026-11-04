@@ -16,7 +16,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
-  use: { trace: "retain-on-failure" },
+  // The service worker (public/sw.js) only takes shares; the share project allows it, the rest run without it, as before it existed.
+  use: { trace: "retain-on-failure", serviceWorkers: "block" },
   projects: [
     { name: "open", testMatch: "open.spec.ts", use: { baseURL: "http://localhost:3100" } },
     { name: "errors", testMatch: "errors.spec.ts", use: { baseURL: "http://localhost:3100" } },
@@ -29,9 +30,12 @@ export default defineConfig({
     // The "Report" link (issue #154) and the report page (issue #156): the open server has NOTEFEED_REPORT_URL and an endpoint
     // for the page (a stand-in the spec starts), the locked one (3101) has neither.
     { name: "report", testMatch: "report.spec.ts", use: { baseURL: "http://localhost:3100" } },
+    { name: "drafts", testMatch: "drafts.spec.ts", use: { baseURL: "http://localhost:3100" } },
     // A feed's page and its note bar on a phone (issues #202 and #203): the other projects run at desktop size.
     { name: "phone-webkit", testMatch: "phone.spec.ts", use: { ...devices["iPhone 13"], baseURL: "http://localhost:3100" } },
     { name: "phone-chromium", testMatch: "phone.spec.ts", use: { ...devices["Pixel 7"], baseURL: "http://localhost:3100" } },
+    // Pictures shared to the installed app (issue #148): the service worker takes the share target's POST.
+    { name: "share", testMatch: "share.spec.ts", use: { baseURL: "http://localhost:3100", serviceWorkers: "allow" } },
     { name: "locked", testMatch: "locked.spec.ts", use: { baseURL: "http://localhost:3101" } },
     // The locked server also runs with NOTEFEED_IMAGE_UPLOADS=0 (issue #152): the open one has to take pictures.
     { name: "images-off", testMatch: "images-off.spec.ts", use: { baseURL: "http://localhost:3101" } },
@@ -39,7 +43,7 @@ export default defineConfig({
     { name: "legal", testMatch: "legal.spec.ts" },
     { name: "licenses", testMatch: "licenses.spec.ts", use: { baseURL: "http://localhost:3104" } },
     // The same notes and pictures specs on the SQLite backend with its images in a folder (needs Node 22, like the app itself).
-    { name: "sqlite", testMatch: ["notes.spec.ts", "images.spec.ts"], use: { baseURL: "http://localhost:3102" } },
+    { name: "sqlite", testMatch: ["notes.spec.ts", "images.spec.ts", "drafts.spec.ts"], use: { baseURL: "http://localhost:3102" } },
     // The pictures spec with the images in an S3-compatible store (a stand-in started by e2e/s3-setup.ts). The built app's fetch is
     // Next's, not plain Node's, and only this run sends an upload through it.
     { name: "s3", testMatch: ["images.spec.ts", "operator.spec.ts"], use: { baseURL: "http://localhost:3103" } },

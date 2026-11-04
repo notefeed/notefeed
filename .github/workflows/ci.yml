@@ -7,6 +7,7 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # The storage contract suite also runs against a real PostgreSQL (backend/storage/sql/postgres.test.ts).
     services:
       postgres:
@@ -21,8 +22,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -52,13 +53,14 @@ jobs:
   # The committed openapi.json and the clients generated from it must match the route table.
   generate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: npm ci
       - run: npm run generate
       # --porcelain also catches files the generators added that aren't committed yet.
@@ -68,17 +70,28 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    # Normally 3–4 minutes: fail a hung run instead of holding the required checks.
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+      # On the runner, which has the compiler better-sqlite3 needs (it has no prebuilt binaries); the image has none.
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:e2e
+      # In Playwright's image, which has the browsers and their system libraries, at the version package-lock.json has:
+      # `playwright install --with-deps` fetched 119 MB from the Ubuntu mirror on every run, and on some runners that
+      # took half an hour (issue #289). The image is Ubuntu 24.04 like the runner, so the modules npm ci built work in it;
+      # the runner's Node 22 is mounted, the image's own is 24. --ipc=host: Chromium needs more than Docker's /dev/shm.
+      - name: Run npm run test:e2e in Playwright's image
+        run: |
+          version=$(node -p 'require("@playwright/test/package.json").version')
+          docker run --rm --ipc=host --user "$(id -u):$(id -g)" -e CI -e HOME=/tmp \
+            -v "$PWD:/w" -w /w -v "$(dirname "$(dirname "$(command -v node)")"):/opt/node:ro" \
+            "mcr.microsoft.com/playwright:v$version-noble" sh -c 'PATH=/opt/node/bin:$PATH npm run test:e2e'
       # Kept for a run that passed too: a test that failed once and passed on its retry leaves its trace only here.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report-${{ github.event_name }}
@@ -88,10 +101,11 @@ jobs:
   # The image has no shell (docs/adr/0028), so its entrypoint and health check are Node code that only a running container exercises.
   image-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
         with:
           context: .
           load: true
@@ -109,6 +123,9 @@ jobs:
           curl -fsS -H 'Content-Type: text/markdown' --data-binary 'smoke' http://localhost:3000/smoke-feed-4f9c2a7e1b
           owner=$(stat -c %u data/smoke-feed-4f9c2a7e1b/*.md)
           [ "$owner" = "$(id -u)" ] || { echo "::error::the note belongs to uid $owner, not $(id -u)"; exit 1; }
+          # A picture is processed by sharp's WebAssembly build, the only one in the image (ADR 0049).
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEklEQVQImWMwXpVmvCqNAUIBACKWBQ1W9VvXAAAAAElFTkSuQmCC' | base64 -d > pixel.png
+          curl -fsS -H 'Content-Type: image/png' --data-binary @pixel.png http://localhost:3000/smoke-feed-4f9c2a7e1b || { docker logs notefeed; exit 1; }
 
   # Main pushes build :main + :latest; vX.Y.Z tags build :X.Y.Z/:X.Y/:X + :latest and a
   # GitHub release (same scheme as the MCP repos). The client packages release from the
@@ -117,15 +134,16 @@ jobs:
     needs: [check, image-smoke]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Derived from the repository so an account rename doesn't break the push.
       - run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_NAME }}
           # branch push -> :main (+ :latest via the raw rule); v* tag -> semver tags + :latest (latest=auto)
@@ -135,28 +153,32 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # The version the instance shows (#306): the tag's (0.30.0) or `main`, and the commit.
+          build-args: |
+            NOTEFEED_VERSION=${{ steps.meta.outputs.version }}
+            NOTEFEED_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # Attached to the image in the registry (docs/self-hosting/security.md shows how to read them).
           sbom: true
           provenance: mode=max
       # The SBOM files of a release (CycloneDX). Written on main too, so a broken step shows before a tag needs it.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
       - name: SBOM of the npm dependencies
@@ -181,7 +203,7 @@ jobs:
           upload-artifact: false
           upload-release-assets: false
           dependency-snapshot: false
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: sbom/
@@ -195,10 +217,11 @@ jobs:
     needs: image
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -261,7 +284,7 @@ jobs:
           else
             gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag
           fi
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: sbom
           path: sbom
@@ -286,11 +309,31 @@ jobs:
           curl -sf -X POST https://notefeed.me/api/v1/feeds/releases/notes -H "Content-Type: text/markdown" \
             -H "X-Feed-Password: $PASSWORD" -H "X-Note-Title: notefeed ${TAG#v}" -H "X-Note-Tags: release,$TAG" \
             --data-binary @post-dated.md -o /dev/null -w "posted: %{http_code}\n"
+      # Each agent skill (plugin/skills/<name>/SKILL.md) on notefeed.me's reserved `skills` feed under the name `<name>.md` (#250, ADR 0045):
+      # https://notefeed.me/r/skills/<name>.md is always the newest, earlier releases stay in the feed. Tagged with the release, so a
+      # re-run posts nothing twice; without the secret, or before the feed exists, it is a notice, not a failed release.
+      - name: Post the skills to the skills feed
+        env:
+          PASSWORD: ${{ secrets.NOTEFEED_RESERVED_PASSWORD }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$PASSWORD" ]; then echo "::notice::NOTEFEED_RESERVED_PASSWORD is not set: skills not posted"; exit 0; fi
+          # Only into the reserved feed itself: a post to a missing one would try to create it.
+          status=$(curl -s -o /dev/null -w "%{http_code}" -H "X-Feed-Password: $PASSWORD" https://notefeed.me/api/v1/feeds/skills)
+          if [ "$status" != 200 ]; then echo "::notice::the skills feed answered $status: skills not posted"; exit 0; fi
+          found=$(curl -sf -H "X-Feed-Password: $PASSWORD" "https://notefeed.me/api/v1/feeds/skills/notes?tag=$TAG&limit=100")
+          for file in plugin/skills/*/SKILL.md; do
+            name=$(basename "$(dirname "$file")")
+            if jq -e --arg n "$name" '.notes[] | select(.tags | index($n))' <<< "$found" > /dev/null; then echo "$name: already posted"; continue; fi
+            curl -sf -X POST https://notefeed.me/api/v1/feeds/skills/notes -H "Content-Type: text/markdown" \
+              -H "X-Feed-Password: $PASSWORD" -H "X-Note-Name: $name.md" -H "X-Note-Title: $name (notefeed ${TAG#v})" \
+              -H "X-Note-Tags: skill,$name,$TAG" --data-binary @"$file" -o /dev/null -w "$name: %{http_code}\n" \
+              || echo "::warning::$name was not posted to the skills feed"
+          done
       # A short post about the release on the reserved `news` feed (https://notefeed.me/r/news), written by Claude from the
       # tag message and the release's pull requests: only what users notice, no post when there is nothing of the kind.
-      # The release is out either way, so a failure here is a warning, not a failed release.
+      # The release is out either way, so a failure here is a warning, not a failed release: the News workflow (news.yml) posts it again.
       - name: Post to the news
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -298,4 +341,4 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ] || [ -z "$NOTEFEED_RESERVED_PASSWORD" ]; then echo "::notice::a secret is not set: no news post"; exit 0; fi
-          scripts/release-news.sh "$TAG"
+          scripts/release-news.sh "$TAG" || echo "::warning::no news post for $TAG: see the step's log, then run the News workflow for $TAG"

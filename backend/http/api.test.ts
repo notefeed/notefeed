@@ -10,6 +10,7 @@ import { createNote } from "../notes";
 import { saveSettings } from "../feedsettings";
 import { API_PREFIX, dispatch } from "./api";
 import { rssRoute } from "./rss";
+import { png as pngOf } from "../testimages";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
@@ -40,6 +41,38 @@ describe("POST /feeds/{feed}/notes", () => {
   test("errors carry a code", async () => {
     expect(await json(await post("backups", "  "))).toEqual({ error: "note is empty", code: "empty_note" });
     expect(await json(await post("login", "x"))).toEqual({ error: "feed name is reserved", code: "reserved_feed" });
+  });
+});
+
+// A feed without a note (#295, ADR 0047). Licenses aren't sold here, so no key is needed.
+describe("POST /feeds/{feed}", () => {
+  test("creates an empty feed (201), protected with a password; a second time is 409; bad JSON or password is 400", async () => {
+    const made = await call("POST", "/feeds/empty", { body: "", headers: { "content-type": "application/json" } });
+    expect(made.status).toBe(201);
+    expect(await json(made)).toMatchObject({ name: "empty", protected: false, read_url: null });
+    expect((await call("POST", "/feeds/empty", { body: "{}", headers: { "content-type": "application/json" } })).status).toBe(409);
+    const locked = await call("POST", "/feeds/locked", { body: JSON.stringify({ password: "Passw0rd!x" }), headers: { "content-type": "application/json" } });
+    expect([locked.status, (await json(locked)).protected]).toEqual([201, true]);
+    expect((await post("locked", "# hi")).status).toBe(401);
+    expect((await post("locked", "# hi", { "x-feed-password": "Passw0rd!x" })).status).toBe(201);
+    expect((await call("POST", "/feeds/bad", { body: "not json", headers: { "content-type": "application/json" } })).status).toBe(400);
+    expect((await call("POST", "/feeds/bad", { body: JSON.stringify({ password: " padded " }), headers: { "content-type": "application/json" } })).status).toBe(400);
+  });
+});
+
+// The feed's own title image (#310): set, in no list, removed.
+describe("PUT and DELETE /feeds/{feed}/image", () => {
+  test("sets the title image without a post; DELETE removes it; a non-image is 415; a missing feed 404", async () => {
+    expect((await post("img", "# hi")).status).toBe(201);
+    const png = pngOf(1);
+    const set = await call("PUT", "/feeds/img/image", { body: png, headers: { "content-type": "image/png" } });
+    expect(set.status).toBe(200);
+    expect((await json(set)).image_url).toMatch(/\/r\/[^/]+\/[^/]+\.png$/);
+    expect((await json(await call("GET", "/feeds/img/notes"))).notes).toHaveLength(1);
+    expect((await call("PUT", "/feeds/img/image", { body: "# no", headers: { "content-type": "text/markdown" } })).status).toBe(415);
+    expect((await call("PUT", "/feeds/none/image", { body: png, headers: { "content-type": "image/png" } })).status).toBe(404);
+    const removed = await call("DELETE", "/feeds/img/image");
+    expect([removed.status, (await json(removed)).image_url]).toEqual([200, null]);
   });
 });
 

@@ -10,4 +10,4 @@ export {
   NoteTooLargeError,
   RateLimitedError,
 } from "./client.js";
-export type { Attachment, ClientOptions, Created, ErrorCode, Feed, FeedSettings, Note } from "./client.js";
+export type { Attachment, ClientOptions, Created, ErrorCode, Feed, FeedSettings, Licenses, Note } from "./client.js";

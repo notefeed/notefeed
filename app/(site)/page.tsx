@@ -6,6 +6,7 @@ import { OpenFeed } from "@/components/OpenFeed";
 import { NoteView } from "@/components/NoteView";
 import { checkFeed, feedPath, readNotice } from "@/backend";
 import { normalizeFeedInput, suggestFeedName } from "@/app/_lib/names";
+import { shareQuery } from "@/shared/share";
 
 export const dynamic = "force-dynamic";
 
@@ -15,15 +16,16 @@ const MESSAGES = {
 };
 
 export default async function Home({ searchParams }: PageProps<"/">) {
-  const { feed, deleted, share_title, share_text, share_url } = await searchParams;
+  const params = await searchParams;
+  const { feed, deleted } = params;
   // Shared to notefeed from another app (the share target in app/manifest.ts): the feed that is picked gets it, in its compose box.
-  const shared = Object.entries({ share_title, share_text, share_url }).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== "");
-  const shareQuery = shared.length ? `?${new URLSearchParams(shared)}` : "";
+  const shareQ = shareQuery(params);
+  const shared = [...new URLSearchParams(shareQ)];
   let error: string | undefined;
   if (typeof feed === "string") {
     const name = normalizeFeedInput(feed);
     const bad = checkFeed(name);
-    if (!bad) redirect(feedPath(name) + shareQuery);
+    if (!bad) redirect(feedPath(name) + shareQ);
     error = MESSAGES[bad];
   }
   // The operator's own words for everyone who opens the instance (backend/legal.ts); notefeed ships none.
@@ -41,11 +43,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <NoteView markdown={notice} />
         </aside>
       )}
-      {shared.length > 0 && <HomeFeeds query={shareQuery} label="Post what you shared to" />}
+      {shared.length > 0 && <HomeFeeds query={shareQ} label="Post what you shared to" />}
       <h1 className="text-3xl font-bold tracking-tight">Notes in, RSS out.</h1>
-      <p className="mb-6 mt-2 text-muted">
+      <p className="mt-2 text-muted">
         A feed is a list of markdown notes with a name. Post to it from this page, your phone, one curl command or an AI
         assistant over MCP, and follow it in any RSS reader through its read link, which shows the notes but not the name.
+      </p>
+      <p className="mb-6 mt-2 text-muted">
+        No accounts, no personal data, readers stay invisible:{" "}
+        <a href="https://docs.notefeed.me/values/" className="text-ink underline hover:text-carbon">
+          what notefeed stands for
+        </a>
+        .
       </p>
       <section aria-labelledby="open-feed" className={`${card} mb-8 p-5`}>
         <h2 id="open-feed" className="mb-1 text-[17px] font-bold">

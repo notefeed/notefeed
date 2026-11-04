@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { BackToFeed } from "@/components/BackToFeed";
 import { NoteArticle } from "@/components/NoteArticle";
 import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
+import { RemovedNote } from "@/components/RemovedNote";
 import { orDamaged } from "@/app/_lib/damaged";
-import { getReadNote, getReadPictures, instanceTitle, isRemovedReadId, readPath, reportTemplate } from "@/backend";
+import { getReadFeedAbout, getReadNote, getReadPictures, hasLegalPage, instanceTitle, isRemovedReadId, isRemovedReadNote, readPath, reportTemplate } from "@/backend";
 import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +26,14 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
       </AppShell>
     );
   }
+  // A note the operator removed (#159): its mark, or after its owner deleted the mark, the same words.
+  if (note?.removed || (!note && (await isRemovedReadNote(readId, id, asOf)))) {
+    return (
+      <AppShell>
+        <RemovedNote id={id} back={readPath(readId)} terms={await hasLegalPage("terms")} />
+      </AppShell>
+    );
+  }
   if (!note && (await isRemovedReadId(readId))) {
     return (
       <AppShell>
@@ -33,11 +43,13 @@ export default async function ReadNotePage({ params }: PageProps<"/r/[readId]/[i
   }
   if (!note) notFound();
 
+  const about = await getReadFeedAbout(readId);
   return (
-    <AppShell>
+    <AppShell about={<BackToFeed title={about.title || instanceTitle()} imageUrl={about.imageUrl} href={readPath(readId)} />} docked>
       <NoteArticle
         note={note}
         back={readPath(readId)}
+        backAside
         imageBase={`${readPath(readId)}/`}
         report={reportTemplate() ? { template: reportTemplate(), readId } : undefined}
         link={kindOf(note.type).attachments(note.content).length ? attachmentLinks(await getReadPictures(readId, asOf), readPath(readId)) : undefined}

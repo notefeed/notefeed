@@ -373,6 +373,19 @@ test("updateSetsTheDate", async () => {
   expect(JSON.parse(sent(0))).toEqual({ date: "2025-03-01" });
 });
 
+test("postDraftAndUpdatePublishOrDraft", async () => {
+  server.reply(201, CREATED_REPLY);
+  expect(await main(["post", "hi", "--draft", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect(server.requests[0].headers["x-note-draft"]).toBe("true");
+  server.reply(200, { ...NOTE, url: "https://n.example/inbox/i" });
+  expect(await main(["update", "i", "--publish", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect(await main(["update", "i", "--draft", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect([JSON.parse(sent(1)), JSON.parse(sent(2))]).toEqual([{ draft: false }, { draft: true }]);
+  const both = io();
+  expect(await main(["update", "i", "--draft", "--publish", "--url", server.url, "--feed", "inbox"], both.io)).toBe(2);
+  expect(both.out.stderr).toContain("--publish");
+});
+
 test("updateSetsTheTagsAsAWholeList", async () => {
   server.reply(200, { ...NOTE, url: "https://n.example/inbox/i" });
   expect(await main(["update", "i", "--tags", "done, ci", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);

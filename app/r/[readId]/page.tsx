@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { FeedAbout } from "@/components/FeedAbout";
 import { NoteList } from "@/components/NoteList";
 import { Removed } from "@/components/Removed";
-import { getReadFeed, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
+import { getReadFeed, hasLegalPage, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
 import { sortTags } from "@/shared/tags";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +44,7 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/r/[
       {notes.length === 0 ? (
         <p className="text-muted">{tag ? "No notes with this tag." : "No notes yet."}</p>
       ) : (
-        <NoteList notes={notes} base={readPath(readId)} imageBase={`${readPath(readId)}/`} report={reportTemplate() ? { template: reportTemplate(), readId } : undefined} />
+        <NoteList notes={notes} base={readPath(readId)} imageBase={`${readPath(readId)}/`} report={reportTemplate() ? { template: reportTemplate(), readId } : undefined} terms={await hasLegalPage("terms")} />
       )}
     </AppShell>
   );

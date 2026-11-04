@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Camera, Hash, Plus, Send, X } from "lucide-react";
+import { CalendarClock, Camera, Hash, PencilLine, Plus, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, primary } from "@/components/styles";
@@ -9,7 +9,8 @@ import { encodeHeaderValue } from "@/shared/headers";
 import { MarkdownInput } from "@/components/MarkdownInput";
 import { usePendingImages } from "@/components/usePendingImages";
 import { multipart, useApiForm } from "@/app/_lib/useApiForm";
-import { errorMessage, SENDER_NOTICE, TOO_MANY_PICTURES, withPictures } from "@/app/_lib/messages";
+import { errorMessage, IMAGES_OFF, SENDER_NOTICE, TOO_MANY_PICTURES, withPictures } from "@/app/_lib/messages";
+import { clearSharedFiles, readSharedFiles } from "@/app/_lib/sharedFiles";
 import { COMPOSE_FORM } from "@/components/ProtectFeed";
 import { addPending, removeReference, type Pending } from "@/components/pendingFiles";
 import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
@@ -24,7 +25,8 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // `errorCode` is the code behind `error`. `licensePage`: /license exists (ADR 0035), so that banner links to it.
 // `images` false: the instance takes no pictures.
 // `imageBase`: the feed's read link, for the preview's stored pictures. `initialTitle` and `initialText`: what was shared to
-// notefeed from another app (app/share), so the box opens with it.
+// notefeed from another app (the share target in app/manifest.ts), so the box opens with it. `shared`: pictures were shared too and wait in the browser
+// (app/_lib/sharedFiles.ts): the box takes them like photos from the camera button, and posting clears them there.
 // Below lg: the phone layout of components/AppShell.tsx.
 const NARROW = "(max-width: 63.98rem)";
 const subscribeNarrow = (onChange: () => void) => {
@@ -45,6 +47,7 @@ export function Compose({
   imageBase,
   initialTitle = "",
   initialText = "",
+  shared = false,
   licensePage = false,
 }: {
   feed: string;
@@ -58,6 +61,7 @@ export function Compose({
   imageBase?: string;
   initialTitle?: string;
   initialText?: string;
+  shared?: boolean;
   licensePage?: boolean;
 }) {
   const images = usePendingImages();
@@ -69,6 +73,7 @@ export function Compose({
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState(initialTitle);
   const [date, setDate] = useState(""); // a datetime-local value, the browser's time: empty is now, a later time schedules the note
+  const [draft, setDraft] = useState(false); // a draft (#265): on the feed page only, readers see it once it is published
 
   const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
   // The page remounts this box empty. With pictures only, the answer is the first picture's.
@@ -83,6 +88,7 @@ export function Compose({
       ...(password && licenseKey && { "X-License-Key": licenseKey }),
       ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
       ...(date && { "X-Note-Date": new Date(date).toISOString() }),
+      ...(draft && { "X-Note-Draft": "true" as const }),
     };
     return run(
       e,
@@ -96,7 +102,10 @@ export function Compose({
             : { body: new Blob([text], { type: "text/markdown" }), headers: { ...headers, "Content-Type": "text/markdown" } }),
         });
       },
-      ({ data }) => router.push(`${action}?posted=${data?.id}`),
+      async ({ data }) => {
+        if (shared) await clearSharedFiles();
+        router.push(`${action}?posted=${data?.id}`);
+      },
     );
   };
 
@@ -122,6 +131,19 @@ export function Compose({
     setText((t) => [t.trimEnd(), ...added.map((p) => `![](${p.token})`)].filter(Boolean).join("\n"));
     images.setPending([...images.pending, ...added]);
   };
+  // Taken once: React runs a mount effect twice in development, which would attach them twice.
+  const tookShared = useRef(false);
+  useEffect(() => {
+    if (!shared || tookShared.current) return;
+    tookShared.current = true;
+    void readSharedFiles().then((files) => {
+      if (!files.length) return;
+      setOpen(true);
+      if (imagesOn) addPhotos(files);
+      else setError(IMAGES_OFF);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
   const removePhoto = (p: Pending) => {
     URL.revokeObjectURL(p.preview);
     setText((t) => removeReference(t, p.token));
@@ -280,6 +302,11 @@ export function Compose({
                 </label>
                 <input id="note-date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={`${bare} text-[13px] ${date ? "" : "text-muted"}`} />
               </div>
+              <label className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 text-[13px]" title="A draft stays on this page: readers see it once it is published">
+                <PencilLine aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <input id="note-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
+                Draft
+              </label>
             </div>
           }
         >

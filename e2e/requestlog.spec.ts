@@ -18,7 +18,7 @@ test("a request through Next gets its line, with the handler's route and outcome
 
   await expect(async () => {
     const all = await lines();
-    const posted = all.filter((l) => l.msg === "note posted" && l.kind === "image" && l.bytes === png.length);
+    const posted = all.filter((l) => l.msg === "note posted" && l.kind === "image"); // its size is the stored one's, processed (ADR 0049)
     // The post came by /<feed>: the dispatcher named the operation, and the feed and the note were logged inside the same request.
     const mine = posted.map((p) => all.filter((l) => l.req === p.req)).find((group) => group.some((l) => l.msg === "feed created"));
     expect(mine?.find((l) => l.msg === "request")).toMatchObject({ component: "http", method: "POST", route: "/api/v1/feeds/[feed]/notes", status: 201 });

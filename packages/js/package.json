@@ -1,6 +1,6 @@
 {
   "name": "notefeed",
-  "version": "0.28.0",
+  "version": "0.34.0",
   "description": "Client and CLI for notefeed, a self-hosted inbox for markdown notes that you read back as RSS.",
   "license": "Apache-2.0",
   "author": "Marcel Bruckner",
@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "typescript": "^5.9",
+    "typescript": "^7.0",
     "vitest": "^4.1"
   }
 }

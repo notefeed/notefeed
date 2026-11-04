@@ -23,14 +23,14 @@ test("200 ok while the storage answers, never cached; no image store, no check o
   const res = await healthRoute();
   expect(res.status).toBe(200);
   expect(res.headers.get("cache-control")).toBe("no-store");
-  expect(await res.json()).toEqual({ status: "ok", checks: { storage: "ok" } });
+  expect(await res.json()).toEqual({ status: "ok", checks: { storage: "ok" }, version: "dev" });
 });
 
 test("503 unavailable when the storage throws, and nothing of the error in the answer", async () => {
   vi.spyOn(storageModule, "storage").mockReturnValue({ feedReadId: () => Promise.reject(new Error("connect ECONNREFUSED 10.0.0.5:5432")) } as unknown as storageModule.Storage);
   const res = await healthRoute();
   expect(res.status).toBe(503);
-  expect(await res.json()).toEqual({ status: "unavailable", checks: { storage: "unavailable" } });
+  expect(await res.json()).toEqual({ status: "unavailable", checks: { storage: "unavailable" }, version: "dev" });
 });
 
 test("503 when the storage is misconfigured", async () => {
@@ -42,14 +42,14 @@ test("with an image store: 200 when it answers too", async () => {
   imageStore(() => Promise.resolve());
   const res = await healthRoute();
   expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ status: "ok", checks: { storage: "ok", images: "ok" } });
+  expect(await res.json()).toEqual({ status: "ok", checks: { storage: "ok", images: "ok" }, version: "dev" });
 });
 
 test("with an image store that does not answer: 503, and the answer says which part", async () => {
   imageStore(() => Promise.reject(new Error("image store: check failed (no answer)")));
   const res = await healthRoute();
   expect(res.status).toBe(503);
-  expect(await res.json()).toEqual({ status: "unavailable", checks: { storage: "ok", images: "unavailable" } });
+  expect(await res.json()).toEqual({ status: "unavailable", checks: { storage: "ok", images: "unavailable" }, version: "dev" });
 });
 
 test("a wrong NOTEFEED_IMAGES fails the storage check and adds none of its own", async () => {
@@ -57,7 +57,7 @@ test("a wrong NOTEFEED_IMAGES fails the storage check and adds none of its own",
   storageModule.resetStorageForTests();
   const res = await healthRoute();
   expect(res.status).toBe(503);
-  expect(await res.json()).toEqual({ status: "unavailable", checks: { storage: "unavailable" } });
+  expect(await res.json()).toEqual({ status: "unavailable", checks: { storage: "unavailable" }, version: "dev" });
 });
 
 // The main key in OpenBao (#215): its own check, since every feed needs it.
@@ -83,5 +83,5 @@ test("with the key service: 503 while it does not answer, with checks.keys sayin
 test.skipIf(!openBaoAddr())("with the key service: 200 while it answers", async () => {
   await withKeyService((await openBaoForTests())!);
   const res = await healthRoute();
-  expect(await res.json()).toEqual({ status: "ok", checks: { storage: "ok", keys: "ok" } });
+  expect(await res.json()).toEqual({ status: "ok", checks: { storage: "ok", keys: "ok" }, version: "dev" });
 });

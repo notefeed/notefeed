@@ -3,7 +3,7 @@ import rehypeHighlight from "rehype-highlight";
 import type { PluggableList } from "unified";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
-import { kindOf, type KindName } from "@/shared/notekinds";
+import { kindOf, REMOVED_NOTE, type KindName } from "@/shared/notekinds";
 import { extractTitle } from "@/shared/notes";
 import { cleanLine } from "@/shared/links";
 import { headingsOf, type Heading } from "@/shared/markdown";
@@ -47,7 +47,7 @@ const markdown: Body = {
     return (
       text.trim() && (
         <div className={`note-card text-[15px] ${ownTitle(note) ? "mt-1" : ""}`}>
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} plugins={SERVER_PLUGINS} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} diagrams plugins={SERVER_PLUGINS} />
         </div>
       )
     );
@@ -77,12 +77,22 @@ function Contents({ headings }: { headings: Heading[] }) {
 const image: Body = {
   heading: (note) => note.title || undefined,
   Content({ note, place, imageBase }) {
-    if (place === "page") return <Picture note={note} imageBase={imageBase} className="max-w-full rounded-xl" />;
-    return <Picture note={note} imageBase={imageBase} className={`max-h-96 w-full rounded-xl object-cover ${note.title ? "mt-3" : ""}`} />;
+    if (place === "page") return <Picture note={note} imageBase={imageBase} className="max-h-[80vh] max-w-full rounded-xl object-contain" />;
+    return <Picture note={note} imageBase={imageBase} className={`max-h-96 w-full max-w-[40rem] rounded-xl object-cover ${note.title ? "mt-3" : ""}`} />;
   },
 };
 
-const BODIES: Record<KindName, Body> = { markdown, image };
+// The operator's mark (#159): what happened, nothing of what was there. The terms link is the list's and the page's (NoteList, RemovedNote).
+const removed: Body = {
+  heading: () => undefined,
+  Content: () => (
+    <p role="status" className="text-muted">
+      {REMOVED_NOTE}
+    </p>
+  ),
+};
+
+const BODIES: Record<KindName, Body> = { markdown, image, removed };
 
 // Where a click on a note goes, the same for every kind (ADR 0038, 0040): in a list, a click anywhere on a note's card opens that
 // note (components/NoteCard.tsx), so nothing in the card's content links but what its text links to; on a note's own page, an

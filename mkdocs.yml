@@ -65,6 +65,7 @@ extra_css:
 
 markdown_extensions:
   - admonition
+  - attr_list
   - tables
   - toc:
       permalink: true
@@ -80,6 +81,7 @@ validation:
 
 nav:
   - Home: index.md
+  - What notefeed stands for: values.md
   - Get started:
       - On notefeed.me: get-started/notefeed-me.md
       - On your own server: get-started/own-server.md
@@ -89,6 +91,7 @@ nav:
       - Web UI: using/web-ui.md
       - Posting notes: using/posting.md
       - Pictures: using/pictures.md
+      - Sharing from a phone: using/sharing.md
       - Feeds: using/feeds.md
       - Feed passwords: using/feed-passwords.md
       - Read links: using/read-links.md

@@ -6,7 +6,7 @@ A note is a file. Post its bytes to `POST /<feed>` and say in `Content-Type` wha
 curl -H "Content-Type: text/markdown" --data-binary @note.md https://notes.example.com/homelab-7f3k2q9x4m8wz
 ```
 
-The feed is created by its first note; there is nothing to set up. notefeed answers `201` with the note's `id`, its `url` in the web UI, the feed's `read_url` (the RSS link for readers, see [Read links](read-links.md)) and the note's `file` and `file_url`. The file on disk is the body exactly as posted. From Python or Node, the [client libraries](../integrations/clients.md) build the request for you.
+The feed is created by its first note; there is nothing to set up. To reserve a name before posting, create the feed without a note: `POST /api/v1/feeds/<feed>` with optional JSON `{"password", "license_key", "read_id"}`, the MCP tool `create_feed`, `createFeed` / `create_feed` in the client packages, or **Create feed without a note** in the web UI (on notefeed.me it needs a license key). notefeed answers `201` with the note's `id`, its `url` in the web UI, the feed's `read_url` (the RSS link for readers, see [Read links](read-links.md)) and the note's `file` and `file_url`. The file on disk is the body exactly as posted. From Python or Node, the [client libraries](../integrations/clients.md) build the request for you.
 
 !!! tip "Use `--data-binary`, not `-d`"
     `curl -d` strips newlines. And set the `Content-Type`: without it curl sends a form type, which notefeed refuses with `415`.
@@ -84,6 +84,24 @@ curl -X PATCH -H "Content-Type: application/json" -d '{"date": "2026-12-01T09:00
 ```
 
 In the web UI it is a field in the compose box (to schedule) and in a note's edit form. The [clients](../integrations/clients.md) take `date` when posting and updating, the CLI `--date`, MCP `post_note` and `edit_note` `date`.
+
+## Drafts
+
+A draft is a note on its feed that readers do not see: not on the read link, in RSS or in the read API, and its address and its pictures' files answer `404`. You see it on the feed page and in the API, marked as a draft, and edit it like any note. Post one with `X-Note-Draft: true`:
+
+```sh
+curl -H "Content-Type: text/markdown" -H "X-Note-Draft: true" --data-binary @note.md "$NOTEFEED_URL/$FEED"
+curl -X PATCH -H "Content-Type: application/json" -d '{"draft": false}' "$NOTEFEED_URL/api/v1/feeds/$FEED/notes/$ID"   # publish it
+```
+
+- Publishing changes nothing else: the note keeps its id, its links and its date. A date in the past places it there (in RSS too, below newer notes); a date in the future makes it a scheduled note. Set the date in the same `PATCH` if it should be now.
+- `{"draft": true}` makes a published note a draft again: readers stop seeing it.
+- Pictures posted with a draft are drafts too, and follow it when it is published or made a draft again. Such a picture's own state can't be changed (`400`): publish or hide its note.
+- A draft picture can't be the feed's title image, and a note whose picture is the title image can't become a draft (`409`, `title_image`).
+- A draft counts toward a feed's free note cap like any note.
+- A draft, like a scheduled note, has no **Report** link: no reader can see it to report it. It gets one once it is published.
+
+In the web UI it is the **Draft** box in the compose box and in a note's edit form. The [clients](../integrations/clients.md) take `draft` when posting and updating, the CLI `post --draft` and `update --draft` / `--publish`, MCP `post_note`, `post_file` and `edit_note` `draft`.
 
 ### Polling
 

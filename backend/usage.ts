@@ -26,19 +26,19 @@ export function countUsage(feeds: FeedUsage[], cap: number | null, now = Date.no
     if (f.protected) c.protected++;
     if (f.readLink) c.readLink++;
     if (f.lastWrite !== null) for (const [within, days] of [["1d", 1], ["7d", 7], ["30d", 30]] as const) if (f.lastWrite >= now - days * DAY_MS) c.active[within]++;
-    let markdown = 0;
+    let notes = 0; // every note counts against the free cap: texts, images, the operator's marks
     for (const [ext, n] of Object.entries(f.notes)) {
       const kind = typeForExt(ext)?.name;
       if (!kind) continue; // a file that is not a note
       const k = (c.notes[kind] ??= { count: 0, bytes: 0 });
       k.count += n.count;
       k.bytes += n.bytes;
-      if (kind === "markdown") markdown += n.count;
+      notes += n.count;
     }
     if (c.freeCap && cap !== null) {
-      if (markdown > cap) c.freeCap.over++;
-      else if (markdown === cap) c.freeCap.at++;
-      else if (markdown >= Math.ceil(cap * NEAR_CAP)) c.freeCap.near++;
+      if (notes > cap) c.freeCap.over++;
+      else if (notes === cap) c.freeCap.at++;
+      else if (notes >= Math.ceil(cap * NEAR_CAP)) c.freeCap.near++;
     }
   }
   return c;

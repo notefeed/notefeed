@@ -27,6 +27,8 @@ class Posted:
         file (str): The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting
         file_url (None | str): Where the note's file is served, absolute, under the feed's read id (public like the read
             link); null while the feed has no read link
+        draft (bool | Unset): Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do
+            not see it, or its file, until it is published
         attachments (list[Created] | Unset): A multipart request's pictures, one per `file` part, in their order; absent
             for a raw body
     """
@@ -37,6 +39,7 @@ class Posted:
     read_url: None | str
     file: str
     file_url: None | str
+    draft: bool | Unset = UNSET
     attachments: list[Created] | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
@@ -53,6 +56,8 @@ class Posted:
 
         file_url: None | str
         file_url = self.file_url
+
+        draft = self.draft
 
         attachments: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.attachments, Unset):
@@ -73,6 +78,8 @@ class Posted:
                 "file_url": file_url,
             }
         )
+        if draft is not UNSET:
+            field_dict["draft"] = draft
         if attachments is not UNSET:
             field_dict["attachments"] = attachments
 
@@ -105,6 +112,8 @@ class Posted:
 
         file_url = _parse_file_url(d.pop("file_url"))
 
+        draft = d.pop("draft", UNSET)
+
         _attachments = d.pop("attachments", UNSET)
         attachments: list[Created] | Unset = UNSET
         if _attachments is not UNSET:
@@ -121,6 +130,7 @@ class Posted:
             read_url=read_url,
             file=file,
             file_url=file_url,
+            draft=draft,
             attachments=attachments,
         )
 

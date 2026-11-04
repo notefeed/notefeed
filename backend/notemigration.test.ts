@@ -79,7 +79,7 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
     const id = "20260401T120000Z-0d9c3f2a-61b7-4e0c-9a51-3c7e2b8d4f10"; // a uuid v4: no time in it
     await put("one", id, "md", "v4");
     await migrateNoteIds();
-    expect(await refs("one")).toEqual([{ id: migratedId("one", id), ext: "md", date: Date.UTC(2026, 3, 1, 12, 0, 0) }]);
+    expect(await refs("one")).toEqual([{ id: migratedId("one", id), ext: "md", date: Date.UTC(2026, 3, 1, 12, 0, 0), draft: false }]);
   });
 
   run("references in the text follow", async () => {
@@ -213,7 +213,7 @@ test("a rename cut short after its new sidecar, before its link, is finished", a
   await put("one", id, "md", "half moved", { title: "T" });
   await writeFile(join(dir, "one", `.${migratedId("one", id)}.md.json`), "{}");
   expect(await migrateNoteIds()).toEqual({ feeds: 1, renamed: 1, rewritten: 0 });
-  expect(await refs("one")).toEqual([{ id: migratedId("one", id), ext: "md", date: AT }]);
+  expect(await refs("one")).toEqual([{ id: migratedId("one", id), ext: "md", date: AT, draft: false }]);
   expect(await storage().readNote("one", migratedId("one", id), ["md"], () => true)).toMatchObject({ meta: { title: "T" } });
 });
 

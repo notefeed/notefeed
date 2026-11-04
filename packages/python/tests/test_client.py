@@ -193,6 +193,7 @@ def test_a_base_url_with_a_prefix_and_trailing_slash_keeps_the_prefix(server):
         ("auth", 401, AuthError),
         ("rate_limited", 429, RateLimitedError),
         ("too_many_attempts", 429, RateLimitedError),
+        ("busy", 503, RateLimitedError),
         ("not_found", 404, NotFoundError),
         ("feed_limit", 507, LimitReachedError),
         ("note_limit", 507, LimitReachedError),
@@ -467,6 +468,52 @@ def test_set_feed_password_puts_it_with_the_current_one_for_a_protected_feed(ser
     assert (json.loads(second["body"]), second["headers"]["X-Feed-Password"]) == ({"password": "Other!pass1"}, "N3wPassw0rd!")
 
 
+def test_create_feed_posts_the_protection_and_returns_the_feed(server):
+    server.reply(201, FEED)
+    server.reply(201, FEED)
+    c = Client(server.url, "inbox", feed_password="fp")
+    assert c.create_feed(password="N3wPassw0rd!", license_key="k" * 22, read_id="my-read").name == "inbox"
+    c.create_feed(feed="other")
+    made, bare = server.requests
+    assert (made["method"], made["path"], json.loads(made["body"])) == ("POST", "/api/v1/feeds/inbox", {"password": "N3wPassw0rd!", "license_key": "k" * 22, "read_id": "my-read"})
+    assert "X-Feed-Password" not in made["headers"]
+    assert (bare["path"], json.loads(bare["body"])) == ("/api/v1/feeds/other", {})
+
+
+def test_licenses_gets_what_is_sold_and_where_buyers_manage_it_without_a_feed_password(server):
+    server.reply(200, {"plans": [{"period": "year", "name": "Yearly", "description": "", "amount": 1990, "currency": "EUR", "tax_included": True}], "buy_url": "https://n.test/license", "manage_url": "https://pay.test/login", "manage": "Sign in there."})
+    c = Client(server.url, "inbox", feed_password="fp")
+    got = c.licenses()
+    assert (got.buy_url, got.manage_url, got.manage) == ("https://n.test/license", "https://pay.test/login", "Sign in there.")
+    assert [(p.period.value, p.amount, p.tax_included) for p in got.plans] == [("year", 1990, True)]
+    (req,) = server.requests
+    assert (req["method"], req["path"]) == ("GET", "/api/v1/licenses")
+    assert "X-Feed-Password" not in req["headers"]
+
+
+def test_recover_feed_password_posts_the_key_and_the_new_password_without_a_feed_password(server):
+    server.reply(204, "")
+    server.reply(204, "")
+    c = Client(server.url, "inbox", feed_password="forgotten")
+    assert c.recover_feed_password("k" * 22, "N3wPassw0rd!") is None
+    c.recover_feed_password("k" * 22, feed="other")
+    set_, removed = server.requests
+    assert (set_["method"], set_["path"], json.loads(set_["body"])) == ("POST", "/api/v1/feeds/inbox/password/recover", {"key": "k" * 22, "password": "N3wPassw0rd!"})
+    assert "X-Feed-Password" not in set_["headers"]
+    assert (removed["path"], json.loads(removed["body"])) == ("/api/v1/feeds/other/password/recover", {"key": "k" * 22, "password": ""})
+
+
+def test_set_feed_image_puts_the_image_with_its_type_and_remove_deletes_it(server):
+    server.reply(200, FEED)
+    server.reply(200, FEED)
+    c = Client(server.url, "inbox", feed_password="fp")
+    assert c.set_feed_image(b"\x89PNG", "image/png").name == "inbox"
+    assert c.remove_feed_image(feed="other").name == "inbox"
+    put, delete = server.requests
+    assert (put["method"], put["path"], put["headers"]["Content-Type"], put["headers"]["X-Feed-Password"], put["body"]) == ("PUT", "/api/v1/feeds/inbox/image", "image/png", "fp", b"\x89PNG")
+    assert (delete["method"], delete["path"]) == ("DELETE", "/api/v1/feeds/other/image")
+
+
 def test_delete_feed_sends_delete_and_returns_none(server):
     server.reply(204, "")
     with Client(server.url, "inbox", feed_password="fp") as c:
@@ -641,3 +688,23 @@ def test_a_rate_limit_keeps_retry_after(server):
     with pytest.raises(RateLimitedError) as e:
         Client(server.url, "inbox").post("x", attachments=[Attachment("a.png", PNG, "image/png")])
     assert e.value.retry_after == 7
+
+
+def test_draft_goes_as_x_note_draft_on_a_post_and_in_the_patch_body(server):
+    c = Client(server.url, "inbox")
+    c.post("x", draft=True)
+    c.post("x ![](a.png)", draft=True, attachments=[Attachment("a.png", PNG, "image/png")])
+    c.post("x", draft=False)
+    assert [q["headers"].get("X-Note-Draft") for q in server.requests] == ["true", "true", None]
+    server.reply(200, note(10))
+    c.update("i", draft=False)
+    assert json.loads(server.requests[3]["body"]) == {"draft": False}
+
+
+def test_the_operators_mark_comes_through_a_list_as_removed(server):
+    mark = {**note(10), "type": "application/x-notefeed-removed", "title": "", "size": 0, "file_url": None, "removed": True}
+    del mark["content"]
+    server.reply(200, {"notes": [mark, note(9)], "next": None})
+    got = list(Client(server.url, "inbox").notes())
+    assert [n.removed is True for n in got] == [True, False]  # absent is UNSET, as for draft
+    assert got[0].file_url is None and got[0].type_ == "application/x-notefeed-removed"

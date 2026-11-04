@@ -18,7 +18,7 @@ class Note:
         id (str): The note's id: 22 random characters (base64url) for notes made here, older notes may have another
             form; any name without a dot for a file placed by hand. It says nothing about the note's date
         type_ (str): The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or
-            `image/webp`
+            `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)
         file (str): The note's file name, `<id>.<extension>`
         file_url (None | str): Where the note's file is served, absolute, under the feed's read id (public like the read
             link); null while the feed has no read link
@@ -36,12 +36,18 @@ class Note:
         name (str | Unset): The file name an image was posted with, when it came with one
         scheduled (bool | Unset): Present, and true, when the note's date is after now: it is stored, and readers see it
             from its date on. Absent for every other note
+        draft (bool | Unset): Present, and true, for a draft: only whoever can post to the feed sees it; readers do not,
+            until it is published (PATCH `draft: false`). Absent for every other note
         sender (None | str | Unset): Verified sign-in name of the poster; absent when the note was posted without a
             sign-in
         unreadable (bool | Unset): Present, and true, for a damaged note: its stored copy can't be decrypted. A list
             shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no
             content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other
             note
+        removed (bool | Unset): Present, and true, for the mark the operator left where a post was removed for breaking
+            the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an
+            empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit.
+            Deleting it works; the post does not come back. Absent for every other note
     """
 
     id: str
@@ -57,8 +63,10 @@ class Note:
     alt: str | Unset = UNSET
     name: str | Unset = UNSET
     scheduled: bool | Unset = UNSET
+    draft: bool | Unset = UNSET
     sender: None | str | Unset = UNSET
     unreadable: bool | Unset = UNSET
+    removed: bool | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         id = self.id
@@ -88,6 +96,8 @@ class Note:
 
         scheduled = self.scheduled
 
+        draft = self.draft
+
         sender: None | str | Unset
         if isinstance(self.sender, Unset):
             sender = UNSET
@@ -95,6 +105,8 @@ class Note:
             sender = self.sender
 
         unreadable = self.unreadable
+
+        removed = self.removed
 
         field_dict: dict[str, Any] = {}
 
@@ -119,10 +131,14 @@ class Note:
             field_dict["name"] = name
         if scheduled is not UNSET:
             field_dict["scheduled"] = scheduled
+        if draft is not UNSET:
+            field_dict["draft"] = draft
         if sender is not UNSET:
             field_dict["sender"] = sender
         if unreadable is not UNSET:
             field_dict["unreadable"] = unreadable
+        if removed is not UNSET:
+            field_dict["removed"] = removed
 
         return field_dict
 
@@ -160,6 +176,8 @@ class Note:
 
         scheduled = d.pop("scheduled", UNSET)
 
+        draft = d.pop("draft", UNSET)
+
         def _parse_sender(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -170,6 +188,8 @@ class Note:
         sender = _parse_sender(d.pop("sender", UNSET))
 
         unreadable = d.pop("unreadable", UNSET)
+
+        removed = d.pop("removed", UNSET)
 
         note = cls(
             id=id,
@@ -185,8 +205,10 @@ class Note:
             alt=alt,
             name=name,
             scheduled=scheduled,
+            draft=draft,
             sender=sender,
             unreadable=unreadable,
+            removed=removed,
         )
 
         return note

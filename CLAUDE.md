@@ -13,6 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `app/` is the Next.js UI and routes; all server logic is in `backend/` (ADR 0003), code used by both in `shared/`. Every POST is a backend route handler (ADR 0005).
 - Storage is one interface, `backend/storage/types.ts`: file system (default), SQLite or PostgreSQL via Kysely, chosen by `NOTEFEED_STORAGE`. The contract suite `backend/storage/contract.ts` runs against every backend (ADR 0023); images go to the image store (ADR 0024).
+- Judge every change against `docs/values.md` (V1–V13) and cite the point it touches; changing that page needs my approval.
+- API first and AI-native (V11): everything the web UI can do is also in the REST API, both client packages and the MCP server, and the MCP tools matter most. A feature only the UI has is a gap.
 - Use the words in `CONTEXT.md`, not its _Avoid_ ones.
 
 ## Production (notefeed.me)
@@ -20,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `../notefeed-stacks` (public): the server's compose files (notefeed, PostgreSQL 17, the Versity S3 gateway for images, Caddy) and the backup scripts `dump.sh` and `copy-images.sh`.
 - `../notefeed-ansible` (private, secrets in an Ansible vault): provisions the Hetzner server, the dump timers and the restic copy to the Storage Box.
 - `../infra-stacks` and `../infra-ansible` (3D-Bruckner): the shared monitoring server (Prometheus, Loki, Grafana, Uptime Kuma, Authentik) and noticebox, which receives the notefeed.me report forms.
+- Every change: grep these repos too for what it makes untrue or needs: notefeed.me's pages in `../notefeed-stacks/notefeed/legal/` (terms, privacy, imprint, `license.md`), settings in `../notefeed-ansible`, dashboards and alerts in `../infra-stacks`. Their change ships in the same deploy.
 
 ## Tests
 
@@ -31,7 +34,7 @@ Run every test locally, as often as useful, always through `scripts/quiet.sh`: i
 - A single test run to debug one failure may go directly (`npx vitest run <path> -t <name>`, `npx playwright test -g <name>`); every broad run goes through `scripts/quiet.sh`.
 - Docker builds are left to CI.
 
-CI is still the gate, and I decide when a branch is finished and when it is merged. When a branch seems finished, ask me before doing anything with it: do not push it, open the PR or merge on your own. These rules override any skill (executing-plans, finishing-a-development-branch, ship-pr) that says to merge or finish on its own; a `/ccp:ship-pr` request is the go-ahead for push and PR only, not for the merge. When I say to, push it, open the PR and wait for CI (`gh pr checks <number> --watch`), then tell me the result and stop: I review the PR. Merge only when I say "merge". When I do, look at the CI status of the branch's latest commit: if it ran green, merge; do not run it again. Run CI and wait only if it has not run on the latest state; and if it is red, tell me which jobs and wait for my answer instead of merging. If something fails, read the failed job's log first (`gh run view <run> --log-failed`) and reproduce locally only when that is not enough.
+CI is still the gate, and I decide when a branch is finished and when it is merged. When a branch seems finished, ask me before doing anything with it: do not push it, open the PR or merge on your own. These rules override any skill (executing-plans, finishing-a-development-branch, ship-pr) that says to merge or finish on its own; a `/ccp:ship-pr` request is the go-ahead for push and PR only, not for the merge. When I say to, push it, open the PR and wait for CI (`gh pr checks <number> --watch`), then tell me the result and stop: I review the PR. Merge only when I say "merge". The one exception: Dependabot's patch and minor bumps merge by themselves once CI is green (`.github/workflows/dependabot-automerge.yml`); its majors wait for me like any other PR. When I do, look at the CI status of the branch's latest commit: if it ran green, merge; do not run it again. Run CI and wait only if it has not run on the latest state; and if it is red, tell me which jobs and wait for my answer instead of merging. If something fails, read the failed job's log first (`gh run view <run> --log-failed`) and reproduce locally only when that is not enough.
 
 ## Releases
 

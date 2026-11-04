@@ -7,6 +7,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error import Error
+from ...models.post_note_x_note_draft import PostNoteXNoteDraft
 from ...models.posted import Posted
 from ...types import UNSET, File, Response, Unset
 
@@ -23,6 +24,7 @@ def _get_kwargs(
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
     x_note_date: str | Unset = UNSET,
+    x_note_draft: PostNoteXNoteDraft | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_feed_password, Unset):
@@ -48,6 +50,9 @@ def _get_kwargs(
 
     if not isinstance(x_note_date, Unset):
         headers["X-Note-Date"] = x_note_date
+
+    if not isinstance(x_note_draft, Unset):
+        headers["X-Note-Draft"] = str(x_note_draft)
 
     _kwargs: dict[str, Any] = {
         "method": "post",
@@ -161,38 +166,45 @@ def sync_detailed(
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
     x_note_date: str | Unset = UNSET,
+    x_note_draft: PostNoteXNoteDraft | Unset = UNSET,
 ) -> Response[Error | Posted]:
     """Post a note
 
      The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most
     102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most
-    NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). Nothing is guessed: any other type, or none, is `415`, and
-    so is a body that is not what the type says (an image is recognized by its first bytes; SVG is
-    refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS
-    position stays in an image). Creates the feed with its first note, optionally protected by its own
-    password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end)
-    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where
-    licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with
-    or without a password; a feed password needs one, or the post is refused with `402`. Posting to a
-    protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners
-    use. The response names the note's `file` and where it is served, `file_url`, under the feed's read
-    id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10
-    tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to
-    lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name),
-    `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it).
-    A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown,
-    a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts
-    (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
-    The pictures are stored first, each as its own note named by its file name, then the text with its
-    references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
-    the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
-    before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
-    Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of
-    the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags`
-    on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it);
-    with no `text` part only the pictures are stored, each with the title, and the answer's top level is
-    the first picture. A refused multipart post that would have created a protected feed creates
-    nothing.
+    NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). Nothing is guessed: any other type, or none, is
+    `415`, and so is a body that is not what the type says (an image is recognized by its first bytes;
+    SVG is refused). Markdown is stored byte for byte. An image is stored processed, not as sent: turned
+    the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its
+    own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames),
+    and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100
+    megapixels is `413`, and a body that does not decode as the image it declares is `415`. Creates the
+    feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256
+    printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`;
+    both are only used by the post that creates the feed. Where licenses are sold, the post that creates
+    the feed can bring a license key in `X-License-Key`, with or without a password; a feed password
+    needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also
+    served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file`
+    and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata
+    goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters,
+    digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt`
+    (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a
+    past date backdates it, a future one schedules it), `X-Note-Draft` (`true`: a draft, which readers
+    do not see until it is published). A markdown note with its pictures is one `multipart/form-data`
+    request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a
+    field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image
+    `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note
+    named by its file name, then the text with its references to them (`![](chart.png)`, `[x]:
+    chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers
+    to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every
+    photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is
+    400. Everything is checked before the first write, and a failed write removes what the request
+    stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the
+    stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes
+    on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the
+    milliseconds just before it); with no `text` part only the pictures are stored, each with the title,
+    and the answer's top level is the first picture. A refused multipart post that would have created a
+    protected feed creates nothing.
 
     Args:
         feed (str):
@@ -204,6 +216,7 @@ def sync_detailed(
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
         x_note_date (str | Unset):
+        x_note_draft (PostNoteXNoteDraft | Unset):
         body (File): The note, a file: its bytes, of the type `Content-Type` declares
 
     Raises:
@@ -225,6 +238,7 @@ def sync_detailed(
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
         x_note_date=x_note_date,
+        x_note_draft=x_note_draft,
     )
 
     response = client.get_httpx_client().request(
@@ -247,38 +261,45 @@ def sync(
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
     x_note_date: str | Unset = UNSET,
+    x_note_draft: PostNoteXNoteDraft | Unset = UNSET,
 ) -> Error | Posted | None:
     """Post a note
 
      The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most
     102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most
-    NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). Nothing is guessed: any other type, or none, is `415`, and
-    so is a body that is not what the type says (an image is recognized by its first bytes; SVG is
-    refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS
-    position stays in an image). Creates the feed with its first note, optionally protected by its own
-    password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end)
-    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where
-    licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with
-    or without a password; a feed password needs one, or the post is refused with `402`. Posting to a
-    protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners
-    use. The response names the note's `file` and where it is served, `file_url`, under the feed's read
-    id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10
-    tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to
-    lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name),
-    `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it).
-    A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown,
-    a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts
-    (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
-    The pictures are stored first, each as its own note named by its file name, then the text with its
-    references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
-    the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
-    before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
-    Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of
-    the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags`
-    on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it);
-    with no `text` part only the pictures are stored, each with the title, and the answer's top level is
-    the first picture. A refused multipart post that would have created a protected feed creates
-    nothing.
+    NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). Nothing is guessed: any other type, or none, is
+    `415`, and so is a body that is not what the type says (an image is recognized by its first bytes;
+    SVG is refused). Markdown is stored byte for byte. An image is stored processed, not as sent: turned
+    the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its
+    own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames),
+    and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100
+    megapixels is `413`, and a body that does not decode as the image it declares is `415`. Creates the
+    feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256
+    printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`;
+    both are only used by the post that creates the feed. Where licenses are sold, the post that creates
+    the feed can bring a license key in `X-License-Key`, with or without a password; a feed password
+    needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also
+    served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file`
+    and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata
+    goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters,
+    digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt`
+    (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a
+    past date backdates it, a future one schedules it), `X-Note-Draft` (`true`: a draft, which readers
+    do not see until it is published). A markdown note with its pictures is one `multipart/form-data`
+    request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a
+    field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image
+    `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note
+    named by its file name, then the text with its references to them (`![](chart.png)`, `[x]:
+    chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers
+    to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every
+    photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is
+    400. Everything is checked before the first write, and a failed write removes what the request
+    stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the
+    stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes
+    on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the
+    milliseconds just before it); with no `text` part only the pictures are stored, each with the title,
+    and the answer's top level is the first picture. A refused multipart post that would have created a
+    protected feed creates nothing.
 
     Args:
         feed (str):
@@ -290,6 +311,7 @@ def sync(
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
         x_note_date (str | Unset):
+        x_note_draft (PostNoteXNoteDraft | Unset):
         body (File): The note, a file: its bytes, of the type `Content-Type` declares
 
     Raises:
@@ -312,6 +334,7 @@ def sync(
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
         x_note_date=x_note_date,
+        x_note_draft=x_note_draft,
     ).parsed
 
 
@@ -328,38 +351,45 @@ async def asyncio_detailed(
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
     x_note_date: str | Unset = UNSET,
+    x_note_draft: PostNoteXNoteDraft | Unset = UNSET,
 ) -> Response[Error | Posted]:
     """Post a note
 
      The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most
     102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most
-    NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). Nothing is guessed: any other type, or none, is `415`, and
-    so is a body that is not what the type says (an image is recognized by its first bytes; SVG is
-    refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS
-    position stays in an image). Creates the feed with its first note, optionally protected by its own
-    password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end)
-    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where
-    licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with
-    or without a password; a feed password needs one, or the post is refused with `402`. Posting to a
-    protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners
-    use. The response names the note's `file` and where it is served, `file_url`, under the feed's read
-    id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10
-    tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to
-    lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name),
-    `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it).
-    A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown,
-    a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts
-    (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
-    The pictures are stored first, each as its own note named by its file name, then the text with its
-    references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
-    the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
-    before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
-    Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of
-    the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags`
-    on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it);
-    with no `text` part only the pictures are stored, each with the title, and the answer's top level is
-    the first picture. A refused multipart post that would have created a protected feed creates
-    nothing.
+    NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). Nothing is guessed: any other type, or none, is
+    `415`, and so is a body that is not what the type says (an image is recognized by its first bytes;
+    SVG is refused). Markdown is stored byte for byte. An image is stored processed, not as sent: turned
+    the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its
+    own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames),
+    and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100
+    megapixels is `413`, and a body that does not decode as the image it declares is `415`. Creates the
+    feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256
+    printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`;
+    both are only used by the post that creates the feed. Where licenses are sold, the post that creates
+    the feed can bring a license key in `X-License-Key`, with or without a password; a feed password
+    needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also
+    served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file`
+    and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata
+    goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters,
+    digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt`
+    (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a
+    past date backdates it, a future one schedules it), `X-Note-Draft` (`true`: a draft, which readers
+    do not see until it is published). A markdown note with its pictures is one `multipart/form-data`
+    request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a
+    field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image
+    `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note
+    named by its file name, then the text with its references to them (`![](chart.png)`, `[x]:
+    chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers
+    to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every
+    photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is
+    400. Everything is checked before the first write, and a failed write removes what the request
+    stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the
+    stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes
+    on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the
+    milliseconds just before it); with no `text` part only the pictures are stored, each with the title,
+    and the answer's top level is the first picture. A refused multipart post that would have created a
+    protected feed creates nothing.
 
     Args:
         feed (str):
@@ -371,6 +401,7 @@ async def asyncio_detailed(
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
         x_note_date (str | Unset):
+        x_note_draft (PostNoteXNoteDraft | Unset):
         body (File): The note, a file: its bytes, of the type `Content-Type` declares
 
     Raises:
@@ -392,6 +423,7 @@ async def asyncio_detailed(
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
         x_note_date=x_note_date,
+        x_note_draft=x_note_draft,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -412,38 +444,45 @@ async def asyncio(
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
     x_note_date: str | Unset = UNSET,
+    x_note_draft: PostNoteXNoteDraft | Unset = UNSET,
 ) -> Error | Posted | None:
     """Post a note
 
      The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most
     102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most
-    NOTEFEED_MAX_IMAGE_BYTES, default 5 MiB). Nothing is guessed: any other type, or none, is `415`, and
-    so is a body that is not what the type says (an image is recognized by its first bytes; SVG is
-    refused). It is stored byte for byte, with no resizing and no metadata stripped (EXIF such as GPS
-    position stays in an image). Creates the feed with its first note, optionally protected by its own
-    password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end)
-    and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where
-    licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with
-    or without a password; a feed password needs one, or the post is refused with `402`. Posting to a
-    protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners
-    use. The response names the note's `file` and where it is served, `file_url`, under the feed's read
-    id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10
-    tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to
-    lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name),
-    `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it).
-    A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown,
-    a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts
-    (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields.
-    The pictures are stored first, each as its own note named by its file name, then the text with its
-    references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for
-    the stored files; a picture it never refers to is appended as `![](file)`. Everything is checked
-    before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-
-    Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of
-    the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags`
-    on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it);
-    with no `text` part only the pictures are stored, each with the title, and the answer's top level is
-    the first picture. A refused multipart post that would have created a protected feed creates
-    nothing.
+    NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). Nothing is guessed: any other type, or none, is
+    `415`, and so is a body that is not what the type says (an image is recognized by its first bytes;
+    SVG is refused). Markdown is stored byte for byte. An image is stored processed, not as sent: turned
+    the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its
+    own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames),
+    and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100
+    megapixels is `413`, and a body that does not decode as the image it declares is `415`. Creates the
+    feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256
+    printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`;
+    both are only used by the post that creates the feed. Where licenses are sold, the post that creates
+    the feed can bring a license key in `X-License-Key`, with or without a password; a feed password
+    needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also
+    served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file`
+    and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata
+    goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters,
+    digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt`
+    (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a
+    past date backdates it, a future one schedules it), `X-Note-Draft` (`true`: a draft, which readers
+    do not see until it is published). A markdown note with its pictures is one `multipart/form-data`
+    request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a
+    field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image
+    `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note
+    named by its file name, then the text with its references to them (`![](chart.png)`, `[x]:
+    chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers
+    to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every
+    photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is
+    400. Everything is checked before the first write, and a failed write removes what the request
+    stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the
+    stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes
+    on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the
+    milliseconds just before it); with no `text` part only the pictures are stored, each with the title,
+    and the answer's top level is the first picture. A refused multipart post that would have created a
+    protected feed creates nothing.
 
     Args:
         feed (str):
@@ -455,6 +494,7 @@ async def asyncio(
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
         x_note_date (str | Unset):
+        x_note_draft (PostNoteXNoteDraft | Unset):
         body (File): The note, a file: its bytes, of the type `Content-Type` declares
 
     Raises:
@@ -478,5 +518,6 @@ async def asyncio(
             x_note_alt=x_note_alt,
             x_note_name=x_note_name,
             x_note_date=x_note_date,
+            x_note_draft=x_note_draft,
         )
     ).parsed

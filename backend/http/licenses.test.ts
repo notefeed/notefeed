@@ -9,7 +9,7 @@ import { createNote } from "../notes";
 import { resetPlansForTests } from "../payments/creem";
 import { cancelled, fakeKey, fakeSignature } from "../payments/fake";
 import { API_PREFIX, dispatch } from "./api";
-import { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, portalRoute, webhookRoute } from "./licenses";
+import { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, webhookRoute } from "./licenses";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -56,7 +56,6 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect((await checkoutRoute(post("/api/licenses/checkout", {}))).status).toBe(404);
     expect((await webhookRoute(webhook([]))).status).toBe(404);
     expect((await attachRoute(post("/api/licenses/attach", { feed: "f", key: "k" }))).status).toBe(404);
-    expect((await portalRoute(post("/api/licenses/portal", { key: "k" }))).status).toBe(404);
     expect((await keyRoute(post("/api/licenses/key", { checkout: "fake_1" }))).status).toBe(404);
   });
 
@@ -271,14 +270,8 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     expect(await isLicensed("f")).toBe(false);
   });
 
-  test("the key opens the provider's page for its subscription; anything else is refused", async () => {
-    const key = await buy("sub_1");
-    const res = await portalRoute(post("/api/licenses/portal", { key: ` ${key} ` }));
-    expect(res.status).toBe(200);
-    expect((await res.json()).url).toBe("https://fake.invalid/portal/sub_1");
-    expect((await portalRoute(post("/api/licenses/portal", { key: "x".repeat(22) }))).status).toBe(400);
-    expect((await portalRoute(post("/api/licenses/portal", { key: "f" }))).status).toBe(400);
-    expect((await portalRoute(post("/api/licenses/portal", {}))).status).toBe(400);
+  test("no route turns a key into the provider's portal (#316)", async () => {
+    expect(await import("./licenses")).not.toHaveProperty("portalRoute");
   });
 });
 
@@ -319,7 +312,7 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
     expect(await opens("Passw0rd!x")).toBe(true);
 
     const set = await recover({ key, next: "N3wPassw0rd!" });
-    expect(set.headers.get("location")).toBe("/p/settings?saved=1");
+    expect(set.headers.get("location")).toBe("/p/settings?saved=password-recovered#access");
     expect(set.headers.getSetCookie()).toHaveLength(2);
     expect(await opens("N3wPassw0rd!")).toBe(true);
     expect(await opens("Passw0rd!x")).toBe(false);
@@ -328,6 +321,15 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
     expect(removed.headers.get("location")).toBe("/p");
     expect(removed.headers.getSetCookie().every((c) => c.includes("Max-Age=0"))).toBe(true);
     expect(await protectedFeed("p")).toBe(false);
+  });
+
+  test("from the settings page, a refusal goes back to the settings' recovery part (#297)", async () => {
+    const key = await protectedWithLicense();
+    const res = await recover({ key: "k".repeat(22), next: "N3wPassw0rd!", from: "settings" });
+    expect(res.headers.get("location")).toBe("/p/settings?form=recover&error=auth#access");
+    const set = await recover({ key, next: "N3wPassw0rd!", from: "settings" });
+    expect(set.headers.get("location")).toBe("/p/settings?saved=password-recovered#access");
+    expect(await opens("N3wPassw0rd!")).toBe(true);
   });
 
   test("a lapsed license's key removes the password but cannot set a new one", async () => {
@@ -347,6 +349,55 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
     resetRateLimitsForTests();
     for (let i = 0; i < 2; i++) await recover({ key: "k".repeat(22), next: "" });
     expect((await recover({ key, next: "" })).headers.get("location")).toMatch(/^\/p\?form=recover&error=too_many_attempts&retry=\d+$/);
+  });
+});
+
+// The same recovery for scripts and agents: POST /api/v1/feeds/{feed}/password/recover with the key (ADR 0037).
+describe.skipIf(!supported)("recovering a feed password through the API", () => {
+  const recover = (body: unknown) =>
+    dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/p/password/recover`, { method: "POST", headers: { host: "notefeed.test", "content-type": "application/json" }, body: JSON.stringify(body) }), ["feeds", "p", "password", "recover"]);
+  const opens = async (password: string) => {
+    const { unlock } = await import("../feedlock");
+    return unlock("p", password, "1.2.3.4").then(
+      () => true,
+      () => false,
+    );
+  };
+  const protectedWithLicense = async () => {
+    const { createProtected } = await import("../feedlock");
+    await createProtected("p", "Passw0rd!x");
+    const key = await buy();
+    expect((await attachRoute(post("/api/licenses/attach", { feed: "p", key }, "POST", { "x-feed-password": "Passw0rd!x" }))).status).toBe(200);
+    return key;
+  };
+
+  test("the key on the feed sets a new password or removes it; another key, a bad body or a bad password is refused", async () => {
+    const { protectedFeed } = await import("../feedlock");
+    const key = await protectedWithLicense();
+    const other = await buy("sub_2");
+    for (const wrong of ["k".repeat(22), other, ""]) expect((await recover({ key: wrong, password: "N3wPassw0rd!" })).status).toBe(401);
+    expect((await recover({ password: "N3wPassw0rd!" })).status).toBe(400);
+    expect((await recover({ key, password: " padded " })).status).toBe(400);
+    expect(await opens("Passw0rd!x")).toBe(true);
+
+    expect((await recover({ key: ` ${key} `, password: "N3wPassw0rd!" })).status).toBe(204);
+    expect(await opens("N3wPassw0rd!")).toBe(true);
+    expect(await opens("Passw0rd!x")).toBe(false);
+
+    expect((await recover({ key })).status).toBe(204);
+    expect(await protectedFeed("p")).toBe(false);
+    expect((await recover({ key, password: "N3wPassw0rd!" })).status).toBe(401); // nothing left to recover
+  });
+
+  test("a lapsed license's key removes the password but cannot set one; 404 where licenses are not sold", async () => {
+    const { protectedFeed } = await import("../feedlock");
+    const key = await protectedWithLicense();
+    await webhookRoute(webhook([{ type: "refunded", providerRef: "sub_1" }]));
+    expect((await recover({ key, password: "N3wPassw0rd!" })).status).toBe(402);
+    expect((await recover({ key, password: "" })).status).toBe(204);
+    expect(await protectedFeed("p")).toBe(false);
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "");
+    expect((await recover({ key, password: "N3wPassw0rd!" })).status).toBe(404);
   });
 });
 
@@ -399,8 +450,32 @@ describe.skipIf(!supported)("giving an open feed a password", () => {
     expect((await form({ next: "N3wPassw0rd!" })).headers.get("location")).toBe("/o/settings?form=protect&error=license_required");
     expect((await attachRoute(post("/api/licenses/attach", { feed: "o", key: await buy() }))).status).toBe(200);
     const ok = await form({ next: "N3wPassw0rd!" });
-    expect(ok.headers.get("location")).toBe("/o/settings?saved=1");
+    expect(ok.headers.get("location")).toBe("/o/settings?saved=password-set#access");
     expect(ok.headers.getSetCookie()).toHaveLength(2);
     expect(await opens("N3wPassw0rd!")).toBe(true);
+  });
+});
+
+// Everything the license page tells a person, for scripts and agents too (V11): what is sold, where to buy it, and where buyers
+// manage their purchases, which no key opens (#316).
+describe("what licenses there are, through the API", () => {
+  const get = () => dispatch(new Request(`https://notefeed.test${API_PREFIX}/licenses`, { headers: { host: "notefeed.test" } }), ["licenses"]);
+
+  test("the plans, the license page and the provider's own sign-in for buyers", async () => {
+    const res = await get();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.buy_url).toBe("https://notefeed.test/license");
+    expect(body.manage_url).toBe("https://fake.invalid/my-orders");
+    expect(body.manage).toMatch(/e-mail address you bought with/);
+    expect(body.plans).toEqual([
+      { period: "month", name: "Monthly", description: "", amount: 199, currency: "EUR", tax_included: true },
+      { period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", tax_included: true },
+    ]);
+  });
+
+  test("an instance that sells no licenses answers 404", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "");
+    expect((await get()).status).toBe(404);
   });
 });

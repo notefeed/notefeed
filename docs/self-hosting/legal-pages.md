@@ -33,9 +33,9 @@ services:
 
 That is yours to decide, and for a public service worth a lawyer's look. A privacy page usually says who is responsible and how to reach them, where the instance is hosted, what is stored (notes, feeds, images, [what the logs hold](operating.md#logs)), for how long, [how long backups keep what was deleted](backups.md#how-long-a-backup-keeps-what-was-deleted), and which rights a person has. With [sign-in](sign-in/index.md#privacy-page-and-imprint) on, say what is stored about the people who sign in.
 
-## A report link on every note
+## A report link on every published note
 
-A public instance has to give readers a way to report content, and the report has to say which note is meant. `NOTEFEED_REPORT_URL` puts a **Report** link on every note, on the feed page, the note page and the read-only view. It is a URL template with `{read_id}`, `{note_id}` and `{file}` filled in, percent-encoded; the feed's name is never in it:
+A public instance has to give readers a way to report content, and the report has to say which note is meant. `NOTEFEED_REPORT_URL` puts a **Report** link on every published note (not on a draft or a scheduled note, which no reader sees), on the feed page, the note page and the read-only view. It is a URL template with `{read_id}`, `{note_id}` and `{file}` filled in, percent-encoded; the feed's name is never in it:
 
 ```yaml
 NOTEFEED_REPORT_URL: "https://report.example.com/?read_id={read_id}&note_id={note_id}"
@@ -47,4 +47,4 @@ notefeed stores no reports: the link leads to a form you run, or to a mailbox. S
 
 ### The built-in report page
 
-notefeed can show the form itself, at `/report`, and still store nothing. Set `NOTEFEED_REPORT_ENDPOINT` to the endpoint of a form in an inbox you run, such as [noticebox](https://github.com/noticebox/noticebox); the page posts the note's ids, a reason, a text and an optional e-mail address there. With the endpoint set and no `NOTEFEED_REPORT_URL`, the **Report** link opens this page. The inbox has to accept posts from this instance and send the browser back to `/report?sent=1`.
+notefeed can show the form itself, at `/report`, and still store nothing. Set `NOTEFEED_REPORT_ENDPOINT` to the endpoint of a form in an inbox you run, such as [noticebox](https://github.com/noticebox/noticebox); the page posts the note's ids, a reason, a text, an optional name and e-mail address and the reporter's statement that they report in good faith (`good_faith`, the value `Yes`) there: what a notice under Art. 16(2) DSA holds. With the endpoint set and no `NOTEFEED_REPORT_URL`, the **Report** link opens this page. The inbox has to accept posts from this instance and send the browser back to `/report?sent=1`.

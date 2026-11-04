@@ -95,8 +95,15 @@ export class LicenseRequiredError extends NotefeedError {
 
 /** A feed password was asked for (set, change, remove) on a feed that exists and has none. */
 export class FeedExistsError extends NotefeedError {
+  constructor(message = "feed already exists and has no password") {
+    super("feed_exists", message);
+  }
+}
+
+/** A note was to become a draft while it, or a picture posted with it, is the feed's title image, which readers see (#265). */
+export class TitleImageDraftError extends NotefeedError {
   constructor() {
-    super("feed_exists", "feed already exists and has no password");
+    super("title_image", "the feed's title image is a picture of this note: choose another title image first");
   }
 }
 
@@ -124,8 +131,8 @@ export class UnsupportedTypeError extends NotefeedError {
   }
 }
 export class ImageTooLargeError extends NotefeedError {
-  constructor() {
-    super("too_large", "image exceeds the size limit");
+  constructor(message = "image exceeds the size limit") {
+    super("too_large", message);
   }
 }
 export class InvalidBodyError extends NotefeedError {
@@ -152,6 +159,14 @@ export class NotFoundError extends NotefeedError {
   }
 }
 
+// A note the operator removed (issue #159): its id answers 410 for good, with its mark or after its owner deleted the mark, and the
+// mark itself can't be edited.
+export class RemovedNoteError extends NotefeedError {
+  constructor() {
+    super("removed", "this note was removed by the operator");
+  }
+}
+
 // A note whose stored copy does not decrypt (encryption at rest, issue #212): damaged or tampered with, never read as empty. The
 // operator gets a log line naming the note (backend/notes.ts).
 export class UnreadableNoteError extends NotefeedError {
@@ -169,6 +184,14 @@ export class KeyServiceUnavailableError extends NotefeedError {
   readonly digest = UNAVAILABLE_DIGEST;
   constructor() {
     super("unavailable", "the key service is unreachable");
+  }
+}
+
+/** Too many images are being processed (backend/imageprocess.ts): 503 with Retry-After, like a rate limit but for everyone. */
+export class BusyError extends NotefeedError {
+  readonly retryAfter = 5;
+  constructor() {
+    super("busy", "too many images are being processed, try again shortly");
   }
 }
 

@@ -6,6 +6,8 @@ import { encodeHeaderValue } from "../../shared/headers";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { API_PREFIX, dispatch } from "./api";
+import { processImage } from "../imageprocess";
+import { JPG, png } from "../testimages";
 
 const BASE = "http://localhost:3000";
 let dir: string;
@@ -18,9 +20,8 @@ beforeEach(async () => {
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_MAX_IMAGE_BYTES"]) delete process.env[k];
 });
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-const PNG2 = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9, 9, 9, 9]);
-const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
+const PNG = png(1);
+const PNG2 = png(2);
 
 function send(method: string, path: string, body: BodyInit | null, type: string | null, headers: Record<string, string> = {}) {
   const h = new Headers({ host: "localhost:3000", ...headers });
@@ -49,8 +50,9 @@ describe("PUT replaces the content", () => {
     const made = await post(PNG as BodyInit, "image/png", { "x-note-alt": "a cat" });
     const res = await put(made.id, PNG2 as BodyInit, "image/png");
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: made.id, size: PNG2.length, alt: "a cat" });
-    expect([...(await content(made.file))]).toEqual([...PNG2]);
+    const stored = await processImage(PNG2, "png");
+    expect(await res.json()).toMatchObject({ id: made.id, size: stored.length, alt: "a cat" });
+    expect([...(await content(made.file))]).toEqual([...stored]);
   });
   test("a note keeps its type: another type is 415 and changes nothing", async () => {
     const md = await post("# Text", "text/markdown");
@@ -64,7 +66,7 @@ describe("PUT replaces the content", () => {
       expect(res.status, type).toBe(415);
     }
     expect((await content(md.file)).toString()).toBe("# Text");
-    expect([...(await content(png.file))]).toEqual([...PNG]);
+    expect([...(await content(png.file))]).toEqual([...(await processImage(PNG, "png"))]);
   });
   test("the same checks as a post: a blank body is 400, a wrong signature or bad UTF-8 is 415, an oversize body is 413", async () => {
     const md = await post("# Text", "text/markdown");
@@ -166,11 +168,11 @@ describe("PATCH changes the date", () => {
     const body = await (await patch(made.id, { date: "2099-01-01", title: "Later" })).json();
     expect(body).toMatchObject({ title: "Later", date: "2099-01-01T00:00:00.000Z", scheduled: true });
   });
-  test("PATCH {} is 400 and names title, alt, tags or date; a bad date is 400 and changes nothing", async () => {
+  test("PATCH {} is 400 and names title, alt, tags, date or draft; a bad date is 400 and changes nothing", async () => {
     const made = await post("# x", "text/markdown");
     const empty = await patch(made.id, {});
     expect(empty.status).toBe(400);
-    expect((await empty.json()).error).toContain("title, alt, tags or date");
+    expect((await empty.json()).error).toContain("title, alt, tags, date or draft");
     const before = (await get(made.id)).date;
     expect((await patch(made.id, { date: "2025-02-30" })).status).toBe(400);
     expect((await patch(made.id, { date: 5 })).status).toBe(400);
@@ -206,6 +208,16 @@ describe("multipart PUT: a markdown note's new text with its pictures", () => {
     expect(note).toMatchObject({ id: made.id, type: "text/markdown", content: `# New ![](${c.file})`, title: "Kept", tags: ["a"] });
     expect(await sidecar(c.file)).toEqual({ alt: "C", name: "c.png", tags: ["pics"], of: made.id });
     expect((await content(made.file)).toString()).toBe(`# New ![](${c.file})`);
+  });
+  test("new pictures with the same file name are each stored and appended; a text that names it is 400", async () => {
+    const made = await post("# Old", "text/markdown");
+    const res = await putForm(made.id, [["text", "# New"], ["file", png("image.png")], ["file", png("image.png")]]);
+    expect(res.status).toBe(200);
+    const note = await res.json();
+    expect(note.attachments).toHaveLength(2);
+    expect(note.content).toBe(`# New\n\n![](${note.attachments[0].file})\n\n![](${note.attachments[1].file})`);
+    const named = await putForm(made.id, [["text", "![](image.png)"], ["file", png("image.png")], ["file", png("image.png")]]);
+    expect([named.status, (await named.json()).code]).toEqual([400, "invalid_body"]);
   });
   test("the text as a file part works the same, byte for byte", async () => {
     const made = await post("# Old", "text/markdown");

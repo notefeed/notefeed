@@ -12,8 +12,8 @@ T = TypeVar("T", bound="FreeTier")
 class FreeTier:
     """
     Attributes:
-        notes (int): The feed's text notes now
-        cap (int): How many text notes a free feed keeps; past it, each new note drops the oldest one
+        notes (int): The feed's notes now: texts, images and the operator's marks alike
+        cap (int): How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind
     """
 
     notes: int

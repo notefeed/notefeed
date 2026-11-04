@@ -13,7 +13,7 @@ export const MAX_LIMIT = 100;
 export const NoteJson = z
   .object({
     id: z.string().regex(NOTE_ID).describe("The note's id: 22 random characters (base64url) for notes made here, older notes may have another form; any name without a dot for a file placed by hand. It says nothing about the note's date"),
-    type: z.string().describe("The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`"),
+    type: z.string().describe("The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)"),
     file: z.string().describe("The note's file name, `<id>.<extension>`"),
     file_url: z.url().nullable().describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
     size: z.number().int().describe("The size of the note's file in bytes"),
@@ -23,6 +23,7 @@ export const NoteJson = z
     name: z.string().optional().describe("The file name an image was posted with, when it came with one"),
     date: z.iso.datetime().describe("Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it"),
     scheduled: z.literal(true).optional().describe("Present, and true, when the note's date is after now: it is stored, and readers see it from its date on. Absent for every other note"),
+    draft: z.literal(true).optional().describe("Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note"),
     url: z.url().describe("The note's page in the web UI"),
     sender: z.string().nullable().optional().describe("Verified sign-in name of the poster; absent when the note was posted without a sign-in"),
     tags: z.array(z.string()).describe("Labels the poster gave the note (not verified, and shown to readers like the note itself); empty when none"),
@@ -30,6 +31,10 @@ export const NoteJson = z
       .literal(true)
       .optional()
       .describe("Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note"),
+    removed: z
+      .literal(true)
+      .optional()
+      .describe("Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note"),
   })
   .meta({ id: "Note" });
 export type NoteJson = z.infer<typeof NoteJson>;
@@ -49,6 +54,7 @@ export const Created = z
     read_url: z.url().nullable().describe("The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds"),
     file: z.string().describe("The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting"),
     file_url: z.url().nullable().describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
+    draft: z.literal(true).optional().describe("Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published"),
   })
   .meta({ id: "Created" });
 export type Created = z.infer<typeof Created>;
@@ -88,9 +94,23 @@ export const MetaJson = z
     alt: NoteAlt.optional(),
     tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list (\`["ci","done"]\`): ${TAG_RULE}. Empty removes them all; omitted leaves them as they are.`),
     date: NoteDate.optional(),
+    draft: z.boolean().optional().describe("true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)"),
   })
   .meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
+export const CreateFeedJson = z
+  .object({
+    password: z.string().optional().describe(`A password that protects the new feed: ${PASSWORD_RULE}. Empty or left out: an open feed`),
+    license_key: z.string().optional().describe("Where licenses are sold, required: the key of the license to put on the new feed"),
+    read_id: z.string().optional().describe("The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one"),
+  })
+  .meta({ id: "CreateFeedJson" });
+export const RecoveryJson = z
+  .object({
+    key: z.string().describe("The license key on this feed, as the checkout or the receipt gave it"),
+    password: z.string().optional().describe(`The new password: ${PASSWORD_RULE}. Empty or left out removes the password`),
+  })
+  .meta({ id: "RecoveryJson" });
 export const LicenseKeyJson = z.object({ key: z.string().describe("The license key, as the checkout or the receipt gave it") }).meta({ id: "LicenseKey" });
 
 export const FeedPasswordHeader = z
@@ -105,6 +125,7 @@ export const NoteTagsHeader = z
   .describe(`Tags for the note, comma-separated (\`ci,deploy\`): ${TAG_RULE}. For a raw markdown body; a JSON or form body's own \`tags\` wins. Empty is none.`);
 export const NoteTitleHeader = NoteTitle.describe("The note's title, for a raw body; a JSON or form body's own `title` wins. At most 100 characters, one line, with no control or text-direction override characters.");
 export const NoteDateHeader = z.string().describe(`${DATE_FORMAT}${DATE_RULE} Empty is now.`);
+export const NoteDraftHeader = z.enum(["true", "false"]).describe("`true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published");
 export const NoteAltHeader = NoteAlt.describe("For an image body: its alternative text; a form's own `alt` wins.");
 export const ReadIdHeader = z.string().describe("The read id the feed gets when this post creates it: 3 to 64 characters (a-z, 0-9, - and _), random when left out or empty, ignored for a feed that exists. A short readable one is guessable: protect the feed with a password if that matters. 409 when it is taken");
 export const LicenseKeyHeader = z
@@ -142,10 +163,29 @@ export const FeedSettingsJson = z
   .meta({ id: "FeedSettings" });
 export const FreeTierJson = z
   .object({
-    notes: z.number().int().describe("The feed's text notes now"),
-    cap: z.number().int().describe("How many text notes a free feed keeps; past it, each new note drops the oldest one"),
+    notes: z.number().int().describe("The feed's notes now: texts, images and the operator's marks alike"),
+    cap: z.number().int().describe("How many notes a free feed keeps; past it, each new note drops the oldest one, of any kind"),
   })
   .meta({ id: "FreeTier" });
+export const LicensesJson = z
+  .object({
+    plans: z
+      .array(
+        z.object({
+          period: z.enum(["month", "year"]).describe("How long one payment lasts; the license renews until cancelled"),
+          name: z.string().describe("The plan's name, as the payment provider holds it"),
+          description: z.string().describe("The plan's description from the payment provider, possibly empty"),
+          amount: z.number().int().describe("The price per period in the currency's smallest unit (cents)"),
+          currency: z.string().describe("ISO 4217 code, e.g. EUR"),
+          tax_included: z.boolean().describe("Whether the amount includes VAT"),
+        }),
+      )
+      .describe("What is sold right now, monthly then yearly; empty while the payment provider can't be read"),
+    buy_url: z.url().describe("The license page: a person buys there, and gets the key after paying"),
+    manage_url: z.url().describe("The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it"),
+    manage: z.string().describe("How managing a purchase works, in a sentence to show a person"),
+  })
+  .meta({ id: "Licenses" });
 export const FeedJson = z
   .object({
     name: z.string().describe("The feed's name"),
@@ -165,7 +205,7 @@ export const ReadFeedJson = z.object({ title: TITLE, description: DESCRIPTION, i
 // A raw request body, not JSON.
 export const FileBody = z.string().meta({ format: "binary" }).describe("The note, a file: its bytes, of the type `Content-Type` declares");
 
-export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, MultipartNote, ErrorJson, MetaJson, PasswordJson, LicenseKeyJson, FeedSettingsJson, FreeTierJson, FeedJson, ReadFeedJson];
+export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, MultipartNote, ErrorJson, MetaJson, PasswordJson, RecoveryJson, CreateFeedJson, LicenseKeyJson, FeedSettingsJson, FreeTierJson, FeedJson, ReadFeedJson, LicensesJson];
 
 export const FeedParam = z.string().regex(FEED_RE).describe("The feed's name. It is the write key: anyone who knows it can post.");
 export const ReadIdParam = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).describe("The feed's read id, from its read link: 22 random characters, one the feed's owner chose, or the feed's own name for a reserved feed. Read-only; never reveals the name of any other feed.");

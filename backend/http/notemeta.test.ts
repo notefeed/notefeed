@@ -6,6 +6,8 @@ import { encodeHeaderValue } from "../../shared/headers";
 import { readIdOf, resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { API_PREFIX, dispatch } from "./api";
+import { processImage } from "../imageprocess";
+import { png } from "../testimages";
 
 const BASE = "http://localhost:3000";
 let dir: string;
@@ -18,7 +20,7 @@ beforeEach(async () => {
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_MAX_IMAGE_BYTES"]) delete process.env[k];
 });
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+const PNG = png(1);
 
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
@@ -51,7 +53,7 @@ describe("title and alt on a post", () => {
   test("an image's X-Note-Title and X-Note-Alt", async () => {
     const img = await (await postImage({ "x-note-title": "Cat", "x-note-alt": "a grey cat" })).json();
     const note = await getNote(img.id);
-    expect(note).toMatchObject({ type: "image/png", title: "Cat", alt: "a grey cat", size: PNG.length });
+    expect(note).toMatchObject({ type: "image/png", title: "Cat", alt: "a grey cat", size: (await processImage(PNG, "png")).length });
   });
   test.each(["a\tb", "x".repeat(101)])("a bad title is 400 and nothing is written: %j", async (title) => {
     const res = await postJson({ markdown: "x", title });
@@ -65,7 +67,7 @@ describe("an image note over the API", () => {
   test("GET shows kind, file, an absolute file_url under the read id, size and the original name", async () => {
     const { id } = await (await postImage({ "x-note-name": "cat.png" })).json();
     const note = await getNote(id);
-    expect(note).toMatchObject({ type: "image/png", file: `${id}.png`, name: "cat.png", size: PNG.length });
+    expect(note).toMatchObject({ type: "image/png", file: `${id}.png`, name: "cat.png", size: (await processImage(PNG, "png")).length });
     expect(note.file_url).toBe(`${BASE}/r/${(await readIdOf("f"))!}/${id}.png`);
     const rid = (await readIdOf("f"))!;
     const viaRead = await (await call("GET", `/read/${rid}/notes/${id}`)).json();

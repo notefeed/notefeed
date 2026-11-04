@@ -27,6 +27,7 @@ export function createFake(webhookSecret: string): PaymentProvider {
     async checkoutKey(checkoutId) {
       return checkoutId.startsWith("fake_") ? fakeKey(webhookSecret, checkoutId) : null;
     },
+    accountUrl: "https://fake.invalid/my-orders",
     async parseWebhook(rawBody, headers) {
       const a = Buffer.from(headers.get("x-fake-signature") ?? "");
       const b = Buffer.from(fakeSignature(webhookSecret, rawBody));
@@ -36,9 +37,6 @@ export function createFake(webhookSecret: string): PaymentProvider {
         if (Array.isArray(events)) return events;
       } catch {}
       throw new WebhookRejectedError("not a list of events");
-    },
-    async portalUrl(providerRef) {
-      return { url: `https://fake.invalid/portal/${encodeURIComponent(providerRef)}` };
     },
     async cancel(providerRef) {
       cancelled.push(providerRef);

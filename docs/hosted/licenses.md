@@ -6,7 +6,7 @@ This page is about [notefeed.me](https://notefeed.me) only. A notefeed you run y
 
 Every feed on notefeed.me starts on the free tier, with nothing to sign up for:
 
-- **It keeps its newest 100 notes.** At the cap, each new note drops the oldest one; a post is never refused for it.
+- **It keeps its newest 100 notes.** Every note counts: a text, a picture kept from a license that ran out, and the mark the operator leaves where a post was removed. At the cap, each new note drops the oldest one; a post is never refused for it.
 - **No pictures.** A picture, posted on its own or with a note, is refused with `402` (`license_required`).
 - **No feed password.** A [feed password](../using/feed-passwords.md) needs a license: on the post that creates the feed, with the key next to the password (below), or later, once the feed has one ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)). Without one it is refused with `402`. A license needs no password, though: an open feed can be licensed too.
 
@@ -14,7 +14,7 @@ The feed's settings show the tier under **License**, as *Free tier · N of 100 n
 
 ## What a license is
 
-A license is for one feed, by the month or by the year; the price is on the [license page](https://notefeed.me/license). With it the feed keeps every note, can have a feed password and takes pictures.
+A license is for one feed, by the month or by the year; the price is on the [license page](https://notefeed.me/license). With it the feed keeps every note, can have a feed password, takes pictures, and its posts, edits and deletes don't count against the per-client rate limit, so a burst from CI is never answered with `429`.
 
 There are no accounts. A license is a **key** you keep: notefeed stores only a hash of it and nothing about you; the payment provider holds the purchase. The key is issued by the payment provider: it is shown on the page you land on after paying, and it is in the provider's receipt e-mail and customer portal, where you find it again if you lose it. notefeed itself cannot show it again.
 
@@ -23,7 +23,7 @@ There are no accounts. A license is a **key** you keep: notefeed stores only a h
 A key works on one feed at a time, and can be moved:
 
 - **In the feed's settings:** open the **License** row and enter the key under *Use key*. Entering it on another feed later moves the license there. *Take the license off this feed* frees the key without moving it.
-- **When creating a protected feed:** a new feed's **Protect this feed** section has a **License key** field under the password, so the first note creates the feed protected and licensed in one go. Without the key, the compose box says so and links to the license page. An open feed with a license gets a password later in its settings ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)).
+- **When creating a protected feed:** a new feed's **Protect this feed** section has a **License key** field under the password, so the first note creates the feed protected and licensed in one go. Without the key, the compose box says so and links to the license page. **Create feed without a note** in the same section makes the feed right away with the key (and the password, if given); on notefeed.me a feed without a note always needs a license key. An open feed with a license gets a password later in its settings ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)).
 - **From a script, on the post that creates the feed:** send `X-License-Key`, with `X-Feed-Password` for a protected feed or without it for an open one. The [client libraries](../integrations/clients.md) take it as `license_key` (Python) or `licenseKey` (Node), and the [MCP server](../integrations/mcp.md)'s `post_note` as `license_key`. A password without a key is `402` (`license_required`); a key notefeed does not know is `400`, one whose license has lapsed `402`, and then nothing is created. On a feed that exists already, a key on a post is not used.
 
 ```sh
@@ -41,11 +41,11 @@ A key notefeed does not know counts as a wrong password, wherever it is sent.
 
 ## Cancelling, invoices, payment method
 
-The subscription lives at the payment provider. The [license page](https://notefeed.me/license) opens its portal for your key: cancel there, change how you pay, or download invoices. The provider's receipt is your record of the purchase.
+Your purchases live at the payment provider, Creem. Sign in at [creem.io/my-orders/login](https://creem.io/my-orders/login) with the e-mail address you bought with; Creem mails you a link. There you cancel a license, change how you pay or download invoices, and find your keys again. The [license page](https://notefeed.me/license) links there. A license key does not open these pages, so a key you hand on shows nobody your purchases. The provider's receipt is your record of the purchase. Scripts and agents find the same links with `GET /api/v1/licenses`, the MCP tool `get_licenses` or `licenses()` in the client packages.
 
 ## A lost feed password
 
-The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?**, enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it is also the way to the subscription and its invoices.
+The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?** (or, in a browser that is still unlocked, **Forgot the current password?** under *Feed password* in the settings), enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. Scripts and agents do the same with `POST /api/v1/feeds/<feed>/password/recover` and JSON `{"key": "…", "password": "…"}`, the MCP tool `recover_feed_password`, or `recoverFeedPassword` / `recover_feed_password` in the client packages. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it can reset the feed's password.
 
 ## When a license ends
 

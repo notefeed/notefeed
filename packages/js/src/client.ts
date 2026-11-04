@@ -3,13 +3,13 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { changeFeedPassword, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, updateFeed } from "./generated/sdk.gen.js";
-import type { Created, Error as ApiError, Feed, FeedSettings, Note, NoteList } from "./generated/types.gen.js";
+import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getLicenses, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
+import type { Created, Error as ApiError, Feed, FeedSettings, Licenses, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
 export type ErrorCode = NonNullable<ApiError["code"]>;
 
-export type { Created, Feed, FeedSettings, Note };
+export type { Created, Feed, FeedSettings, Licenses, Note };
 /** A picture posted with a note: `![](name)` in the markdown refers to it. `type` as for post(). */
 export type Attachment = { name: string; content: Uint8Array | Blob; type?: string; alt?: string };
 /** `timeoutMs` (default 10000) limits each whole request, including reading the answer. */
@@ -30,7 +30,7 @@ export class NotefeedError extends Error {
 export class ConfigError extends NotefeedError {}
 /** Missing or wrong password on a locked instance. */
 export class AuthError extends NotefeedError {}
-/** Too many posts or wrong passwords. `retryAfter` is the wait in seconds, or null if none was given. */
+/** Too many posts or wrong passwords, or (code `busy`, 503) the server is busy processing other images. `retryAfter` is the wait in seconds, or null if none was given. */
 export class RateLimitedError extends NotefeedError {
   constructor(
     message: string,
@@ -41,7 +41,7 @@ export class RateLimitedError extends NotefeedError {
     super(message, status, code);
   }
 }
-/** No such note, or a malformed read id; also a feed the operator removed for good (`removed`, 410). */
+/** No such note, or a malformed read id; also a feed or a note the operator removed for good (`removed`, 410). */
 export class NotFoundError extends NotefeedError {}
 /** The instance's feed or note limit, or the feed's image limit, is reached. */
 export class LimitReachedError extends NotefeedError {}
@@ -146,7 +146,7 @@ export class Client {
    */
   async post(
     content: string | Uint8Array | Blob | null,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; readId?: string; licenseKey?: string; attachments?: Attachment[] } = {},
+    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; draft?: boolean; readId?: string; licenseKey?: string; attachments?: Attachment[] } = {},
   ): Promise<Created & { attachments: Created[] }> {
     const { attachments = [], ...own } = options;
     if (content === null && attachments.length === 0) throw new ConfigError("no content and no attachments");
@@ -169,6 +169,7 @@ export class Client {
       ...(own.title && { "X-Note-Title": headerValue(own.title) }),
       ...(own.tags?.length && { "X-Note-Tags": own.tags.join(",") }),
       ...(own.date && { "X-Note-Date": dateString(own.date) }),
+      ...(own.draft && { "X-Note-Draft": "true" as const }),
       ...(own.readId && { "X-Read-Id": own.readId }),
       ...(own.licenseKey && { "X-License-Key": own.licenseKey }),
     };
@@ -178,7 +179,7 @@ export class Client {
 
   private async postOne(
     content: string | Uint8Array | Blob,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; readId?: string; licenseKey?: string },
+    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; draft?: boolean; readId?: string; licenseKey?: string },
   ): Promise<Created> {
     const feed = this.feedFor(options.feed);
     const { body, type } = asFile(content, options.type);
@@ -190,6 +191,7 @@ export class Client {
       ...(options.alt && { "X-Note-Alt": headerValue(options.alt) }),
       ...(options.name && { "X-Note-Name": headerValue(options.name) }),
       ...(options.date && { "X-Note-Date": dateString(options.date) }),
+      ...(options.draft && { "X-Note-Draft": "true" as const }),
       ...(options.readId && { "X-Read-Id": options.readId }),
       ...(options.licenseKey && { "X-License-Key": options.licenseKey }),
     };
@@ -204,8 +206,8 @@ export class Client {
     return this.call(editNote({ client: this.api, path: { feed, id }, body, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
-  /** Set a note's title, alt text (for pictures), tags and/or date (as in post(); a future one schedules the note); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
-  async update(id: string, meta: { title?: string; alt?: string; tags?: string[]; date?: string | Date }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
+  /** Set a note's title, alt text (for pictures), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (`false` publishes it, `true` hides it from readers again; its date stays); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
+  async update(id: string, meta: { title?: string; alt?: string; tags?: string[]; date?: string | Date; draft?: boolean }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
     const feed = this.feedFor(options.feed);
     const { date, ...rest } = meta;
     const body = { ...rest, ...(date !== undefined && { date: dateString(date) }) };
@@ -249,6 +251,32 @@ export class Client {
     await this.call(changeFeedPassword({ client: this.api, path: { feed }, body: { password }, ...this.opts(options.feedPassword) }));
   }
 
+  /** Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `readId` gives it that read link. Where licenses are sold `licenseKey` is required and goes on the new feed. A feed that exists is refused (409). */
+  async createFeed(options: { feed?: string; password?: string; licenseKey?: string; readId?: string } = {}): Promise<Feed> {
+    const feed = this.feedFor(options.feed);
+    const body = { ...(options.password ? { password: options.password } : {}), ...(options.licenseKey ? { license_key: options.licenseKey } : {}), ...(options.readId ? { read_id: options.readId } : {}) };
+    return this.call(createFeed({ client: this.api, path: { feed }, body, signal: AbortSignal.timeout(this.timeoutMs) }));
+  }
+
+  /** For a lost password, only on an instance that sells licenses: the key of the license on the feed proves ownership instead of the current password. `password` becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. A key that is not the feed's license is refused and counts as a failed attempt. */
+  async recoverFeedPassword(key: string, password = "", options: { feed?: string } = {}): Promise<void> {
+    const feed = this.feedFor(options.feed);
+    await this.call(recoverFeedPassword({ client: this.api, path: { feed }, body: { key, password }, signal: AbortSignal.timeout(this.timeoutMs) })); // the key instead of the (lost) feed password
+  }
+
+  /** Set the feed's title image: `content` the image's bytes, `type` its media type (image/png, image/jpeg, image/gif, image/webp). It is the feed's own image, in no list, so no post; a previous one set this way is deleted. Same options as post(). */
+  async setFeedImage(content: Uint8Array, type: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
+    const feed = this.feedFor(options.feed);
+    const opts = this.opts(options.feedPassword);
+    return this.call(setFeedImage({ client: this.api, path: { feed }, body: new Blob([content as BlobPart], { type }), ...opts, headers: { ...opts.headers, "Content-Type": type } }));
+  }
+
+  /** Remove the feed's title image; one set with setFeedImage is deleted. Same options as post(). */
+  async removeFeedImage(options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
+    const feed = this.feedFor(options.feed);
+    return this.call(removeFeedImage({ client: this.api, path: { feed }, ...this.opts(options.feedPassword) }));
+  }
+
   /** Delete the feed with all its notes, settings and password, for good; its name is free again. Same options as post(). */
   async deleteFeed(options: { feed?: string; feedPassword?: string } = {}): Promise<void> {
     const feed = this.feedFor(options.feed);
@@ -273,6 +301,12 @@ export class Client {
     return this.pages((before) =>
       listReadNotes({ client: this.api, path: { readId }, query: { limit: options.pageSize, before, tag: options.tag }, ...this.opts() }),
     );
+  }
+
+  /** What licenses are sold (plans, amounts in cents), where a person buys one (`buy_url`) and where buyers manage their purchases
+   *  at the payment provider, signed in by e-mail (`manage_url`); no key opens that page. Only where licenses are sold. */
+  async licenses(): Promise<Licenses> {
+    return this.call(getLicenses({ client: this.api, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
   async readNote(readId: string, id: string): Promise<Note> {
@@ -324,7 +358,7 @@ export class Client {
       const raw = typeof error === "string" ? error : isObject(error) && Object.keys(error).length ? JSON.stringify(error) : "";
       message = `HTTP ${response.status}: ${raw.slice(0, 200).replace(/\s+/g, " ").trim()}`.replace(/: $/, "");
     }
-    if (code === "rate_limited" || code === "too_many_attempts" || response.status === 429) {
+    if (code === "rate_limited" || code === "too_many_attempts" || code === "busy" || response.status === 429) {
       const retry = response.headers.get("retry-after")?.trim() ?? "";
       throw new RateLimitedError(message, response.status, code, /^\d+$/.test(retry) ? Number(retry) : null);
     }

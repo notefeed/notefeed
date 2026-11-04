@@ -20,7 +20,7 @@ Type markdown into the box and press **Post** or ++ctrl+enter++ (++cmd+enter++ o
 
 ### Adding an image
 
-The **Add image** button in the box's toolbar takes PNG, JPEG, GIF or WebP files; pasting or dropping an image works too. Each picture waits in the box with a small preview, and `![](name)` goes into the text. When you post, text and pictures are sent in [one request](pictures.md#posting-a-note-with-its-pictures). If something is refused, the page says why and keeps your text and pictures; nothing is half-posted. Pictures are posted as they are, EXIF data included, and are as public as the [read link](#the-read-link): see [Pictures](pictures.md).
+The **Add image** button in the box's toolbar takes PNG, JPEG, GIF or WebP files; pasting or dropping an image works too. Each picture waits in the box with a small preview, and `![](name)` goes into the text. When you post, text and pictures are sent in [one request](pictures.md#posting-a-note-with-its-pictures). If something is refused, the page says why and keeps your text and pictures; nothing is half-posted. Pictures go up as they are and the server shrinks them and removes their EXIF data; they are as public as the [read link](#the-read-link): see [Pictures](pictures.md).
 
 ### Reading, editing and deleting
 
@@ -34,7 +34,7 @@ A note's [tags](posting.md#tags) show on its card and page. Each is a link that 
 
 Once the feed has a note, **Share** hands the [read link](read-links.md) to your device's share sheet, or copies it. The RSS and read-only buttons sit next to it, and the settings page has the links under **Sharing**. Give the read link to feed readers and to people who should see the notes but not post.
 
-The settings button (the cog) opens the feed's [settings page](feeds.md#feed-settings-in-the-web-ui). An instance can show a **Report** link on every note: see [A report link on every note](../self-hosting/legal-pages.md#a-report-link-on-every-note).
+The settings button (the cog) opens the feed's [settings page](feeds.md#feed-settings-in-the-web-ui). An instance can show a **Report** link on every published note: see [A report link on every published note](../self-hosting/legal-pages.md#a-report-link-on-every-published-note).
 
 ## About and legal pages
 
@@ -49,4 +49,4 @@ If the instance has a password (`NOTEFEED_PASSWORD`), every page except the read
 
 ## Install it as an app
 
-notefeed ships a web manifest and icons, so a browser can install it as an app (**Install** in Chrome and Edge, **Add to Home Screen** on a phone). On Android the installed app is in the system share sheet: share a text or a link to it and it asks which feed it goes to. A link pasted into a chat shows a preview with the notefeed wordmark; set `PUBLIC_URL` on a public instance so the preview's image URL is right.
+notefeed ships a web manifest and icons, so a browser can install it as an app (**Install** in Chrome and Edge, **Add to Home Screen** on a phone). On Android the installed app is in the system share sheet: share pictures, a text or a link to it and it asks which feed it goes to; on an iPhone a Shortcut does the same. See [Sharing from a phone](sharing.md). A link pasted into a chat shows a preview with the notefeed wordmark; set `PUBLIC_URL` on a public instance so the preview's image URL is right.

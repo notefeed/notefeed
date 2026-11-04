@@ -21,7 +21,7 @@ From 0.28.0 a note's id is random and carries no time. On the first start after 
 
 You can read, grep, copy or delete the files directly; a file you put in a feed's folder is a note too. notefeed writes as the owner of the data folder, so create it yourself (`mkdir data`); `PUID` and `PGID` choose another owner. Symlinks and anything that isn't a feed folder are ignored. If you copy a feed's folder to make another feed, remove `.readid` from the copy: two feeds can't share a read link.
 
-A photo keeps its EXIF data, including GPS position, and is public to anyone with the read link: `exiftool -all= photo.jpg` removes it before posting.
+A picture is stored as the server processed it: at most 2560 px, without EXIF data such as GPS position (see [Pictures](../using/pictures.md)). Pictures stored by an older notefeed keep the metadata they were posted with; on the file system, `exiftool -all= <file>` removes it from one.
 
 ## Keeping notes in git
 

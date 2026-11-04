@@ -43,6 +43,8 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
   if (config.reservedFeeds().length && !config.reservedPassword()) warnings.push(["feeds", "reserved feeds are listed but have no password; they are not created", {}]);
   if (config.metrics() && !config.metricsToken()) warnings.push(["startup", "metrics are on without NOTEFEED_METRICS_TOKEN: /metrics is open to anyone who can reach the app", {}]);
   for (const setting of REMOVED) if (env[setting]) warnings.push(["startup", "a setting is no longer read; the price shown is the payment provider's product's", { setting }]);
+  // The web pages no longer shrink pictures: the server does, for every client (ADR 0049).
+  if (env.NOTEFEED_SHRINK_IMAGE_BYTES) warnings.push(["startup", "a setting is no longer read; the server shrinks every picture itself", { setting: "NOTEFEED_SHRINK_IMAGE_BYTES" }]);
   if (config.supportEmailInvalid()) warnings.push(["startup", "NOTEFEED_SUPPORT_EMAIL is not an email address; there is no Support link", {}]);
   if (config.operatorTokenTooShort()) warnings.push(["startup", "NOTEFEED_OPERATOR_TOKEN is shorter than 32 bytes; the operator endpoints stay off", {}]);
   const fields = {

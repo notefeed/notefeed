@@ -2,16 +2,18 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { AuthError, EmptyNoteError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
+import { AuthError, EmptyNoteError, FeedExistsError, TitleImageDraftError, ReservedFeedError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
 import { createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, resetFeedsForTests } from "./feeds";
+import { getSettings } from "./feedsettings";
 import { resetRateLimitsForTests } from "./limits";
 import { logsOf } from "./log";
 import * as notes from "./notes";
 import { countNotes, createImageNote, createNote, getNote, isScheduled, listNotes, MarkdownNote } from "./notes";
 import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
-import { checkDate, deleteFeed, deleteNote, editContent, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
+import { checkDate, createFeed, deleteFeed, setFeedImage, updateFeed, deleteNote, editContent, editMeta, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
+import { png } from "./testimages";
 
 // The text's write is the call after the pictures: a test makes it fail to see the pictures removed again.
 vi.mock("./notes", async (original) => {
@@ -39,7 +41,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const png = (n = 1) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, n]);
+
 const pic = (name: string, extra: Partial<Picture> = {}): Picture => ({ name, body: png(), mediaType: "image/png", ...extra });
 const post = (bundle: PostBundle, feed = "f", access = {}) => postWithPictures(feed, "ip", async () => bundle, access, "Ann");
 const edit = (id: string, b: { text: string; pictures: Picture[]; tags?: string[] }, feed = "f") => editWithPictures(feed, id, "ip", async () => b, {}, "Bob");
@@ -87,7 +89,7 @@ describe("postWithPictures", () => {
   });
 
   const refused: [string, PostBundle, unknown, string?][] = [
-    ["a duplicate filename", { text: "x", pictures: [pic("a.png"), pic("a.png")] }, InvalidBodyError, "a.png"],
+    ["a text that refers to a filename given twice", { text: "![](a.png)", pictures: [pic("a.png"), pic("a.png")] }, InvalidBodyError, "a.png"],
     ["an unsafe filename", { text: "x", pictures: [pic("a/b.png")] }, InvalidBodyError, "a\ufffdb.png"], // the echo is safeName's: a forbidden character as U+FFFD
     ["a non-image mediaType", { text: "x", pictures: [pic("a.md", { mediaType: "text/markdown" })] }, UnsupportedTypeError, "a.md"],
     ["bytes that are not that image", { text: "x", pictures: [pic("a.jpg", { mediaType: "image/jpeg" })] }, UnsupportedTypeError, "a.jpg"],
@@ -99,7 +101,7 @@ describe("postWithPictures", () => {
     ["a bad tag", { text: "x", pictures: [pic("a.png")], tags: ["no spaces"] }, InvalidBodyError],
   ];
   test.each(refused)("refuses %s with nothing stored and no feed created", async (_, bundle, error, name) => {
-    vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "50");
+    vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "150");
     const e = await post(bundle).catch((e: Error) => e);
     expect(e).toBeInstanceOf(error as typeof Error);
     if (name) expect((e as Error).message).toMatch(new RegExp(`^attachment "${name}": `));
@@ -343,7 +345,7 @@ describe("editWithPictures", () => {
 
   test("a picture's error names it, with nothing stored", async () => {
     const { note } = await createNote("f", "x");
-    await expect(edit(note.id, { text: "y", pictures: [pic("a.png"), pic("a.png")] })).rejects.toThrow(/^attachment "a.png": /);
+    await expect(edit(note.id, { text: "![](a.png)", pictures: [pic("a.png"), pic("a.png")] })).rejects.toThrow(/^attachment "a.png": /);
     expect(await countNotes("f")).toBe(1);
   });
 
@@ -366,7 +368,7 @@ test("what happens to feeds and notes is logged at info: the kind and the size, 
   }, "info");
   expect(logs).toEqual([
     { level: "info", component: "feeds", msg: "feed created", protected: false },
-    { level: "info", component: "notes", msg: "note posted", kind: "image", bytes: 9 },
+    { level: "info", component: "notes", msg: "note posted", kind: "image", bytes: expect.any(Number) },
     { level: "info", component: "notes", msg: "note posted", kind: "markdown", bytes: expect.any(Number) },
     { level: "info", component: "feeds", msg: "feed created", protected: true },
     { level: "info", component: "notes", msg: "note posted", kind: "markdown", bytes: 4 },
@@ -374,4 +376,107 @@ test("what happens to feeds and notes is logged at info: the kind and the size, 
     { level: "info", component: "feeds", msg: "feed deleted" },
   ]);
   expect(JSON.stringify(logs)).not.toMatch(/secret|Secret|password/);
+});
+
+// A feed without a note (#295, ADR 0047): where licenses aren't sold, anyone may make one, open or protected.
+describe("createFeed", () => {
+  test("makes an empty feed, open or protected, once; a post then goes into it", async () => {
+    await createFeed("empty", "ip", {});
+    expect([await hasFeed("empty"), await protectedFeed("empty"), await countNotes("empty")]).toEqual([true, false, 0]);
+    await expect(createFeed("empty", "ip", {})).rejects.toBeInstanceOf(FeedExistsError);
+    await createFeed("locked", "ip", { password: "Passw0rd!x" });
+    expect(await protectedFeed("locked")).toBe(true);
+    await expect(createFeed("locked", "ip", { password: "Other!pass1" })).rejects.toBeInstanceOf(FeedExistsError);
+    await expect(postNote("locked", "ip", async () => ({ body: new TextEncoder().encode("hi"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(AuthError);
+    await postNote("empty", "ip", async () => ({ body: new TextEncoder().encode("hi"), mediaType: "text/markdown" }), {});
+    expect(await countNotes("empty")).toBe(1);
+  });
+
+  test("a feed that has notes counts as existing, and a reserved name is refused", async () => {
+    await createNote("full", "hi");
+    await expect(createFeed("full", "ip", {})).rejects.toBeInstanceOf(FeedExistsError);
+    vi.stubEnv("NOTEFEED_RESERVED_FEEDS", "news");
+    resetFeedsForTests();
+    await expect(createFeed("news", "ip", {})).rejects.toBeInstanceOf(ReservedFeedError);
+  });
+});
+
+// The feed's own title image (#310): an image note in no list, so no post; replaced or removed, it goes.
+describe("setFeedImage", () => {
+  const img = (n: number) => async () => ({ body: png(n), mediaType: "image/png" });
+  test("is the title image but in no list; a new one replaces and deletes it; removing it deletes it", async () => {
+    await createNote("f", "hi");
+    const first = await setFeedImage("f", "ip", img(1), {});
+    expect(first.ownImage).toBe(true);
+    expect((await getSettings("f")).image).toBe(first.image);
+    expect((await listNotes("f")).map((n) => n.type)).toEqual(["text/markdown"]);
+    expect([await countNotes("f"), await countNotes("f", "image")]).toEqual([1, 0]);
+    const second = await setFeedImage("f", "ip", img(2), {});
+    expect(second.image).not.toBe(first.image);
+    expect(await getNote("f", first.image.split(".")[0])).toBeNull();
+    await updateFeed("f", "ip", async () => ({ title: "T", description: "", image: "" }), {});
+    expect(await getNote("f", second.image.split(".")[0])).toBeNull();
+    expect((await getSettings("f")).ownImage).toBeUndefined();
+  });
+
+  test("a posted picture picked as title image stays a post, and is not deleted when replaced", async () => {
+    const posted = await postNote("f", "ip", img(3), {});
+    await updateFeed("f", "ip", async () => ({ title: "", description: "", image: posted.note.file }), {});
+    expect(await countNotes("f", "image")).toBe(1);
+    await setFeedImage("f", "ip", img(4), {});
+    expect(await getNote("f", posted.note.id)).not.toBeNull();
+    expect(await countNotes("f", "image")).toBe(1); // the posted one; the own one is in no list
+  });
+
+  test("needs an existing feed and an image", async () => {
+    await expect(setFeedImage("none", "ip", img(1), {})).rejects.toBeInstanceOf(NotFoundError);
+    await createNote("f", "hi");
+    await expect(setFeedImage("f", "ip", async () => ({ body: new TextEncoder().encode("# no"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(UnsupportedTypeError);
+  });
+});
+
+// Drafts (#265): a post and an edit set the state; pictures follow their text; a draft picture is never the title image.
+describe("drafts", () => {
+  const meta = (id: string, m: { title?: string; draft?: boolean; date?: string }) => editMeta("f", id, "ip", async () => m, {});
+
+  test("a post as a draft makes the text and its pictures drafts", async () => {
+    const r = await post({ text: "hi ![](a.png)", pictures: [pic("a.png")], draft: true });
+    expect([r.note.draft, r.pictures[0].draft]).toEqual([true, true]);
+    const one = await postNote("f", "ip", async () => ({ body: new TextEncoder().encode("solo"), mediaType: "text/markdown", draft: true }), {});
+    expect(one.note.draft).toBe(true);
+  });
+
+  test("draft alone is an edit: it publishes and makes a draft again, keeping the date", async () => {
+    const r = await post({ text: "hi ![](a.png)", pictures: [pic("a.png")], date: "2025-03-01T08:00:00Z", draft: true });
+    const published = await meta(r.note.id, { draft: false });
+    expect([published.draft, published.date.toISOString()]).toEqual([false, "2025-03-01T08:00:00.000Z"]);
+    expect((await getNote("f", r.pictures[0].id))?.draft).toBe(false);
+    expect((await meta(r.note.id, { draft: true })).draft).toBe(true);
+    expect((await getNote("f", r.pictures[0].id))?.draft).toBe(true);
+    await expect(meta(r.note.id, {})).rejects.toThrow(/draft/);
+  });
+
+  test("a picture posted with a note follows it: its own draft state can't be changed (#265)", async () => {
+    const r = await post({ text: "hi ![](a.png)", pictures: [pic("a.png")], draft: true });
+    await expect(meta(r.pictures[0].id, { draft: false })).rejects.toThrow(/follows its note/);
+    expect((await getNote("f", r.pictures[0].id))?.draft).toBe(true);
+    const alone = await post({ pictures: [pic("b.png")], draft: true }); // a picture without a text has no note to follow
+    expect((await meta(alone.note.id, { draft: false })).draft).toBe(false);
+  });
+
+  test("an edit's new picture on a draft is a draft", async () => {
+    const r = await post({ text: "old", pictures: [], draft: true });
+    const e = await edit(r.note.id, { text: "new ![](b.png)", pictures: [pic("b.png")] });
+    expect(e.pictures[0].draft).toBe(true);
+  });
+
+  test("a draft picture cannot become the title image, and the title image's text cannot become a draft", async () => {
+    const d = await post({ text: "d ![](a.png)", pictures: [pic("a.png")], draft: true });
+    await expect(updateFeed("f", "ip", async () => ({ title: "", description: "", image: d.pictures[0].file }), {})).rejects.toBeInstanceOf(InvalidBodyError);
+    const p = await post({ text: "p ![](b.png)", pictures: [pic("b.png")] });
+    await updateFeed("f", "ip", async () => ({ title: "", description: "", image: p.pictures[0].file }), {});
+    await expect(meta(p.note.id, { draft: true })).rejects.toBeInstanceOf(TitleImageDraftError);
+    await expect(meta(p.pictures[0].id, { draft: true })).rejects.toThrow(/follows its note/);
+    expect((await getNote("f", p.note.id))?.draft).toBe(false);
+  });
 });

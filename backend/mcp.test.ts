@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -10,7 +10,10 @@ import { logTo } from "./log";
 import { createNote, getNote, listNotes } from "./notes";
 import { storage } from "./storage";
 import { mcpRoute } from "./mcp";
+import { takedownNote } from "./takedown";
 import { sign } from "./oauth/tokens";
+import { loadSharp } from "./imageprocess";
+import { PNG } from "./testimages";
 
 // Log lines, captured per test.
 let logs: string[] = [];
@@ -90,15 +93,16 @@ const call = async (tool: string, args: Record<string, unknown>) => {
 describe("protocol", () => {
   test("tools/list", async () => {
     const tools = (await (await rpc("tools/list")).json()).result.tools;
-    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["delete_feed", "delete_note", "edit_note", "get_feed", "get_note", "list_notes", "post_file", "post_note", "update_feed"]);
+    expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_licenses", "get_note", "list_notes", "post_file", "post_note", "recover_feed_password", "set_feed_image", "update_feed"]);
     for (const t of tools) {
       // All four hints, as booleans, on every tool: directories refuse a tool that leaves one out.
       expect(Object.keys(t.annotations ?? {}).sort()).toEqual(["destructiveHint", "idempotentHint", "openWorldHint", "readOnlyHint"]);
       expect(Object.values(t.annotations).every((v) => typeof v === "boolean")).toBe(true);
-      expect(t.annotations.readOnlyHint).toBe(["get_feed", "get_note", "list_notes"].includes(t.name));
-      expect(t.annotations.destructiveHint).toBe(["edit_note", "delete_note", "update_feed", "delete_feed"].includes(t.name));
-      expect(t.annotations.idempotentHint).toBe(!["post_note", "post_file"].includes(t.name));
-      expect(t.annotations.openWorldHint).toBe(false);
+      const reads = ["get_feed", "get_licenses", "get_note", "list_notes"];
+      expect(t.annotations.readOnlyHint).toBe(reads.includes(t.name));
+      expect(t.annotations.destructiveHint).toBe(["edit_note", "delete_note", "update_feed", "recover_feed_password", "set_feed_image", "delete_feed"].includes(t.name));
+      expect(t.annotations.idempotentHint).toBe([...reads, "edit_note", "update_feed", "set_feed_image"].includes(t.name));
+      expect(t.annotations.openWorldHint).toBe(t.name === "get_licenses");
       expect(t.outputSchema.type).toBe("object");
     }
   });
@@ -192,7 +196,7 @@ describe("tools", () => {
     expect(listed.map((n: { id: string; tags: string[] }) => [n.id, n.tags])).toEqual([[r.structuredContent.id, ["ci", "env:prod"]]]);
     expect((await call("post_note", { feed: "a", markdown: "# x", tags: ["no good"] })).isError).toBe(true);
     for (const title of ["a\u009bb", "a\u202eb", "a\u2028b"]) expect((await call("post_note", { feed: "a", markdown: "# x", title })).isError, JSON.stringify(title)).toBe(true);
-    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]).toString("base64");
+    const png = Buffer.from(PNG).toString("base64");
     for (const alt of ["a\u009bb", "a\u202eb", "a\u2028b"]) expect((await call("post_file", { feed: "a", type: "image/png", data: png, alt })).isError, JSON.stringify(alt)).toBe(true);
   });
 
@@ -223,6 +227,20 @@ describe("tools", () => {
     expect(l[0].sender).toBe("Ann");
     expect(l[1]).not.toHaveProperty("sender");
     expect((await call("get_note", { feed: "a", id: note.id })).structuredContent.sender).toBe("Ann");
+  });
+
+  test("a note the operator removed (#159): list_notes shows its mark, get_note and edit_note refuse it, delete_note removes the mark", async () => {
+    const { note } = await createNote("a", "# Bad");
+    await takedownNote(`${(await readIdOf("a"))!}/${note.id}`);
+    expect((await call("list_notes", { feed: "a" })).structuredContent.notes).toEqual([expect.objectContaining({ id: note.id, removed: true, type: "application/x-notefeed-removed", title: "" })]);
+    for (const [tool, args] of [["get_note", {}], ["edit_note", { title: "x" }], ["edit_note", { markdown: "# back" }]] as const) {
+      const r = await call(tool, { feed: "a", id: note.id, ...args });
+      expect(r.isError, tool).toBe(true);
+      expect(JSON.stringify(r.content), tool).toContain("removed by the operator");
+    }
+    expect((await call("delete_note", { feed: "a", id: note.id })).structuredContent).toEqual({ deleted: true });
+    expect((await call("list_notes", { feed: "a" })).structuredContent.notes).toEqual([]);
+    expect((await call("get_note", { feed: "a", id: note.id })).isError).toBe(true);
   });
 
   test("get_note", async () => {
@@ -301,6 +319,68 @@ describe("tools", () => {
     expect((await call("list_notes", { feed: "o" })).content[0].text).toBe("missing or wrong password");
     expect((await call("update_feed", { feed: "o", new_password: "Other!pass1", password: "N3wPassw0rd!" })).isError).toBeUndefined();
     expect((await call("list_notes", { feed: "o", password: "Other!pass1" })).isError).toBeUndefined();
+  });
+
+  test("create_feed makes an empty feed, protected with a password; where licenses are sold it needs license_key (#295)", async () => {
+    const made = await call("create_feed", { feed: "e", password: "Passw0rd!x", read_id: "e-read" });
+    expect(made.structuredContent).toMatchObject({ name: "e", protected: true });
+    expect(await readIdOf("e")).toBe("e-read");
+    expect((await call("create_feed", { feed: "e" })).isError).toBe(true);
+    expect((await call("list_notes", { feed: "e", password: "Passw0rd!x" })).structuredContent.notes).toHaveLength(0);
+  });
+
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("create_feed where licenses are sold: the key is required and goes on the feed", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    expect((await call("create_feed", { feed: "l" })).content[0].text).toBe("a license is needed for this feed");
+    expect((await call("create_feed", { feed: "l", license_key: key })).structuredContent).toMatchObject({ name: "l", free_tier: null });
+    expect(await isLicensed("l")).toBe(true);
+  });
+
+  test.skipIf(Number(process.versions.node.split(".")[0]) < 22)("recover_feed_password: the feed's license key sets a new password or removes it; another key is refused (ADR 0037)", async () => {
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const key = "k".repeat(22);
+    const other = "o".repeat(22); // a real key, but on no feed
+    await licenses().createLicense({ keyHash: hashKey(key), providerRef: "sub_1", validUntil: null });
+    await licenses().createLicense({ keyHash: hashKey(other), providerRef: "sub_2", validUntil: null });
+    await call("post_note", { feed: "p", markdown: "# Hi", password: "Lost!pass1", license_key: key });
+    for (const wrong of [other, "x".repeat(22)]) {
+      expect((await call("recover_feed_password", { feed: "p", license_key: wrong, new_password: "N3wPassw0rd!" })).isError).toBe(true);
+    }
+    expect((await call("recover_feed_password", { feed: "p", license_key: key, new_password: " padded " })).isError).toBe(true);
+    const set = await call("recover_feed_password", { feed: "p", license_key: ` ${key} `, new_password: "N3wPassw0rd!" });
+    expect(set.structuredContent).toMatchObject({ name: "p", protected: true, free_tier: null });
+    expect((await call("list_notes", { feed: "p", password: "Lost!pass1" })).isError).toBe(true);
+    expect((await call("list_notes", { feed: "p", password: "N3wPassw0rd!" })).isError).toBeUndefined();
+    const removed = await call("recover_feed_password", { feed: "p", license_key: key });
+    expect(removed.structuredContent).toMatchObject({ protected: false });
+  });
+
+  test("get_licenses tells what is sold, where to buy it and that buyers manage it at the provider by e-mail (#316)", async () => {
+    expect((await call("get_licenses", {})).content[0].text).toBe("licenses are not sold on this instance");
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const { structuredContent } = await call("get_licenses", {});
+    expect(structuredContent.plans.map((p: { period: string }) => p.period)).toEqual(["month", "year"]);
+    expect(structuredContent.buy_url).toMatch(/\/license$/);
+    expect(structuredContent.manage_url).toBe("https://fake.invalid/my-orders");
+    expect(structuredContent.manage).toMatch(/doesn't open it/);
+  });
+
+  test("recover_feed_password is refused where licenses are not sold", async () => {
+    await call("post_note", { feed: "p", markdown: "# Hi", password: "pw" });
+    expect((await call("recover_feed_password", { feed: "p", license_key: "k".repeat(22), new_password: "N3wPassw0rd!" })).content[0].text).toBe("licenses are not sold on this instance");
+  });
+
+  test("set_feed_image sets the feed's own title image, which is no post (#310)", async () => {
+    await call("post_note", { feed: "i", markdown: "# hi" });
+    const data = Buffer.from(PNG).toString("base64");
+    expect((await call("set_feed_image", { feed: "i", type: "image/png", data })).structuredContent.image_url).toMatch(/\.png$/);
+    expect((await call("list_notes", { feed: "i" })).structuredContent.notes).toHaveLength(1);
+    expect((await call("set_feed_image", { feed: "i", type: "text/markdown", data })).isError).toBe(true);
   });
 
   test("calls without a password are refused but never counted as failed attempts", async () => {
@@ -453,6 +533,30 @@ describe("gate on a locked instance", () => {
   });
 });
 
+// Drafts (#265): post_note and post_file take draft, edit_note publishes or makes a draft again, lists mark them.
+describe("drafts", () => {
+  test("post_note as a draft is marked in the reply, list_notes and get_note", async () => {
+    const posted = (await call("post_note", { feed: "o", markdown: "# D", draft: true })).structuredContent;
+    expect(posted.draft).toBe(true);
+    const listed = (await call("list_notes", { feed: "o" })).structuredContent.notes;
+    expect(listed.find((n: { id: string }) => n.id === posted.id).draft).toBe(true);
+    expect((await call("get_note", { feed: "o", id: posted.id })).structuredContent.draft).toBe(true);
+  });
+
+  test("edit_note with only draft publishes, and makes a draft again", async () => {
+    const id = (await call("post_note", { feed: "o", markdown: "# D", date: "2025-03-01", draft: true })).structuredContent.id;
+    const published = (await call("edit_note", { feed: "o", id, draft: false })).structuredContent;
+    expect(published).toMatchObject({ id, date: "2025-03-01T00:00:00.000Z" });
+    expect(published).not.toHaveProperty("draft");
+    expect((await call("edit_note", { feed: "o", id, draft: true })).structuredContent.draft).toBe(true);
+  });
+
+  test("post_file as a draft", async () => {
+    const r = await call("post_file", { feed: "o", type: "text/markdown", data: Buffer.from("# F").toString("base64"), draft: true });
+    expect(r.structuredContent.draft).toBe(true);
+  });
+});
+
 describe("edit_note and delete_note", () => {
   test("edit_note date moves the note", async () => {
     const id = (await call("post_note", { feed: "o", markdown: "# Old" })).structuredContent.id;
@@ -526,7 +630,7 @@ describe("feed tools", () => {
 });
 
 describe("post_note attachments", () => {
-  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("rest")]).toString("base64");
+  const png = Buffer.from(PNG).toString("base64");
   const att = (name: string, extra: Record<string, unknown> = {}) => ({ name, type: "image/png", data: png, ...extra });
   test("posts the images, then the text with the references swapped or appended", async () => {
     const r = (await call("post_note", { feed: "f", markdown: "hi ![](a.png)", attachments: [att("a.png"), att("b.png", { alt: "B" })] })).structuredContent;
@@ -549,7 +653,8 @@ describe("post_note attachments", () => {
     expect((await call("post_note", { feed: "f", markdown: "x" })).structuredContent.attachments).toEqual([]);
   });
   test("validation refuses before anything is posted", async () => {
-    for (const attachments of [[att("a.png"), att("a.png")], [att("a/b.png")], [att("..")], [att("a.md", { type: "text/markdown" })], [att("a.svg", { type: "image/svg+xml" })]]) {
+    expect((await call("post_note", { feed: "f", markdown: "![](a.png)", attachments: [att("a.png"), att("a.png")] })).isError).toBe(true);
+    for (const attachments of [[att("a/b.png")], [att("..")], [att("a.md", { type: "text/markdown" })], [att("a.svg", { type: "image/svg+xml" })]]) {
       expect((await call("post_note", { feed: "f", markdown: "x", attachments })).isError).toBe(true);
     }
     expect(await hasFeed("f")).toBe(false);
@@ -567,13 +672,15 @@ describe("post_note attachments", () => {
     expect(r.content[0].text).toMatch(/^attachment "a\.png": .*base64/);
     expect(await hasFeed("f")).toBe(false);
   });
-  test("a valid 6 MB picture is accepted", async () => {
-    vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "8388608"); // afterEach unstubs it, also when the call throws
-    const big = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(6_000_000, 1)]).toString("base64");
-    const r = await call("post_note", { feed: "f", markdown: "x", attachments: [att("a.png", { data: big })] });
+  test("a full-size photo over 5 MB is accepted as it is, and stored shrunk to 2560 px", async () => {
+    const photo = await loadSharp()({ create: { width: 4000, height: 3000, channels: 3, background: "#888", noise: { type: "gaussian", mean: 128, sigma: 30 } } }).jpeg({ quality: 95 }).toBuffer();
+    expect(photo.length).toBeGreaterThan(5 * 1024 * 1024);
+    expect(photo.length).toBeLessThan(10 * 1024 * 1024);
+    const r = await call("post_note", { feed: "f", markdown: "x", attachments: [att("a.jpg", { type: "image/jpeg", data: photo.toString("base64") })] });
     expect(r.isError).toBeFalsy();
-    expect(r.structuredContent.attachments).toHaveLength(1);
-  });
+    const stored = await readFile(join(process.env.DATA_DIR!, "f", r.structuredContent.attachments[0].file));
+    expect(await loadSharp()(stored).metadata()).toMatchObject({ width: 2560, height: 1920 });
+  }, 60_000);
   test("an oversized image is refused before anything is posted", async () => {
     vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "10");
     const small = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString("base64");
@@ -617,7 +724,7 @@ describe("post_note attachments", () => {
 });
 
 describe("post_file", () => {
-  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("rest")]).toString("base64");
+  const png = Buffer.from(PNG).toString("base64");
   test("stores a picture as a note of its own, and update_feed can make it the title image", async () => {
     await call("post_note", { feed: "i", markdown: "# Hi" });
     const r = (await call("post_file", { feed: "i", type: "image/png", data: png, title: "Cat", alt: "a cat", name: "cat.png" })).structuredContent;
@@ -642,7 +749,7 @@ describe("post_file", () => {
     expect((await call("get_note", { feed: "t", id: r.id })).structuredContent).toMatchObject({ type: "text/markdown", content: "# From a file" });
   });
   test("post_file cleans the file name like the HTTP post does", async () => {
-    const data = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("x")]).toString("base64");
+    const data = Buffer.from(PNG).toString("base64");
     const r = (await call("post_file", { feed: "names", type: "image/png", data, name: "../my\ncat/pic.png" })).structuredContent;
     const sidecar = JSON.parse(await (await import("node:fs/promises")).readFile(join(process.env.DATA_DIR!, "names", `.${r.file}.json`), "utf8"));
     expect(sidecar.name).toBe("..mycatpic.png");

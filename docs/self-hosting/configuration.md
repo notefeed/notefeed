@@ -24,9 +24,8 @@ See [Rate limits and caps](limits.md).
 | `NOTEFEED_RATE_LIMIT` | `60` | Posts, edits and deletes per client per minute, and separately wrong passwords. `0` turns it off. |
 | `NOTEFEED_MAX_FEEDS` | `0`: no limit | Most feeds on the instance; beyond it a new feed answers `507`. |
 | `NOTEFEED_MAX_NOTES_PER_FEED` | `0`: no limit | Most notes in one feed. |
-| `NOTEFEED_MAX_IMAGE_BYTES` | `5242880` (5 MiB) | Largest picture, at most 10 MiB. |
+| `NOTEFEED_MAX_IMAGE_BYTES` | `10485760` (10 MiB) | Largest picture as sent, at most 10 MiB; it is stored shrunk. |
 | `NOTEFEED_MAX_IMAGES_PER_FEED` | `0`: no limit | Most image notes in one feed. |
-| `NOTEFEED_SHRINK_IMAGE_BYTES` | `1048576` (1 MiB) | The size the web pages shrink a picture to before uploading it; `0` sends pictures as they are. |
 | `NOTEFEED_IMAGE_UPLOADS` | on | `0` refuses every picture with `403` (`images_off`); stored ones keep being served. |
 | `NOTEFEED_ALLOW_CUSTOM_IDS` | on | `0` leaves only random [read ids](../using/read-links.md#choosing-a-feeds-read-id). |
 | `NOTEFEED_PARSE_TIMEOUT_MS` | `10000` | How long reading a text posted with pictures may take; past it the post is `400`. |
@@ -41,7 +40,7 @@ See [Rate limits and caps](limits.md).
 | `NOTEFEED_IMPRINT_FILE`, `NOTEFEED_PRIVACY_FILE`, `NOTEFEED_TERMS_FILE` | none | A Markdown file each, shown at `/imprint`, `/privacy` and `/terms`. See [Imprint, privacy page and terms](legal-pages.md). |
 | `NOTEFEED_NOTICE_FILE` | none | A Markdown file shown as a red banner on the start page. |
 | `NOTEFEED_SUPPORT_EMAIL` | none | An address for a **Support** link (`mailto:`) in every footer. See [A support address](legal-pages.md#a-support-address). |
-| `NOTEFEED_REPORT_URL` | none | A URL template for a **Report** link on every note, with `{read_id}`, `{note_id}` and `{file}` filled in. See [A report link on every note](legal-pages.md#a-report-link-on-every-note). |
+| `NOTEFEED_REPORT_URL` | none | A URL template for a **Report** link on every published note, with `{read_id}`, `{note_id}` and `{file}` filled in. See [A report link on every published note](legal-pages.md#a-report-link-on-every-published-note). |
 | `NOTEFEED_REPORT_ENDPOINT` | none | Where the built-in report page `/report` sends a report. |
 | `NOTEFEED_OPERATOR_TOKEN` | none | At least 32 characters. Turns on the operator's endpoints: the [image store clean-up](storage.md#cleaning-up-the-image-store) and [removing a feed](deleting.md#removing-a-feed-as-the-operator). |
 

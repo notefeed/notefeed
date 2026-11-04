@@ -54,15 +54,6 @@ export async function receiveWebhook(rawBody: string, headers: Headers): Promise
   return events.length;
 }
 
-/** The provider's page for whoever holds the key: cancelling, the payment method, the invoices. The key is the proof; a feed's name is not. */
-export async function portalFor(key: string): Promise<{ url: string }> {
-  const provider = paymentProvider();
-  if (!provider) throw new NotFoundError("licenses are not sold on this instance");
-  const license = KEY_RE.test(key) ? await licenses().byKeyHash(hashKey(key)) : null;
-  if (!license?.providerRef) throw new InvalidBodyError("that is not a license key");
-  return provider.portalUrl(license.providerRef);
-}
-
 async function apply(e: LicenseEvent): Promise<void> {
   const store = licenses();
   switch (e.type) {

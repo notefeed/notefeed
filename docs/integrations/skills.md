@@ -20,11 +20,22 @@ Then add the [MCP endpoint](mcp.md#claude-code) if you haven't, and ask, for exa
 
 ## Other assistants
 
-Each skill is one file, [`plugin/skills/<name>/SKILL.md`](https://github.com/notefeed/notefeed/tree/main/plugin/skills). Assistants that read skills take it as it is; for the others, paste it into the project or custom instructions together with the feed to post to.
+Each skill is one file, [`plugin/skills/<name>/SKILL.md`](https://github.com/notefeed/notefeed/tree/main/plugin/skills). Every release also posts them to notefeed.me's `skills` feed, where the newest version of each is always at the same address:
+
+```sh
+curl -O https://notefeed.me/r/skills/post-to-notefeed.md
+curl -O https://notefeed.me/r/skills/create-notefeed-feed.md
+```
+
+Assistants that read skills take the file as it is; for the others, paste it into the project or custom instructions together with the feed to post to. Earlier versions stay in the feed, https://notefeed.me/r/skills, one note per skill and release.
 
 ## Drafts
 
-`post-to-notefeed` can keep drafts in a second feed. Then you see a draft as readers will, and you can send its read link to someone else to review before anything reaches the real feed.
+`post-to-notefeed` asks where your drafts live when you add a feed:
+
+- **In the conversation** (the default): the draft is only in the reply.
+- **On the feed itself**: a [draft](../using/posting.md#drafts) that readers don't see, on your feed page marked as a draft. Publishing keeps its id. Nobody without the feed name can see it, so there is no link to send a reviewer.
+- **In a second feed**: you see a draft as readers will, and you can send its read link to someone else to review before anything reaches the real feed.
 
 !!! warning "The assistant sees the feed names"
     The skill keeps them out of replies and files, but they are part of the conversation. Give it only feeds you would give that service; see [MCP](mcp.md#telling-the-assistant-which-feed).

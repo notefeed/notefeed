@@ -64,6 +64,21 @@ test("a wrong password goes back with the error; no cookie", async () => {
   expect(res.headers.get("set-cookie")).toBeNull();
 });
 
+test("unlock returns to the feed with what was shared, and nothing else", async () => {
+  const res = await post("lockd", { action: "unlock", password: "pw", share: "?share_text=hi&shared=1&error=x" });
+  expect(res.headers.get("location")).toBe("/lockd?share_text=hi&shared=1");
+});
+
+test("a wrong password keeps what was shared, for the next try", async () => {
+  const res = await post("lockd", { action: "unlock", password: "nope", share: "?share_text=hi&shared=1" });
+  expect(res.headers.get("location")).toBe("/lockd?share_text=hi&shared=1&error=auth");
+});
+
+test("a shared text longer than the form's old 4 KiB still unlocks", async () => {
+  const res = await post("lockd", { action: "unlock", password: "pw", share: `?share_text=${"x".repeat(20_000)}` });
+  expect(res.headers.get("location")).toBe(`/lockd?share_text=${"x".repeat(20_000)}`);
+});
+
 test("over the limit: the wait, even for the right password", async () => {
   process.env.NOTEFEED_RATE_LIMIT = "2";
   for (let i = 0; i < 2; i++) await post("lockd", { action: "unlock", password: "nope" });
@@ -99,7 +114,7 @@ test("change from another site is refused and changes nothing", async () => {
 
 test("change with the right current password sets a cookie for the new one", async () => {
   const res = await post("lockd", { action: "change", current: "pw", next: "new" });
-  expect(res.headers.get("location")).toBe("/lockd/settings?saved=1");
+  expect(res.headers.get("location")).toBe("/lockd/settings?saved=password-changed#access");
   expect(cookies(res)).toEqual(setBoth("lockd"));
   expect((await post("lockd", { action: "unlock", password: "pw" })).headers.get("location")).toBe("/lockd?error=auth");
   expect((await post("lockd", { action: "unlock", password: "new" })).headers.get("location")).toBe("/lockd");
@@ -127,4 +142,16 @@ test("invalid and reserved feed names, and unknown actions", async () => {
   expect((await post("a%2Fb", { action: "unlock", password: "x" })).status).toBe(400);
   expect((await post("login", { action: "unlock", password: "x" })).status).toBe(400);
   expect((await post("lockd", { action: "bogus" })).status).toBe(400);
+});
+
+// A feed without a note from the new feed's card (#295): back to the feed, unlocked for it when it has a password.
+test("create makes the feed; with a password this browser is unlocked for it; an existing one goes back to the card", async () => {
+  const open = await post("fresh", { action: "create", password: "", key: "" });
+  expect(open.headers.get("location")).toBe("/fresh?created=1");
+  expect(cookies(open)).toEqual([]);
+  const locked = await post("fresh2", { action: "create", password: "N3wPassw0rd!", key: "" });
+  expect(locked.headers.get("location")).toBe("/fresh2?created=1");
+  expect(cookies(locked)).toEqual(setBoth("fresh2"));
+  expect(await protectedFeed("fresh2")).toBe(true);
+  expect((await post("fresh", { action: "create", password: "", key: "" })).headers.get("location")).toBe("/fresh?form=create&error=feed_exists");
 });

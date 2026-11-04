@@ -29,13 +29,13 @@ Those two pages and the [terms](https://notefeed.me/terms) are the binding state
 
 Every note on notefeed.me carries a **Report** link, on the feed page, the note page and the read-only view. It opens the form at [notefeed.me/report](https://notefeed.me/report) with the note already named; a mail to `abuse@notefeed.me` works as well.
 
-- **What a report holds:** the feed's read id and the note's id, the reason you choose, what you write, and your e-mail address if you give one. When the report has been dealt with, your text and address are deleted the day after; an anonymised record of the decision is kept. The [privacy page](https://notefeed.me/privacy) has the binding wording.
+- **What a report holds:** the feed's read id and the note's id, the reason you choose, what you write, your name and e-mail address if you give them, and your statement that you report in good faith. When the report has been dealt with, your text, name and address are deleted the day after; an anonymised record of the decision is kept. The [privacy page](https://notefeed.me/privacy) has the binding wording.
 - **Nothing is hidden automatically.** The operator reads each report and decides.
 - **A feed that must go is removed for good,** with all its notes and images: its name and its read link answer *removed by the operator* and cannot be used again, and the same images are refused in every feed afterwards.
 - **There is no appeal path yet** beyond writing to the address above.
 - **Nobody is identified.** There are no accounts and notes carry no sender, so a removal is not attributed to anyone and nobody can be barred from posting.
 
-How the link, the form and the removal work is in the self-hosting pages: [A report link on every note](../self-hosting/legal-pages.md#a-report-link-on-every-note) and [Removing a feed as the operator](../self-hosting/deleting.md#removing-a-feed-as-the-operator).
+How the link, the form and the removal work is in the self-hosting pages: [A report link on every published note](../self-hosting/legal-pages.md#a-report-link-on-every-published-note) and [Removing a feed as the operator](../self-hosting/deleting.md#removing-a-feed-as-the-operator).
 
 ## How it is run
 

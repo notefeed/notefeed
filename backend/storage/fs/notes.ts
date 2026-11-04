@@ -1,11 +1,11 @@
 // A note on disk is a content file `<DATA_DIR>/<feed>/<id>.<ext>`, stored exactly as posted, and a sidecar with its metadata and
-// its date, `.<id>.<ext>.json` (the content file's complete name plus `.json`; `{ ...meta, date }`). A note placed by hand, or
+// its date, `.<id>.<ext>.json` (the content file's complete name plus `.json`; `{ ...meta, date }`, and `draft: true` for a draft, #265). A note placed by hand, or
 // stored before notes had a date, may have no sidecar or one without a date. Dot files are never notes. Which
 // extensions are notes is the caller's business (backend/note/types.ts); nothing here knows about types.
 // Only regular files count: a folder, a symbolic link or an unreadable entry in a feed folder is "not a note", never an error.
 import { randomBytes } from "node:crypto";
 import type { Stats } from "node:fs";
-import { link, lstat, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { appendFile, link, lstat, readdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { countDir, countFile, noteFeedSize } from "../../metrics";
 import { applyPatch, hasMeta, parseMeta } from "../meta";
@@ -63,6 +63,19 @@ function storedDate(raw: string | null): number | undefined {
   }
 }
 
+// Whether the sidecar marks the note a draft; anything but `true` (or no sidecar) is published.
+function storedDraft(raw: string | null): boolean {
+  if (raw === null) return false;
+  try {
+    return (JSON.parse(raw) as { draft?: unknown } | null)?.draft === true;
+  } catch {
+    return false;
+  }
+}
+
+// The sidecar's plain fields beside the metadata: the date, and the draft flag only when set.
+const plain = (date: number, draft: boolean) => ({ date, ...(draft && { draft: true }) });
+
 // A note's date: the sidecar's, else the metadata's `created`, else when the content was last written.
 function dateOf(raw: string | null, meta: Meta, mtime: number): number {
   const created = meta.created === undefined ? NaN : Date.parse(meta.created);
@@ -98,10 +111,10 @@ async function find(feed: string, id: string, exts: readonly string[]): Promise<
 // first, so a listed note always has its metadata and date; a failure removes it again. The feed directory must exist (ensureFeed
 // creates it): a feed deleted meanwhile is FeedGoneError, never a directory made again without its `.readid`.
 // Never overwrites, never leaves a partial content file behind.
-export async function writeNote(feed: string, base: string, ext: string, content: string | Uint8Array, meta: Meta, date: number): Promise<string> {
+export async function writeNote(feed: string, base: string, ext: string, content: string | Uint8Array, meta: Meta, date: number, draft = false): Promise<string> {
   const dir = feedDir(feed);
   const tmp = join(dir, `.${randomBytes(6).toString("hex")}.tmp`);
-  const json = JSON.stringify({ ...meta, date });
+  const json = JSON.stringify({ ...meta, ...plain(date, draft) });
   try {
     await writeFile(/*turbopackIgnore: true*/ tmp, content);
     for (let n = 1; ; n++) {
@@ -152,21 +165,25 @@ async function namesIn(feed: string): Promise<{ id: string; ext: string }[]> {
 }
 
 // The caller filters by type. Each note's sidecar is read for its date (a note without one, its content file's mtime); the order,
-// `upTo`, `before` and `limit` are then applied here, in memory.
-export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number } = {}): Promise<NoteRef[]> {
-  const names = await namesIn(feed);
+// `upTo`, `drafts`, `before` and `limit` are then applied here, in memory.
+export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number; drafts?: boolean; removed?: boolean } = {}): Promise<NoteRef[]> {
+  // A note the operator removed is in no list, also while a takedown cut short has not deleted it yet (#159); the mark, which has
+  // the id of the text it stands for, is.
+  const [all, removed] = await Promise.all([namesIn(feed), q.removed ? new Map() : removedNotes(feed)]);
+  const names = removed.size ? all.filter((n) => n.ext === "removed" || !removed.has(n.id)) : all;
   noteFeedSize(names.length);
   const dateRef = async ({ id, ext }: { id: string; ext: string }): Promise<NoteRef | null> => {
     const raw = await sidecarOf(feed, id, ext);
     const stored = storedDate(raw);
-    if (stored !== undefined) return { id, ext, date: stored };
+    const draft = storedDraft(raw);
+    if (stored !== undefined) return { id, ext, date: stored, draft };
     const info = await regular(file(feed, id, ext));
-    return info && { id, ext, date: dateOf(raw, raw === null ? {} : parseMeta(raw), info.mtimeMs) }; // null: gone since the listing
+    return info && { id, ext, date: dateOf(raw, raw === null ? {} : parseMeta(raw), info.mtimeMs), draft }; // null: gone since the listing
   };
   // READS_AT_ONCE sidecars at a time: a read per note under one Promise.all runs out of file descriptors on a large feed (as feedindex.ts).
   const dated: (NoteRef | null)[] = [];
   for (let i = 0; i < names.length; i += READS_AT_ONCE) dated.push(...(await Promise.all(names.slice(i, i + READS_AT_ONCE).map(dateRef))));
-  let refs = dated.filter((r): r is NoteRef => r !== null && (q.upTo === undefined || r.date <= q.upTo));
+  let refs = dated.filter((r): r is NoteRef => r !== null && (q.upTo === undefined || r.date <= q.upTo) && (q.drafts === true || !r.draft));
   refs.sort((a, b) => b.date - a.date || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
   if (q.before !== undefined) {
     const at = refs.findIndex((r) => r.id === q.before);
@@ -204,7 +221,7 @@ export async function readNote(feed: string, id: string, exts: readonly string[]
   if (content === null) return null;
   const raw = await sidecarOf(feed, id, found.ext);
   const meta = raw === null ? {} : parseMeta(raw);
-  return { ext: found.ext, content, size: found.info.size, meta, mtime: found.info.mtime, date: dateOf(raw, meta, found.info.mtimeMs) };
+  return { ext: found.ext, content, size: found.info.size, meta, mtime: found.info.mtime, date: dateOf(raw, meta, found.info.mtimeMs), draft: storedDraft(raw) };
 }
 
 // Only the sidecar: what the tag filter needs. null when the note itself is not there.
@@ -238,7 +255,7 @@ export async function replaceNote(feed: string, id: string, exts: readonly strin
 }
 
 // Changes some fields of an existing note's metadata: a string or list sets one, null (or an empty value) removes it. The sidecar is
-// replaced atomically (temp file, then rename), its date kept; it is removed when nothing is left, not even a date. False when there
+// replaced atomically (temp file, then rename), its date and draft flag kept; it is removed when nothing is left, not even a date. False when there
 // is no such note.
 export async function updateMeta(feed: string, id: string, exts: readonly string[], patch: { [K in keyof Meta]?: Meta[K] | null }): Promise<boolean> {
   const found = await find(feed, id, exts);
@@ -246,7 +263,8 @@ export async function updateMeta(feed: string, id: string, exts: readonly string
   const raw = await sidecarOf(feed, id, found.ext);
   const merged = applyPatch(raw === null ? {} : parseMeta(raw), patch);
   const date = storedDate(raw);
-  if (!hasMeta(merged) && date === undefined) {
+  const draft = storedDraft(raw);
+  if (!hasMeta(merged) && date === undefined && !draft) {
     try {
       await unlink(/*turbopackIgnore: true*/ sidecar(feed, id, found.ext));
     } catch (e) {
@@ -254,14 +272,25 @@ export async function updateMeta(feed: string, id: string, exts: readonly string
     }
     return true;
   }
-  return writeSidecar(feed, id, found.ext, JSON.stringify(date === undefined ? merged : { ...merged, date }));
+  return writeSidecar(feed, id, found.ext, JSON.stringify(date === undefined ? { ...merged, ...(draft && { draft: true }) } : { ...merged, ...plain(date, draft) }));
 }
 
-// Rewrites the sidecar with the new date, its metadata kept, as updateMeta does. False when there is no such note.
+// Rewrites the sidecar with the new date, its metadata and draft flag kept, as updateMeta does. False when there is no such note.
 export async function setDate(feed: string, id: string, exts: readonly string[], date: number): Promise<boolean> {
   const found = await find(feed, id, exts);
   if (!found) return false;
-  return writeSidecar(feed, id, found.ext, JSON.stringify({ ...(await metaOf(feed, id, found.ext)), date }));
+  const raw = await sidecarOf(feed, id, found.ext);
+  return writeSidecar(feed, id, found.ext, JSON.stringify({ ...(raw === null ? {} : parseMeta(raw)), ...plain(date, storedDraft(raw)) }));
+}
+
+// Rewrites the sidecar with the flag, its metadata and date kept (a note without a stored date gets the one it is listed by, so the
+// rewrite does not move it). False when there is no such note.
+export async function setDraft(feed: string, id: string, exts: readonly string[], draft: boolean): Promise<boolean> {
+  const found = await find(feed, id, exts);
+  if (!found) return false;
+  const raw = await sidecarOf(feed, id, found.ext);
+  const meta = raw === null ? {} : parseMeta(raw);
+  return writeSidecar(feed, id, found.ext, JSON.stringify({ ...meta, ...plain(dateOf(raw, meta, found.info.mtimeMs), draft) }));
 }
 
 // As writeNote: the new sidecar first (it claims the id, with the note's date written out), then a link of the content file to the
@@ -275,7 +304,7 @@ export async function renameNote(feed: string, id: string, ext: string, newId: s
   if (!info || (await namesIn(feed)).some((n) => n.id === newId)) return false;
   const raw = await sidecarOf(feed, id, ext);
   const meta = raw === null ? {} : parseMeta(raw);
-  const json = JSON.stringify({ ...meta, date: dateOf(raw, meta, info.mtimeMs) });
+  const json = JSON.stringify({ ...meta, ...plain(dateOf(raw, meta, info.mtimeMs), storedDraft(raw)) });
   let claimed: boolean;
   try {
     claimed = await claim(feed, newId, ext, json);
@@ -312,4 +341,46 @@ export async function deleteNote(feed: string, id: string, exts: readonly string
     if (!isErrno(e, "ENOENT")) throw e;
   });
   return gone;
+}
+
+// The takedown of one post (issue #159): `.removed-notes` in the feed folder holds one JSON line per removed note (its id, and its
+// post's date and draft flag), appended to (a line is small, and append is atomic for one). A dot file is never a note, and the folder
+// goes with the feed. The tombstones first, then the notes, then the mark, as in the database backends. The first line of an id holds.
+const removedNotesFile = (feed: string) => join(feedDir(feed), ".removed-notes");
+
+export async function takedownNotes(feed: string, notes: { id: string; ext: string }[], post: { date: number; draft: boolean }, markId: string | null): Promise<{ keys: string[] }> {
+  if (notes.length > 0) {
+    try {
+      await appendFile(/*turbopackIgnore: true*/ removedNotesFile(feed), notes.map((n) => JSON.stringify({ id: n.id, date: post.date, draft: post.draft }) + "\n").join(""), { mode: 0o600 });
+    } catch (e) {
+      if (isErrno(e, "ENOENT")) throw new FeedGoneError();
+      throw e;
+    }
+    for (const n of notes) await deleteNote(feed, n.id, [n.ext]);
+  }
+  if (markId) await writeNote(feed, markId, "removed", "", {}, post.date, post.draft);
+  return { keys: [] };
+}
+
+// Every tombstone of the feed by id, the first line of an id holding. A line cut short by a crash is not a record.
+async function removedNotes(feed: string): Promise<Map<string, { date: number; draft: boolean }>> {
+  const raw = await readFile(/*turbopackIgnore: true*/ removedNotesFile(feed), "utf8").catch((e) => {
+    if (isGone(e)) return "";
+    throw e;
+  });
+  const stones = new Map<string, { date: number; draft: boolean }>();
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const t = JSON.parse(line);
+      if (typeof t.id === "string" && !stones.has(t.id)) stones.set(t.id, { date: Number(t.date) || 0, draft: t.draft === true });
+    } catch {
+      // cut short
+    }
+  }
+  return stones;
+}
+
+export async function removedNote(feed: string, id: string): Promise<{ date: number; draft: boolean } | null> {
+  return (await removedNotes(feed)).get(id) ?? null;
 }

@@ -149,6 +149,17 @@ describe("edit and delete", () => {
     expect(JSON.parse(server.requests[0].body.toString())).toEqual({ date: "2025-03-01T06:00:00.000Z" });
     expect(JSON.parse(server.requests[1].body.toString())).toEqual({ date: "2025-03-01" });
   });
+  test("draft goes as X-Note-Draft on a post, with or without attachments, and in the PATCH body (#265)", async () => {
+    server.reply(201, CREATED);
+    const c = new Client({ url: server.url, feed: "inbox" });
+    await c.post("x", { draft: true });
+    await c.post("x ![](a.png)", { draft: true, attachments: [{ name: "a.png", content: new Uint8Array([0x89, 0x50, 0x4e, 0x47]), type: "image/png" }] });
+    await c.post("x", { draft: false });
+    expect([server.requests[0].headers["x-note-draft"], server.requests[1].headers["x-note-draft"], server.requests[2].headers["x-note-draft"]]).toEqual(["true", "true", undefined]);
+    server.reply(200, note(10));
+    await c.update(ID, { draft: false });
+    expect(JSON.parse(server.requests[3].body.toString())).toEqual({ draft: false });
+  });
   test("update PATCHes the title and alt text as JSON", async () => {
     server.reply(200, note(10));
     const c = new Client({ url: server.url, feed: "inbox", password: "pw" });
@@ -233,6 +244,46 @@ describe("feed settings and deletion", () => {
     expect(open.headers["x-feed-password"]).toBeUndefined();
     expect([JSON.parse(change.body.toString()), change.headers["x-feed-password"]]).toEqual([{ password: "Other!pass1" }, "N3wPassw0rd!"]);
   });
+  test("createFeed POSTs the feed's protection and returns the feed, without a feed password", async () => {
+    server.reply(201, FEED);
+    server.reply(201, FEED);
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
+    expect(await c.createFeed({ password: "N3wPassw0rd!", licenseKey: "k".repeat(22), readId: "my-read" })).toEqual(FEED);
+    await c.createFeed({ feed: "other" });
+    const [made, bare] = server.requests;
+    expect([made.method, made.path, JSON.parse(made.body.toString())]).toEqual(["POST", "/api/v1/feeds/inbox", { password: "N3wPassw0rd!", license_key: "k".repeat(22), read_id: "my-read" }]);
+    expect(made.headers["x-feed-password"]).toBeUndefined();
+    expect([bare.path, JSON.parse(bare.body.toString())]).toEqual(["/api/v1/feeds/other", {}]);
+  });
+  test("licenses GETs what is sold, where to buy it and where buyers manage it, without a feed or a feed password", async () => {
+    const LICENSES = { plans: [{ period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", tax_included: true }], buy_url: "https://n.test/license", manage_url: "https://pay.test/login", manage: "Sign in there." };
+    server.reply(200, LICENSES);
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
+    expect(await c.licenses()).toEqual(LICENSES);
+    const [got] = server.requests;
+    expect([got.method, got.path, got.headers["x-feed-password"]]).toEqual(["GET", "/api/v1/licenses", undefined]);
+  });
+  test("recoverFeedPassword POSTs the key and the new password, without a feed password", async () => {
+    server.reply(204, "", "text/plain");
+    server.reply(204, "", "text/plain");
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "forgotten" });
+    expect(await c.recoverFeedPassword("k".repeat(22), "N3wPassw0rd!")).toBeUndefined();
+    await c.recoverFeedPassword("k".repeat(22), undefined, { feed: "other" });
+    const [set, removed] = server.requests;
+    expect([set.method, set.path, JSON.parse(set.body.toString())]).toEqual(["POST", "/api/v1/feeds/inbox/password/recover", { key: "k".repeat(22), password: "N3wPassw0rd!" }]);
+    expect(set.headers["x-feed-password"]).toBeUndefined();
+    expect([removed.path, JSON.parse(removed.body.toString())]).toEqual(["/api/v1/feeds/other/password/recover", { key: "k".repeat(22), password: "" }]);
+  });
+  test("setFeedImage PUTs the image with its type, removeFeedImage DELETEs it; both return the feed", async () => {
+    server.reply(200, FEED);
+    server.reply(200, FEED);
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
+    expect(await c.setFeedImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), "image/png")).toEqual(FEED);
+    expect(await c.removeFeedImage({ feed: "other" })).toEqual(FEED);
+    const [put, del] = server.requests;
+    expect([put.method, put.path, put.headers["content-type"], put.headers["x-feed-password"], [...put.body]]).toEqual(["PUT", "/api/v1/feeds/inbox/image", "image/png", "fp", [0x89, 0x50, 0x4e, 0x47]]);
+    expect([del.method, del.path]).toEqual(["DELETE", "/api/v1/feeds/other/image"]);
+  });
   test("deleteFeed sends DELETE and resolves to nothing on 204", async () => {
     server.reply(204, "", "text/plain");
     const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
@@ -297,6 +348,7 @@ describe("errors map from the response's code", () => {
     ["auth", 401, AuthError],
     ["rate_limited", 429, RateLimitedError],
     ["too_many_attempts", 429, RateLimitedError],
+    ["busy", 503, RateLimitedError],
     ["not_found", 404, NotFoundError],
     ["feed_limit", 507, LimitReachedError],
     ["note_limit", 507, LimitReachedError],
@@ -410,6 +462,14 @@ describe("reading", () => {
       return [200, { notes: page, next: older.length > limit ? page[page.length - 1].id : null }];
     });
   }
+
+  test("the operator's mark comes through notes() with removed: true (#159)", async () => {
+    const { content: _, ...rest } = note(10);
+    serveFeed([{ ...rest, type: "application/x-notefeed-removed", title: "", size: 0, file_url: null, removed: true }, note(9)]);
+    const got = await collect(new Client({ url: server.url, feed: "inbox" }).notes());
+    expect(got.map((n) => n.removed ?? false)).toEqual([true, false]);
+    expect(got[0].file_url).toBeNull();
+  });
 
   test("notes() walks every page via next → before, newest first", async () => {
     serveFeed([10, 11, 12, 13, 14].map(note));

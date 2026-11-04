@@ -40,17 +40,6 @@ test("image uploads are on unless NOTEFEED_IMAGE_UPLOADS is 0", () => {
   }
 });
 
-test("pictures are shrunk to 1 MiB unless NOTEFEED_SHRINK_IMAGE_BYTES says otherwise; 0 is off; never over the image limit", () => {
-  expect(config.shrinkImageBytes()).toBe(1048576);
-  for (const [v, want] of [["", 1048576], ["-5", 1048576], ["x", 1048576], ["0", 0], ["2097152", 2097152], ["99999999", 5242880]] as const) {
-    process.env.NOTEFEED_SHRINK_IMAGE_BYTES = v;
-    expect(config.shrinkImageBytes()).toBe(want);
-  }
-  process.env.NOTEFEED_MAX_IMAGE_BYTES = "524288";
-  process.env.NOTEFEED_SHRINK_IMAGE_BYTES = "";
-  expect(config.shrinkImageBytes()).toBe(524288);
-});
-
 test("metrics are on only for NOTEFEED_METRICS=1; the token is empty when unset", () => {
   for (const v of [undefined, "", "0", "true"]) {
     if (v === undefined) delete process.env.NOTEFEED_METRICS;

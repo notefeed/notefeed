@@ -9,6 +9,8 @@ import { resetRateLimitsForTests } from "../limits";
 import { countNotes, getNote } from "../notes";
 import { API_PREFIX, dispatch } from "./api";
 import { readMultipart } from "./notes";
+import { processImage } from "../imageprocess";
+import { GIF, JPG, PNG, WEBP } from "../testimages";
 
 const BASE = "http://localhost:3000";
 let dir: string;
@@ -21,10 +23,6 @@ beforeEach(async () => {
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_MAX_IMAGE_BYTES", "NOTEFEED_MAX_IMAGES_PER_FEED", "NOTEFEED_MAX_NOTES_PER_FEED"]) delete process.env[k];
 });
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
-const GIF = new TextEncoder().encode("GIF89a\x01\x00");
-const WEBP = new TextEncoder().encode("RIFF\x10\x00\x00\x00WEBPVP8 ");
 
 // POST /feeds/<feed>/notes: the body is the file, Content-Type says what it is.
 function post(body: BodyInit | null, type: string | null, headers: Record<string, string> = {}, feed = "f") {
@@ -103,29 +101,32 @@ describe("images", () => {
     ["image/jpeg", JPG, "jpg"],
     ["image/gif", GIF, "gif"],
     ["image/webp", WEBP, "webp"],
-  ] as const)("%s is stored as .%s, byte for byte", async (type, bytes, ext) => {
+  ] as const)("%s is stored as .%s, as processImage makes it", async (type, bytes, ext) => {
     const res = await post(bytes as BodyInit, type);
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.file).toBe(`${body.id}.${ext}`);
-    expect([...(await stored(body.file))]).toEqual([...bytes]);
+    expect([...(await stored(body.file))]).toEqual([...(await processImage(bytes, ext))]);
   });
   test("over NOTEFEED_MAX_IMAGE_BYTES is 413, over 100 KiB of markdown is 413", async () => {
-    process.env.NOTEFEED_MAX_IMAGE_BYTES = "20";
-    expect((await post(new Uint8Array([...PNG, ...new Uint8Array(20)]) as BodyInit, "image/png")).status).toBe(413);
+    process.env.NOTEFEED_MAX_IMAGE_BYTES = "200";
+    expect((await post(new Uint8Array([...PNG, ...new Uint8Array(200)]) as BodyInit, "image/png")).status).toBe(413);
     delete process.env.NOTEFEED_MAX_IMAGE_BYTES;
     expect((await post("a".repeat(102401), "text/markdown")).status).toBe(413);
     expect((await post("a".repeat(102400), "text/markdown")).status).toBe(201);
   });
-  test("the caps are per type: images have their own, the notes limit counts markdown", async () => {
+  test("the notes limit counts every note, texts and images alike; images have a limit of their own too", async () => {
     process.env.NOTEFEED_MAX_IMAGES_PER_FEED = "1";
-    process.env.NOTEFEED_MAX_NOTES_PER_FEED = "1";
+    process.env.NOTEFEED_MAX_NOTES_PER_FEED = "2";
     expect((await post(PNG as BodyInit, "image/png")).status).toBe(201);
-    expect((await post("# a", "text/markdown")).status).toBe(201);
     const image = await post(PNG as BodyInit, "image/png");
     expect([image.status, (await image.json()).code]).toEqual([507, "image_limit"]);
+    expect((await post("# a", "text/markdown")).status).toBe(201);
     const note = await post("# b", "text/markdown");
     expect([note.status, (await note.json()).code]).toEqual([507, "note_limit"]);
+    process.env.NOTEFEED_MAX_IMAGES_PER_FEED = "5";
+    const third = await post(PNG as BodyInit, "image/png");
+    expect([third.status, (await third.json()).code]).toEqual([507, "note_limit"]);
   });
 });
 
@@ -270,6 +271,27 @@ describe("multipart: a text with its pictures", () => {
     expect(await countNotes("f", "markdown")).toBe(0);
     expect(await countNotes("f")).toBe(2);
   });
+  test("pictures with the same file name that the text doesn't mention: each is stored and shown at the end", async () => {
+    const res = await sendForm([["text", "# Trip"], ["file", png("image.png")], ["file", png("image.png")]]);
+    expect(res.status).toBe(201);
+    const { file, attachments } = await res.json();
+    expect(attachments).toHaveLength(2);
+    expect(attachments[0].file).not.toBe(attachments[1].file);
+    expect((await stored(file)).toString()).toBe(`# Trip\n\n![](${attachments[0].file})\n\n![](${attachments[1].file})`);
+    for (const a of attachments) expect((await sidecarOf(a.file)).name).toBe("image.png");
+  });
+  test("only files with the same file name: each is a note of its own", async () => {
+    const res = await sendForm([["file", png("image.png")], ["file", png("image.png")]]);
+    expect(res.status).toBe(201);
+    expect((await res.json()).attachments).toHaveLength(2);
+    expect(await countNotes("f")).toBe(2);
+  });
+  test("a repeated name beside one the text refers to: the reference gets its picture, the others are appended", async () => {
+    const res = await sendForm([["text", "![](map.png)"], ["file", png("image.png")], ["file", png("map.png")], ["file", png("image.png")]]);
+    expect(res.status).toBe(201);
+    const { file, attachments } = await res.json();
+    expect((await stored(file)).toString()).toBe(`![](${attachments[1].file})\n\n![](${attachments[0].file})\n\n![](${attachments[2].file})`);
+  });
   test("only text equals a raw post, with no attachments", async () => {
     const res = await sendForm([["text", "# Hi"]], { "x-note-title": "T" });
     expect(res.status).toBe(201);
@@ -289,7 +311,7 @@ describe("multipart: a text with its pictures", () => {
     ["a text field and a text file", [["text", "# a"], ["text", new File(["# b"], "b.md", { type: "text/markdown" })]], {}, "invalid_body", null],
     ["a part named other", [["text", "a"], ["other", "x"]], {}, "invalid_body", null],
     ["a file part without a file name", [["file", "just a string"]], {}, "invalid_body", null],
-    ["a duplicate file name", [["file", png("a.png")], ["file", png("a.png")]], {}, "invalid_body", "a.png"],
+    ["a text that refers to a file name given twice", [["text", "![](a.png)"], ["file", png("a.png")], ["file", png("a.png")]], {}, "invalid_body", "a.png"],
     ["alt for a file that is not sent", [["file", png("a.png")], ["alt.x.png", "x"]], {}, "invalid_body", null],
     ["X-Note-Alt", [["file", png("a.png")]], { "x-note-alt": "x" }, "invalid_body", null],
     ["X-Note-Name", [["file", png("a.png")]], { "x-note-name": "x.png" }, "invalid_body", null],
@@ -346,16 +368,16 @@ describe("multipart: a text with its pictures", () => {
   test("an oversize picture or a body over the request cap is 413, and nothing is created", async () => {
     process.env.NOTEFEED_MAX_IMAGE_BYTES = "20";
     // Both are `too_large`; the message says which: the picture's is ImageTooLargeError's, after its name.
-    const picture = await sendForm([["text", "# a"], ["file", png("a.png", new Uint8Array([...PNG, ...new Uint8Array(20)]))]]);
+    const picture = await sendForm([["text", "# a"], ["file", png("a.png", new Uint8Array([...PNG, ...new Uint8Array(200)]))]]);
     expect([picture.status, await picture.json()]).toEqual([413, { code: "too_large", error: 'attachment "a.png": image exceeds the size limit' }]);
-    // The cap is 102400 + 10 * 20 bytes + 64 KiB of framing: an alt text that long would be a 400 if it were read. NoteTooLargeError, naming no picture.
-    const request = await sendForm([["file", png("a.png")], ["alt.a.png", "a".repeat(102400 + 200 + 65536 + 1)]]);
+    // The cap is 102400 + 10 * 200 bytes + 64 KiB of framing: an alt text that long would be a 400 if it were read. NoteTooLargeError, naming no picture.
+    const request = await sendForm([["file", png("a.png")], ["alt.a.png", "a".repeat(102400 + 2000 + 65536 + 1)]]);
     expect([request.status, await request.json()]).toEqual([413, { code: "too_large", error: "note exceeds 100 KB" }]);
     expect(await hasFeed("f")).toBe(false);
   });
   test("a request at every limit at once passes the request cap: 10 pictures at the image limit and a text at the markdown limit", async () => {
-    process.env.NOTEFEED_MAX_IMAGE_BYTES = "20";
-    const full = new Uint8Array([...PNG, ...new Uint8Array(20 - PNG.length)]);
+    process.env.NOTEFEED_MAX_IMAGE_BYTES = "200";
+    const full = new Uint8Array([...PNG, ...new Uint8Array(200 - PNG.length)]); // what follows the PNG's end is not decoded
     const files = Array.from({ length: 10 }, (_, i) => ["file", png(`${i}.png`, full)] as [string, File]);
     const req = (text: string) => new Request(`${BASE}${API_PREFIX}/feeds/f/notes`, { method: "POST", body: form([["text", text], ...files]) });
     // Read as the request cap sees it: a text of exactly MAX_BYTES can't be stored with pictures, their references make it longer.
@@ -392,7 +414,7 @@ describe("multipart: a text with its pictures", () => {
     expect(refused.status).toBe(415);
     expect(await hasFeed("g")).toBe(false);
     expect(await protectedFeed("g")).toBe(false);
-    const twice = await sendForm([["text", "# a"], ["file", png("a.png")], ["file", png("a.png")]], { "x-feed-password": "hunter22" }, "g");
+    const twice = await sendForm([["text", "![](a.png)"], ["file", png("a.png")], ["file", png("a.png")]], { "x-feed-password": "hunter22" }, "g");
     expect([twice.status, (await twice.json()).code]).toEqual([400, "invalid_body"]);
     expect(await hasFeed("g")).toBe(false);
     expect(await protectedFeed("g")).toBe(false);
