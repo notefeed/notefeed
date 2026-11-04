@@ -95,9 +95,14 @@ describe("protocol", () => {
     const tools = (await (await rpc("tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual(["create_feed", "delete_feed", "delete_note", "edit_note", "get_feed", "get_licenses", "get_note", "list_notes", "post_file", "post_note", "recover_feed_password", "set_feed_image", "update_feed"]);
     for (const t of tools) {
-      expect(t.annotations?.readOnlyHint === true).toBe(["get_feed", "get_licenses", "get_note", "list_notes"].includes(t.name));
-      expect(t.annotations?.destructiveHint === true).toBe(["edit_note", "delete_note", "update_feed", "recover_feed_password", "set_feed_image", "delete_feed"].includes(t.name));
-      expect(t.annotations?.idempotentHint === true).toBe(["edit_note", "update_feed", "set_feed_image"].includes(t.name));
+      // All four hints, as booleans, on every tool: directories refuse a tool that leaves one out.
+      expect(Object.keys(t.annotations ?? {}).sort()).toEqual(["destructiveHint", "idempotentHint", "openWorldHint", "readOnlyHint"]);
+      expect(Object.values(t.annotations).every((v) => typeof v === "boolean")).toBe(true);
+      const reads = ["get_feed", "get_licenses", "get_note", "list_notes"];
+      expect(t.annotations.readOnlyHint).toBe(reads.includes(t.name));
+      expect(t.annotations.destructiveHint).toBe(["edit_note", "delete_note", "update_feed", "recover_feed_password", "set_feed_image", "delete_feed"].includes(t.name));
+      expect(t.annotations.idempotentHint).toBe([...reads, "edit_note", "update_feed", "set_feed_image"].includes(t.name));
+      expect(t.annotations.openWorldHint).toBe(t.name === "get_licenses");
       expect(t.outputSchema.type).toBe("object");
     }
   });

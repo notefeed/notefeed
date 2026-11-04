@@ -66,6 +66,8 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
   };
 }
 
+// Every tool declares all four hints, as booleans: directories such as OpenAI's refuse a tool that leaves one out. Only get_licenses
+// reaches beyond this notefeed: its plans come from the payment provider.
 function server(h: Headers): McpServer {
   const base = publicUrl(h);
   const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, date: n.date.toISOString(), ...(isScheduled(n) && { scheduled: true as const }), ...(isDraft(n) && { draft: true as const }), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }), ...(n.removed && { removed: true as const }) });
@@ -106,6 +108,7 @@ function server(h: Headers): McpServer {
           .optional(),
       }),
       outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), draft: DRAFT_OUT, attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, markdown, title, name, password, tags, date, draft, read_id, license_key, attachments = [] }) => {
       // Buffer.from skips what is not base64, so the data is checked here; the rest of the checks are postWithPictures's.
@@ -127,7 +130,7 @@ function server(h: Headers): McpServer {
       description: `List a feed's notes, newest first, without their content. Pass the returned next as before for the next page. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, limit: z.number().int().min(1).max(100).default(20), before: z.string().optional(), tag: z.string().optional().describe("Only notes carrying this tag"), password }),
       outputSchema: z.object({ notes: z.array(NoteSummary), next: z.string().nullable() }),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, limit, before, tag, password }) => {
       await checkAccess(feed, password);
@@ -143,7 +146,7 @@ function server(h: Headers): McpServer {
       description: `Get one note with its content (the text of a text note; a picture has none, use its URL). ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, id: z.string(), password }),
       outputSchema: NoteFull,
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, id, password }) => {
       await checkAccess(feed, password);
@@ -169,7 +172,7 @@ function server(h: Headers): McpServer {
         password,
       }),
       outputSchema: NoteFull,
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, id, markdown, title, tags, date, draft, password }) => {
       if (markdown === undefined && title === undefined && tags === undefined && date === undefined && draft === undefined) throw new InvalidBodyError("nothing to change: send markdown, title, tags, date, draft or several");
@@ -188,7 +191,7 @@ function server(h: Headers): McpServer {
       description: `Permanently delete a note. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, id: z.string(), password }),
       outputSchema: z.object({ deleted: z.literal(true) }),
-      annotations: { destructiveHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, id, password }) => {
       await deleteNote(feed, id, clientIp(h), { password });
@@ -206,7 +209,7 @@ function server(h: Headers): McpServer {
       description: `Get a feed's title, description, title image, whether it is protected, its read link (null while it has no notes), whether readers see who posted, and, on a free feed where licenses are sold, its notes against the free cap. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, password }),
       outputSchema: FeedOut,
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, password }) => {
       await checkAccess(feed, password);
@@ -222,7 +225,7 @@ function server(h: Headers): McpServer {
         "Only on an instance that sells licenses. What a license costs (plans, amounts in cents), where a person buys one (buy_url, the license page: the key comes after paying) and where buyers manage their purchases: cancelling, the payment method, invoices and their keys are at the payment provider (manage_url), signed in with the e-mail address they bought with. No license key opens that page. A key goes on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.",
       inputSchema: z.object({}),
       outputSchema: z.object(LicensesJson.shape),
-      annotations: { readOnlyHint: true },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
     guard(async () => ok(await licensesJson(h))),
   );
@@ -242,7 +245,7 @@ function server(h: Headers): McpServer {
         password,
       }),
       outputSchema: FeedOut,
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, title, description, image, read_id, license_key, new_password, password }) => {
       const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined;
@@ -277,7 +280,7 @@ function server(h: Headers): McpServer {
         read_id: z.string().optional().describe("The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one."),
       }),
       outputSchema: FeedOut,
-      annotations: { destructiveHint: false, idempotentHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, password, license_key, read_id }) => {
       await createFeed(feed, clientIp(h), { password, licenseKey: license_key, readId: read_id });
@@ -295,7 +298,7 @@ function server(h: Headers): McpServer {
         new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end. Left out or empty removes the password."),
       }),
       outputSchema: FeedOut,
-      annotations: { destructiveHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, license_key, new_password }) => {
       assertFeed(feed); // a reserved name must not reach the lookup
@@ -310,7 +313,7 @@ function server(h: Headers): McpServer {
       description: `Set the feed's title image, shown in its header: the image as base64 in data, its media type in type (image/png, image/jpeg, image/gif or image/webp). It is the feed's own image, in no list (timeline, RSS, counts), so it is no post; a previous one set this way is deleted. To remove the title image, use update_feed with image "". To use a picture already posted, use update_feed's image instead. ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, type: z.string().describe("The image's media type"), data: z.string().describe("The image's bytes, base64"), password }),
       outputSchema: FeedOut,
-      annotations: { destructiveHint: true, idempotentHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, type, data, password }) => {
       const parsed = parseMediaType(type);
@@ -329,7 +332,7 @@ function server(h: Headers): McpServer {
       description: `Permanently delete a feed with all its notes, settings, password and read link. There is no undo. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, password }),
       outputSchema: z.object({ deleted: z.literal(true) }),
-      annotations: { destructiveHint: true },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, password }) => {
       await deleteFeed(feed, clientIp(h), { password });
@@ -352,6 +355,7 @@ function server(h: Headers): McpServer {
         password,
       }),
       outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string(), draft: DRAFT_OUT }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, type, data, title, alt, name, draft, password }) => {
       const { note, readId } = await postBytes(feed, { type, data, title, alt, name, draft }, password);
