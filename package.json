@@ -18,11 +18,11 @@
   },
   "dependencies": {
     "@img/sharp-wasm32": "0.35.5",
-    "@modelcontextprotocol/server": "2.3.1",
+    "@modelcontextprotocol/server": "2.4.0",
     "aws4fetch": "^1.0.20",
     "better-sqlite3": "^13.0.3",
     "kysely": "^0.29.7",
-    "lucide-react": "^1.59.0",
+    "lucide-react": "^1.61.0",
     "mdast-util-from-markdown": "^2.1.0",
     "mermaid": "12.2.0",
     "next": "16.4.3",
