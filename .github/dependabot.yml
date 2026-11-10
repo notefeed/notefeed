@@ -20,6 +20,10 @@ updates:
       # @types/node follows the Node major the app runs on (.nvmrc, the Dockerfile), by hand.
       - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
+      # TypeScript 7 lacks the JS compiler API that typescript-eslint (via eslint-config-next) and @hey-api/openapi-ts use;
+      # lift this once both support it. packages/js has no such tools and is on 7 already.
+      - dependency-name: typescript
+        versions: [">=7"]
     groups:
       # Next.js and its ESLint config move together.
       nextjs:
