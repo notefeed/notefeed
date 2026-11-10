@@ -13,7 +13,7 @@ For Python and Node there are client packages, both called `notefeed`. They post
 === "Node"
 
     ```sh
-    npm install notefeed        # Node 20 or newer; no dependencies
+    npm install notefeed        # Node 22 or newer; no dependencies
     ```
 
 ## From code
