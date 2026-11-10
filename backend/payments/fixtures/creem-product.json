@@ -5,8 +5,12 @@
   "description": "Lifts the free limits for one feed on notefeed.me: no cap on stored notes, pictures, and a feed password.",
   "price": 199,
   "currency": "EUR",
+  "billing_type": "recurring",
   "billing_period": "every-month",
   "status": "active",
   "tax_mode": "inclusive",
+  "tax_category": "saas",
+  "created_at": "2026-10-12T09:41:05.000Z",
+  "updated_at": "2026-10-19T08:02:51.000Z",
   "mode": "test"
 }

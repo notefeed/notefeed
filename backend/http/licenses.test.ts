@@ -7,6 +7,7 @@ import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { createNote } from "../notes";
 import { resetPlansForTests } from "../payments/creem";
+import PRODUCT from "../payments/fixtures/creem-product.json";
 import { cancelled, fakeKey, fakeSignature } from "../payments/fake";
 import { API_PREFIX, dispatch } from "./api";
 import { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, webhookRoute } from "./licenses";
@@ -82,13 +83,18 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
   test("a period the provider does not sell is refused before any checkout: no yearly product, or one that is not active", async () => {
     resetPlansForTests();
     stubAll({ NOTEFEED_PAYMENT_PROVIDER: "creem", NOTEFEED_CREEM_API_KEY: "creem_test_x", NOTEFEED_CREEM_PRODUCT_ID: "prod_month", NOTEFEED_CREEM_WEBHOOK_SECRET: "whsec" });
-    const fetch = vi.fn(async (url: string) => (url.includes("/products") ? Response.json({ name: "Monthly", price: 199, currency: "EUR", status: url.endsWith("prod_month") ? "active" : "archived" }) : Response.json({ checkout_url: "https://creem.test/pay" })));
+    // Creem's answers, as the SDK accepts them; it hands the fetcher a Request.
+    const fetch = vi.fn(async (req: Request) =>
+      req.url.includes("/products")
+        ? Response.json({ ...PRODUCT, id: req.url.split("/").at(-1), status: req.url.endsWith("prod_month") ? "active" : "archived" })
+        : Response.json({ id: "ch_1", object: "checkout", mode: "test", status: "pending", product: "prod_month", checkout_url: "https://creem.test/pay" }),
+    );
     vi.stubGlobal("fetch", fetch);
     try {
       expect((await checkoutRoute(post("/api/licenses/checkout", { period: "year" }))).status).toBe(400);
       vi.stubEnv("NOTEFEED_CREEM_PRODUCT_ID_YEARLY", "prod_year"); // configured, but archived at Creem
       expect((await checkoutRoute(post("/api/licenses/checkout", { period: "year" }))).status).toBe(400);
-      expect(fetch.mock.calls.some(([u]) => String(u).endsWith("/checkouts"))).toBe(false);
+      expect(fetch.mock.calls.some(([req]) => req.url.endsWith("/checkouts"))).toBe(false);
       expect((await (await checkoutRoute(post("/api/licenses/checkout", { period: "month" }))).json()).url).toBe("https://creem.test/pay");
     } finally {
       vi.unstubAllGlobals();

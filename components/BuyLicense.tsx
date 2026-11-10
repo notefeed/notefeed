@@ -1,5 +1,6 @@
 "use client";
 
+import { openCheckout } from "@creem_io/embed";
 import { Check, KeyRound, ReceiptText, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "@/app/_lib/messages";
@@ -18,7 +19,7 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
 
 // The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile, a tile per plan the provider sells
 // (ADR 0035): its name and price from the provider, the rest from license.md, each with a button that opens the
-// provider's checkout, and license.md's fine print below them. After: the key the provider issued, asked for by the checkout id
+// provider's checkout over the page, and license.md's fine print below them. After: the key the provider issued, asked for by the checkout id
 // the buyer came back with (the provider may still be finishing, so it is asked again for a while); it is also in the provider's
 // receipt and customer portal. Below both: the way to the provider's pages, where buyers sign in by their e-mail (#316).
 export function BuyLicense({ text, intro, fineprint, plans, cap, account }: { text: LicenseText; intro: ReactNode; fineprint?: ReactNode; plans: Sold[]; cap: number; account: string }) {
@@ -51,7 +52,17 @@ export function BuyLicense({ text, intro, fineprint, plans, cap, account }: { te
     setBusy(true);
     setError("");
     try {
-      window.location.assign(await urlFrom("/api/licenses/checkout", { period }));
+      const url = await urlFrom("/api/licenses/checkout", { period });
+      // The fake provider's checkout is this page itself.
+      if (new URL(url, window.location.href).origin === window.location.origin) return window.location.assign(url);
+      // The provider's checkout opens over this page. Paid, it comes back here with the checkout's id, as its redirect did; the
+      // webhook alone decides the license, the overlay is only the screen (#339).
+      openCheckout({
+        checkoutUrl: url,
+        theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+        onComplete: (done) => done.redirect || window.location.assign(`/license?checkout_id=${encodeURIComponent(done.checkoutId)}`),
+        onClose: () => setBusy(false),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setBusy(false);

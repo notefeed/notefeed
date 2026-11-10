@@ -1,25 +1,31 @@
-// Creem (a merchant of record; https://docs.creem.io), ADR 0029. A key starting `creem_test_` talks to the sandbox. The products
-// carry Creem's license key feature: Creem makes the key, puts it in the receipt e-mail and the customer portal, and hands it over
-// in the completed checkout. The webhook is
-// signed with HMAC-SHA256 over the raw body, hex, in `creem-signature`; the same event can arrive more than once. A refund leaves
-// the subscription running at Creem (seen in the sandbox), which is why licenseflow cancels it.
-import { createHmac, timingSafeEqual } from "node:crypto";
+// Creem (a merchant of record; https://docs.creem.io), ADR 0029, through Creem's own packages (#339): the `creem` SDK for the API,
+// `@creem_io/webhook-types` for the signature and the deliveries. What stays here is what a delivery means for a license. A key
+// starting `creem_test_` talks to the sandbox. The products carry Creem's license key feature: Creem makes the key, puts it in the
+// receipt e-mail and the customer portal, and hands it over in the completed checkout. The same delivery can arrive more than
+// once. A refund leaves the subscription running at Creem (seen in the sandbox), which is why licenseflow cancels it.
+//
+// Not `@creem_io/nextjs`: its webhook handler writes every completed checkout, the buyer's e-mail address and license key included,
+// to the console (V2), and compares the signature in variable time.
+import { timingSafeEqual } from "node:crypto";
+import { generateSignature, parseWebhookEvent, type CheckoutEntity, type WebhookEvent } from "@creem_io/webhook-types";
+import { Creem } from "creem";
+import { HTTPClient } from "creem/lib/http.js";
+import { CreemError, ResponseValidationError } from "creem/models/errors";
 import { logger } from "../log";
 import { processState } from "../state";
 import { WebhookRejectedError, type LicenseEvent, type LicensePeriod, type PaymentProvider, type Plan } from "./types";
 
 const log = logger("payments");
 
-/** `productId` is the monthly license; `yearlyProductId` the yearly one, if sold. */
+/** `productId` is the monthly license; `yearlyProductId` the yearly one, if sold. `fetch` is for the tests. */
 export type CreemOptions = { apiKey: string; productId: string; yearlyProductId?: string; webhookSecret: string; fetch?: typeof fetch };
 
-type Obj = Record<string, unknown>;
-const obj = (v: unknown): Obj | undefined => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : undefined);
-const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 const time = (v: unknown): number | null => {
-  const t = typeof v === "string" || typeof v === "number" ? new Date(v).getTime() : NaN;
+  const t = typeof v === "string" || typeof v === "number" || v instanceof Date ? new Date(v).getTime() : NaN;
   return Number.isFinite(t) ? t : null;
 };
+// A delivery nests an entity either whole or as its id.
+const idOf = (v: { id: string } | string | undefined): string | undefined => (typeof v === "string" ? v : v?.id) || undefined;
 
 // The plans are the configured products as Creem holds them (ADR 0035), kept five minutes so a changed price shows soon without
 // a read per page view. processState: the provider is made anew for each use, and Next may bundle this module once per route.
@@ -30,64 +36,53 @@ export function resetPlansForTests(): void {
   for (const k of Object.keys(plansCache)) delete plansCache[k as keyof typeof plansCache];
 }
 
-class ProductsUnreadable extends Error {}
+// Why Creem could not be read, for the log: never the answer itself.
+const why = (e: unknown): string => (e instanceof ResponseValidationError ? "an answer the SDK does not accept" : e instanceof CreemError ? String(e.statusCode) : e instanceof Error ? e.name : "error");
 
-// The key of a checkout: the first of `license_keys`, one per unit bought; notefeed sells one.
-const licenseKey = (checkout: Obj): string | undefined => {
-  const keys = checkout.license_keys;
-  return Array.isArray(keys) ? str(obj(keys[0])?.key) : undefined;
+// The key of a checkout: the first of `license_keys`, one per unit bought; notefeed sells one. Creem sends it, in the API and in the
+// delivery, but the delivery's types leave it out.
+const licenseKey = (keys: { key?: unknown }[] | undefined): string | undefined => {
+  const key = keys?.[0]?.key;
+  return typeof key === "string" && key !== "" ? key : undefined;
 };
 
-export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSecret, fetch: doFetch = fetch }: CreemOptions): PaymentProvider {
-  const base = apiKey.startsWith("creem_test_") ? "https://test-api.creem.io/v1" : "https://api.creem.io/v1";
-  const call = async (what: string, path: string, body?: unknown): Promise<Obj | undefined> => {
-    const res = await doFetch(`${base}${path}`, {
-      method: body === undefined ? "GET" : "POST",
-      headers: { "x-api-key": apiKey, ...(body === undefined ? {} : { "content-type": "application/json" }) },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`creem: ${what} failed (${res.status})`);
-    return obj(await res.json());
-  };
-  // One product: null when it is not offered (gone, not active, not a product), said in the log; throws when Creem cannot be read.
+export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSecret, fetch }: CreemOptions): PaymentProvider {
+  const test = apiKey.startsWith("creem_test_");
+  const creem = new Creem({ apiKey, server: test ? "test" : "prod", ...(fetch ? { httpClient: new HTTPClient({ fetcher: fetch }) } : {}) });
+
+  // One product: null when it is not offered (gone or not active), said in the log; throws when Creem cannot be read.
   const notOffered = (id: string, reason: string): null => {
     log.warn({ product: id, reason }, "a configured product is not offered");
     return null;
   };
   const product = async (period: LicensePeriod, id: string): Promise<Plan | null> => {
-    let res: Response;
     try {
-      res = await doFetch(`${base}/products?product_id=${encodeURIComponent(id)}`, { headers: { "x-api-key": apiKey }, signal: AbortSignal.timeout(5000) });
+      const p = await creem.products.get(id, { timeoutMs: 5000 });
+      if (p.status !== "active") return notOffered(id, "not active");
+      return { period, name: p.name, description: p.description ?? "", amount: p.price, currency: p.currency, taxIncluded: p.taxMode === "inclusive" };
     } catch (e) {
-      throw new ProductsUnreadable(e instanceof Error ? e.name : "error");
+      if (e instanceof CreemError && e.statusCode === 404) return notOffered(id, "not found");
+      throw e;
     }
-    if (res.status === 404) return notOffered(id, "not found");
-    if (!res.ok) throw new ProductsUnreadable(String(res.status));
-    const p = obj(await res.json().catch(() => undefined));
-    if (p?.status !== "active") return notOffered(id, "not active");
-    const name = str(p.name);
-    const amount = p.price;
-    const currency = typeof p.currency === "string" && /^[A-Z]{3}$/.test(p.currency) ? p.currency : undefined;
-    if (!name || !Number.isInteger(amount) || (amount as number) < 0 || !currency) return notOffered(id, "not a product");
-    return { period, name, description: typeof p.description === "string" ? p.description : "", amount: amount as number, currency, taxIncluded: p.tax_mode === "inclusive" };
   };
   const refresh = async (): Promise<Plan[]> => {
     const sold: [LicensePeriod, string][] = [["month", productId], ...(yearlyProductId ? [["year", yearlyProductId] as [LicensePeriod, string]] : [])];
     return (await Promise.all(sold.map(([period, id]) => product(period, id)))).filter((p): p is Plan => p !== null);
   };
+
   return {
     // Creem's own sign-in for customers: the e-mail address bought with, then a link by mail (#316).
     accountUrl: "https://creem.io/my-orders/login",
 
     async plans() {
-      const key = `${base} ${productId} ${yearlyProductId}`;
+      const key = `${test} ${productId} ${yearlyProductId}`;
       if (plansCache.key !== key) resetPlansForTests();
       if (plansCache.plans && Date.now() - (plansCache.at ?? 0) <= PLANS_FRESH_MS) return plansCache.plans;
       plansCache.key = key;
       plansCache.pending ??= refresh()
         .then((plans) => Object.assign(plansCache, { plans, at: Date.now() }).plans as Plan[])
         .catch((e) => {
-          log.warn({ why: e instanceof ProductsUnreadable ? e.message : "error" }, "the products cannot be read");
+          log.warn({ why: why(e) }, "the products cannot be read");
           return plansCache.plans ?? []; // the last list while Creem is away, else none; nothing new is kept
         })
         .finally(() => (plansCache.pending = undefined));
@@ -98,60 +93,60 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
     async createCheckout({ successUrl, period }) {
       const product = period === "year" ? yearlyProductId : productId;
       if (!product) throw new Error(`creem: no product for a license per ${period}`);
-      const checkout = await call("creating a checkout", "/checkouts", { product_id: product, success_url: successUrl });
-      const url = str(checkout?.checkout_url);
-      if (!url) throw new Error("creem: the checkout has no checkout_url");
-      return { url };
+      const checkout = await creem.checkouts.create({ productId: product, successUrl });
+      if (!checkout.checkoutUrl) throw new Error("creem: the checkout has no checkout_url");
+      return { url: checkout.checkoutUrl };
     },
 
     async checkoutKey(checkoutId) {
-      const res = await doFetch(`${base}/checkouts?checkout_id=${encodeURIComponent(checkoutId)}`, { headers: { "x-api-key": apiKey } });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`creem: reading a checkout failed (${res.status})`);
-      const checkout = obj(await res.json());
-      return (checkout?.status === "completed" && licenseKey(checkout)) || null;
+      let checkout: { status?: unknown; licenseKeys?: { key?: unknown }[] };
+      try {
+        checkout = await creem.checkouts.retrieve(checkoutId);
+      } catch (e) {
+        if (e instanceof CreemError && e.statusCode === 404) return null;
+        // The SDK (1.13.0) wants `feature` as one object; Creem answers a list, as the delivery's types say, so it refuses every
+        // real checkout. Its answer is read as it came then: two fields, checked here.
+        if (!(e instanceof ResponseValidationError)) throw new Error(`creem: reading a checkout failed (${why(e)})`);
+        const raw = (e.rawValue ?? {}) as { status?: unknown; license_keys?: { key?: unknown }[] };
+        checkout = { status: raw.status, licenseKeys: Array.isArray(raw.license_keys) ? raw.license_keys : undefined };
+      }
+      return (checkout.status === "completed" && licenseKey(checkout.licenseKeys)) || null;
     },
 
     async parseWebhook(rawBody, headers) {
-      const given = headers.get("creem-signature") ?? "";
-      const want = createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
-      const a = Buffer.from(given);
-      const b = Buffer.from(want);
+      const a = Buffer.from(headers.get("creem-signature") ?? "");
+      const b = Buffer.from(await generateSignature(rawBody, webhookSecret));
       if (a.length !== b.length || !timingSafeEqual(a, b)) throw new WebhookRejectedError("bad signature");
-      let event: Obj | undefined;
+      let event: WebhookEvent;
       try {
-        event = obj(JSON.parse(rawBody));
-      } catch {}
-      const kind = str(event?.eventType);
-      const o = obj(event?.object);
-      if (!kind || !o) throw new WebhookRejectedError("not a Creem event");
-      const subscription = obj(o.subscription);
-      switch (kind) {
+        event = parseWebhookEvent(rawBody) as WebhookEvent;
+      } catch {
+        throw new WebhookRejectedError("not a Creem event");
+      }
+      switch (event.eventType) {
         case "checkout.completed": {
+          const o = event.object as CheckoutEntity & { license_keys?: { key?: unknown }[] };
           // A one-off product has no subscription: the order is the reference then.
-          const providerRef = str(subscription?.id) ?? str(obj(o.order)?.id);
-          const key = licenseKey(o);
+          const providerRef = idOf(o.subscription) ?? idOf(o.order);
+          const key = licenseKey(o.license_keys);
           if (!providerRef || !key) throw new WebhookRejectedError("a completed checkout without a subscription and a license key");
+          const subscription = typeof o.subscription === "object" ? o.subscription : undefined;
           return [{ type: "started", providerRef, key, validUntil: time(subscription?.current_period_end_date) }];
         }
+        case "subscription.active":
         case "subscription.paid":
-        case "subscription.active": {
-          const providerRef = str(o.id);
-          return providerRef ? [{ type: "renewed", providerRef, validUntil: time(o.current_period_end_date) }] : [];
-        }
+          return event.object.id ? [{ type: "renewed", providerRef: event.object.id, validUntil: time(event.object.current_period_end_date) }] : [];
+        // `canceled` comes at once when the buyer cancels in the portal, with the paid period still running: it stays to its end.
         case "subscription.canceled":
-        case "subscription.scheduled_cancel": {
-          const providerRef = str(o.id);
-          return providerRef ? [{ type: "cancelled", providerRef, validUntil: time(o.current_period_end_date) }] : [];
-        }
+        case "subscription.scheduled_cancel":
+          return event.object.id ? [{ type: "cancelled", providerRef: event.object.id, validUntil: time(event.object.current_period_end_date) }] : [];
         case "subscription.expired":
-        case "subscription.unpaid": {
-          const providerRef = str(o.id);
-          return providerRef ? [{ type: "ended", providerRef, periodEnd: time(o.current_period_end_date) }] : [];
-        }
+        case "subscription.paused":
+        case "subscription.unpaid":
+          return event.object.id ? [{ type: "ended", providerRef: event.object.id, periodEnd: time(event.object.current_period_end_date) }] : [];
         case "refund.created":
         case "dispute.created": {
-          const providerRef = str(subscription?.id) ?? str(obj(o.order)?.id);
+          const providerRef = idOf(event.object.subscription) ?? idOf(event.object.order);
           return providerRef ? ([{ type: "refunded", providerRef }] satisfies LicenseEvent[]) : [];
         }
         default:
@@ -161,7 +156,7 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
 
     async cancel(providerRef) {
       if (!providerRef.startsWith("sub_")) return; // an order of a one-off product: nothing recurs
-      await call("cancelling a subscription", `/subscriptions/${encodeURIComponent(providerRef)}/cancel`, { mode: "immediate" });
+      await creem.subscriptions.cancel(providerRef, { mode: "immediate" });
     },
   };
 }
