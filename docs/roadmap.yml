@@ -11,16 +11,6 @@
 
 items:
   # ---- open ------------------------------------------------------------------------------------------------------------
-  - id: creem-packages
-    status: now
-    when: Now
-    icon: credit-card-check-outline
-    title: Creem's official packages for licenses
-    summary: The webhook and the calls to Creem go through Creem's own packages; notefeed keeps only what a payment means for a feed.
-    links:
-      - {label: "#339", url: "https://github.com/notefeed/notefeed/issues/339"}
-      - {label: "V7", url: "https://docs.notefeed.me/values/#v7"}
-
   - id: several-licenses
     status: next
     when: Next
@@ -92,6 +82,16 @@ items:
       - {label: "V4", url: "https://docs.notefeed.me/values/#v4"}
 
   # ---- done ------------------------------------------------------------------------------------------------------------
+  - id: creem-packages
+    status: done
+    date: 2026-11-10
+    icon: credit-card-check-outline
+    title: Creem's official packages for licenses
+    summary: The webhook and the calls to Creem go through Creem's own packages; notefeed keeps only what a payment means for a feed, and the checkout opens over the license page.
+    links:
+      - {label: "#346", url: "https://github.com/notefeed/notefeed/pull/346"}
+      - {label: "V7", url: "https://docs.notefeed.me/values/#v7"}
+
   - id: takedown-one-post
     status: done
     date: 2026-10-29
