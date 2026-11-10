@@ -1,0 +1,30 @@
+name: CLA
+
+# A pull request from outside waits until its author has accepted CLA.md by comment; signatures live on the cla-signatures branch, because
+# the main ruleset keeps the action from writing to main. The maintainer, Claude (the co-author on commits made with it) and Dependabot need no agreement.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, closed, synchronize]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  cla:
+    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: contributor-assistant/github-action@v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-document: https://github.com/notefeed/notefeed/blob/main/CLA.md
+          path-to-signatures: signatures.json
+          branch: cla-signatures
+          allowlist: Marceltov,claude,dependabot[bot]
+          custom-pr-sign-comment: I have read the CLA and I agree to it.

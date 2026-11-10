@@ -73,3 +73,5 @@ The REST API is defined in code (`backend/http/api.ts`). `npm run generate` writ
 - **The client packages** (`packages/python`, `packages/js`) are licensed under the [Apache License 2.0](packages/js/LICENSE), so any app or script can use them.
 
 Versions up to and including 0.2.x were released under the MIT License.
+
+A pull request from outside is merged only after its author accepts the [contributor licence agreement](CLA.md); see [CONTRIBUTING.md](CONTRIBUTING.md).
