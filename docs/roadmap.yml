@@ -1,0 +1,214 @@
+# The roadmap, as data. docs_hooks/roadmap.py renders it as the timeline on the Roadmap page.
+#
+# Open entries (status now, next or later) are shown first, in the order of this file, each with a `when` label.
+# Done entries are shown below them, newest date first (the order of this file breaks ties), each with a `date` and a link to its
+# pull request or release.
+#
+# To finish a step: set `status: done`, replace `when` with `date: YYYY-MM-DD`, add the link to its pull request, and move it to the
+# top of the done entries. `icon` is the name of a Material Design icon (https://pictogrammers.com/library/mdi/).
+# `details` is a small subset of markdown: paragraphs, "- " lists, **bold**, `code` and [links](https://...).
+# Value points are linked as absolute URLs (https://docs.notefeed.me/values/#v11): MkDocs does not rewrite links in raw HTML.
+
+items:
+  # ---- open ------------------------------------------------------------------------------------------------------------
+  - id: creem-packages
+    status: now
+    when: Now
+    icon: credit-card-check-outline
+    title: Creem's official packages for licenses
+    summary: The webhook and the calls to Creem go through Creem's own packages; notefeed keeps only what a payment means for a feed.
+    links:
+      - {label: "#339", url: "https://github.com/notefeed/notefeed/issues/339"}
+      - {label: "V7", url: "https://docs.notefeed.me/values/#v7"}
+
+  - id: several-licenses
+    status: next
+    when: Next
+    icon: key-plus
+    title: Several licenses in one checkout
+    summary: Someone with several feeds buys the licenses for all of them at once; each key still lifts the limits for exactly one feed.
+    links:
+      - {label: "#292", url: "https://github.com/notefeed/notefeed/issues/292"}
+      - {label: "V13", url: "https://docs.notefeed.me/values/#v13"}
+
+  - id: atom
+    status: next
+    when: Next
+    icon: rss
+    title: Atom beside RSS
+    summary: Every read link offers its notes as an Atom feed too, with an entry's last change, so readers pick up an edited note.
+    links:
+      - {label: "#324", url: "https://github.com/notefeed/notefeed/issues/324"}
+      - {label: "V5", url: "https://docs.notefeed.me/values/#v5"}
+
+  - id: iphone-shortcut
+    status: next
+    when: Next
+    icon: cellphone-arrow-down
+    title: A ready-made iPhone Shortcut
+    summary: Share pictures and files to a feed from an iPhone with a signed Shortcut, generated from source; load it, answer two questions, share.
+    links:
+      - {label: "#334", url: "https://github.com/notefeed/notefeed/issues/334"}
+      - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
+
+  - id: webhooks
+    status: later
+    when: Later
+    icon: webhook
+    title: Webhooks on new notes
+    summary: A feed calls out when a note is posted, so a site built from it can rebuild, or a phone can be notified, without polling.
+    links:
+      - {label: "#252", url: "https://github.com/notefeed/notefeed/issues/252"}
+      - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
+
+  - id: near-copies
+    status: later
+    when: Later
+    icon: image-off-outline
+    title: Taken-down images stay down, even changed
+    summary: A perceptual hash beside the exact one, so a re-encoded or cropped copy of an image taken down is refused too.
+    links:
+      - {label: "#331", url: "https://github.com/notefeed/notefeed/issues/331"}
+      - {label: "V9", url: "https://docs.notefeed.me/values/#v9"}
+
+  - id: replies
+    status: later
+    when: Later
+    icon: reply-outline
+    title: Replies from your own feed
+    summary: Answer another feed's note with a note in your own feed, shown under the one it answers; no accounts, nothing stored on someone else's feed.
+    links:
+      - {label: "#318", url: "https://github.com/notefeed/notefeed/issues/318"}
+      - {label: "V8", url: "https://docs.notefeed.me/values/#v8"}
+
+  - id: client-side-encryption
+    status: later
+    when: Later
+    icon: shield-lock-outline
+    title: Notes the operator can't read
+    summary: A feed's content encrypted before it leaves the writer, so the running server only ever holds ciphertext.
+    links:
+      - {label: "#213", url: "https://github.com/notefeed/notefeed/issues/213"}
+      - {label: "V4", url: "https://docs.notefeed.me/values/#v4"}
+
+  # ---- done ------------------------------------------------------------------------------------------------------------
+  - id: takedown-one-post
+    status: done
+    date: 2026-10-29
+    icon: gavel
+    title: Take down one post, not the whole feed
+    summary: The operator removes a single note that breaks the law and leaves a mark in its place; the rest of the feed stays.
+    links:
+      - {label: "#330", url: "https://github.com/notefeed/notefeed/pull/330"}
+      - {label: "V9", url: "https://docs.notefeed.me/values/#v9"}
+
+  - id: drafts
+    status: done
+    date: 2026-10-28
+    icon: file-document-edit-outline
+    title: Drafts
+    summary: Notes only the feed's writers see until they are published.
+    links:
+      - {label: "#325", url: "https://github.com/notefeed/notefeed/pull/325"}
+      - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
+
+  - id: share-from-phone
+    status: done
+    date: 2026-10-28
+    icon: share-variant-outline
+    title: Share to notefeed from a phone, images shrunk on the server
+    summary: Installed from the browser, notefeed is in the phone's share sheet; every image is shrunk, converted and stripped of its metadata on the server, for every client.
+    links:
+      - {label: "#313", url: "https://github.com/notefeed/notefeed/pull/313"}
+      - {label: "#315", url: "https://github.com/notefeed/notefeed/pull/315"}
+      - {label: "V2", url: "https://docs.notefeed.me/values/#v2"}
+
+  - id: note-dates
+    status: done
+    date: 2026-10-26
+    icon: calendar-clock
+    title: Scheduled notes and a note's date
+    summary: Post a note for later, or change the date a note shows.
+    links:
+      - {label: "#246", url: "https://github.com/notefeed/notefeed/pull/246"}
+      - {label: "V5", url: "https://docs.notefeed.me/values/#v5"}
+
+  - id: password-recovery
+    status: done
+    date: 2026-10-21
+    icon: lock-reset
+    title: A lost feed password, recovered with the license key
+    summary: Whoever holds a feed's license key can set a new password, without an account or an e-mail address.
+    links:
+      - {label: "#225", url: "https://github.com/notefeed/notefeed/pull/225"}
+      - {label: "V13", url: "https://docs.notefeed.me/values/#v13"}
+
+  - id: encryption-at-rest
+    status: done
+    date: 2026-10-18
+    icon: database-lock-outline
+    title: Encrypted at rest
+    summary: Notes, images and feed details encrypted with a key per feed before they reach the database, the main key kept apart in OpenBao.
+    links:
+      - {label: "#216", url: "https://github.com/notefeed/notefeed/pull/216"}
+      - {label: "V4", url: "https://docs.notefeed.me/values/#v4"}
+
+  - id: licenses
+    status: done
+    date: 2026-10-16
+    icon: key-variant
+    title: Licenses on notefeed.me
+    summary: A free tier for every feed, and a monthly or yearly license that lifts its limits; readers never pay.
+    links:
+      - {label: "#194", url: "https://github.com/notefeed/notefeed/pull/194"}
+      - {label: "V7", url: "https://docs.notefeed.me/values/#v7"}
+
+  - id: report-and-takedown
+    status: done
+    date: 2026-10-10
+    icon: flag-outline
+    title: A report link on every note
+    summary: Anyone can report a note; the operator can take a feed down for good, leaving a tombstone and blocking its images.
+    links:
+      - {label: "v0.10.0", url: "https://github.com/notefeed/notefeed/releases/tag/v0.10.0"}
+      - {label: "V9", url: "https://docs.notefeed.me/values/#v9"}
+
+  - id: pictures
+    status: done
+    date: 2026-10-03
+    icon: image-multiple-outline
+    title: Pictures and files are notes too
+    summary: One API for every type of note; pictures are listed in the feed and sent to RSS readers as enclosures.
+    links:
+      - {label: "v0.8.0", url: "https://github.com/notefeed/notefeed/releases/tag/v0.8.0"}
+      - {label: "V8", url: "https://docs.notefeed.me/values/#v8"}
+
+  - id: mcp
+    status: done
+    date: 2026-10-01
+    icon: robot-outline
+    title: AI assistants post and read notes
+    summary: An MCP server at `/mcp`, so Claude and other assistants can post to a feed and read it back.
+    links:
+      - {label: "v0.6.0", url: "https://github.com/notefeed/notefeed/releases/tag/v0.6.0"}
+      - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
+
+  - id: many-feeds
+    status: done
+    date: 2026-10-01
+    icon: rss-box
+    title: Many feeds, no accounts
+    summary: One instance holds many feeds, each reached by its name and read by others through a read link that never shows the name.
+    links:
+      - {label: "v0.5.0", url: "https://github.com/notefeed/notefeed/releases/tag/v0.5.0"}
+      - {label: "V1", url: "https://docs.notefeed.me/values/#v1"}
+
+  - id: first-release
+    status: done
+    date: 2026-09-30
+    icon: rocket-launch-outline
+    title: The first release
+    summary: Post markdown notes over HTTP, read them back as RSS; every note a plain file; clients for Python and Node.
+    links:
+      - {label: "v0.2.0", url: "https://github.com/notefeed/notefeed/releases/tag/v0.2.0"}
+      - {label: "V5", url: "https://docs.notefeed.me/values/#v5"}
