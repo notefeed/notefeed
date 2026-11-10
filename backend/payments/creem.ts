@@ -136,12 +136,13 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
         case "subscription.active":
         case "subscription.paid":
           return event.object.id ? [{ type: "renewed", providerRef: event.object.id, validUntil: time(event.object.current_period_end_date) }] : [];
-        // `canceled` comes at once when the buyer cancels in the portal, with the paid period still running: it stays to its end.
+        // `canceled` comes at once when the buyer cancels in the portal, with the paid period still running: it stays to its end. A
+        // pause is the same for the license: nothing renews, the period paid for is kept, and a resume renews it.
         case "subscription.canceled":
         case "subscription.scheduled_cancel":
+        case "subscription.paused":
           return event.object.id ? [{ type: "cancelled", providerRef: event.object.id, validUntil: time(event.object.current_period_end_date) }] : [];
         case "subscription.expired":
-        case "subscription.paused":
         case "subscription.unpaid":
           return event.object.id ? [{ type: "ended", providerRef: event.object.id, periodEnd: time(event.object.current_period_end_date) }] : [];
         case "refund.created":

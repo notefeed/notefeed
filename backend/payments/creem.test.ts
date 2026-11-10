@@ -99,7 +99,7 @@ describe("Creem", () => {
     expect(await parse(event("subscription.expired", { id: "sub_1", current_period_end_date: end }))).toEqual([{ type: "ended", providerRef: "sub_1", periodEnd: Date.parse(end) }]);
     expect(await parse(event("subscription.expired", { id: "sub_1" }))).toEqual([{ type: "ended", providerRef: "sub_1", periodEnd: null }]);
     expect(await parse(event("refund.created", { subscription: { id: "sub_1" } }))).toEqual([{ type: "refunded", providerRef: "sub_1" }]);
-    expect(await parse(event("subscription.paused", { id: "sub_1", current_period_end_date: end }))).toEqual([{ type: "ended", providerRef: "sub_1", periodEnd: Date.parse(end) }]);
+    expect(await parse(event("subscription.paused", { id: "sub_1", current_period_end_date: end }))).toEqual([{ type: "cancelled", providerRef: "sub_1", validUntil: Date.parse(end) }]);
     expect(await parse(event("subscription.unpaid", { id: "sub_1" }))).toEqual([{ type: "ended", providerRef: "sub_1", periodEnd: null }]);
     expect(await parse(event("dispute.created", { order: "ord_1" }))).toEqual([{ type: "refunded", providerRef: "ord_1" }]);
     expect(await parse(event("subscription.trialing", { id: "sub_1" }))).toEqual([]);
@@ -211,8 +211,8 @@ describe("Creem", () => {
   // A daily product in the sandbox (2026-10-19 to 21), cut the same way. A renewal is `subscription.update` then `subscription.paid`
   // with the next period. A cancel at the period's end is carried out ahead of it (20:00 UTC, 11.5 hours early) as a plain
   // `subscription.canceled`, its period end kept, and nothing follows at that end. A paused subscription sends nothing more, so a
-  // pause ends the license (#339).
-  test("a real renewal, a cancel at the period's end carried out early, and a pause that ends it", async () => {
+  // pause keeps the license to the end of the period paid for, as a cancel does.
+  test("a real renewal, a cancel at the period's end carried out early, and a pause that keeps the period paid for", async () => {
     const c = creem();
     const parse = async (raw: string) => c.parseWebhook(raw, await sign(raw));
     const subscription = (id: string, status: string, start: string, end: string) => ({
@@ -236,7 +236,7 @@ describe("Creem", () => {
     const carriedOut = { ...subscription("sub_MlPlfUVr4OJzJ9ACnubau", "canceled", "2026-10-20T07:38:27.717Z", end), canceled_at: "2026-10-20T20:00:01.967Z" };
     expect(await parse(event("subscription.canceled", carriedOut))).toEqual([{ type: "cancelled", providerRef: "sub_MlPlfUVr4OJzJ9ACnubau", validUntil: Date.parse(end) }]);
     const paused = subscription("sub_6Rp1HuGfUGOjY7X880h7Kv", "paused", "2026-10-19T05:37:38.000Z", "2026-10-20T05:37:38.000Z");
-    expect(await parse(event("subscription.paused", paused))).toEqual([{ type: "ended", providerRef: "sub_6Rp1HuGfUGOjY7X880h7Kv", periodEnd: Date.parse("2026-10-20T05:37:38.000Z") }]);
+    expect(await parse(event("subscription.paused", paused))).toEqual([{ type: "cancelled", providerRef: "sub_6Rp1HuGfUGOjY7X880h7Kv", validUntil: Date.parse("2026-10-20T05:37:38.000Z") }]);
   });
 
   // Creem's sample of the event (docs.creem.io, webhooks), cut the same way. Creem sends it when a period ends without a payment, which
