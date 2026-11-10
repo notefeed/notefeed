@@ -27,7 +27,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc",
@@ -44,8 +44,8 @@
     "url": "https://github.com/notefeed/notefeed/issues"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^22",
     "typescript": "^7.0",
-    "vitest": "^4.1"
+    "vitest": "^5.0"
   }
 }
