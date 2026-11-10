@@ -49,7 +49,7 @@ The feed's license key proves the feed is yours. On the feed's unlock screen, op
 
 ## When a license ends
 
-When the subscription is cancelled the license runs to the end of the paid period; a refund or chargeback ends it at once. The feed then returns to the free tier, and nothing is deleted:
+When the subscription is cancelled or paused the license runs to the end of the paid period; a refund or chargeback ends it at once. The feed then returns to the free tier, and nothing is deleted:
 
 - The notes stay. The cap applies to new notes again: past 100, each new note drops the oldest one.
 - A feed password that is set keeps protecting the feed, but cannot be changed until the feed is licensed again; it can be removed.

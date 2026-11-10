@@ -17,10 +17,13 @@
     "generate": "sh scripts/generate.sh"
   },
   "dependencies": {
+    "@creem_io/embed": "0.3.4",
+    "@creem_io/webhook-types": "1.0.1",
     "@img/sharp-wasm32": "0.35.5",
     "@modelcontextprotocol/server": "2.4.0",
     "aws4fetch": "^1.0.20",
     "better-sqlite3": "^13.0.3",
+    "creem": "1.13.0",
     "kysely": "^0.29.7",
     "lucide-react": "^1.62.0",
     "mdast-util-from-markdown": "^2.1.0",
