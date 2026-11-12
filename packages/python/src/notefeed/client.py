@@ -353,7 +353,7 @@ class Client:
         read_id: str | None = None,
         name: str | None = None,
     ) -> Feed:
-        """Replace the feed's title and description (both; an empty string clears one). `image` sets the title image (a file name from upload_image), "" clears it, None keeps it. `read_id` gives the feed another read id (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; "" for a random one; None keeps it); the old one is freed, and relative image links in notes follow while full URLs do not. `name` renames the feed (1 to 64 characters of `a-z`, `0-9`, `-`, `_`): everything goes with it and the old name stops working at once; when it was this client's own feed, the client uses the new name from then on. The feed must already exist. Same options as post()."""
+        """Replace the feed's title and description (both; an empty string clears one). `image` sets the title image (a file name from upload_image), "" clears it, None keeps it. `read_id` gives the feed another read id (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; "" for a random one; None keeps it); the old one is freed, and relative image links in notes follow while full URLs do not. `name` renames the feed (1 to 64 characters of `a-z`, `0-9`, `-`, `_`): everything goes with it and the old name stops working at once; when it was this client's own feed, the client uses the new name for the rest of this run; change NOTEFEED_FEED (or wherever the name is configured) before the next one. The feed must already exist. Same options as post()."""
         if name:
             _check_feed(name)
         settings = FeedSettings(

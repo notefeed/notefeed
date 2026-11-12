@@ -240,7 +240,7 @@ function server(h: Headers): McpServer {
         description: z.string().optional(),
         image: z.string().optional(),
         read_id: z.string().optional(),
-        name: z.string().optional().describe("A new name for the feed (1 to 64 characters of a-z, 0-9, - and _). Everything goes with it; the old name stops working at once, so use the new one in every later call and tell the user to change it in their scripts."),
+        name: z.string().optional().describe("A new name for the feed (1 to 64 characters of a-z, 0-9, - and _). Everything goes with it; the old name stops working at once, so use the new one in every later call and tell the user to change it wherever it is configured (NOTEFEED_FEED, CI secrets, scripts, MCP configurations) before those next run: a post to the old name creates a new, empty feed without an error."),
         license_key: z.string().optional().describe("A license key to put on the feed; empty takes its license off. A wrong key counts as a failed attempt, like a wrong password."),
         new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end."),
         password,

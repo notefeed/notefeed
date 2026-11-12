@@ -201,7 +201,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
               <input type="hidden" name="title" value={title} />
               <input type="hidden" name="description" value={description} />
               <p className="text-muted">
-                The feed keeps its notes, settings, password, license and read link. The old name stops working at once: scripts, AI agents and bookmarks need the new one, and a post to the old name later creates a new, empty feed. Browsers that unlocked this feed unlock it again. A short name can be guessed: protect the feed with a password if that matters.
+                The feed keeps its notes, settings, password, license and read link. The old name stops working at once, and a post to it later creates a new, empty feed without an error: change it in scripts, CI secrets, <code className="font-mono">NOTEFEED_FEED</code>, AI agents and bookmarks before they next run. Browsers that unlocked this feed unlock it again. A short name can be guessed: protect the feed with a password if that matters.
               </p>
               <label htmlFor="feed-new-name" className="mb-1 mt-3 block text-muted">
                 New name

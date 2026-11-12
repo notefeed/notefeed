@@ -35,9 +35,12 @@ curl -X PUT -H "Content-Type: application/json" \
 ```
 
 - **Everything goes with it:** notes and drafts, files, the title image, the settings, the password, the license and the read link. Readers notice nothing.
-- **The old name stops working at once.** Change it in every script, MCP client and bookmark. It is freed, not kept: a post to it later creates a new, empty feed, as with any unused name.
+- **The old name stops working at once.** It is freed, not kept: a post to it later creates a new, empty feed, as with any unused name, without an error.
+
+!!! warning "Change the name everywhere before it is used again"
+    Before any of them next runs, change the feed name in `NOTEFEED_FEED`, in CI secrets, in cron jobs and scripts, in MCP configurations and in bookmarks. A client package follows a rename it made itself only while it runs: its next start reads the old name from `NOTEFEED_FEED` again.
 - The new name follows the [rules above](#feed-names) and must be free: another feed's name, a name notefeed uses for a route or a reserved feed's is refused with `409`, code `taken`.
-- Browsers that had unlocked a protected feed ask for its password once more. A client package whose own feed was renamed uses the new name from then on.
+- Browsers that had unlocked a protected feed ask for its password once more. A client package whose own feed was renamed uses the new name for the rest of that run.
 - The operator's [reserved feeds](../self-hosting/access.md#reserved-feeds) keep their names.
 - A short name is easy to guess: an open feed with one is open to anyone who guesses it. Protect it with a [password](feed-passwords.md).
 

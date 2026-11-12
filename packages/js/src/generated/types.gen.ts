@@ -331,7 +331,7 @@ export type FeedSettings = {
      */
     read_id?: string;
     /**
-     * A new name for the feed (1 to 64 characters: a-z, 0-9, - and _); omitted, empty or the current one leaves it as it is. Everything goes with it: notes, files, settings, password, license and read link. The old name stops working at once and is free: a post to it later creates a new feed. Scripts, MCP clients and browsers must use the new name (a browser that unlocked the feed unlocks it again). A short name is guessable: protect the feed with a password if that matters. Reserved feeds keep theirs. 409 when it is taken
+     * A new name for the feed (1 to 64 characters: a-z, 0-9, - and _); omitted, empty or the current one leaves it as it is. Everything goes with it: notes, files, settings, password, license and read link. The old name stops working at once and is free: a post to it later creates a new feed, without an error. Change NOTEFEED_FEED, CI secrets, scripts and MCP configurations before they next run (a browser that unlocked the feed unlocks it again). A short name is guessable: protect the feed with a password if that matters. Reserved feeds keep theirs. 409 when it is taken
      */
     name?: string;
 };
