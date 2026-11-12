@@ -64,3 +64,28 @@ test("posting a draft from the compose box, and publishing it from the edit form
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await expect(draftMark(page)).toHaveCount(0);
 });
+
+// #349: the draft's own page shows its pictures (from the feed's own file route), while every reader route still has none.
+test("a draft's pictures show on its own page and the feed page, and still reach no reader", async ({ page, request }) => {
+  const name = feedName();
+  const made = await (
+    await request.post(`/api/v1/feeds/${name}/notes`, {
+      headers: { "X-Note-Draft": "true" },
+      multipart: { text: "# Unfinished thought\n\n![A pixel](draft-pic.png)", file: { name: "draft-pic.png", mimeType: "image/png", buffer: Buffer.from(PNG) } },
+    })
+  ).json();
+  const readId = /\/r\/([^/]+)\//.exec(made.read_url)![1];
+  const file = made.attachments[0].file as string;
+
+  const loaded = (img: ReturnType<Page["locator"]>) => img.evaluate((el) => (el as HTMLImageElement).complete && (el as HTMLImageElement).naturalWidth > 0);
+  await page.goto(`/${name}/${made.id}`);
+  const onNotePage = page.locator(`main img[src$="/${file}"]`).first();
+  await expect(onNotePage).toBeVisible();
+  await expect.poll(() => loaded(onNotePage)).toBe(true);
+  await page.goto(`/${name}`);
+  const onFeedPage = page.locator(`main img[src$="/${file}"]`).first();
+  await expect.poll(() => loaded(onFeedPage)).toBe(true);
+
+  expect((await request.get(`/api/v1/feeds/${name}/files/${file}`)).status()).toBe(200);
+  expect(await readerSees(request, readId, made.id, file)).toEqual(none);
+});

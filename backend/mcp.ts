@@ -7,6 +7,7 @@ import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoun
 import { changePassword, checkFeedAccess, recoverPassword } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson, licensesJson } from "./http/api";
+import { ownerFile } from "./http/files";
 import { sender } from "./http/request";
 import { FeedJson, FreeTierJson, LicensesJson } from "./http/schemas";
 import { clientIp } from "./limits";
@@ -143,17 +144,28 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "get_note",
     {
-      description: `Get one note with its content (the text of a text note; a picture has none, use its URL). ${PROTECTED} ${SECRET_NOTE}`,
-      inputSchema: z.object({ feed, id: z.string(), password }),
+      description: `Get one note with its content (the text of a text note; a picture has none: its URL is public once readers may see it, and with picture true the picture itself comes along, also a draft's or a scheduled note's, which the URL does not serve yet). ${PROTECTED} ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        id: z.string(),
+        picture: z.boolean().optional().describe("true: a picture note's image comes along as an image, so a draft's pictures can be checked before it goes out. Ignored for a text note"),
+        password,
+      }),
       outputSchema: NoteFull,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, id, password }) => {
+    guard(async ({ feed, id, picture, password }) => {
       await checkAccess(feed, password);
       await refuseRemovedNote(feed, id);
       const note = await getNote(feed, id);
       if (!note) throw new NotFoundError("no such note");
-      return ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });
+      const result = ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });
+      if (!picture || !note.type.startsWith("image/")) return result;
+      // The owner's view of the file (#349): drafts and scheduled notes too.
+      const file = await ownerFile(feed, note.file, null, "throw");
+      if (file.status !== 200) throw new NotFoundError("no such note");
+      const data = Buffer.from(await file.arrayBuffer()).toString("base64");
+      return { ...result, content: [...result.content, { type: "image" as const, data, mimeType: note.type }] };
     }),
   );
 

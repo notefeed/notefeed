@@ -543,6 +543,19 @@ describe("drafts", () => {
     expect((await call("get_note", { feed: "o", id: posted.id })).structuredContent.draft).toBe(true);
   });
 
+  test("get_note with picture brings a draft picture's image along (#349)", async () => {
+    const data = Buffer.from(PNG).toString("base64");
+    const posted = (await call("post_note", { feed: "o", markdown: "# D ![](a.png)", draft: true, attachments: [{ name: "a.png", type: "image/png", data }] })).structuredContent;
+    const pic = posted.attachments[0].id;
+    const plain = await call("get_note", { feed: "o", id: pic });
+    expect(plain.content.map((c: { type: string }) => c.type)).toEqual(["text"]);
+    const withPicture = await call("get_note", { feed: "o", id: pic, picture: true });
+    expect(withPicture.content[1]).toMatchObject({ type: "image", mimeType: "image/png" });
+    expect(Buffer.from(withPicture.content[1].data, "base64").subarray(1, 4).toString()).toBe("PNG");
+    const text = await call("get_note", { feed: "o", id: posted.id, picture: true });
+    expect(text.content.map((c: { type: string }) => c.type)).toEqual(["text"]);
+  });
+
   test("edit_note with only draft publishes, and makes a draft again", async () => {
     const id = (await call("post_note", { feed: "o", markdown: "# D", date: "2025-03-01", draft: true })).structuredContent.id;
     const published = (await call("edit_note", { feed: "o", id, draft: false })).structuredContent;

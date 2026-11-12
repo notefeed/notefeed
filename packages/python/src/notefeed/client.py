@@ -8,14 +8,14 @@ import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, TypeVar
+from typing import Any, NoReturn, TypeVar
 
 import attrs
 import httpx
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
-from ._generated.api.feeds import change_feed_password, create_feed, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_note, list_notes, patch_note, post_note, put_feed_license, recover_feed_password, remove_feed_image, set_feed_image, update_feed
+from ._generated.api.feeds import change_feed_password, create_feed, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_file, get_note, list_notes, patch_note, post_note, put_feed_license, recover_feed_password, remove_feed_image, set_feed_image, update_feed
 from ._generated.api.licenses import get_licenses
 from ._generated.api.read import get_read_note, list_read_notes
 from ._generated.models import CreateFeedJson, Created, Feed, FeedSettings, LicenseKey, Licenses, Note, NoteList, NoteMeta, PasswordJson, PostNoteXNoteDraft, RecoveryJson
@@ -417,6 +417,12 @@ class Client:
         kwargs = get_note._get_kwargs(feed=self._feed_for(feed), id=id, x_feed_password=self._fp(feed_password))
         return self._parse(Note, self._call(kwargs))
 
+    def file(self, name: str, feed: str | None = None, feed_password: str | None = None) -> bytes:
+        """A note's file by its own name (a note's ``file``, ``<id>.<ext>``), as bytes: also a draft's or a scheduled note's, which the
+        read link (``file_url``) does not serve until readers may see them, so a post's pictures can be checked before it goes out."""
+        kwargs = get_file._get_kwargs(feed=self._feed_for(feed), file=name, x_feed_password=self._fp(feed_password))
+        return self._call_bytes(kwargs)
+
     def read_notes(self, read_id: str, page_size: int = 50, tag: str | None = None) -> Iterator[Note]:
         """Like notes(), by the feed's read id: public, read-only, needs no password."""
         return self._pages(
@@ -458,25 +464,44 @@ class Client:
 
     # The generated request builders (_get_kwargs) and httpx client, but the response is read here: the
     # generated parsers assume every declared error status has a JSON body, and a proxy's HTML page doesn't.
-    def _call(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+    def _send(self, kwargs: dict[str, Any]) -> httpx.Response:
         try:
-            response = self._api.get_httpx_client().request(**kwargs)
+            return self._api.get_httpx_client().request(**kwargs)
         except httpx.HTTPError as e:
             raise NotefeedError(f"could not reach {self.url}: {e}") from None
-        try:
-            body = response.json()
-        except ValueError:
-            body = None
+
+    def _call_bytes(self, kwargs: dict[str, Any]) -> bytes:
+        """Like _call, for an answer that is a file's bytes, not JSON; a refusal raises the same errors."""
+        response = self._send(kwargs)
+        if response.is_success and not response.is_redirect:
+            return response.content
+        self._raise(response)
+
+    def _call(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        response = self._send(kwargs)
         if response.status_code == 204:  # delete: no body
             return {}
+        body = self._json(response)
         if response.is_success and isinstance(body, dict):
             return body
         if response.is_success:
             raise NotefeedError(f"unexpected response from {self.url} (not a notefeed server?)", response.status_code)
+        self._raise(response)
+
+    @staticmethod
+    def _json(response: httpx.Response) -> Any:
+        try:
+            return response.json()
+        except ValueError:
+            return None
+
+    def _raise(self, response: httpx.Response) -> NoReturn:
+        """The error for a response that is no success: a redirect, or the server's refusal by its code."""
         if response.is_redirect:
             target = httpx.URL(response.headers.get("Location", ""))
             where = f"{target.scheme}://{target.netloc.decode()}" if target.scheme else response.headers.get("Location", "elsewhere")
             raise NotefeedError(f"{self.url} redirected to {where}: use that address as the URL", response.status_code)
+        body = self._json(response)
         code = body.get("code") if isinstance(body, dict) else None
         code = code if isinstance(code, str) else None
         if isinstance(body, dict) and isinstance(body.get("error"), str):
