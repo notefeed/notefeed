@@ -220,7 +220,7 @@ async function readNoteAs(feed: string, id: string, exts: readonly string[]): Pr
   if (checkFeed(feed) || !isValidId(id)) return null;
   const stored = await storage().readNote(feed, id, exts, withContent).catch((e) => Promise.reject(unreadableNote(id, e)));
   const type = stored && typeForExt(stored.ext);
-  return stored && type ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size, draft: stored.draft, written: stored.mtime }, stored.content) : null;
+  return stored && type ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size, draft: stored.draft }, stored.content) : null;
 }
 
 const readOf = (feed: string, ref: NoteRef) => readNoteAs(feed, ref.id, [ref.ext]);
@@ -257,7 +257,8 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
   const note = await getNote(feed, id);
   if (!note) return null;
   if (note.type !== parsed.mediaType) throw new UnsupportedTypeError(`this note is ${note.type}: send that Content-Type`);
-  if (!(await storage().replaceNote(feed, id, EDIT_EXTS, body))) return null; // the sidecar stays as it is: storage notes the write
+  if (!(await storage().replaceNote(feed, id, EDIT_EXTS, body))) return null;
+  await storage().updateMeta(feed, id, EDIT_EXTS, { updated: new Date().toISOString() }); // for Atom (#324): the metadata keeps the rest
   noteEdited(parsed.type.name, "content");
   return getNote(feed, id);
 }

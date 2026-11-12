@@ -39,22 +39,14 @@ test("serves the same notes as RSS, as Atom entries with read-id ids", async () 
   expect(field(second, "id")).toBe(`${BASE}/r/${rid}/${a.id}`);
   expect(field(first, "title")).toBe("Two");
   expect(field(first, "published")).toBe("2026-09-29T11:00:00.000Z");
-  // Posted (written) now, with an earlier date: updated is when it was written.
-  expect(Date.parse(field(first, "updated")!)).toBeGreaterThan(Date.parse("2026-09-29T11:00:00Z"));
+  // Never edited: updated is its date, even when it was posted later with that date (back-dated, imported).
+  expect(field(first, "updated")).toBe("2026-09-29T11:00:00.000Z");
   expect(first).toContain('<content type="html"><![CDATA[');
   expect(first).toContain("<strong>bold</strong>");
   // The same items as RSS, in the same order.
   const rss = await (await rssRoute(req(rid, "feed.xml"), rid)).text();
   expect([...rss.matchAll(/<guid isPermaLink="true">(.*?)<\/guid>/g)].map((m) => m[1])).toEqual(entries(xml).map((e) => field(e, "id")));
   expect(xml).not.toContain("secretname");
-});
-
-test("a note posted now has updated at its date (give or take the write)", async () => {
-  const now = new Date();
-  await createNote("f", "# Now", now);
-  const [entry] = entries(await atom((await readIdOf("f"))!));
-  expect(field(entry, "published")).toBe(now.toISOString());
-  expect(Date.parse(field(entry, "updated")!) - now.getTime()).toBeLessThan(5000);
 });
 
 test("an edit moves updated and keeps published; the feed's updated is the newest change", async () => {

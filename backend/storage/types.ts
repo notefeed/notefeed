@@ -2,8 +2,8 @@
 // (storage/fs), SQLite and PostgreSQL (storage/sql); backend/storage/contract.ts is the suite every one must pass.
 // Names are checked by backend/feeds.ts and backend/notes.ts first; nothing here validates them.
 
-/** `of`: on an attachment, the id of the text note it was posted with. `updated`: when its title, alt, tags or date last changed
- *  (ISO 8601), for Atom's `updated` (#324); a content replace is the stored file's own time instead, so it leaves the metadata as it is. */
+/** `of`: on an attachment, the id of the text note it was posted with. `updated`: when its content, title, alt, tags or date last
+ *  changed after posting (ISO 8601), for Atom's `updated` (#324); absent until the first edit. */
 export type Meta = { title?: string; sender?: string; tags?: string[]; alt?: string; name?: string; created?: string; of?: string; updated?: string };
 
 // `ownImage`: the title image is the feed's own, uploaded as one (not a post): lists leave that image note out (notes.ts).
