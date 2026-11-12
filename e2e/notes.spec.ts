@@ -331,3 +331,32 @@ test("on a wide screen the note column takes the free width", async ({ page }) =
   expect(main.width).toBeGreaterThan(1000);
   expect(main.x + main.width).toBeGreaterThan(1800 - 18.75 * 16 - 100); // only the about column is to its right
 });
+
+// Atom beside RSS (#324): the read page links both, atom.xml is well-formed Atom with the note, and an edit moves only its `updated`.
+test("the read link serves Atom beside RSS, and an edit moves the entry's updated", async ({ page, request }) => {
+  const name = feedName();
+  const made = await (await request.post(`/api/v1/feeds/${name}/notes`, { headers: { "Content-Type": "text/markdown", "X-Note-Date": "2025-03-01T08:00:00Z" }, data: "# Atom note\n\nHello **there**" })).json();
+  expect(made.atom_url).toBe(made.read_url.replace(/feed\.xml$/, "atom.xml"));
+  const readPath = new URL(made.read_url).pathname.replace(/\/feed\.xml$/, "");
+  await page.goto(readPath);
+  await expect(page.locator('link[rel="alternate"][type="application/atom+xml"]')).toHaveAttribute("href", made.atom_url);
+  await expect(page.locator('link[rel="alternate"][type="application/rss+xml"]')).toHaveAttribute("href", made.read_url);
+
+  const res = await request.get(`${readPath}/atom.xml`);
+  expect(res.headers()["content-type"]).toBe("application/atom+xml; charset=utf-8");
+  const parse = (xml: string) =>
+    page.evaluate((x) => {
+      const doc = new DOMParser().parseFromString(x, "application/xml");
+      const entry = doc.querySelector("entry");
+      return { error: doc.querySelector("parsererror")?.textContent ?? null, root: doc.documentElement.namespaceURI, title: entry?.querySelector("title")?.textContent, published: entry?.querySelector("published")?.textContent, updated: entry?.querySelector("updated")?.textContent, content: entry?.querySelector("content")?.textContent };
+    }, xml);
+  const before = await parse(await res.text());
+  expect(before).toMatchObject({ error: null, root: "http://www.w3.org/2005/Atom", title: "Atom note", published: "2025-03-01T08:00:00.000Z" });
+  expect(before.content).toContain("<strong>there</strong>");
+
+  await request.patch(`/api/v1/feeds/${name}/notes/${made.id}`, { data: { title: "Renamed" } });
+  const after = await parse(await (await request.get(`${readPath}/atom.xml`)).text());
+  expect(after.title).toBe("Renamed");
+  expect(after.published).toBe("2025-03-01T08:00:00.000Z");
+  expect(Date.parse(after.updated!)).toBeGreaterThanOrEqual(Date.parse(before.updated!));
+});

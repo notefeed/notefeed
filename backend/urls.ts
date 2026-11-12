@@ -20,6 +20,7 @@ export const readPath = (readId: string) => `/r/${readId}`;
 // A file of the feed (an image): served under the read id like the notes, never under the feed name.
 export const imagePath = (readId: string, file: string) => `${readPath(readId)}/${file}`;
 export const rssPath = (readId: string) => `${readPath(readId)}/feed.xml`;
+export const atomPath = (readId: string) => `${readPath(readId)}/atom.xml`;
 
 // Where to go after login: a same-origin path, else "/". A second "/" or any "\" would make it
 // protocol-relative (browsers read "\" as "/"), and browsers drop tabs and newlines, so "/\t/x" is "//x".

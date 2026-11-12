@@ -2,7 +2,7 @@
 
 Every feed has a **read link**, `https://notes.example.com/r/<read id>/feed.xml`, with a read id of 22 random characters or [one you chose](#choosing-a-feeds-read-id). You find it on the feed page and in every post's answer as `read_url`. A read link:
 
-- serves the feed as RSS (`/r/<read id>/feed.xml`) and as a read-only web page (`/r/<read id>`),
+- serves the feed as RSS (`/r/<read id>/feed.xml`), as [Atom](#atom) (`/r/<read id>/atom.xml`) and as a read-only web page (`/r/<read id>`),
 - never shows the feed's name, so it cannot be turned into write access,
 - cannot post, edit or delete,
 - needs no login on a locked instance and no password on a protected feed.
@@ -10,6 +10,10 @@ Every feed has a **read link**, `https://notes.example.com/r/<read id>/feed.xml`
 That makes it the link to give to feed readers, dashboards and other people. Keep the feed name to the scripts that post.
 
 A read link that belongs to no feed answers with an empty feed, not an error, so nobody can probe which exist. A [deleted](feeds.md#feed-settings-in-the-api) feed's read link stays empty for good; a feed created later under the same name gets a new one.
+
+## Atom
+
+`/r/<read id>/atom.xml` is the same feed as [Atom](https://www.rfc-editor.org/rfc/rfc4287), for readers and tools that prefer it: the same notes, titles and text, with `?tag=` as on RSS. Each entry's `id` is the note's address on the read link, its `published` is the note's date and its `updated` is when it last changed (its text replaced, its title, tags or date edited), so a reader can show an edit. It is handed out as `atom_url` beside `read_url`: in a post's answer, in `GET /api/v1/feeds/<feed>`, in the clients and in MCP's `post_note` and `get_feed`. The read page links both, so a reader that finds feeds by the page's address finds either.
 
 !!! warning "Older feeds and the server secret"
     Feeds created before feed deletion existed have no stored read id: theirs is computed from the name and `NOTEFEED_SECRET`. Changing the secret changes their read links. See [Configuration](../self-hosting/configuration.md).
@@ -29,7 +33,7 @@ curl -O "$NOTEFEED_URL/r/$READ_ID/post-to-notefeed.md"   # always the newest ver
 
 - **Post again under the same name for a new version.** The earlier ones stay in the feed, each at its own `file_url`. Deleting the newest makes the one before it the current one again; an edit keeps the name.
 - **A name ending in a lower-case extension**, such as `.md` or `.png`, is served this way (`my%20file.md` for a space). The type comes from the note, not the name: markdown is served as text, a picture as its image type.
-- **A note's own file name comes first:** a name that is another note's `<id>.<ext>` never takes its address. A note dated later is served by its name from its date on.
+- **A note's own file name comes first:** a name that is another note's `<id>.<ext>` never takes its address. `feed.xml` and `atom.xml` are the feed itself, so a note named either is not served by that name. A note dated later is served by its name from its date on.
 - Public like the read link, with no password, as every file is.
 
 ## Choosing a feed's read id

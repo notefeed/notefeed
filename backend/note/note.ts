@@ -8,7 +8,8 @@ import { mediaTypeOf } from "./media";
 /** `description` is HTML; `image` a picture the item shows, for a reader's thumbnail (a picture note has its enclosure instead). */
 export type RssContent = { description?: string; enclosure?: { url: string; length: number; type: string }; image?: { url: string; type: string } };
 
-export type NoteInit = { id: string; ext: string; meta: Meta; date: Date; size: number; draft?: boolean };
+/** `written`: when the content was last written (the stored file's or row's time); absent for a note not read from storage. */
+export type NoteInit = { id: string; ext: string; meta: Meta; date: Date; size: number; draft?: boolean; written?: Date };
 
 export abstract class Note {
   readonly id: string;
@@ -19,14 +20,22 @@ export abstract class Note {
   readonly size: number;
   /** A draft (#265): only whoever can post to the feed sees it; readers do not, until it is published. */
   readonly draft: boolean;
+  /** When the content was last written, as storage records it: at posting and at each replace (`PUT`). */
+  readonly written?: Date;
 
-  constructor({ id, ext, meta, date, size, draft = false }: NoteInit) {
+  constructor({ id, ext, meta, date, size, draft = false, written }: NoteInit) {
     this.id = id;
     this.ext = ext;
     this.meta = meta;
     this.date = date;
     this.size = size;
     this.draft = draft;
+    this.written = written;
+  }
+
+  /** What makes this note, for a copy with other metadata (withMeta). */
+  protected init(meta: Meta): NoteInit {
+    return { id: this.id, ext: this.ext, meta, date: this.date, size: this.size, draft: this.draft, written: this.written };
   }
 
   /** True for a note whose stored copy can't be decrypted (UnreadableNote): only its id, file and time are known. */
@@ -49,6 +58,13 @@ export abstract class Note {
   }
   get tags(): string[] {
     return this.meta.tags ?? [];
+  }
+  /** When the note last changed, for Atom (#324): the latest of its date, the last write of its content (posting, a replace) and the
+   *  last change of its title, alt, tags or date (`meta.updated`). Never earlier than its date. */
+  get updated(): Date {
+    const edited = this.meta.updated === undefined ? NaN : Date.parse(this.meta.updated);
+    const times = [this.date.getTime(), this.written?.getTime() ?? NaN, edited].filter((t) => !Number.isNaN(t));
+    return new Date(Math.max(...times));
   }
   /** On an attachment, the id of the text note it was posted with. */
   get of(): string | undefined {

@@ -50,6 +50,7 @@ export const ROUTES = [
   "/privacy",
   "/r/[readId]",
   "/r/[readId]/[id]",
+  "/r/[readId]/atom.xml",
   "/r/[readId]/feed.xml",
   "/r/[readId]/files/[file]",
   "/report",

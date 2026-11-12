@@ -220,7 +220,7 @@ async function readNoteAs(feed: string, id: string, exts: readonly string[]): Pr
   if (checkFeed(feed) || !isValidId(id)) return null;
   const stored = await storage().readNote(feed, id, exts, withContent).catch((e) => Promise.reject(unreadableNote(id, e)));
   const type = stored && typeForExt(stored.ext);
-  return stored && type ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size, draft: stored.draft }, stored.content) : null;
+  return stored && type ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size, draft: stored.draft, written: stored.mtime }, stored.content) : null;
 }
 
 const readOf = (feed: string, ref: NoteRef) => readNoteAs(feed, ref.id, [ref.ext]);
@@ -257,7 +257,7 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
   const note = await getNote(feed, id);
   if (!note) return null;
   if (note.type !== parsed.mediaType) throw new UnsupportedTypeError(`this note is ${note.type}: send that Content-Type`);
-  if (!(await storage().replaceNote(feed, id, EDIT_EXTS, body))) return null;
+  if (!(await storage().replaceNote(feed, id, EDIT_EXTS, body))) return null; // the sidecar stays as it is: storage notes the write
   noteEdited(parsed.type.name, "content");
   return getNote(feed, id);
 }
@@ -273,7 +273,7 @@ export async function changeMeta(feed: string, id: string, edit: { title?: strin
   if (!note) return null;
   if (alt !== undefined && !typeForExt(note.ext)?.hasAlt) throw new InvalidBodyError("alt is for image notes");
   // Tags are replaced as a whole list, an empty one removes them (#244).
-  const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }), ...(tags !== undefined && { tags: tags.length ? tags : null }) };
+  const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }), ...(tags !== undefined && { tags: tags.length ? tags : null }), updated: new Date().toISOString() };
   if (!(await storage().updateMeta(feed, id, EDIT_EXTS, patch))) return null;
   noteEdited(typeForExt(note.ext)?.name ?? "unknown", "meta");
   return getNote(feed, id);
@@ -290,6 +290,7 @@ export async function changeDate(feed: string, id: string, date: Date): Promise<
   const note = await getNote(feed, id);
   if (!note) return null;
   if (!(await storage().setDate(feed, id, EDIT_EXTS, date.getTime()))) return null;
+  await storage().updateMeta(feed, id, EDIT_EXTS, { updated: new Date().toISOString() });
   const shift = date.getTime() - note.date.getTime();
   await Promise.all((await attachmentsOf(feed, id)).map((ref) => storage().setDate(feed, ref.id, [ref.ext], Math.max(0, ref.date + shift))));
   return getNote(feed, id);

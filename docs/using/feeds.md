@@ -26,7 +26,7 @@ Anyone who can open the feed can change its settings and delete it; the read-onl
 
 ## Feed settings in the API
 
-`GET /api/v1/feeds/<feed>` answers the feed's `name`, `title`, `description`, `show_sender`, `image_url`, `protected` and `read_url`. `PUT` on the same URL sets the title (at most 100 characters) and the description (at most 500), both at once; `image` names one of the feed's posted pictures as the title image (empty removes it), `show_sender` and `read_id` are optional. To upload a title image that is no post, `PUT /api/v1/feeds/<feed>/image` with the image as the body and its `Content-Type`; `DELETE` on the same URL removes it:
+`GET /api/v1/feeds/<feed>` answers the feed's `name`, `title`, `description`, `show_sender`, `image_url`, `protected`, `read_url` and `atom_url`. `PUT` on the same URL sets the title (at most 100 characters) and the description (at most 500), both at once; `image` names one of the feed's posted pictures as the title image (empty removes it), `show_sender` and `read_id` are optional. To upload a title image that is no post, `PUT /api/v1/feeds/<feed>/image` with the image as the body and its `Content-Type`; `DELETE` on the same URL removes it:
 
 ```sh
 curl -X PUT -H "Content-Type: application/json" \

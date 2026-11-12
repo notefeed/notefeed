@@ -25,6 +25,7 @@ const CREATED = {
   url: "https://n.example/inbox/20260930T100000Z-cafe",
   feed_url: "https://n.example/inbox",
   read_url: "https://n.example/r/AAAAAAAAAAAAAAAAAAAAAA/feed.xml",
+  atom_url: "https://n.example/r/AAAAAAAAAAAAAAAAAAAAAA/atom.xml",
   file: "20260930T100000Z-cafe.md",
   file_url: "https://n.example/r/AAAAAAAAAAAAAAAAAAAAAA/20260930T100000Z-cafe.md",
 };

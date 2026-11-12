@@ -24,6 +24,7 @@ class Feed:
         protected (bool): Whether the feed has its own password
         read_url (None | str): The feed's read-only RSS link; null while the feed has no notes, or if the server can't
             read the feed's stored read id
+        atom_url (None | str): The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
         image_url (None | str): The feed's title image (absolute URL, served under the read id), or null
         show_sender (bool): Whether readers see who posted each note
         free_tier (FreeTier | None): A feed without a license on an instance that sells them: its notes against the free
@@ -35,6 +36,7 @@ class Feed:
     description: str
     protected: bool
     read_url: None | str
+    atom_url: None | str
     image_url: None | str
     show_sender: bool
     free_tier: FreeTier | None
@@ -52,6 +54,9 @@ class Feed:
 
         read_url: None | str
         read_url = self.read_url
+
+        atom_url: None | str
+        atom_url = self.atom_url
 
         image_url: None | str
         image_url = self.image_url
@@ -73,6 +78,7 @@ class Feed:
                 "description": description,
                 "protected": protected,
                 "read_url": read_url,
+                "atom_url": atom_url,
                 "image_url": image_url,
                 "show_sender": show_sender,
                 "free_tier": free_tier,
@@ -100,6 +106,13 @@ class Feed:
             return cast(None | str, data)
 
         read_url = _parse_read_url(d.pop("read_url"))
+
+        def _parse_atom_url(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        atom_url = _parse_atom_url(d.pop("atom_url"))
 
         def _parse_image_url(data: object) -> None | str:
             if data is None:
@@ -131,6 +144,7 @@ class Feed:
             description=description,
             protected=protected,
             read_url=read_url,
+            atom_url=atom_url,
             image_url=image_url,
             show_sender=show_sender,
             free_tier=free_tier,

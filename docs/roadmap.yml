@@ -21,16 +21,6 @@ items:
       - {label: "#292", url: "https://github.com/notefeed/notefeed/issues/292"}
       - {label: "V13", url: "https://docs.notefeed.me/values/#v13"}
 
-  - id: atom
-    status: next
-    when: Next
-    icon: rss
-    title: Atom beside RSS
-    summary: Every read link offers its notes as an Atom feed too, with an entry's last change, so readers pick up an edited note.
-    links:
-      - {label: "#324", url: "https://github.com/notefeed/notefeed/issues/324"}
-      - {label: "V5", url: "https://docs.notefeed.me/values/#v5"}
-
   - id: iphone-shortcut
     status: next
     when: Next
@@ -82,6 +72,16 @@ items:
       - {label: "V4", url: "https://docs.notefeed.me/values/#v4"}
 
   # ---- done ------------------------------------------------------------------------------------------------------------
+  - id: atom
+    status: done
+    date: 2026-11-12
+    icon: rss
+    title: Atom beside RSS
+    summary: Every read link offers its notes as an Atom feed too, with an entry's last change, so readers pick up an edited note.
+    links:
+      - {label: "#324", url: "https://github.com/notefeed/notefeed/issues/324"}
+      - {label: "V5", url: "https://docs.notefeed.me/values/#v5"}
+
   - id: creem-packages
     status: done
     date: 2026-11-10
