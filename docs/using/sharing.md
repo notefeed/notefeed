@@ -19,22 +19,15 @@ What to know:
 
 ## iPhone
 
-iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut that posts to the [API](posting.md). Set it up once in the **Shortcuts** app:
+iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut. notefeed has a ready-made one:
 
-1. **New shortcut**, then in its details turn on **Show in Share Sheet** and let it receive **Images**.
-2. **Dictionary**: one entry per feed, the feed name as key and its [feed password](feed-passwords.md) as value (empty for an open feed).
-3. **Choose from List** with the dictionary's keys: the feed. **Get Dictionary Value** for that key: the password.
-4. **Ask for Input** (text, "Caption"), which may be left empty.
-5. **Repeat with Each** item of the Shortcut Input:
-    - **Convert Image** to **JPEG**, with **Preserve Metadata** off: iPhone photos are HEIC, which notefeed does not take. (The server shrinks the photo and removes its metadata anyway.)
-    - **Add to Variable** `Pictures`.
-6. **Get Contents of URL**: `https://<your instance>/<feed>` (the chosen feed), method **POST**, request body **Form** with a field `file` of type File set to `Pictures`, and, only when the caption is not empty (an **If** around it), a field `text` with the caption. Under **Headers** add `X-Feed-Password` with the password when it is not empty, and, on an instance with a password (`NOTEFEED_PASSWORD`), `Authorization` with `Bearer <instance password>`.
-7. **Show Result** or **Show Notification** with the answer.
+1. On the iPhone, open the feed's **Settings**, then **Share from an iPhone**, and tap **the notefeed Shortcut** (or open `https://<your instance>/shortcuts/notefeed.shortcut`). Add it.
+2. It asks three things: the instance's address (`https://notefeed.me`), the feed's name, and its [password](feed-passwords.md) (empty for an open feed). The settings page shows the first two.
+3. Share pictures, text or a link from any app and pick **notefeed**. It sits at the very bottom of the share sheet, below the actions; **Edit Actions** there can move it up.
 
-With a caption, the pictures arrive as one note with them attached; without one, each picture is a note of its own (see [Posting a note with its pictures](pictures.md#posting-a-note-with-its-pictures)).
+Everything shared in one go arrives as one note: the text with every picture ([Posting a note with its pictures](pictures.md#posting-a-note-with-its-pictures)), or, without text, the pictures alone. Photos are converted to JPEG on the phone, as notefeed does not take HEIC; the server shrinks them and removes their metadata. The note opens in the browser when it has arrived; a refusal (a wrong password, a picture too large) is shown with notefeed's reason.
 
-!!! note "Not tried on a device yet"
-    The action names follow Apple's Shortcuts app; the recipe has not been run on an iPhone yet. One thing to watch the first time: whether the form's File field sends every picture of the `Pictures` variable, not only the first. If a step is named differently or it doesn't, open an issue.
+The Shortcut posts to `POST /api/v1/feeds/<feed>/notes` with `X-Feed-Password`. It sends no instance password, so on a self-hosted instance with `NOTEFEED_PASSWORD` set, copy it and add an `Authorization: Bearer <instance password>` header to its two **Get Contents of URL** actions. It is built from source (`shortcut/source.ts`) and signed, as iOS imports only signed Shortcuts.
 
 !!! note "On notefeed.me"
     Pictures need a license: on the free tier every picture is refused with `402`. See [Free tier and licenses](../hosted/licenses.md).

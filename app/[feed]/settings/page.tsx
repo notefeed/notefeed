@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowUpRight, Bot, Braces, ChevronLeft, Link2, Package, Rss, Terminal } from "lucide-react";
+import { ArrowUpRight, Bot, Braces, ChevronLeft, Link2, Package, Rss, Smartphone, Terminal } from "lucide-react";
 import { claudeMcpFor, curlFor } from "@/app/_lib/curl";
 import { feedDetailsErrorMessage, feedErrorMessage, passwordNotice, protectErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
@@ -102,6 +102,23 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
               <p className="mb-2 text-muted">The client libraries for Python and JavaScript take the server and the feed from the environment.</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`pip install notefeed\nnpm install notefeed`}</pre>
               <DocsLink href={`${DOCS}/integrations/clients/`}>Client libraries</DocsLink>
+            </DisclosureRow>
+            <DisclosureRow icon={<Smartphone />} label="Share from an iPhone">
+              <p className="mb-2 text-muted">A ready-made Shortcut puts notefeed in the share sheet: pictures, text and links you share arrive as one note in this feed.</p>
+              <ol className="mb-2 list-decimal space-y-1 pl-5 text-muted">
+                <li>
+                  Open{" "}
+                  <a href="/shortcuts/notefeed.shortcut" download className="text-carbon underline">
+                    the notefeed Shortcut
+                  </a>{" "}
+                  on the iPhone and add it.
+                </li>
+                <li>
+                  It asks for the address, <code className="break-all font-mono">{base}</code>, the feed name, <code className="break-all font-mono">{feed}</code>, and the feed&apos;s password (empty for an open feed).
+                </li>
+                <li>Share from any app and pick notefeed: it is at the very bottom of the share sheet, below the actions.</li>
+              </ol>
+              <DocsLink href={`${DOCS}/using/sharing/#iphone`}>Sharing</DocsLink>
             </DisclosureRow>
             <DisclosureRow icon={<Bot />} label="Post from an AI agent">
               <p className="mb-2 text-muted">Add notefeed to Claude Code as an MCP server; the agent then posts to this feed by its name.</p>

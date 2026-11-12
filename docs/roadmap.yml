@@ -31,16 +31,6 @@ items:
       - {label: "#324", url: "https://github.com/notefeed/notefeed/issues/324"}
       - {label: "V5", url: "https://docs.notefeed.me/values/#v5"}
 
-  - id: iphone-shortcut
-    status: next
-    when: Next
-    icon: cellphone-arrow-down
-    title: A ready-made iPhone Shortcut
-    summary: Share pictures and files to a feed from an iPhone with a signed Shortcut, generated from source; load it, answer two questions, share.
-    links:
-      - {label: "#334", url: "https://github.com/notefeed/notefeed/issues/334"}
-      - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
-
   - id: webhooks
     status: later
     when: Later
@@ -82,6 +72,16 @@ items:
       - {label: "V4", url: "https://docs.notefeed.me/values/#v4"}
 
   # ---- done ------------------------------------------------------------------------------------------------------------
+  - id: iphone-shortcut
+    status: done
+    date: 2026-11-12
+    icon: cellphone-arrow-down
+    title: A ready-made iPhone Shortcut
+    summary: Share pictures, text and links to a feed from an iPhone with a signed Shortcut, generated from source; load it, answer three questions, share.
+    links:
+      - {label: "#334", url: "https://github.com/notefeed/notefeed/issues/334"}
+      - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
+
   - id: creem-packages
     status: done
     date: 2026-11-10

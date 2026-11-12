@@ -198,3 +198,15 @@ test("a large picture is capped in width and height", async ({ page, request }) 
   expect(box.width).toBeLessThanOrEqual(640 + 1);
   expect(box.height).toBeLessThanOrEqual(900 * 0.8 + 1);
 });
+
+// #334: the settings page offers the iPhone Shortcut, with the address and the feed name it asks for at import.
+test("the settings page offers the iPhone Shortcut with what it asks for", async ({ page, baseURL }) => {
+  const name = feedName();
+  await post(page, name);
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Share from an iPhone" }).click();
+  await expect(page.getByRole("link", { name: "the notefeed Shortcut" })).toHaveAttribute("href", "/shortcuts/notefeed.shortcut");
+  const row = page.locator("details", { hasText: "Share from an iPhone" });
+  await expect(row.locator("code", { hasText: name })).toBeVisible();
+  await expect(row.locator("code", { hasText: baseURL! })).toBeVisible();
+});
