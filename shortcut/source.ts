@@ -85,7 +85,7 @@ export function shortcutPlist(): Record<string, unknown> {
       { ActionIndex: 0, Category: "Parameter", DefaultValue: "https://notefeed.me", ParameterKey: "WFTextActionText", Text: "notefeed address (e.g. https://notefeed.me)" },
       { ActionIndex: 1, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Feed name" },
       { ActionIndex: 2, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Feed password (empty for an open feed)" },
-      { ActionIndex: 3, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Server password (empty unless your server asks for one at sign-in)" },
+      { ActionIndex: 3, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Server password: optional, leave empty unless your own server asks for one at sign-in (never on notefeed.me)" },
     ],
     WFWorkflowActions: [
       action("gettext", { UUID: ADDRESS, WFTextActionText: "" }),

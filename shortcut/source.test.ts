@@ -42,7 +42,7 @@ test("importing it asks for the address, the feed name, the feed password and th
     "notefeed address (e.g. https://notefeed.me)",
     "Feed name",
     "Feed password (empty for an open feed)",
-    "Server password (empty unless your server asks for one at sign-in)",
+    "Server password: optional, leave empty unless your own server asks for one at sign-in (never on notefeed.me)",
   ]);
   expect(qs.map((q) => q.ActionIndex)).toEqual([0, 1, 2, 3]);
   for (const q of qs) {

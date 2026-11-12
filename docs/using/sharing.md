@@ -22,7 +22,7 @@ What to know:
 iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut. notefeed has a ready-made one:
 
 1. On the iPhone, open the feed's **Settings**, then **Share from an iPhone**, and tap **the notefeed Shortcut** (or open `https://<your instance>/shortcuts/notefeed.shortcut`). Add it.
-2. It asks four things: the instance's address (`https://notefeed.me`), the feed's name, its [password](feed-passwords.md) (empty for an open feed), and the server password, the one you sign in to a self-hosted instance with (`NOTEFEED_PASSWORD`; empty on notefeed.me and wherever there is none). The settings page shows the address and the name, and says whether the server has a password.
+2. It asks four things: the instance's address (`https://notefeed.me`), the feed's name, its [password](feed-passwords.md) (empty for an open feed), and, **optional**, a server password: leave it empty unless your own self-hosted server asks for a password when you sign in (`NOTEFEED_PASSWORD`). notefeed.me has none. The settings page shows the address and the name, and says whether the server has a password.
 3. Share pictures, text or a link from any app and pick **notefeed**. It sits at the very bottom of the share sheet, below the actions; **Edit Actions** there can move it up.
 
 Everything shared in one go arrives as one note: the text with every picture ([Posting a note with its pictures](pictures.md#posting-a-note-with-its-pictures)), or, without text, the pictures alone. Photos are converted to JPEG on the phone, as notefeed does not take HEIC; the server shrinks them and removes their metadata. The note opens in the browser when it has arrived; a refusal (a wrong password, a picture too large) is shown with notefeed's reason.
