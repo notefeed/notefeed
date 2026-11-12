@@ -7,6 +7,7 @@ import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoun
 import { changePassword, checkFeedAccess, recoverPassword } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson, licensesJson } from "./http/api";
+import { ownerFile } from "./http/files";
 import { sender } from "./http/request";
 import { FeedJson, FreeTierJson, LicensesJson } from "./http/schemas";
 import { clientIp } from "./limits";
@@ -21,7 +22,7 @@ import { isAttachmentName, safeName } from "../shared/links";
 import { checkTags, TAG_RULE } from "./tags";
 import { checkDate, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
 import { getStoredSettings } from "./feedsettings";
-import { feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
+import { atomPath, feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
 const log = logger("mcp");
 const SECRET_NOTE = "The feed name works like a password: anyone who knows it can read and post. Don't repeat it in replies.";
@@ -107,7 +108,7 @@ function server(h: Headers): McpServer {
           .array(z.object({ name: z.string().refine(isAttachmentName, "Not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots").describe("What the markdown calls it: ![](name). Any single path segment (no / or \\; spaces allowed, written <name with spaces> or name%20with%20spaces in the markdown); unique when the markdown refers to it, else pictures of the same name are appended"), type: z.string().describe(`The picture's media type: ${ACCEPTED_TYPES}`), data: z.string().describe("The picture's bytes, standard base64 (not URL-safe)"), alt: z.string().optional().describe("Alternative text (at most 500 characters, one line; control and text-direction override characters are refused)") }))
           .optional(),
       }),
-      outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), draft: DRAFT_OUT, attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
+      outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), atom_url: z.string().nullable(), draft: DRAFT_OUT, attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, markdown, title, name, password, tags, date, draft, read_id, license_key, attachments = [] }) => {
@@ -120,7 +121,7 @@ function server(h: Headers): McpServer {
       });
       const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
       const feedUrl = base + feedPath(feed);
-      return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), ...(note.draft && { draft: true as const }), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
+      return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), atom_url: readId && base + atomPath(readId), ...(note.draft && { draft: true as const }), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
     }),
   );
 
@@ -143,17 +144,28 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "get_note",
     {
-      description: `Get one note with its content (the text of a text note; a picture has none, use its URL). ${PROTECTED} ${SECRET_NOTE}`,
-      inputSchema: z.object({ feed, id: z.string(), password }),
+      description: `Get one note with its content (the text of a text note; a picture has none: its URL is public once readers may see it, and with picture true the picture itself comes along, also a draft's or a scheduled note's, which the URL does not serve yet). ${PROTECTED} ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        id: z.string(),
+        picture: z.boolean().optional().describe("true: a picture note's image comes along as an image, so a draft's pictures can be checked before it goes out. Ignored for a text note"),
+        password,
+      }),
       outputSchema: NoteFull,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, id, password }) => {
+    guard(async ({ feed, id, picture, password }) => {
       await checkAccess(feed, password);
       await refuseRemovedNote(feed, id);
       const note = await getNote(feed, id);
       if (!note) throw new NotFoundError("no such note");
-      return ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });
+      const result = ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });
+      if (!picture || !note.type.startsWith("image/")) return result;
+      // The owner's view of the file (#349): drafts and scheduled notes too.
+      const file = await ownerFile(feed, note.file, null, "throw");
+      if (file.status !== 200) throw new NotFoundError("no such note");
+      const data = Buffer.from(await file.arrayBuffer()).toString("base64");
+      return { ...result, content: [...result.content, { type: "image" as const, data, mimeType: note.type }] };
     }),
   );
 
@@ -233,13 +245,14 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "update_feed",
     {
-      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. license_key, only on an instance that sells licenses: puts that license on the feed (moving it from the feed it was on; no feed password needed), empty takes the feed's license off; it is applied first. new_password sets the feed's password: on a protected feed it changes it (password is the current one); an open feed takes it without one, which claims the feed (its name was all that protected it). From then on every call for the feed needs the new password; the read link stays open. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. name renames the feed, last: everything goes with it, the answer is the feed under its new name, and the old name stops working at once (a later post to it creates a new feed); a reserved feed keeps its name. license_key, only on an instance that sells licenses: puts that license on the feed (moving it from the feed it was on; no feed password needed), empty takes the feed's license off; it is applied first. new_password sets the feed's password: on a protected feed it changes it (password is the current one); an open feed takes it without one, which claims the feed (its name was all that protected it). From then on every call for the feed needs the new password; the read link stays open. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         title: z.string().optional(),
         description: z.string().optional(),
         image: z.string().optional(),
         read_id: z.string().optional(),
+        name: z.string().optional().describe("A new name for the feed (1 to 64 characters of a-z, 0-9, - and _). Everything goes with it; the old name stops working at once, so use the new one in every later call and tell the user to change it wherever it is configured (NOTEFEED_FEED, CI secrets, scripts, MCP configurations) before those next run: a post to the old name creates a new, empty feed without an error."),
         license_key: z.string().optional().describe("A license key to put on the feed; empty takes its license off. A wrong key counts as a failed attempt, like a wrong password."),
         new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end."),
         password,
@@ -247,9 +260,9 @@ function server(h: Headers): McpServer {
       outputSchema: FeedOut,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, title, description, image, read_id, license_key, new_password, password }) => {
-      const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined;
-      if (!settings && license_key === undefined && new_password === undefined) throw new InvalidBodyError("nothing to change: send title, description, image, read_id, license_key, new_password or several");
+    guard(async ({ feed, title, description, image, read_id, name, license_key, new_password, password }) => {
+      const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined || name !== undefined;
+      if (!settings && license_key === undefined && new_password === undefined) throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, license_key, new_password or several");
       const ip = clientIp(h);
       // First, so a key that is refused changes nothing else (#247); the license may be what the new password needs.
       if (license_key !== undefined) await setLicense(feed, ip, license_key.trim() === "" ? null : license_key, { password });
@@ -259,13 +272,16 @@ function server(h: Headers): McpServer {
       }
       // From here on the feed's password is the new one.
       const access = { password: new_password ?? password };
+      let now = feed;
       if (settings) {
-        await updateFeed(feed, ip, async () => {
-          const stored = await getStoredSettings(feed); // after the password check: what is left out stays
-          return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id };
-        }, access);
+        now = (
+          await updateFeed(feed, ip, async () => {
+            const stored = await getStoredSettings(feed); // after the password check: what is left out stays
+            return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id, name };
+          }, access)
+        ).feed;
       }
-      return ok(await feedJson(feed, h));
+      return ok(await feedJson(now, h));
     }),
   );
 

@@ -2,8 +2,9 @@
 // (storage/fs), SQLite and PostgreSQL (storage/sql); backend/storage/contract.ts is the suite every one must pass.
 // Names are checked by backend/feeds.ts and backend/notes.ts first; nothing here validates them.
 
-/** `of`: on an attachment, the id of the text note it was posted with. */
-export type Meta = { title?: string; sender?: string; tags?: string[]; alt?: string; name?: string; created?: string; of?: string };
+/** `of`: on an attachment, the id of the text note it was posted with. `updated`: when its content, title, alt, tags or date last
+ *  changed after posting (ISO 8601), for Atom's `updated` (#324); absent until the first edit. */
+export type Meta = { title?: string; sender?: string; tags?: string[]; alt?: string; name?: string; created?: string; of?: string; updated?: string };
 
 // `ownImage`: the title image is the feed's own, uploaded as one (not a post): lists leave that image note out (notes.ts).
 export type Settings = { title: string; description: string; image: string; showSender: boolean; ownImage?: boolean };
@@ -73,6 +74,10 @@ export interface Storage {
   forgetFeed(feed: string, readId: string | null): Promise<void>;
   /** Throws NotFoundError (no such feed) or ReadIdTakenError. */
   setReadId(feed: string, readId: string): Promise<void>;
+  /** Gives the feed the name `to` (#350): its notes, files, settings, password, read id and drafts go with it; the old name is freed, nothing
+   *  is recorded. FeedNameTakenError when `to` is another feed's or a removed feed's (a tombstone), NotFoundError when there is no `feed`.
+   *  A feed whose read id is derived from its name keeps that id (it is stored first). */
+  renameFeed(feed: string, to: string): Promise<void>;
   /** undefined: no such feed. null: a feed without a read link. */
   feedReadId(feed: string): Promise<string | null | undefined>;
   feedForReadId(readId: string): Promise<string | null>;

@@ -48,6 +48,11 @@ export async function openLicenses(): Promise<void> {
   if (licensingOn()) await (licenses() as LicenseDb).ready();
 }
 
+/** The feed was renamed (#350): its license goes with it. */
+export async function moveLicense(from: string, to: string): Promise<void> {
+  if (licensingOn()) await licenses().moveFeed(from, to);
+}
+
 export async function releaseLicense(feed: string): Promise<void> {
   if (licensingOn()) await licenses().detach(feed);
 }

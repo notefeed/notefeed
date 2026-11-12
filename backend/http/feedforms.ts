@@ -25,9 +25,12 @@ export const feedSettingsRoute = (req: Request, feed: string): Promise<Response>
         description: form.get("description"),
         showSender: form.has("show_sender_present") ? form.has("show_sender") : undefined,
         readId: form.has("generate_read_id") ? "" : typeof readId === "string" ? readId : undefined,
+        name: typeof form.get("name") === "string" ? form.get("name") : undefined, // the rename form (#350)
       };
     };
-    await updateFeed(feed, ip, read, feedAccess(h, feed));
+    const saved = await updateFeed(feed, ip, read, feedAccess(h, feed));
+    // Renamed: on to the new name's settings; the old name's unlock cookie is of no use any more.
+    if (saved.feed !== feed) return seeOther(`${settingsPath(saved.feed)}?saved=1`, feedCookies(h, feed, "", 0));
     return seeOther(`${settingsPath(feed)}?saved=1`);
   });
 

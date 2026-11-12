@@ -6,7 +6,9 @@ import { beforeEach, expect, test } from "vitest";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { png } from "../testimages";
+import { unlock } from "../feedlock";
 import { API_PREFIX, dispatch } from "./api";
+import { fileRoute, ownerFileRoute } from "./files";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
@@ -65,4 +67,63 @@ test("PATCH draft alone publishes and makes a draft again", async () => {
   expect((await (await patch(made.id, { draft: true })).json()).draft).toBe(true);
   expect(await readList(readId)).not.toContain(made.id);
   expect((await patch(made.id, { draft: "no" })).status).toBe(400);
+});
+
+// #349: whoever may post sees a draft's and a scheduled note's pictures; the read link still hides them.
+async function postWithPicture(headers: Record<string, string>, feed = "f") {
+  const form = new FormData();
+  form.set("text", "# T ![](a.png)");
+  form.set("file", new File([png(1)], "a.png", { type: "image/png" }));
+  const made = await (await send("POST", `/feeds/${feed}/notes`, form, null, headers)).json();
+  return made.attachments[0].file as string;
+}
+
+test("getFile serves a draft's picture to its owner; the read link does not", async () => {
+  const file = await postWithPicture({ "x-note-draft": "true" });
+  const res = await send("GET", `/feeds/f/files/${file}`, null, null);
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toBe("image/png");
+  expect(Buffer.from(await res.arrayBuffer()).subarray(1, 4).toString()).toBe("PNG");
+  const again = await send("GET", `/feeds/f/files/${file}`, null, null, { "if-none-match": res.headers.get("etag")! });
+  expect(again.status).toBe(304);
+  const readId = await readIdOf();
+  expect((await fileRoute(readId, file)).status).toBe(404);
+  expect((await fileRoute(readId, "a.png")).status).toBe(404);
+});
+
+test("getFile serves a scheduled note's picture to its owner; the read link does not", async () => {
+  const file = await postWithPicture({ "x-note-date": "2099-01-01T00:00:00Z" });
+  expect((await send("GET", `/feeds/f/files/${file}`, null, null)).status).toBe(200);
+  expect((await fileRoute(await readIdOf(), file)).status).toBe(404);
+});
+
+test("getFile is 404 for a file that isn't there and for a name that isn't a note's own", async () => {
+  await postWithPicture({});
+  expect((await send("GET", "/feeds/f/files/nothere.png", null, null)).status).toBe(404);
+  expect((await send("GET", "/feeds/f/files/a.png", null, null)).status).toBe(404);
+});
+
+test("getFile on a protected feed needs its password", async () => {
+  await send("POST", "/feeds/p/notes", "# First", "text/markdown", { "x-feed-password": "secret-pw" });
+  const file = await postWithPicture({ "x-note-draft": "true", "x-feed-password": "secret-pw" }, "p");
+  expect((await send("GET", `/feeds/p/files/${file}`, null, null)).status).toBe(401);
+  expect((await send("GET", `/feeds/p/files/${file}`, null, null, { "x-feed-password": "secret-pw" })).status).toBe(200);
+});
+
+test("the feed's own file route needs the unlock cookie on a protected feed", async () => {
+  await send("POST", "/feeds/p/notes", "# First", "text/markdown", { "x-feed-password": "secret-pw" });
+  const file = await postWithPicture({ "x-note-draft": "true", "x-feed-password": "secret-pw" }, "p");
+  expect((await ownerFileRoute("p", file, undefined)).status).toBe(401);
+  expect((await ownerFileRoute("p", file, "wrong")).status).toBe(401);
+  const cookie = await unlock("p", "secret-pw", "127.0.0.1");
+  const ok = await ownerFileRoute("p", file, cookie);
+  expect(ok.status).toBe(200);
+  expect(ok.headers.get("content-type")).toBe("image/png");
+  expect((await ownerFileRoute("p", "nothere.png", cookie)).status).toBe(404);
+});
+
+test("the feed's own file route serves an open feed's draft pictures", async () => {
+  const file = await postWithPicture({ "x-note-draft": "true" });
+  expect((await ownerFileRoute("f", file, undefined)).status).toBe(200);
+  expect((await ownerFileRoute("api", file, undefined)).status).toBe(404);
 });

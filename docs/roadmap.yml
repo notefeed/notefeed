@@ -21,16 +21,6 @@ items:
       - {label: "#292", url: "https://github.com/notefeed/notefeed/issues/292"}
       - {label: "V13", url: "https://docs.notefeed.me/values/#v13"}
 
-  - id: atom
-    status: next
-    when: Next
-    icon: rss
-    title: Atom beside RSS
-    summary: Every read link offers its notes as an Atom feed too, with an entry's last change, so readers pick up an edited note.
-    links:
-      - {label: "#324", url: "https://github.com/notefeed/notefeed/issues/324"}
-      - {label: "V5", url: "https://docs.notefeed.me/values/#v5"}
-
   - id: webhooks
     status: later
     when: Later
@@ -79,8 +69,28 @@ items:
     title: A ready-made iPhone Shortcut
     summary: Share pictures, text and links to a feed from an iPhone with a signed Shortcut, generated from source; load it, answer four questions, share.
     links:
-      - {label: "#334", url: "https://github.com/notefeed/notefeed/issues/334"}
+      - {label: "#364", url: "https://github.com/notefeed/notefeed/pull/364"}
       - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
+
+  - id: rename-feed
+    status: done
+    date: 2026-11-12
+    icon: rename-box
+    title: Rename a feed
+    summary: A feed can get another name and keeps everything, its read link included; the old name is freed.
+    links:
+      - {label: "#363", url: "https://github.com/notefeed/notefeed/pull/363"}
+      - {label: "V8", url: "https://docs.notefeed.me/values/#v8"}
+
+  - id: atom
+    status: done
+    date: 2026-11-12
+    icon: rss
+    title: Atom beside RSS
+    summary: Every read link offers its notes as an Atom feed too, with an entry's last change, so readers pick up an edited note.
+    links:
+      - {label: "#362", url: "https://github.com/notefeed/notefeed/pull/362"}
+      - {label: "V5", url: "https://docs.notefeed.me/values/#v5"}
 
   - id: creem-packages
     status: done

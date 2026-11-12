@@ -107,7 +107,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
       )}
       <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={form === "create" ? undefined : errorMessage(error, retry)} errorCode={one(error)}
         isNew={isNew} settingsHref={exists ? settingsPath(feed) : undefined} licensePage={licensePage}
-        sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={readId ? `${readPath(readId)}/` : undefined}
+        sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={`${feedPath(feed)}/files/`}
         initialTitle={one(share_title)} initialText={shared} shared={one(sharedPictures) === "1"}
       />
       {tag && notes.length === 0 ? (
@@ -118,7 +118,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           <pre className="mt-3 overflow-x-auto rounded-xl bg-surface-2 p-3 text-left font-mono text-sm text-ink">{curlExample}</pre>
         </section>
       ) : (
-        <NoteList notes={notes} base={feedPath(feed)} imageBase={readId ? `${readPath(readId)}/` : undefined} posted={typeof posted === "string" ? posted : undefined} report={report(readId)} terms={await hasLegalPage("terms")} />
+        <NoteList notes={notes} base={feedPath(feed)} imageBase={`${feedPath(feed)}/files/`} posted={typeof posted === "string" ? posted : undefined} report={report(readId)} terms={await hasLegalPage("terms")} />
       )}
     </AppShell>
   );

@@ -19,6 +19,7 @@ class Created:
         feed_url (str): The feed's page in the web UI
         read_url (None | str): The feed's read-only RSS link, safe to share; null only if the server can't read the
             feed's stored read id, or if that id and the derived one both belong to other feeds
+        atom_url (None | str): The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
         file (str): The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting
         file_url (None | str): Where the note's file is served, absolute, under the feed's read id (public like the read
             link); null while the feed has no read link
@@ -30,6 +31,7 @@ class Created:
     url: str
     feed_url: str
     read_url: None | str
+    atom_url: None | str
     file: str
     file_url: None | str
     draft: bool | Unset = UNSET
@@ -43,6 +45,9 @@ class Created:
 
         read_url: None | str
         read_url = self.read_url
+
+        atom_url: None | str
+        atom_url = self.atom_url
 
         file = self.file
 
@@ -59,6 +64,7 @@ class Created:
                 "url": url,
                 "feed_url": feed_url,
                 "read_url": read_url,
+                "atom_url": atom_url,
                 "file": file,
                 "file_url": file_url,
             }
@@ -84,6 +90,13 @@ class Created:
 
         read_url = _parse_read_url(d.pop("read_url"))
 
+        def _parse_atom_url(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        atom_url = _parse_atom_url(d.pop("atom_url"))
+
         file = d.pop("file")
 
         def _parse_file_url(data: object) -> None | str:
@@ -100,6 +113,7 @@ class Created:
             url=url,
             feed_url=feed_url,
             read_url=read_url,
+            atom_url=atom_url,
             file=file,
             file_url=file_url,
             draft=draft,

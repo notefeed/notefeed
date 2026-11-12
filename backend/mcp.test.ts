@@ -146,6 +146,7 @@ describe("tools", () => {
       url: `http://localhost:3000/a/${id}`,
       feed_url: "http://localhost:3000/a",
       read_url: `http://localhost:3000/r/${(await readIdOf("a"))!}/feed.xml`,
+      atom_url: `http://localhost:3000/r/${(await readIdOf("a"))!}/atom.xml`,
       attachments: [],
     });
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
@@ -533,6 +534,21 @@ describe("gate on a locked instance", () => {
   });
 });
 
+// Renaming a feed (#350): update_feed with name answers the feed under its new name; the old name is gone.
+describe("rename", () => {
+  test("update_feed with name moves the feed and answers it under the new name", async () => {
+    const posted = (await call("post_note", { feed: "before", markdown: "# Kept" })).structuredContent;
+    const renamed = (await call("update_feed", { feed: "before", name: "after" })).structuredContent;
+    expect(renamed.name).toBe("after");
+    expect(renamed.read_url).toBe(posted.read_url);
+    expect((await call("get_note", { feed: "after", id: posted.id })).structuredContent.content).toBe("# Kept");
+    expect((await call("get_feed", { feed: "before" })).isError).toBe(true);
+    const taken = await call("update_feed", { feed: "after", name: "api" });
+    expect(taken.isError).toBe(true);
+    expect(taken.content[0].text).toContain("not available");
+  });
+});
+
 // Drafts (#265): post_note and post_file take draft, edit_note publishes or makes a draft again, lists mark them.
 describe("drafts", () => {
   test("post_note as a draft is marked in the reply, list_notes and get_note", async () => {
@@ -541,6 +557,19 @@ describe("drafts", () => {
     const listed = (await call("list_notes", { feed: "o" })).structuredContent.notes;
     expect(listed.find((n: { id: string }) => n.id === posted.id).draft).toBe(true);
     expect((await call("get_note", { feed: "o", id: posted.id })).structuredContent.draft).toBe(true);
+  });
+
+  test("get_note with picture brings a draft picture's image along (#349)", async () => {
+    const data = Buffer.from(PNG).toString("base64");
+    const posted = (await call("post_note", { feed: "o", markdown: "# D ![](a.png)", draft: true, attachments: [{ name: "a.png", type: "image/png", data }] })).structuredContent;
+    const pic = posted.attachments[0].id;
+    const plain = await call("get_note", { feed: "o", id: pic });
+    expect(plain.content.map((c: { type: string }) => c.type)).toEqual(["text"]);
+    const withPicture = await call("get_note", { feed: "o", id: pic, picture: true });
+    expect(withPicture.content[1]).toMatchObject({ type: "image", mimeType: "image/png" });
+    expect(Buffer.from(withPicture.content[1].data, "base64").subarray(1, 4).toString()).toBe("PNG");
+    const text = await call("get_note", { feed: "o", id: posted.id, picture: true });
+    expect(text.content.map((c: { type: string }) => c.type)).toEqual(["text"]);
   });
 
   test("edit_note with only draft publishes, and makes a draft again", async () => {

@@ -3,7 +3,7 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getLicenses, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
+import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getFile, getLicenses, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
 import type { Created, Error as ApiError, Feed, FeedSettings, Licenses, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
@@ -94,7 +94,8 @@ function asFile(content: string | Uint8Array | Blob, type?: string): { body: Blo
 
 export class Client {
   readonly url: string;
-  readonly feed: string | null;
+  /** The feed calls use when they name none; a rename of it through updateFeed() (`name`) moves it to the new name. */
+  feed: string | null;
   private readonly api;
   private readonly timeoutMs: number;
   private readonly feedPassword: string | null;
@@ -226,11 +227,20 @@ export class Client {
     return this.call(getFeed({ client: this.api, path: { feed }, ...this.opts(options.feedPassword) }));
   }
 
-  /** Replace the feed's title and description (both; an empty string clears one), and set (`image`: a file name from uploadImage) or clear (`""`) the title image; leave `image` out to keep it. `read_id` gives the feed another read id (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; `""` for a random one; left out keeps it); the old one is freed, and relative image links in notes follow while full URLs do not. The feed must already exist. Same options as post(). */
+  /** Replace the feed's title and description (both; an empty string clears one), and set (`image`: a file name from uploadImage) or clear (`""`) the title image; leave `image` out to keep it. `read_id` gives the feed another read id (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; `""` for a random one; left out keeps it); the old one is freed, and relative image links in notes follow while full URLs do not. `name` renames the feed (1 to 64 characters of `a-z`, `0-9`, `-`, `_`): everything goes with it and the old name stops working at once; when it was this client's own feed, the client uses the new name for the rest of this run; change NOTEFEED_FEED (or wherever the name is configured) before the next one. The feed must already exist. Same options as post(). */
   async updateFeed(settings: FeedSettings, options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
     const feed = this.feedFor(options.feed);
-    const body = { title: settings.title, description: settings.description, ...(settings.image === undefined ? {} : { image: settings.image }), ...(settings.read_id === undefined ? {} : { read_id: settings.read_id }) };
-    return this.call(updateFeed({ client: this.api, path: { feed }, body, ...this.opts(options.feedPassword) }));
+    if (settings.name) checkFeed(settings.name);
+    const body = {
+      title: settings.title,
+      description: settings.description,
+      ...(settings.image === undefined ? {} : { image: settings.image }),
+      ...(settings.read_id === undefined ? {} : { read_id: settings.read_id }),
+      ...(settings.name === undefined ? {} : { name: settings.name }),
+    };
+    const updated = await this.call<Feed>(updateFeed({ client: this.api, path: { feed }, body, ...this.opts(options.feedPassword) }));
+    if (feed === this.feed && typeof updated?.name === "string" && updated.name !== feed) this.feed = updated.name;
+    return updated;
   }
 
   /** Put the license the key names on the feed, taking it off the feed it was on; a feed needs no password for it. Only on an instance that sells licenses. Same options as post(). */
@@ -294,6 +304,16 @@ export class Client {
   async note(id: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
     const feed = this.feedFor(options.feed);
     return this.call(getNote({ client: this.api, path: { feed, id }, ...this.opts(options.feedPassword) }));
+  }
+
+  /** A note's file by its own name (a note's `file`, `<id>.<ext>`), as bytes: also a draft's or a scheduled note's, which the read link
+   *  (`file_url`) does not serve until readers may see them, so a post's pictures can be checked before it goes out. */
+  async file(name: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Uint8Array> {
+    const feed = this.feedFor(options.feed);
+    const request = getFile({ client: this.api, path: { feed, file: name }, parseAs: "arrayBuffer", ...this.opts(options.feedPassword) });
+    // Asked for as an ArrayBuffer, whatever the generated type says; wrapped so call() checks it like any other answer.
+    const asBytes = request.then((r) => ({ ...r, data: (r.data as unknown) instanceof ArrayBuffer ? { bytes: new Uint8Array(r.data as unknown as ArrayBuffer) } : undefined }));
+    return (await this.call<{ bytes: Uint8Array }>(asBytes as Promise<Result<{ bytes: Uint8Array }>>)).bytes;
   }
 
   /** Like notes(), by the feed's read id: public, read-only, needs no password. */

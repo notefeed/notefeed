@@ -12,7 +12,7 @@ import { MAX_ATTACHMENTS, postNote, postWithPictures, type Picture, type PostBun
 import { parseMedia } from "../note/media";
 import { parseMediaType } from "../note/types";
 import { tagsFromHeader } from "../tags";
-import { feedPath, imagePath, publicUrl, rssPath } from "../urls";
+import { atomPath, feedPath, imagePath, publicUrl, rssPath } from "../urls";
 import { feedCookies } from "./feedsession";
 import { authorize, feedAccess, mediaType, parseForm, readCapped, sameOrigin, sender } from "./request";
 import { type Created, MetaJson, type Posted } from "./schemas";
@@ -99,6 +99,7 @@ export function createdOf(h: Headers, feed: string, readId: string | null, note:
     url: `${base}${feedPath(feed)}/${note.id}`,
     feed_url: base + feedPath(feed),
     read_url: readId && base + rssPath(readId),
+    atom_url: readId && base + atomPath(readId),
     file: note.file,
     file_url: readId && base + imagePath(readId, note.file),
     ...(note.draft && { draft: true as const }),

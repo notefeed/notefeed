@@ -52,6 +52,7 @@ export const Created = z
     url: z.url().describe("The note's page in the web UI"),
     feed_url: z.url().describe("The feed's page in the web UI"),
     read_url: z.url().nullable().describe("The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds"),
+    atom_url: z.url().nullable().describe("The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"),
     file: z.string().describe("The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting"),
     file_url: z.url().nullable().describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
     draft: z.literal(true).optional().describe("Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published"),
@@ -159,6 +160,10 @@ export const FeedSettingsJson = z
       .string()
       .optional()
       .describe("A new read id (3 to 64 characters: a-z, 0-9, - and _), empty for a random one; omitted leaves it as it is. The old read link stops showing this feed, and may later show another one. Notes are not edited: a relative image link (`![](file)`) follows the new id, a full URL keeps the old one and is yours to change. Reserved feeds keep theirs. 409 when it is taken"),
+    name: z
+      .string()
+      .optional()
+      .describe("A new name for the feed (1 to 64 characters: a-z, 0-9, - and _); omitted, empty or the current one leaves it as it is. Everything goes with it: notes, files, settings, password, license and read link. The old name stops working at once and is free: a post to it later creates a new feed, without an error. Change NOTEFEED_FEED, CI secrets, scripts and MCP configurations before they next run (a browser that unlocked the feed unlocks it again). A short name is guessable: protect the feed with a password if that matters. Reserved feeds keep theirs. 409 when it is taken"),
   })
   .meta({ id: "FeedSettings" });
 export const FreeTierJson = z
@@ -193,6 +198,7 @@ export const FeedJson = z
     description: DESCRIPTION,
     protected: z.boolean().describe("Whether the feed has its own password"),
     read_url: z.url().nullable().describe("The feed's read-only RSS link; null while the feed has no notes, or if the server can't read the feed's stored read id"),
+    atom_url: z.url().nullable().describe("The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"),
     image_url: IMAGE_URL,
     show_sender: z.boolean().describe("Whether readers see who posted each note"),
     free_tier: FreeTierJson.nullable().describe(
@@ -210,6 +216,7 @@ export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, Mult
 export const FeedParam = z.string().regex(FEED_RE).describe("The feed's name. It is the write key: anyone who knows it can post.");
 export const ReadIdParam = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).describe("The feed's read id, from its read link: 22 random characters, one the feed's owner chose, or the feed's own name for a reserved feed. Read-only; never reveals the name of any other feed.");
 export const NoteIdParam = z.string().regex(NOTE_ID).describe("The note's id");
+export const FileParam = z.string().regex(/^[A-Za-z0-9_-]{1,128}\.[A-Za-z0-9]{1,16}$/).describe("A note's file name, `<id>.<ext>` (its `file`)");
 
 export const PageQuery = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(50).describe(`Notes per page, 1–${MAX_LIMIT}`),

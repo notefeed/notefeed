@@ -14,19 +14,39 @@ A feed name is 1 to 64 characters of `a`–`z`, `0`–`9`, `-` and `_`. Names no
 
 The cog in the feed's details opens `/<feed>/settings`, once the feed has a note:
 
-- **Profile:** the feed's **Title**, **Description** and **Title image**. An image chosen there is the feed's own: it shows in the header but is no post, so it stays out of the notes, RSS and the APIs' lists, and choosing another deletes it. A picture already posted can be the title image too (`image` below); it stays a post. They are shown in the feed's details, in the read-only view and as the RSS channel's title, description and image, so anyone with the read link sees them. The name never changes. With [sign-in](../self-hosting/sign-in/index.md) on, **Show who posted** hides the sender from readers.
+- **Profile:** the feed's **Title**, **Description** and **Title image**. An image chosen there is the feed's own: it shows in the header but is no post, so it stays out of the notes, RSS and the APIs' lists, and choosing another deletes it. A picture already posted can be the title image too (`image` below); it stays a post. They are shown in the feed's details, in the read-only view and as the RSS channel's title, description and image, so anyone with the read link sees them. The name is changed under **Danger zone** (see [Renaming a feed](#renaming-a-feed)). With [sign-in](../self-hosting/sign-in/index.md) on, **Show who posted** hides the sender from readers.
 - **Sharing:** the read link and the RSS link with copy buttons, a ready-to-copy `curl` command for this feed, and the **Read id** field (see [Choosing a feed's read id](read-links.md#choosing-a-feeds-read-id)).
 - **Privacy & access:** on a protected feed you have unlocked, change or remove the [feed password](feed-passwords.md#in-the-web-ui) and lock this browser; on an open feed, [set one](feed-passwords.md#a-password-for-an-open-feed).
-- **Danger zone:** **Delete this feed** removes the feed with all its notes, its settings, its password and its read link, for good. You confirm by typing the feed's name.
+- **Danger zone:** **Rename this feed** gives the feed another name ([below](#renaming-a-feed)). **Delete this feed** removes the feed with all its notes, its settings, its password and its read link, for good. You confirm by typing the feed's name.
 
 !!! note "On notefeed.me"
     A **License** row shows the feed's tier, *Free tier · N of 100 notes* with a meter or the licensed state, and is where a license key is entered, moved to another feed or taken off. See [Free tier and licenses](../hosted/licenses.md#entering-the-key).
 
 Anyone who can open the feed can change its settings and delete it; the read-only view has no settings.
 
+## Renaming a feed
+
+A feed can get another name: **Rename this feed** on the settings page, `name` in `PUT /api/v1/feeds/<feed>`, `name` in the MCP tool `update_feed`, or `name` in the clients' `update_feed` / `updateFeed`:
+
+```sh
+curl -X PUT -H "Content-Type: application/json" \
+  -d '{"title": "Homelab", "description": "Deploys and alerts", "name": "homelab-new-9q2w"}' \
+  https://notes.example.com/api/v1/feeds/homelab-7f3k2q9x4m8wz
+```
+
+- **Everything goes with it:** notes and drafts, files, the title image, the settings, the password, the license and the read link. Readers notice nothing.
+- **The old name stops working at once.** It is freed, not kept: a post to it later creates a new, empty feed, as with any unused name, without an error.
+
+!!! warning "Change the name everywhere before it is used again"
+    Before any of them next runs, change the feed name in `NOTEFEED_FEED`, in CI secrets, in cron jobs and scripts, in MCP configurations and in bookmarks. A client package follows a rename it made itself only while it runs: its next start reads the old name from `NOTEFEED_FEED` again.
+- The new name follows the [rules above](#feed-names) and must be free: another feed's name, a name notefeed uses for a route or a reserved feed's is refused with `409`, code `taken`.
+- Browsers that had unlocked a protected feed ask for its password once more. A client package whose own feed was renamed uses the new name for the rest of that run.
+- The operator's [reserved feeds](../self-hosting/access.md#reserved-feeds) keep their names.
+- A short name is easy to guess: an open feed with one is open to anyone who guesses it. Protect it with a [password](feed-passwords.md).
+
 ## Feed settings in the API
 
-`GET /api/v1/feeds/<feed>` answers the feed's `name`, `title`, `description`, `show_sender`, `image_url`, `protected` and `read_url`. `PUT` on the same URL sets the title (at most 100 characters) and the description (at most 500), both at once; `image` names one of the feed's posted pictures as the title image (empty removes it), `show_sender` and `read_id` are optional. To upload a title image that is no post, `PUT /api/v1/feeds/<feed>/image` with the image as the body and its `Content-Type`; `DELETE` on the same URL removes it:
+`GET /api/v1/feeds/<feed>` answers the feed's `name`, `title`, `description`, `show_sender`, `image_url`, `protected`, `read_url` and `atom_url`. `PUT` on the same URL sets the title (at most 100 characters) and the description (at most 500), both at once; `image` names one of the feed's posted pictures as the title image (empty removes it), `show_sender`, `read_id` and `name` are optional. To upload a title image that is no post, `PUT /api/v1/feeds/<feed>/image` with the image as the body and its `Content-Type`; `DELETE` on the same URL removes it:
 
 ```sh
 curl -X PUT -H "Content-Type: application/json" \

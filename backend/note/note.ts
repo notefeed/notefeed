@@ -29,6 +29,11 @@ export abstract class Note {
     this.draft = draft;
   }
 
+  /** What makes this note, for a copy with other metadata (withMeta). */
+  protected init(meta: Meta): NoteInit {
+    return { id: this.id, ext: this.ext, meta, date: this.date, size: this.size, draft: this.draft };
+  }
+
   /** True for a note whose stored copy can't be decrypted (UnreadableNote): only its id, file and time are known. */
   get unreadable(): boolean {
     return false;
@@ -49,6 +54,12 @@ export abstract class Note {
   }
   get tags(): string[] {
     return this.meta.tags ?? [];
+  }
+  /** When the note last changed, for Atom (#324): its date until its text, title, alt, tags or date is edited, then the time of the
+   *  last such edit (`meta.updated`). Never earlier than its date, so a note moved later in its feed is not older than where it stands. */
+  get updated(): Date {
+    const edited = this.meta.updated === undefined ? NaN : Date.parse(this.meta.updated);
+    return Number.isNaN(edited) || edited < this.date.getTime() ? this.date : new Date(edited);
   }
   /** On an attachment, the id of the text note it was posted with. */
   get of(): string | undefined {

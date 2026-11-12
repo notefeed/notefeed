@@ -1133,6 +1133,153 @@
         }
       }
     },
+    "/api/v1/feeds/{feed}/files/{file}": {
+      "get": {
+        "operationId": "getFile",
+        "summary": "Get one of the feed's files",
+        "description": "A note's file by its own name (`<id>.<ext>`, a note's `file`), for whoever may post to the feed: also a draft's or a scheduled note's, which the read link (`file_url`) does not serve until readers may see them, so a post with pictures can be checked before it goes out. The body is the file's bytes, with the `Content-Type` of its extension and an `ETag` (`If-None-Match` gives `304`). Files by any other name, as the read link has them, are not served here.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "description": "A note's file name, `<id>.<ext>` (its `file`)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,128}\\.[A-Za-z0-9]{1,16}$"
+            }
+          },
+          {
+            "name": "X-Feed-Password",
+            "in": "header",
+            "required": false,
+            "description": "The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file's bytes; `Content-Type` is the file's own (an image, `text/markdown`, …)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unchanged since the `ETag` sent in `If-None-Match`",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong passwords from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/feeds/{feed}": {
       "post": {
         "operationId": "createFeed",
@@ -1384,7 +1531,7 @@
       "put": {
         "operationId": "updateFeed",
         "summary": "Change a feed's settings",
-        "description": "Replaces both the title (at most 100 characters) and the description (at most 500); surrounding whitespace is trimmed and control and text-direction override characters are refused. `show_sender` (default true) shows who posted each note to readers; omitted leaves it as it is. `read_id` gives the feed another read link (3 to 64 characters: a-z, 0-9, - and _; empty for a random one): the old id is freed and answers like an unknown read id until another feed takes it, and the notes are not edited (a relative image link follows the new id, a full URL does not). A short readable read id is guessable, so protect the feed with a password if that matters. An instance can turn chosen read ids off (NOTEFEED_ALLOW_CUSTOM_IDS=0): then only an empty `read_id` is accepted. `image` is the file name `uploadImage` returned for this feed (title image), empty to remove it, or omitted to leave it as it is; any other value is a 400. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed that exists: it is created by its first note. Read links can't change settings.",
+        "description": "Replaces both the title (at most 100 characters) and the description (at most 500); surrounding whitespace is trimmed and control and text-direction override characters are refused. `show_sender` (default true) shows who posted each note to readers; omitted leaves it as it is. `read_id` gives the feed another read link (3 to 64 characters: a-z, 0-9, - and _; empty for a random one): the old id is freed and answers like an unknown read id until another feed takes it, and the notes are not edited (a relative image link follows the new id, a full URL does not). A short readable read id is guessable, so protect the feed with a password if that matters. An instance can turn chosen read ids off (NOTEFEED_ALLOW_CUSTOM_IDS=0): then only an empty `read_id` is accepted. `image` is the file name `uploadImage` returned for this feed (title image), empty to remove it, or omitted to leave it as it is; any other value is a 400. `name` renames the feed (#350), after everything else is saved: the answer is the feed under its new name, and the old name answers like any unused one from then on. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed that exists: it is created by its first note. Read links can't change settings.",
         "tags": [
           "Feeds"
         ],
@@ -1467,7 +1614,7 @@
             }
           },
           "409": {
-            "description": "The read id belongs to another feed or is held back for a reserved one",
+            "description": "The read id or the new name belongs to another feed, or is held back",
             "content": {
               "application/json": {
                 "schema": {
@@ -3038,6 +3185,18 @@
             ],
             "description": "The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds"
           },
+          "atom_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"
+          },
           "file": {
             "type": "string",
             "description": "The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting"
@@ -3065,6 +3224,7 @@
           "url",
           "feed_url",
           "read_url",
+          "atom_url",
           "file",
           "file_url"
         ],
@@ -3098,6 +3258,18 @@
               }
             ],
             "description": "The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds"
+          },
+          "atom_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"
           },
           "file": {
             "type": "string",
@@ -3133,6 +3305,7 @@
           "url",
           "feed_url",
           "read_url",
+          "atom_url",
           "file",
           "file_url"
         ],
@@ -3429,6 +3602,10 @@
           "read_id": {
             "description": "A new read id (3 to 64 characters: a-z, 0-9, - and _), empty for a random one; omitted leaves it as it is. The old read link stops showing this feed, and may later show another one. Notes are not edited: a relative image link (`![](file)`) follows the new id, a full URL keeps the old one and is yours to change. Reserved feeds keep theirs. 409 when it is taken",
             "type": "string"
+          },
+          "name": {
+            "description": "A new name for the feed (1 to 64 characters: a-z, 0-9, - and _); omitted, empty or the current one leaves it as it is. Everything goes with it: notes, files, settings, password, license and read link. The old name stops working at once and is free: a post to it later creates a new feed, without an error. Change NOTEFEED_FEED, CI secrets, scripts and MCP configurations before they next run (a browser that unlocked the feed unlocks it again). A short name is guessable: protect the feed with a password if that matters. Reserved feeds keep theirs. 409 when it is taken",
+            "type": "string"
           }
         },
         "required": [
@@ -3490,6 +3667,18 @@
             ],
             "description": "The feed's read-only RSS link; null while the feed has no notes, or if the server can't read the feed's stored read id"
           },
+          "atom_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"
+          },
           "image_url": {
             "anyOf": [
               {
@@ -3524,6 +3713,7 @@
           "description",
           "protected",
           "read_url",
+          "atom_url",
           "image_url",
           "show_sender",
           "free_tier"

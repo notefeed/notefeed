@@ -71,6 +71,16 @@ describe.skipIf(!supported)(label, () => {
     expect((await licenses.byKeyHash("h1"))?.feed).toBeNull();
   });
 
+  test("a renamed feed takes its license along (#350)", async () => {
+    const licenses = fresh();
+    await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+    await licenses.attach("h1", "old-name");
+    expect(await licenses.moveFeed("old-name", "new-name")).toBe(true);
+    expect(await licenses.byFeed("old-name")).toBeNull();
+    expect((await licenses.byFeed("new-name"))?.feed).toBe("new-name");
+    expect((await licenses.byKeyHash("h1"))?.feed).toBe("new-name");
+    expect(await licenses.moveFeed("no-license", "x")).toBe(false);
+  });
   test("the webhook's changes apply by reference, and an unknown reference is false", async () => {
     const licenses = fresh();
     await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: 1 });

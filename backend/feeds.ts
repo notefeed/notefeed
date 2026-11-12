@@ -3,7 +3,7 @@
 // have the id derived from their name (HMAC with the server secret, secret.ts), so no existing read link changes.
 import { randomBytes } from "node:crypto";
 import { config } from "./config";
-import { InvalidBodyError, NotFoundError, ReadIdTakenError, ReservedFeedError } from "./errors";
+import { FeedNameTakenError, InvalidBodyError, NotFoundError, ReadIdTakenError, ReservedFeedError } from "./errors";
 import { checkFeed, CUSTOM_READ_ID_RE, heldBack, isHeldBack, isReadId } from "./feednames";
 import { logger } from "./log";
 import { feedCreated, feedRemoved } from "./metrics";
@@ -124,6 +124,18 @@ export async function setReadId(feed: string, wanted: string | null): Promise<st
   const id = wanted ?? newReadId();
   await s.setReadId(feed, id);
   return id;
+}
+
+// Gives a feed another name (#350, ADR 0054): `to` follows the feed name rule and is free (no feed, no removed feed, no route, not kept
+// back for the operator). Everything goes with the feed, its read id included; the old name is freed, nothing is recorded, and a post to
+// it later makes a new feed. A reserved feed keeps its name. The caller moves the license (posting.ts).
+export async function renameFeed(feed: string, to: string): Promise<void> {
+  const bad = checkFeed(to);
+  if (bad === "invalid") throw new InvalidBodyError("name must be 1 to 64 characters: a-z, 0-9, - and _");
+  if (isHeldBack(feed)) throw new InvalidBodyError("a reserved feed keeps its name");
+  if (bad === "reserved" || isHeldBack(to)) throw new FeedNameTakenError();
+  await (await prepared()).renameFeed(feed, to);
+  log.info("feed renamed");
 }
 
 /** null for a feed that doesn't exist, and for one without a read link. */

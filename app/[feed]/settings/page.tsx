@@ -15,8 +15,7 @@ import { FeedAbout } from "@/components/FeedAbout";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { DisclosureRow, Row } from "@/components/SettingsRows";
 import { iconButton } from "@/components/styles";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath, locked } from "@/backend";
-
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, locked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath, atomPath } from "@/backend";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Feed settings" };
@@ -34,6 +33,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
   const base = publicUrl(await headers());
   const readUrl = readId ? base + readPath(readId) : undefined;
   const rssUrl = readId ? base + rssPath(readId) : undefined;
+  const atomUrl = readId ? base + atomPath(readId) : undefined;
   const detailsError = form === "details";
   const recoverForm = form === "recover";
   const passwordError = !detailsError && !recoverForm && access === "unlocked" && ["auth", "invalid_body", "too_many_attempts"].includes(String(error));
@@ -67,6 +67,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         readId={readId}
         readIdChoice={isReservedFeed(feed) ? "fixed" : customIdsOn() ? "custom" : "random"}
         identity={identityOn()}
+        renamable={!isReservedFeed(feed)}
         error={detailsError ? feedDetailsErrorMessage(error, retry) : undefined}
         sharing={
           <>
@@ -80,6 +81,9 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
                 </div>
                 <Row icon={<Rss />} label="RSS feed" hint={<code className="break-all font-mono">{rssUrl}</code>}>
                   <CopyButton text={rssUrl!} compact label="Copy RSS link" />
+                </Row>
+                <Row icon={<Rss />} label="Atom feed" hint={<code className="break-all font-mono">{atomUrl}</code>}>
+                  <CopyButton text={atomUrl!} compact label="Copy Atom link" />
                 </Row>
               </>
             ) : (
