@@ -50,6 +50,7 @@ test("201 with markdown body; file equals body; response links", async () => {
     url: `${BASE}/test/${body.id}`,
     feed_url: `${BASE}/test`,
     read_url: `${BASE}/r/${(await readIdOf("test"))!}/feed.xml`,
+    atom_url: `${BASE}/r/${(await readIdOf("test"))!}/atom.xml`,
     file: `${body.id}.md`,
     file_url: `${BASE}/r/${(await readIdOf("test"))!}/${body.id}.md`,
   });

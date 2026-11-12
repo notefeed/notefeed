@@ -12,8 +12,9 @@ const nextConfig: NextConfig = {
   experimental: { proxyClientMaxBodySize: MAX_REQUEST_BYTES },
   // proxy.ts handles trailing slashes itself: POST /<feed>/ stores the note, everything else gets a 308.
   skipTrailingSlashRedirect: true,
-  // /r/<readId>/<name>.<ext> is a file of the feed; a note id has no dot, so notes stay on their page; feed.xml is the RSS route.
-  rewrites: async () => [{ source: "/r/:readId/:file((?!feed\\.xml$)[^/]+\\.[a-z0-9]+)", destination: "/r/:readId/files/:file" }],
+  // /r/<readId>/<name>.<ext> is a file of the feed; a note id has no dot, so notes stay on their page; feed.xml and atom.xml are the
+  // RSS and Atom routes.
+  rewrites: async () => [{ source: "/r/:readId/:file((?!(?:feed|atom)\\.xml$)[^/]+\\.[a-z0-9]+)", destination: "/r/:readId/files/:file" }],
   // The OAuth login hands a code to whatever host the client registered: no framing it (clickjacking a
   // password manager's autofill and the "Allow" click).
   headers: async () => [{ source: "/oauth/authorize", headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }] }],

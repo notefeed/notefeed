@@ -3,7 +3,7 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getLicenses, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
+import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getFile, getLicenses, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
 import type { Created, Error as ApiError, Feed, FeedSettings, Licenses, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
@@ -304,6 +304,16 @@ export class Client {
   async note(id: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
     const feed = this.feedFor(options.feed);
     return this.call(getNote({ client: this.api, path: { feed, id }, ...this.opts(options.feedPassword) }));
+  }
+
+  /** A note's file by its own name (a note's `file`, `<id>.<ext>`), as bytes: also a draft's or a scheduled note's, which the read link
+   *  (`file_url`) does not serve until readers may see them, so a post's pictures can be checked before it goes out. */
+  async file(name: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Uint8Array> {
+    const feed = this.feedFor(options.feed);
+    const request = getFile({ client: this.api, path: { feed, file: name }, parseAs: "arrayBuffer", ...this.opts(options.feedPassword) });
+    // Asked for as an ArrayBuffer, whatever the generated type says; wrapped so call() checks it like any other answer.
+    const asBytes = request.then((r) => ({ ...r, data: (r.data as unknown) instanceof ArrayBuffer ? { bytes: new Uint8Array(r.data as unknown as ArrayBuffer) } : undefined }));
+    return (await this.call<{ bytes: Uint8Array }>(asBytes as Promise<Result<{ bytes: Uint8Array }>>)).bytes;
   }
 
   /** Like notes(), by the feed's read id: public, read-only, needs no password. */

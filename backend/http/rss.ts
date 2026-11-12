@@ -1,17 +1,23 @@
-// GET /r/<readId>/feed.xml. Public even on a locked instance (proxy.ts skips /r/). Unknown ids get an
+// GET /r/<readId>/feed.xml (RSS) and /r/<readId>/atom.xml (Atom, #324): the same notes either way. Public even on a locked instance (proxy.ts skips /r/). Unknown ids get an
 // empty feed, so a reader can subscribe before the first note and ids can't be probed for existence.
 import { config } from "../config";
 import { isReadId, feedForReadId, isRemovedReadId } from "../feeds";
 import { forReaders, getSettings } from "../feedsettings";
 import { measured } from "../metrics";
 import { listNotes } from "../notes";
-import { renderFeed } from "../rss";
+import { renderAtom, renderFeed } from "../rss";
 import { imagePath, publicUrl } from "../urls";
 import { withoutAttachments } from "../../shared/notekinds";
 
-export const rssRoute = (req: Request, readId: string): Promise<Response> => measured("rss", () => feedXml(req, readId), (r) => r.status);
+export const rssRoute = (req: Request, readId: string): Promise<Response> => measured("rss", () => feedXml(req, readId, "rss"), (r) => r.status);
+export const atomRoute = (req: Request, readId: string): Promise<Response> => measured("atom", () => feedXml(req, readId, "atom"), (r) => r.status);
 
-async function feedXml(req: Request, readId: string): Promise<Response> {
+const FORMATS = {
+  rss: { render: renderFeed, type: "application/rss+xml; charset=utf-8" },
+  atom: { render: renderAtom, type: "application/atom+xml; charset=utf-8" },
+};
+
+async function feedXml(req: Request, readId: string, format: keyof typeof FORMATS): Promise<Response> {
   if (!isReadId(readId)) return new Response("not found", { status: 404 });
   const tag = new URL(req.url).searchParams.get("tag")?.toLowerCase(); // an unknown tag is an empty feed, like an unknown read id
   const feed = await feedForReadId(readId);
@@ -20,12 +26,13 @@ async function feedXml(req: Request, readId: string): Promise<Response> {
   const settings = feed ? await getSettings(feed, asOf) : { title: "", description: "", image: "", showSender: true };
   const title = settings.title || config.title();
   // An attachment a note in the feed shows is not an item of its own (shared/notekinds.ts).
-  const xml = renderFeed(feed ? forReaders(withoutAttachments(await listNotes(feed, 50, undefined, tag, undefined, false, asOf)), settings) : [], {
+  const { render, type } = FORMATS[format];
+  const xml = render(feed ? forReaders(withoutAttachments(await listNotes(feed, 50, undefined, tag, undefined, false, asOf)), settings) : [], {
     title,
     description: settings.description || title,
     baseUrl: publicUrl(req.headers),
     readId,
     imageUrl: settings.image ? publicUrl(req.headers) + imagePath(readId, settings.image) : undefined,
   });
-  return new Response(xml, { headers: { "Content-Type": "application/rss+xml; charset=utf-8" } });
+  return new Response(xml, { headers: { "Content-Type": type } });
 }

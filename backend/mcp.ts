@@ -7,6 +7,7 @@ import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoun
 import { changePassword, checkFeedAccess, recoverPassword } from "./feedlock";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson, licensesJson } from "./http/api";
+import { ownerFile } from "./http/files";
 import { sender } from "./http/request";
 import { FeedJson, FreeTierJson, LicensesJson } from "./http/schemas";
 import { clientIp } from "./limits";
@@ -21,7 +22,7 @@ import { isAttachmentName, safeName } from "../shared/links";
 import { checkTags, TAG_RULE } from "./tags";
 import { checkDate, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
 import { getStoredSettings } from "./feedsettings";
-import { feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
+import { atomPath, feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
 const log = logger("mcp");
 const SECRET_NOTE = "The feed name works like a password: anyone who knows it can read and post. Don't repeat it in replies.";
@@ -107,7 +108,7 @@ function server(h: Headers): McpServer {
           .array(z.object({ name: z.string().refine(isAttachmentName, "Not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots").describe("What the markdown calls it: ![](name). Any single path segment (no / or \\; spaces allowed, written <name with spaces> or name%20with%20spaces in the markdown); unique when the markdown refers to it, else pictures of the same name are appended"), type: z.string().describe(`The picture's media type: ${ACCEPTED_TYPES}`), data: z.string().describe("The picture's bytes, standard base64 (not URL-safe)"), alt: z.string().optional().describe("Alternative text (at most 500 characters, one line; control and text-direction override characters are refused)") }))
           .optional(),
       }),
-      outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), draft: DRAFT_OUT, attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
+      outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), atom_url: z.string().nullable(), draft: DRAFT_OUT, attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, markdown, title, name, password, tags, date, draft, read_id, license_key, attachments = [] }) => {
@@ -120,7 +121,7 @@ function server(h: Headers): McpServer {
       });
       const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
       const feedUrl = base + feedPath(feed);
-      return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), ...(note.draft && { draft: true as const }), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
+      return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), atom_url: readId && base + atomPath(readId), ...(note.draft && { draft: true as const }), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
     }),
   );
 
@@ -143,17 +144,28 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "get_note",
     {
-      description: `Get one note with its content (the text of a text note; a picture has none, use its URL). ${PROTECTED} ${SECRET_NOTE}`,
-      inputSchema: z.object({ feed, id: z.string(), password }),
+      description: `Get one note with its content (the text of a text note; a picture has none: its URL is public once readers may see it, and with picture true the picture itself comes along, also a draft's or a scheduled note's, which the URL does not serve yet). ${PROTECTED} ${SECRET_NOTE}`,
+      inputSchema: z.object({
+        feed,
+        id: z.string(),
+        picture: z.boolean().optional().describe("true: a picture note's image comes along as an image, so a draft's pictures can be checked before it goes out. Ignored for a text note"),
+        password,
+      }),
       outputSchema: NoteFull,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, id, password }) => {
+    guard(async ({ feed, id, picture, password }) => {
       await checkAccess(feed, password);
       await refuseRemovedNote(feed, id);
       const note = await getNote(feed, id);
       if (!note) throw new NotFoundError("no such note");
-      return ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });
+      const result = ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });
+      if (!picture || !note.type.startsWith("image/")) return result;
+      // The owner's view of the file (#349): drafts and scheduled notes too.
+      const file = await ownerFile(feed, note.file, null, "throw");
+      if (file.status !== 200) throw new NotFoundError("no such note");
+      const data = Buffer.from(await file.arrayBuffer()).toString("base64");
+      return { ...result, content: [...result.content, { type: "image" as const, data, mimeType: note.type }] };
     }),
   );
 

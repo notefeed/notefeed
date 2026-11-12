@@ -101,6 +101,10 @@ export type Created = {
      */
     read_url: string | null;
     /**
+     * The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
+     */
+    atom_url: string | null;
+    /**
      * The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting
      */
     file: string;
@@ -131,6 +135,10 @@ export type Posted = {
      * The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds
      */
     read_url: string | null;
+    /**
+     * The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
+     */
+    atom_url: string | null;
     /**
      * The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting
      */
@@ -368,6 +376,10 @@ export type Feed = {
      * The feed's read-only RSS link; null while the feed has no notes, or if the server can't read the feed's stored read id
      */
     read_url: string | null;
+    /**
+     * The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
+     */
+    atom_url: string | null;
     /**
      * The feed's title image (absolute URL, served under the read id), or null
      */
@@ -891,6 +903,66 @@ export type EditNoteResponses = {
 };
 
 export type EditNoteResponse = EditNoteResponses[keyof EditNoteResponses];
+
+export type GetFileData = {
+    body?: never;
+    headers?: {
+        /**
+         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
+         */
+        'X-Feed-Password'?: string;
+    };
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+        /**
+         * A note's file name, `<id>.<ext>` (its `file`)
+         */
+        file: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/files/{file}';
+};
+
+export type GetFileErrors = {
+    /**
+     * Invalid or reserved feed name
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * No such file
+     */
+    404: Error;
+    /**
+     * The operator removed this note (`removed`, #159): for good, also once its mark is deleted; the mark itself can't be edited
+     */
+    410: Error;
+    /**
+     * Too many wrong passwords from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type GetFileError = GetFileErrors[keyof GetFileErrors];
+
+export type GetFileResponses = {
+    /**
+     * The file's bytes; `Content-Type` is the file's own (an image, `text/markdown`, …)
+     */
+    200: Blob | File;
+};
+
+export type GetFileResponse = GetFileResponses[keyof GetFileResponses];
 
 export type DeleteFeedData = {
     body?: never;

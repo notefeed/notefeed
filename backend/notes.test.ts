@@ -295,12 +295,17 @@ describe("sender", () => {
     expect(await readFile(join(dir, `${b.id}.md`), "utf8")).toBe(typed);
     expect(await getNote("test", b.id)).toMatchObject({ markdown: typed, sender: "Ann" });
   });
-  test("an edit leaves the sidecar as it is, unknown fields included", async () => {
+  test("a text edit keeps the metadata and records when it changed (#324)", async () => {
     await createNote("test", "# Seed");
     await writeFile(join(dir, "20260101T000000Z-k.md"), "old");
-    await writeFile(join(dir, ".20260101T000000Z-k.md.json"), '{"sender":"Ann","extra":1}');
-    expect((await replaceContent("test", "20260101T000000Z-k", new TextEncoder().encode("new"), "text/markdown"))?.sender).toBe("Ann");
-    expect(await readFile(join(dir, ".20260101T000000Z-k.md.json"), "utf8")).toBe('{"sender":"Ann","extra":1}');
+    await writeFile(join(dir, ".20260101T000000Z-k.md.json"), '{"sender":"Ann"}');
+    const before = Date.now();
+    const edited = await replaceContent("test", "20260101T000000Z-k", new TextEncoder().encode("new"), "text/markdown");
+    expect(edited?.sender).toBe("Ann");
+    const sidecar = JSON.parse(await readFile(join(dir, ".20260101T000000Z-k.md.json"), "utf8"));
+    expect(sidecar.sender).toBe("Ann");
+    expect(Date.parse(sidecar.updated)).toBeGreaterThanOrEqual(before);
+    expect(edited?.updated.getTime()).toBe(Date.parse(sidecar.updated));
   });
   test("a sidecar title wins over the one derived from the text", async () => {
     await createNote("test", "# Seed");
@@ -439,6 +444,12 @@ describe("drafts", () => {
     await changeDraft("test", "drafted", false);
     expect(await fileVisible("test", pic.file, now)).toBe(true);
     expect(await namedFile("test", "drafted.png", now)).toBe(pic.file);
+  });
+
+  test("a draft picture is a file its owner may have (#349)", async () => {
+    const { pic } = await post("drafted", true);
+    expect(await fileVisible("test", pic.file, "owner")).toBe(true);
+    expect(await fileVisible("test", "nothere.png", "owner")).toBe(false);
   });
 
   test("changeDraft takes the attachments along and keeps dates", async () => {
