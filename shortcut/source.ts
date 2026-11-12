@@ -1,5 +1,6 @@
 // The iPhone Shortcut "notefeed" (#334), as source. iOS doesn't put web apps in the share sheet (#148); this Shortcut is there instead.
-// Importing it asks three things: the instance's address, the feed's name and its password (empty for an open feed). Everything shared
+// Importing it asks four things: the instance's address, the feed's name, its password (empty for an open feed) and the instance's
+// password (empty unless the server has one, NOTEFEED_PASSWORD: an instance without one ignores the header). Everything shared
 // in one go becomes one note (ADR 0021): the text, if any, with every picture, posted to POST /api/v1/feeds/<feed>/notes as one
 // multipart request. Photos are converted to JPEG on the phone, since notefeed does not take HEIC. A refusal is shown with the
 // server's `error`; a note that arrived opens in the browser.
@@ -12,6 +13,7 @@ import { build, type PlistValue } from "plist";
 const ADDRESS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A501";
 const FEED = "6E0F3A1C-2B4D-4C5E-8F60-71829304A502";
 const PASSWORD = "6E0F3A1C-2B4D-4C5E-8F60-71829304A503";
+const INSTANCE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A50E";
 const IMAGES = "6E0F3A1C-2B4D-4C5E-8F60-71829304A504";
 const EACH = "6E0F3A1C-2B4D-4C5E-8F60-71829304A505";
 const JPEG = "6E0F3A1C-2B4D-4C5E-8F60-71829304A506";
@@ -52,7 +54,8 @@ const endIf = (group: string) => action("conditional", { GroupingIdentifier: gro
 const field = (key: string, type: 0 | 5, v: Attachment) => ({ WFItemType: type, WFKey: text(key), WFValue: type === 0 ? text("￼", v) : value(v) });
 const form = (...fields: ReturnType<typeof field>[]) => ({ Value: { WFDictionaryFieldValueItems: fields }, WFSerializationType: "WFDictionaryFieldValue" });
 
-// POST /api/v1/feeds/<feed>/notes, with the feed's password (an empty header is no password, so an open feed needs nothing).
+// POST /api/v1/feeds/<feed>/notes, with the feed's password (an empty header is no password, so an open feed needs nothing) and the
+// instance's (checked only where the instance has one; elsewhere the header is ignored, empty or not).
 const post = (uuid: string, fields: ReturnType<typeof field>[]) =>
   action("downloadurl", {
     UUID: uuid,
@@ -61,7 +64,7 @@ const post = (uuid: string, fields: ReturnType<typeof field>[]) =>
     WFHTTPBodyType: "Form",
     WFFormValues: form(...fields),
     ShowHeaders: true,
-    WFHTTPHeaders: form(field("X-Feed-Password", 0, output(PASSWORD, "Text"))),
+    WFHTTPHeaders: form(field("X-Feed-Password", 0, output(PASSWORD, "Text")), { WFItemType: 0, WFKey: text("Authorization"), WFValue: text("Bearer ￼", output(INSTANCE, "Text")) }),
   });
 
 /** The Shortcut as the dictionary its file holds. */
@@ -77,16 +80,18 @@ export function shortcutPlist(): Record<string, unknown> {
     WFWorkflowHasShortcutInputVariables: true,
     // notefeed takes markdown and pictures: images, text and links, nothing else.
     WFWorkflowInputContentItemClasses: ["WFImageContentItem", "WFStringContentItem", "WFRichTextContentItem", "WFURLContentItem"],
-    // What the settings page shows: the address, the feed's name and its password.
+    // What the settings page shows: the address, the feed's name, its password and whether the instance has one.
     WFWorkflowImportQuestions: [
       { ActionIndex: 0, Category: "Parameter", DefaultValue: "https://notefeed.me", ParameterKey: "WFTextActionText", Text: "notefeed address (e.g. https://notefeed.me)" },
       { ActionIndex: 1, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Feed name" },
       { ActionIndex: 2, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Feed password (empty for an open feed)" },
+      { ActionIndex: 3, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Server password (empty unless your server asks for one at sign-in)" },
     ],
     WFWorkflowActions: [
       action("gettext", { UUID: ADDRESS, WFTextActionText: "" }),
       action("gettext", { UUID: FEED, WFTextActionText: "" }),
       action("gettext", { UUID: PASSWORD, WFTextActionText: "" }),
+      action("gettext", { UUID: INSTANCE, WFTextActionText: "" }),
       // The pictures, each as JPEG without its metadata (the server strips and shrinks it again anyway).
       action("detect.images", { UUID: IMAGES, WFInput: value({ Type: "ExtensionInput" }) }),
       action("repeat.each", { UUID: EACH, GroupingIdentifier: EACH, WFControlFlowMode: 0, WFInput: value(output(IMAGES, "Images")) }),

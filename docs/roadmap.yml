@@ -77,7 +77,7 @@ items:
     date: 2026-11-12
     icon: cellphone-arrow-down
     title: A ready-made iPhone Shortcut
-    summary: Share pictures, text and links to a feed from an iPhone with a signed Shortcut, generated from source; load it, answer three questions, share.
+    summary: Share pictures, text and links to a feed from an iPhone with a signed Shortcut, generated from source; load it, answer four questions, share.
     links:
       - {label: "#334", url: "https://github.com/notefeed/notefeed/issues/334"}
       - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}

@@ -36,10 +36,15 @@ test("it shows in the share sheet for pictures, text and links, and not for othe
   expect(sc.WFWorkflowIcon.WFWorkflowIconGlyphNumber).not.toBe(59511); // the default magic wand
 });
 
-test("importing it asks for the address, the feed name and the feed password, in the first three actions", () => {
+test("importing it asks for the address, the feed name, the feed password and the server password, in the first four actions", () => {
   const qs = sc.WFWorkflowImportQuestions;
-  expect(qs.map((q) => q.Text)).toEqual(["notefeed address (e.g. https://notefeed.me)", "Feed name", "Feed password (empty for an open feed)"]);
-  expect(qs.map((q) => q.ActionIndex)).toEqual([0, 1, 2]);
+  expect(qs.map((q) => q.Text)).toEqual([
+    "notefeed address (e.g. https://notefeed.me)",
+    "Feed name",
+    "Feed password (empty for an open feed)",
+    "Server password (empty unless your server asks for one at sign-in)",
+  ]);
+  expect(qs.map((q) => q.ActionIndex)).toEqual([0, 1, 2, 3]);
   for (const q of qs) {
     expect(q.ParameterKey).toBe("WFTextActionText");
     expect(ids[q.ActionIndex]).toBe("gettext");
@@ -58,6 +63,7 @@ test("everything shared is one multipart POST to the feed's notes, with the feed
     expect(p).toMatchObject({ WFHTTPMethod: "POST", WFHTTPBodyType: "Form" });
     expect(JSON.stringify(p.WFURL)).toContain('"string":"￼/api/v1/feeds/￼/notes"');
     expect(JSON.stringify(p.WFHTTPHeaders)).toContain('"string":"X-Feed-Password"');
+    expect(JSON.stringify(p.WFHTTPHeaders)).toContain('"string":"Bearer ￼"'); // the server password; ignored where there is none
   }
   const fieldsOf = (p: Record<string, unknown>) => JSON.stringify(p.WFFormValues).match(/"WFKey":\{"Value":\{"string":"(\w+)"/g)!.map((m) => m.split('"').at(-2));
   expect(fieldsOf(posts[0])).toEqual(["text", "file"]);

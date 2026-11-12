@@ -15,7 +15,7 @@ import { FeedAbout } from "@/components/FeedAbout";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { DisclosureRow, Row } from "@/components/SettingsRows";
 import { iconButton } from "@/components/styles";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath } from "@/backend";
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath, locked } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +114,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
                   on the iPhone and add it.
                 </li>
                 <li>
-                  It asks for the address, <code className="break-all font-mono">{base}</code>, the feed name, <code className="break-all font-mono">{feed}</code>, and the feed&apos;s password (empty for an open feed).
+                  It asks for the address, <code className="break-all font-mono">{base}</code>, the feed name, <code className="break-all font-mono">{feed}</code>, the feed&apos;s password (empty for an open feed) and the server password: {locked() ? "the one you signed in to this server with" : "leave it empty, this server has none"}.
                 </li>
                 <li>Share from any app and pick notefeed: it is at the very bottom of the share sheet, below the actions.</li>
               </ol>
