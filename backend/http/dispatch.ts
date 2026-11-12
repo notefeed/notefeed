@@ -10,14 +10,16 @@ import { errorReply } from "./errors";
 
 const log = logger("http");
 
-// A response without a schema has no body (e.g. a 303); headers are documented, not enforced.
+// A response without a schema has no body (e.g. a 303); headers are documented, not enforced. A `file` response is a file's bytes, not
+// JSON: the handler answers with the Response itself (its Content-Type, ETag and the like), and the description says it is binary.
 export type ResponseSpec = {
   description: string;
   schema?: z.ZodType;
+  file?: true;
   headers?: Record<string, { description: string; type: "integer" | "string" }>;
 };
 
-type BodyOf<R> = R extends { schema: infer S extends z.ZodType } ? z.infer<S> : undefined;
+type BodyOf<R> = R extends { file: true } ? Response : R extends { schema: infer S extends z.ZodType } ? z.infer<S> : undefined;
 export type Reply<R> = {
   [S in keyof R & number]: { status: S; body: BodyOf<R[S]>; headers?: HeadersInit };
 }[keyof R & number];
@@ -89,6 +91,10 @@ function send(entry: AnyOp, reply: AnyReply): Response {
   if (!declared) {
     log.error({ operation: entry.operationId, status: reply.status }, "an operation answered a status it doesn't declare");
     return Response.json({ error: "internal error" }, { status: 500 });
+  }
+  if (declared.file) {
+    if (!(reply.body instanceof Response)) throw new Error(`${entry.operationId} answered ${reply.status} without the file's Response`);
+    return reply.body;
   }
   // Types can't see formats and patterns (or a thrown error's body); check them wherever it's cheap to fail.
   if (process.env.NODE_ENV !== "production" && declared.schema) {

@@ -33,7 +33,7 @@ export { feedCookieName, feedUnlocked } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
 export { feedAccessRoute } from "./http/feedsession";
 export { loginRoute, logoutRoute } from "./http/session";
-export { fileRoute } from "./http/files";
+export { fileRoute, ownerFileRoute } from "./http/files";
 export { atomRoute, rssRoute } from "./http/rss";
 export { mcpRoute } from "./mcp";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";

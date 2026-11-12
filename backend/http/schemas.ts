@@ -212,6 +212,7 @@ export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, Mult
 export const FeedParam = z.string().regex(FEED_RE).describe("The feed's name. It is the write key: anyone who knows it can post.");
 export const ReadIdParam = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).describe("The feed's read id, from its read link: 22 random characters, one the feed's owner chose, or the feed's own name for a reserved feed. Read-only; never reveals the name of any other feed.");
 export const NoteIdParam = z.string().regex(NOTE_ID).describe("The note's id");
+export const FileParam = z.string().regex(/^[A-Za-z0-9_-]{1,128}\.[A-Za-z0-9]{1,16}$/).describe("A note's file name, `<id>.<ext>` (its `file`)");
 
 export const PageQuery = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(50).describe(`Notes per page, 1–${MAX_LIMIT}`),

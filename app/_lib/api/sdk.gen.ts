@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
+import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -94,6 +94,17 @@ export const editNote = <ThrowOnError extends boolean = false>(options: Options<
         'Content-Type': 'text/markdown',
         ...options.headers
     }
+});
+
+/**
+ * Get one of the feed's files
+ *
+ * A note's file by its own name (`<id>.<ext>`, a note's `file`), for whoever may post to the feed: also a draft's or a scheduled note's, which the read link (`file_url`) does not serve until readers may see them, so a post with pictures can be checked before it goes out. The body is the file's bytes, with the `Content-Type` of its extension and an `ETag` (`If-None-Match` gives `304`). Files by any other name, as the read link has them, are not served here.
+ */
+export const getFile = <ThrowOnError extends boolean = false>(options: Options<GetFileData, ThrowOnError>): RequestResult<GetFileResponses, GetFileErrors, ThrowOnError> => (options.client ?? client).get<GetFileResponses, GetFileErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/files/{file}',
+    ...options
 });
 
 /**

@@ -115,6 +115,16 @@ describe("post", () => {
     expect(h).toEqual(["fp", "fp", "fp", "other", undefined]);
     expect(server.requests[0].headers.authorization).toBeUndefined();
   });
+  test("file() gets a note's file as bytes, with the feed password; a missing one is NotFoundError", async () => {
+    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
+    server.reply(200, "PNGDATA", "image/png");
+    const bytes = await c.file("20260930T100000Z-cafe.png");
+    expect(Buffer.from(bytes).toString()).toBe("PNGDATA");
+    expect(server.requests[0].path).toBe("/api/v1/feeds/inbox/files/20260930T100000Z-cafe.png");
+    expect(server.requests[0].headers["x-feed-password"]).toBe("fp");
+    server.reply(404, { error: "no such file", code: "not_found" });
+    await expect(c.file("nothere.png")).rejects.toBeInstanceOf(NotFoundError);
+  });
   test("a feed password with a control character is a ConfigError", () => {
     expect(() => new Client({ url: server.url, feedPassword: "p\nw" })).toThrow(ConfigError);
   });

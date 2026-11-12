@@ -4,7 +4,9 @@
 // A note's own file name (`<id>.<ext>`) comes first; any other name is the newest note posted with that name (X-Note-Name, #250), so
 // /r/<readId>/post-to-notefeed.md is always the current version of that file.
 import { createHash } from "node:crypto";
-import { feedForReadId, isRemovedReadId } from "../feeds";
+import { feedUnlocked } from "../feedlock";
+import { checkFeed } from "../feednames";
+import { feedForReadId, isRemovedFeed, isRemovedReadId } from "../feeds";
 import { measured } from "../metrics";
 import { noteRoute } from "../requestscope";
 import { fileVisible, isRemovedNote, namedFile, unreadableNote } from "../notes";
@@ -35,20 +37,61 @@ async function serveFile(readId: string, file: string, ifNoneMatch?: string | nu
   const id = NAME_RE.exec(file) && file.slice(0, file.indexOf("."));
   if (feed && id && (await isRemovedNote(feed, id, new Date()))) return new Response("removed by the operator", { status: 410 }); // #159
   const now = new Date();
-  let stored: string | null = null;
-  let bytes: Buffer | null;
-  try {
-    // A note dated after now (scheduled) is a missing one to a reader, its file too; asked before any bytes are read.
+  // A note dated after now (scheduled) or a draft is a missing one to a reader, its file too; asked before any bytes are read.
+  const found = await readStored(file, "picture", async (seen) => {
     const own = feed && NAME_RE.test(file) && (await fileVisible(feed, file, now)) ? file : null;
-    stored = own ?? (feed ? await namedFile(feed, file, now) : null);
-    bytes = feed && stored ? await storage().readFile(feed, stored) : null;
+    const stored = (seen.stored = own ?? (feed ? await namedFile(feed, file, now) : null));
+    return { stored, bytes: feed && stored ? await storage().readFile(feed, stored) : null };
+  });
+  if (found instanceof Response) return found;
+  if (!feed && (await isRemovedReadId(readId))) return new Response("removed by the operator", { status: 410 });
+  return fileResponse(found, ifNoneMatch);
+}
+
+// GET /<feed>/files/<file>: ownerFile for the feed's own pages, with the browser's unlock cookie (`cookie`) as the page has it. A locked
+// feed answers 401 without saying whether the file is there.
+export const ownerFileRoute = (feed: string, file: string, cookie: string | undefined, ifNoneMatch?: string | null): Promise<Response> =>
+  measured("feed_owner_file", async () => {
+    noteRoute("/[feed]/files/[file]");
+    if (checkFeed(feed)) return new Response("not found", { status: 404 });
+    if (await isRemovedFeed(feed)) return new Response("removed by the operator", { status: 410 });
+    if ((await feedUnlocked(feed, cookie)) === "locked") return new Response("locked", { status: 401, headers: { "Cache-Control": "no-store" } });
+    return ownerFile(feed, file, ifNoneMatch);
+  }, (r) => r.status);
+
+/** A file of `feed` (`<id>.<ext>`, its note's own name) for whoever may post to the feed, drafts and scheduled notes too (#349). The caller
+ *  has checked access. The feed's own page shows its notes' pictures from here, so a draft can be checked before it goes out; readers keep
+ *  the read link, which still hides them. Answers as the read link does: 410 for a removed note, 404 for no such file. */
+// `damaged`: "picture" answers a stored copy that does not decrypt as the read link does, "throw" throws its UnreadableNoteError (the API).
+export async function ownerFile(feed: string, file: string, ifNoneMatch?: string | null, damaged: "picture" | "throw" = "picture"): Promise<Response> {
+  const id = NAME_RE.exec(file) && file.slice(0, file.indexOf("."));
+  if (!id) return new Response("not found", { status: 404 });
+  if (await isRemovedNote(feed, id)) return new Response("removed by the operator", { status: 410 });
+  const found = await readStored(file, damaged, async (seen) => {
+    const stored = (seen.stored = (await fileVisible(feed, file, "owner")) ? file : null);
+    return { stored, bytes: stored ? await storage().readFile(feed, stored) : null };
+  });
+  return found instanceof Response ? found : fileResponse(found, ifNoneMatch);
+}
+
+type Found = { stored: string | null; bytes: Buffer | null };
+
+// Runs the lookup, which notes in `seen` the file it found before reading it; a stored copy that does not decrypt is answered as damaged
+// (issue #212), anything else thrown goes on.
+async function readStored(file: string, as: "picture" | "throw", lookup: (seen: { stored: string | null }) => Promise<Found>): Promise<Found | Response> {
+  const seen = { stored: null as string | null };
+  try {
+    return await lookup(seen);
   } catch (e) {
-    const damagedFile = stored ?? file;
-    unreadableNote(damagedFile.slice(0, damagedFile.indexOf(".")), e); // throws anything but a stored copy that does not decrypt
+    const damagedFile = seen.stored ?? file;
+    const error = unreadableNote(damagedFile.slice(0, damagedFile.indexOf(".")), e); // throws anything but a stored copy that does not decrypt
+    if (as === "throw") throw error;
     return damaged(NAME_RE.exec(damagedFile)?.[1] ?? "");
   }
+}
+
+function fileResponse({ stored, bytes }: Found, ifNoneMatch?: string | null): Response {
   const ext = stored ? NAME_RE.exec(stored)?.[1] : undefined;
-  if (!feed && (await isRemovedReadId(readId))) return new Response("removed by the operator", { status: 410 });
   if (!bytes || !ext) return new Response("not found", { status: 404 });
   const image = (IMAGE_EXTS as string[]).includes(ext);
   const etag = `"${createHash("sha1").update(bytes).digest("base64url")}"`;

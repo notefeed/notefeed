@@ -17,6 +17,7 @@ import { API_PREFIX, atomPath, feedPath, imagePath, publicUrl, readPath, rssPath
 import { MEDIA_TYPES } from "../note/media";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import { MAX_ATTACHMENTS, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
+import { ownerFile } from "./files";
 import { MULTIPART_SLACK, createdOf, handlePostNote, readContent, readMetaPatch, readMultipart } from "./notes";
 import { authorize, feedAccess, mediaType, readCapped, sender } from "./request";
 import {
@@ -39,6 +40,7 @@ import {
   NoteDraftHeader,
   ReadIdHeader,
   NoteIdParam,
+  FileParam,
   NoteEdited,
   NoteJson,
   NoteList,
@@ -271,6 +273,38 @@ const OPS: AnyOp[] = [
     const note = await getNote(params.feed, params.id);
     if (!note) throw new NotFoundError("no such note");
     return { status: 200, body: noteJson(note, publicUrl(req.headers) + feedPath(params.feed), await filesOf(params.feed, req.headers)) };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/feeds/{feed}/files/{file}`,
+    operationId: "getFile",
+    summary: "Get one of the feed's files",
+    description:
+      "A note's file by its own name (`<id>.<ext>`, a note's `file`), for whoever may post to the feed: also a draft's or a scheduled note's, " +
+      "which the read link (`file_url`) does not serve until readers may see them, so a post with pictures can be checked before it goes out. " +
+      "The body is the file's bytes, with the `Content-Type` of its extension and an `ETag` (`If-None-Match` gives `304`). Files by any other " +
+      "name, as the read link has them, are not served here.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam, file: FileParam },
+    headers: { "X-Feed-Password": FeedPasswordHeader },
+    responses: {
+      200: { description: "The file's bytes; `Content-Type` is the file's own (an image, `text/markdown`, …)", file: true },
+      304: { description: "Unchanged since the `ETag` sent in `If-None-Match`", file: true },
+      400: err("Invalid or reserved feed name"),
+      401: UNAUTHORIZED,
+      404: err("No such file"),
+      410: REMOVED_NOTE,
+      429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+    },
+    before: passwordFeedAndFeedPassword,
+  }).handle(async ({ req, params }) => {
+    const res = await ownerFile(params.feed, params.file, req.headers.get("if-none-match"), "throw");
+    if (res.status === 410) await refuseRemovedNote(params.feed, params.file.slice(0, params.file.indexOf(".")));
+    if (res.status === 200 || res.status === 304) return { status: res.status, body: res };
+    throw new NotFoundError("no such file");
   }),
 
   op({
@@ -878,6 +912,7 @@ export function openApiDocument(serverUrl: string): Json {
             headers: Object.fromEntries(Object.entries(r.headers).map(([h, d]) => [h, { description: d.description, schema: { type: d.type } }])),
           }),
           ...(r.schema && { content: { "application/json": { schema: jsonSchema(r.schema) } } }),
+          ...(r.file && { content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } } }),
         },
       ]),
     );

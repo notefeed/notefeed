@@ -64,6 +64,7 @@ Create the client with the server's URL and, usually, a default feed; every call
 | `create_feed(feed=, password=, license_key=, read_id=)` | `createFeed({ feed, password, licenseKey, readId })` | Creates the feed without a note, to reserve its name; returns the feed. `license_key` is required on notefeed.me. A feed that exists is refused. |
 | `notes(feed=, page_size=, tag=)` | `notes({ feed, pageSize, tag })` | Every note in the feed, newest first; the next page is fetched as you iterate. |
 | `note(id, feed=)` | `note(id, { feed })` | One note. |
+| `file(name, feed=)` | `file(name, { feed })` | A note's file by its `file` name, as bytes: also a [draft's](../using/posting.md#drafts) or a scheduled note's, which `file_url` does not serve yet. |
 | `edit(id, content, feed=, type=)` | `edit(id, content, { feed, type })` | Replaces a note's content; id, URLs and metadata stay. |
 | `update(id, title=, alt=, tags=, date=, feed=)` | `update(id, { title, alt, tags, date }, { feed })` | Sets a note's title, a picture's alt text, a note's tags (the whole list; `[]` removes them) or its date; `""` removes a title or alt text. |
 | `delete(id, feed=)` | `delete(id, { feed })` | Deletes a note for good. |

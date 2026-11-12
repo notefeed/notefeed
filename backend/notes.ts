@@ -208,11 +208,14 @@ export async function namedFile(feed: string, name: string, asOf?: Date): Promis
   return null;
 }
 
-/** Whether a reader may have `file` (`<id>.<ext>`) of the feed: its note is there, no draft, and dated `asOf` or earlier. Reads no content. */
-export async function fileVisible(feed: string, file: string, asOf: Date): Promise<boolean> {
+/** Whether `file` (`<id>.<ext>`) of the feed may be served: to a reader (`to` is the time asked at) when its note is there, no draft, and
+ *  dated then or earlier; to whoever may post to the feed (`to` is "owner") whenever its note is there, drafts and scheduled notes too, so
+ *  a draft's pictures show in its own preview (#349). Reads no content. */
+export async function fileVisible(feed: string, file: string, to: Date | "owner"): Promise<boolean> {
   const m = FILE_RE.exec(file);
   const stored = m && !checkFeed(feed) && isValidId(m[1]) ? await storage().readNote(feed, m[1], [m[2]], () => false) : null;
-  return stored !== null && !stored.draft && stored.date <= asOf.getTime();
+  if (stored === null) return false;
+  return to === "owner" || (!stored.draft && stored.date <= to.getTime());
 }
 
 // The note, found by trying `exts` (a lookup by id alone) or the one extension a listing already knows.

@@ -10,7 +10,7 @@ import { UnlockForm } from "@/components/UnlockForm";
 import { orDamaged } from "@/app/_lib/damaged";
 import { noteErrorMessage } from "@/app/_lib/messages";
 import { reportUrl } from "@/shared/report";
-import { feedCookieName, feedPath, feedUnlocked, getFeedNote, getFeedPictures, hasLegalPage, imageUploadsOn, isRemovedFeed, isRemovedNote, licensingOn, readIdOf, readPath, reportTemplate } from "@/backend";
+import { feedCookieName, feedPath, feedUnlocked, getFeedNote, getFeedPictures, hasLegalPage, imageUploadsOn, isRemovedFeed, isRemovedNote, licensingOn, readIdOf, reportTemplate } from "@/backend";
 import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,8 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[fe
   }
   if (!note) notFound();
   const readId = await readIdOf(feed);
-  const imageBase = readId ? `${readPath(readId)}/` : undefined;
+  // Pictures come from the feed's own file route, not the read link, so a draft's and a scheduled note's show too (#349).
+  const imageBase = `${feedPath(feed)}/files/`;
   // The Report link goes in the note's action bar, not on the note. The bar sits in the shell's right column, the forms under
   // the note; NoteActions holds what both share.
   const reportHref = readId && reportTemplate() ? reportUrl(reportTemplate(), { readId, noteId: note.id, file: note.file }) : undefined;

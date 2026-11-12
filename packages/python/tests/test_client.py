@@ -175,6 +175,17 @@ def test_feed_password_goes_as_x_feed_password_and_a_per_call_one_wins(server):
     assert "Authorization" not in server.requests[0]["headers"]
 
 
+def test_file_gets_a_notes_file_as_bytes_with_the_feed_password(server):
+    server.reply(200, "PNGDATA", "image/png")
+    c = Client(server.url, "inbox", feed_password="fp")
+    assert c.file("20260930T100000Z-cafe.png") == b"PNGDATA"
+    assert server.requests[0]["path"] == "/api/v1/feeds/inbox/files/20260930T100000Z-cafe.png"
+    assert server.requests[0]["headers"]["X-Feed-Password"] == "fp"
+    server.reply(404, {"error": "no such file", "code": "not_found"})
+    with pytest.raises(NotFoundError):
+        c.file("nothere.png")
+
+
 def test_a_control_character_in_the_feed_password_is_a_config_error(server):
     with pytest.raises(ConfigError):
         Client(server.url, feed_password="p\nw")

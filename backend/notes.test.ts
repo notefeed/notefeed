@@ -446,6 +446,12 @@ describe("drafts", () => {
     expect(await namedFile("test", "drafted.png", now)).toBe(pic.file);
   });
 
+  test("a draft picture is a file its owner may have (#349)", async () => {
+    const { pic } = await post("drafted", true);
+    expect(await fileVisible("test", pic.file, "owner")).toBe(true);
+    expect(await fileVisible("test", "nothere.png", "owner")).toBe(false);
+  });
+
   test("changeDraft takes the attachments along and keeps dates", async () => {
     const { note, pic } = await post("t", false);
     const { pic: other } = await post("u", false);
