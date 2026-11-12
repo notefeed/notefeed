@@ -12,7 +12,8 @@ import { png } from "../backend/testimages";
 beforeEach(async () => {
   process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-shortcut-"));
   process.env.NOTEFEED_SECRET = "s".repeat(32);
-  for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL"]) delete process.env[k];
+  for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL"])
+    delete process.env[k];
   resetFeedsForTests();
   resetRateLimitsForTests();
 });
@@ -22,9 +23,20 @@ async function share(feed: string, serverPassword: string, feedPassword = "") {
   const form = new FormData();
   form.set("text", "From the phone");
   form.set("file", new File([png(1)], "IMG_0001.jpg", { type: "image/png" }));
-  const url = new URL(`${API_PREFIX}/feeds/${feed}/notes`, "http://localhost:3000");
-  const headers = { host: "localhost:3000", authorization: `Bearer ${serverPassword}`, "x-feed-password": feedPassword };
-  return dispatch(new Request(url, { method: "POST", body: form, headers }), ["feeds", feed, "notes"]);
+  const url = new URL(
+    `${API_PREFIX}/feeds/${feed}/notes`,
+    "http://localhost:3000",
+  );
+  const headers = {
+    host: "localhost:3000",
+    authorization: `Bearer ${serverPassword}`,
+    "x-feed-password": feedPassword,
+  };
+  return dispatch(new Request(url, { method: "POST", body: form, headers }), [
+    "feeds",
+    feed,
+    "notes",
+  ]);
 }
 
 test("on a server without a password, an empty bearer and an empty feed password post", async () => {

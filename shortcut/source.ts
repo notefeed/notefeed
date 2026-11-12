@@ -25,13 +25,28 @@ const URL_OF = "6E0F3A1C-2B4D-4C5E-8F60-71829304A50B";
 const ARRIVED = "6E0F3A1C-2B4D-4C5E-8F60-71829304A50C";
 const ERROR_OF = "6E0F3A1C-2B4D-4C5E-8F60-71829304A50D";
 const PICTURES = "Pictures";
+// The answers to the import questions, cleaned up, under names the editor shows.
+const ADDRESS_VAR = "Address";
+const FEED_VAR = "Feed";
+const PASSWORD_VAR = "Feed password";
+const INSTANCE_VAR = "Server password";
 const ANSWER = "Answer";
 
 type Attachment = Record<string, unknown>;
-const output = (uuid: string, name: string): Attachment => ({ Type: "ActionOutput", OutputUUID: uuid, OutputName: name });
-const variable = (name: string): Attachment => ({ Type: "Variable", VariableName: name });
+const output = (uuid: string, name: string): Attachment => ({
+  Type: "ActionOutput",
+  OutputUUID: uuid,
+  OutputName: name,
+});
+const variable = (name: string): Attachment => ({
+  Type: "Variable",
+  VariableName: name,
+});
 /** One variable as a parameter. */
-const value = (a: Attachment) => ({ Value: a, WFSerializationType: "WFTextTokenAttachment" });
+const value = (a: Attachment) => ({
+  Value: a,
+  WFSerializationType: "WFTextTokenAttachment",
+});
 /** Text with variables in it: each "￼" in `template` is the next of `parts`. */
 function text(template: string, ...parts: Attachment[]) {
   const attachmentsByRange: Record<string, Attachment> = {};
@@ -41,14 +56,27 @@ function text(template: string, ...parts: Attachment[]) {
     attachmentsByRange[`{${at}, 1}`] = part;
     at++;
   }
-  return { Value: { string: template, attachmentsByRange }, WFSerializationType: "WFTextTokenString" };
+  return {
+    Value: { string: template, attachmentsByRange },
+    WFSerializationType: "WFTextTokenString",
+  };
 }
-const action = (id: string, params: Record<string, unknown>) => ({ WFWorkflowActionIdentifier: `is.workflow.actions.${id}`, WFWorkflowActionParameters: params });
+const action = (id: string, params: Record<string, unknown>) => ({
+  WFWorkflowActionIdentifier: `is.workflow.actions.${id}`,
+  WFWorkflowActionParameters: params,
+});
 /** "If `a` has any value" (mode 0), "Otherwise" (1) and "End If" (2) of one block. */
 const ifHasValue = (group: string, a: Attachment) =>
-  action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 100, WFInput: { Type: "Variable", Variable: value(a) } });
-const otherwise = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 1 });
-const endIf = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 2 });
+  action("conditional", {
+    GroupingIdentifier: group,
+    WFControlFlowMode: 0,
+    WFCondition: 100,
+    WFInput: { Type: "Variable", Variable: value(a) },
+  });
+const otherwise = (group: string) =>
+  action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 1 });
+const endIf = (group: string) =>
+  action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 2 });
 
 // A form field: text (type 0) or a file (type 5), as Shortcuts writes WFFormValues. A file field's value is the variable wrapped once more,
 // in a WFTokenAttachmentParameterState (as the Cherri compiler writes it); the bare attachment makes `shortcuts sign` crash with "State
@@ -56,71 +84,210 @@ const endIf = (group: string) => action("conditional", { GroupingIdentifier: gro
 const field = (key: string, type: 0 | 5, v: Attachment) => ({
   WFItemType: type,
   WFKey: text(key),
-  WFValue: type === 0 ? text("￼", v) : { Value: value(v), WFSerializationType: "WFTokenAttachmentParameterState" },
+  WFValue:
+    type === 0
+      ? text("￼", v)
+      : {
+          Value: value(v),
+          WFSerializationType: "WFTokenAttachmentParameterState",
+        },
 });
-const form = (...fields: ReturnType<typeof field>[]) => ({ Value: { WFDictionaryFieldValueItems: fields }, WFSerializationType: "WFDictionaryFieldValue" });
+const form = (...fields: ReturnType<typeof field>[]) => ({
+  Value: { WFDictionaryFieldValueItems: fields },
+  WFSerializationType: "WFDictionaryFieldValue",
+});
 
 // POST /api/v1/feeds/<feed>/notes, with the feed's password (an empty header is no password, so an open feed needs nothing) and the
 // instance's (checked only where the instance has one; elsewhere the header is ignored, empty or not).
 const post = (uuid: string, fields: ReturnType<typeof field>[]) =>
   action("downloadurl", {
     UUID: uuid,
-    WFURL: text("￼/api/v1/feeds/￼/notes", output(ADDRESS, "Text"), output(FEED, "Text")),
+    WFURL: text(
+      "￼/api/v1/feeds/￼/notes",
+      variable(ADDRESS_VAR),
+      variable(FEED_VAR),
+    ),
     WFHTTPMethod: "POST",
     WFHTTPBodyType: "Form",
     WFFormValues: form(...fields),
     ShowHeaders: true,
-    WFHTTPHeaders: form(field("X-Feed-Password", 0, output(PASSWORD, "Text")), { WFItemType: 0, WFKey: text("Authorization"), WFValue: text("Bearer ￼", output(INSTANCE, "Text")) }),
+    WFHTTPHeaders: form(field("X-Feed-Password", 0, variable(PASSWORD_VAR)), {
+      WFItemType: 0,
+      WFKey: text("Authorization"),
+      WFValue: text("Bearer ￼", variable(INSTANCE_VAR)),
+    }),
   });
+
+// An answer as typed on a phone: the keyboard adds a space after a suggestion and capitalises the first letter, and an address may
+// come without https:// or with a trailing slash. Any of these made "Get contents of URL" fail ("no conversion from rich text to
+// URL") or post to another feed's name, so each answer is cleaned up before it is used. `steps` run in order on the previous output.
+type Step = ["trim"] | ["lowercase"] | ["replace", string, string];
+let cleanups = 0;
+function cleaned(from: string, name: string, ...steps: Step[]) {
+  const actions: ReturnType<typeof action>[] = [];
+  let last: Attachment = output(from, "Text");
+  for (const step of steps) {
+    const uuid = `6E0F3A1C-2B4D-4C5E-8F60-71829304B${String(++cleanups).padStart(3, "0")}`;
+    if (step[0] === "trim")
+      actions.push(
+        action("text.trimwhitespace", { UUID: uuid, WFInput: text("￼", last) }),
+      );
+    else if (step[0] === "lowercase")
+      actions.push(
+        action("text.changecase", {
+          UUID: uuid,
+          WFInput: text("￼", last),
+          WFCaseType: "lowercase",
+        }),
+      );
+    else
+      actions.push(
+        action("text.replace", {
+          UUID: uuid,
+          WFInput: text("￼", last),
+          WFReplaceTextFind: step[1],
+          WFReplaceTextReplace: step[2],
+          WFReplaceTextRegularExpression: true,
+          WFReplaceTextCaseSensitive: false,
+        }),
+      );
+    last = output(uuid, "Updated Text");
+  }
+  actions.push(
+    action("setvariable", { WFVariableName: name, WFInput: value(last) }),
+  );
+  return actions;
+}
 
 /** The Shortcut as the dictionary its file holds. */
 export function shortcutPlist(): Record<string, unknown> {
+  cleanups = 0;
   return {
     // Shortcuts on iOS 26.
     WFWorkflowClientVersion: "4033.0.4.3",
     WFWorkflowMinimumClientVersion: 900,
     WFWorkflowMinimumClientVersionString: "900",
-    // A sheet of paper, in dark grey: notefeed's own colour is carbon.
-    WFWorkflowIcon: { WFWorkflowIconStartColor: 255, WFWorkflowIconGlyphNumber: 59771 },
+    // A note with text on taupe, the Shortcuts colour nearest notefeed's carbon (glyph and colour numbers as cherri lists them).
+    WFWorkflowIcon: {
+      WFWorkflowIconStartColor: 2846468607,
+      WFWorkflowIconGlyphNumber: 61465,
+    },
     WFWorkflowTypes: ["ActionExtension"],
     WFWorkflowHasShortcutInputVariables: true,
     // notefeed takes markdown and pictures: images, text and links, nothing else.
-    WFWorkflowInputContentItemClasses: ["WFImageContentItem", "WFStringContentItem", "WFRichTextContentItem", "WFURLContentItem"],
+    WFWorkflowInputContentItemClasses: [
+      "WFImageContentItem",
+      "WFStringContentItem",
+      "WFRichTextContentItem",
+      "WFURLContentItem",
+    ],
     // What the settings page shows: the address, the feed's name, its password and whether the instance has one.
     WFWorkflowImportQuestions: [
-      { ActionIndex: 0, Category: "Parameter", DefaultValue: "https://notefeed.me", ParameterKey: "WFTextActionText", Text: "notefeed address (e.g. https://notefeed.me)" },
-      { ActionIndex: 1, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Feed name" },
-      { ActionIndex: 2, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Feed password (empty for an open feed)" },
-      { ActionIndex: 3, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Server password: optional, leave empty unless your own server asks for one at sign-in (never on notefeed.me)" },
+      {
+        ActionIndex: 0,
+        Category: "Parameter",
+        DefaultValue: "https://notefeed.me",
+        ParameterKey: "WFTextActionText",
+        Text: "notefeed address (e.g. https://notefeed.me)",
+      },
+      {
+        ActionIndex: 1,
+        Category: "Parameter",
+        DefaultValue: "",
+        ParameterKey: "WFTextActionText",
+        Text: "Feed name",
+      },
+      {
+        ActionIndex: 2,
+        Category: "Parameter",
+        DefaultValue: "",
+        ParameterKey: "WFTextActionText",
+        Text: "Feed password (empty for an open feed)",
+      },
+      {
+        ActionIndex: 3,
+        Category: "Parameter",
+        DefaultValue: "",
+        ParameterKey: "WFTextActionText",
+        Text: "Server password: optional, leave empty unless your own server asks for one at sign-in (never on notefeed.me)",
+      },
     ],
     WFWorkflowActions: [
       action("gettext", { UUID: ADDRESS, WFTextActionText: "" }),
       action("gettext", { UUID: FEED, WFTextActionText: "" }),
       action("gettext", { UUID: PASSWORD, WFTextActionText: "" }),
       action("gettext", { UUID: INSTANCE, WFTextActionText: "" }),
+      ...cleaned(
+        ADDRESS,
+        ADDRESS_VAR,
+        ["trim"],
+        ["replace", "/+$", ""],
+        ["replace", "^(?!https?://)", "https://"],
+      ),
+      ...cleaned(FEED, FEED_VAR, ["trim"], ["lowercase"]),
+      ...cleaned(PASSWORD, PASSWORD_VAR, ["trim"]),
+      ...cleaned(INSTANCE, INSTANCE_VAR, ["trim"]),
       // The pictures, each as JPEG without its metadata (the server strips and shrinks it again anyway).
-      action("detect.images", { UUID: IMAGES, WFInput: value({ Type: "ExtensionInput" }) }),
-      action("repeat.each", { UUID: EACH, GroupingIdentifier: EACH, WFControlFlowMode: 0, WFInput: value(output(IMAGES, "Images")) }),
-      action("image.convert", { UUID: JPEG, WFInput: value(variable("Repeat Item")), WFImageFormat: "JPEG", WFImagePreserveMetadata: false }),
-      action("appendvariable", { WFVariableName: PICTURES, WFInput: value(output(JPEG, "Converted Image")) }),
+      action("detect.images", {
+        UUID: IMAGES,
+        WFInput: value({ Type: "ExtensionInput" }),
+      }),
+      action("repeat.each", {
+        UUID: EACH,
+        GroupingIdentifier: EACH,
+        WFControlFlowMode: 0,
+        WFInput: value(output(IMAGES, "Images")),
+      }),
+      action("image.convert", {
+        UUID: JPEG,
+        WFInput: value(variable("Repeat Item")),
+        WFImageFormat: "JPEG",
+        WFImagePreserveMetadata: false,
+      }),
+      action("appendvariable", {
+        WFVariableName: PICTURES,
+        WFInput: value(output(JPEG, "Converted Image")),
+      }),
       action("repeat.each", { GroupingIdentifier: EACH, WFControlFlowMode: 2 }),
       // The text or link shared, if any: the note's text. Empty is fine: then the pictures are the note.
-      action("detect.text", { UUID: TEXT, WFInput: value({ Type: "ExtensionInput" }) }),
+      action("detect.text", {
+        UUID: TEXT,
+        WFInput: value({ Type: "ExtensionInput" }),
+      }),
       // One request. A form's file field with nothing in it is a part the server refuses, so without pictures there is none.
       ifHasValue(WITH_PICTURES, variable(PICTURES)),
-      post(POST_PICTURES, [field("text", 0, output(TEXT, "Text")), field("file", 5, variable(PICTURES))]),
-      action("setvariable", { WFVariableName: ANSWER, WFInput: value(output(POST_PICTURES, "Contents of URL")) }),
+      post(POST_PICTURES, [
+        field("text", 0, output(TEXT, "Text")),
+        field("file", 5, variable(PICTURES)),
+      ]),
+      action("setvariable", {
+        WFVariableName: ANSWER,
+        WFInput: value(output(POST_PICTURES, "Contents of URL")),
+      }),
       otherwise(WITH_PICTURES),
       post(POST_TEXT, [field("text", 0, output(TEXT, "Text"))]),
-      action("setvariable", { WFVariableName: ANSWER, WFInput: value(output(POST_TEXT, "Contents of URL")) }),
+      action("setvariable", {
+        WFVariableName: ANSWER,
+        WFInput: value(output(POST_TEXT, "Contents of URL")),
+      }),
       endIf(WITH_PICTURES),
       // The answer: the note's `url` to open, or the server's `error` to show.
-      action("getvalueforkey", { UUID: URL_OF, WFInput: value(variable(ANSWER)), WFDictionaryKey: "url" }),
+      action("getvalueforkey", {
+        UUID: URL_OF,
+        WFInput: value(variable(ANSWER)),
+        WFDictionaryKey: "url",
+      }),
       ifHasValue(ARRIVED, output(URL_OF, "Dictionary Value")),
       action("openurl", { WFInput: value(output(URL_OF, "Dictionary Value")) }),
       otherwise(ARRIVED),
-      action("getvalueforkey", { UUID: ERROR_OF, WFInput: value(variable(ANSWER)), WFDictionaryKey: "error" }),
-      action("showresult", { Text: text("Not posted: ￼", output(ERROR_OF, "Dictionary Value")) }),
+      action("getvalueforkey", {
+        UUID: ERROR_OF,
+        WFInput: value(variable(ANSWER)),
+        WFDictionaryKey: "error",
+      }),
+      action("showresult", {
+        Text: text("Not posted: ￼", output(ERROR_OF, "Dictionary Value")),
+      }),
       endIf(ARRIVED),
     ],
   };
@@ -130,4 +297,5 @@ export function shortcutPlist(): Record<string, unknown> {
 export const shortcutXml = (): string => build(shortcutPlist() as PlistValue);
 
 /** The source's fingerprint, recorded next to the signed file when it is signed. */
-export const shortcutSourceHash = (): string => createHash("sha256").update(shortcutXml()).digest("hex");
+export const shortcutSourceHash = (): string =>
+  createHash("sha256").update(shortcutXml()).digest("hex");
