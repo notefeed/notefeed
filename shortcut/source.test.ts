@@ -67,6 +67,12 @@ test("everything shared is one multipart POST to the feed's notes, with the feed
   }
   const fieldsOf = (p: Record<string, unknown>) => JSON.stringify(p.WFFormValues).match(/"WFKey":\{"Value":\{"string":"(\w+)"/g)!.map((m) => m.split('"').at(-2));
   expect(fieldsOf(posts[0])).toEqual(["text", "file"]);
+  // The file field: type 5, its variable wrapped in a WFTokenAttachmentParameterState (a bare attachment crashes `shortcuts sign`).
+  const file = (posts[0].WFFormValues as { Value: { WFDictionaryFieldValueItems: Array<Record<string, unknown>> } }).Value.WFDictionaryFieldValueItems[1];
+  expect(file).toMatchObject({
+    WFItemType: 5,
+    WFValue: { WFSerializationType: "WFTokenAttachmentParameterState", Value: { WFSerializationType: "WFTextTokenAttachment", Value: { Type: "Variable", VariableName: "Pictures" } } },
+  });
   expect(fieldsOf(posts[1])).toEqual(["text"]);
   expect(ids.indexOf("conditional")).toBeLessThan(ids.indexOf("downloadurl"));
 });

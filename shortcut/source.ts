@@ -50,8 +50,14 @@ const ifHasValue = (group: string, a: Attachment) =>
 const otherwise = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 1 });
 const endIf = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 2 });
 
-// A form field: text (type 0) or a file (type 5), as Shortcuts writes WFFormValues.
-const field = (key: string, type: 0 | 5, v: Attachment) => ({ WFItemType: type, WFKey: text(key), WFValue: type === 0 ? text("￼", v) : value(v) });
+// A form field: text (type 0) or a file (type 5), as Shortcuts writes WFFormValues. A file field's value is the variable wrapped once more,
+// in a WFTokenAttachmentParameterState (as the Cherri compiler writes it); the bare attachment makes `shortcuts sign` crash with "State
+// for WFPropertyListParameterValue is not of the expected class".
+const field = (key: string, type: 0 | 5, v: Attachment) => ({
+  WFItemType: type,
+  WFKey: text(key),
+  WFValue: type === 0 ? text("￼", v) : { Value: value(v), WFSerializationType: "WFTokenAttachmentParameterState" },
+});
 const form = (...fields: ReturnType<typeof field>[]) => ({ Value: { WFDictionaryFieldValueItems: fields }, WFSerializationType: "WFDictionaryFieldValue" });
 
 // POST /api/v1/feeds/<feed>/notes, with the feed's password (an empty header is no password, so an open feed needs nothing) and the
