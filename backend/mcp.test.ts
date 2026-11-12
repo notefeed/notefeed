@@ -146,6 +146,7 @@ describe("tools", () => {
       url: `http://localhost:3000/a/${id}`,
       feed_url: "http://localhost:3000/a",
       read_url: `http://localhost:3000/r/${(await readIdOf("a"))!}/feed.xml`,
+      atom_url: `http://localhost:3000/r/${(await readIdOf("a"))!}/atom.xml`,
       attachments: [],
     });
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);

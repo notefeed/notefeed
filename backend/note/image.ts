@@ -1,6 +1,6 @@
 import { cleanLine, cleanName } from "../../shared/links";
 import type { Meta } from "../storage/types";
-import { Note, type NoteInit } from "./note";
+import { Note } from "./note";
 
 // A standalone image: the content file is the picture, everything else is in the sidecar.
 export class ImageNote extends Note {
@@ -19,6 +19,6 @@ export class ImageNote extends Note {
     return { enclosure: { url: `${base}/${this.file}`, length: this.size, type: this.type } };
   }
   withMeta(meta: Meta): ImageNote {
-    return new ImageNote({ id: this.id, ext: this.ext, meta, date: this.date, size: this.size, draft: this.draft } satisfies NoteInit);
+    return new ImageNote(this.init(meta));
   }
 }

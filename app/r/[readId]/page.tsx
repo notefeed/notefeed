@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { FeedAbout } from "@/components/FeedAbout";
 import { NoteList } from "@/components/NoteList";
 import { Removed } from "@/components/Removed";
-import { getReadFeed, hasLegalPage, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
+import { atomPath, getReadFeed, hasLegalPage, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
 import { sortTags } from "@/shared/tags";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: PageProps<"/r/[readId]">): Pr
   const { readId } = await params;
   return {
     title: { absolute: (await readFeed(readId))?.title || instanceTitle() },
-    alternates: { types: { "application/rss+xml": rssPath(readId) } },
+    alternates: { types: { "application/rss+xml": rssPath(readId), "application/atom+xml": atomPath(readId) } },
   };
 }
 

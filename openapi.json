@@ -3185,6 +3185,18 @@
             ],
             "description": "The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds"
           },
+          "atom_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"
+          },
           "file": {
             "type": "string",
             "description": "The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting"
@@ -3212,6 +3224,7 @@
           "url",
           "feed_url",
           "read_url",
+          "atom_url",
           "file",
           "file_url"
         ],
@@ -3245,6 +3258,18 @@
               }
             ],
             "description": "The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds"
+          },
+          "atom_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"
           },
           "file": {
             "type": "string",
@@ -3280,6 +3305,7 @@
           "url",
           "feed_url",
           "read_url",
+          "atom_url",
           "file",
           "file_url"
         ],
@@ -3637,6 +3663,18 @@
             ],
             "description": "The feed's read-only RSS link; null while the feed has no notes, or if the server can't read the feed's stored read id"
           },
+          "atom_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"
+          },
           "image_url": {
             "anyOf": [
               {
@@ -3671,6 +3709,7 @@
           "description",
           "protected",
           "read_url",
+          "atom_url",
           "image_url",
           "show_sender",
           "free_tier"

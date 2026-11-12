@@ -17,7 +17,7 @@ def type_of(server, i=0):
 
 
 def test_post_text_prints_url(server, capsys):
-    server.reply(201, {"id": "20260930T100000Z-i", "url": "https://n.example/inbox/i", "feed_url": "https://n.example/inbox", "read_url": "https://n.example/r/x/feed.xml", "file": "i.md", "file_url": "https://n.example/r/x/i.md"})
+    server.reply(201, {"id": "20260930T100000Z-i", "url": "https://n.example/inbox/i", "feed_url": "https://n.example/inbox", "read_url": "https://n.example/r/x/feed.xml", "atom_url": "https://n.example/r/x/atom.xml", "file": "i.md", "file_url": "https://n.example/r/x/i.md"})
     assert main(["post", "hi", "--url", server.url, "--feed", "inbox"]) == 0
     assert capsys.readouterr().out.strip() == "https://n.example/inbox/i"
     assert sent(server) == "hi"
@@ -246,7 +246,7 @@ def test_notes_stops_quietly_when_the_reader_goes_away(server, capsys, monkeypat
 
 
 NOTE = {"id": "i", "type": "text/markdown", "title": "T", "content": "x", "file": "i.md", "file_url": "https://n.example/r/X/i.md", "size": 1, "tags": [], "date": "2026-09-30T10:00:00.000Z", "url": "https://n.example/inbox/i"}
-CREATED = {"id": "a", "url": "https://n.example/inbox/a", "feed_url": "https://n.example/inbox", "read_url": None, "file": "a.png", "file_url": "https://n.example/r/X/a.png"}
+CREATED = {"id": "a", "url": "https://n.example/inbox/a", "feed_url": "https://n.example/inbox", "read_url": None, "atom_url": None, "file": "a.png", "file_url": "https://n.example/r/X/a.png"}
 
 
 def test_edit_text_prints_url(server, capsys):
@@ -368,10 +368,10 @@ PNG = bytes([0x89, 0x50, 0x4E, 0x47])
 
 
 def _img(n, ext="png"):
-    return {"id": f"I{n}", "url": f"https://n.example/inbox/I{n}", "feed_url": "https://n.example/inbox", "read_url": None, "file": f"F{n}.{ext}", "file_url": "x"}
+    return {"id": f"I{n}", "url": f"https://n.example/inbox/I{n}", "feed_url": "https://n.example/inbox", "read_url": None, "atom_url": None, "file": f"F{n}.{ext}", "file_url": "x"}
 
 
-_TEXT = {"id": "T", "url": "https://n.example/inbox/T", "feed_url": "https://n.example/inbox", "read_url": None, "file": "T.md", "file_url": "x"}
+_TEXT = {"id": "T", "url": "https://n.example/inbox/T", "feed_url": "https://n.example/inbox", "read_url": None, "atom_url": None, "file": "T.md", "file_url": "x"}
 
 
 def _pics(tmp_path):

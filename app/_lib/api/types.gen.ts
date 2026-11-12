@@ -101,6 +101,10 @@ export type Created = {
      */
     read_url: string | null;
     /**
+     * The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
+     */
+    atom_url: string | null;
+    /**
      * The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting
      */
     file: string;
@@ -131,6 +135,10 @@ export type Posted = {
      * The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds
      */
     read_url: string | null;
+    /**
+     * The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
+     */
+    atom_url: string | null;
     /**
      * The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting
      */
@@ -364,6 +372,10 @@ export type Feed = {
      * The feed's read-only RSS link; null while the feed has no notes, or if the server can't read the feed's stored read id
      */
     read_url: string | null;
+    /**
+     * The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
+     */
+    atom_url: string | null;
     /**
      * The feed's title image (absolute URL, served under the read id), or null
      */

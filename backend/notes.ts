@@ -261,6 +261,7 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
   if (!note) return null;
   if (note.type !== parsed.mediaType) throw new UnsupportedTypeError(`this note is ${note.type}: send that Content-Type`);
   if (!(await storage().replaceNote(feed, id, EDIT_EXTS, body))) return null;
+  await storage().updateMeta(feed, id, EDIT_EXTS, { updated: new Date().toISOString() }); // for Atom (#324): the metadata keeps the rest
   noteEdited(parsed.type.name, "content");
   return getNote(feed, id);
 }
@@ -276,7 +277,7 @@ export async function changeMeta(feed: string, id: string, edit: { title?: strin
   if (!note) return null;
   if (alt !== undefined && !typeForExt(note.ext)?.hasAlt) throw new InvalidBodyError("alt is for image notes");
   // Tags are replaced as a whole list, an empty one removes them (#244).
-  const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }), ...(tags !== undefined && { tags: tags.length ? tags : null }) };
+  const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }), ...(tags !== undefined && { tags: tags.length ? tags : null }), updated: new Date().toISOString() };
   if (!(await storage().updateMeta(feed, id, EDIT_EXTS, patch))) return null;
   noteEdited(typeForExt(note.ext)?.name ?? "unknown", "meta");
   return getNote(feed, id);
@@ -293,6 +294,7 @@ export async function changeDate(feed: string, id: string, date: Date): Promise<
   const note = await getNote(feed, id);
   if (!note) return null;
   if (!(await storage().setDate(feed, id, EDIT_EXTS, date.getTime()))) return null;
+  await storage().updateMeta(feed, id, EDIT_EXTS, { updated: new Date().toISOString() });
   const shift = date.getTime() - note.date.getTime();
   await Promise.all((await attachmentsOf(feed, id)).map((ref) => storage().setDate(feed, ref.id, [ref.ext], Math.max(0, ref.date + shift))));
   return getNote(feed, id);

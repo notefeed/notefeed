@@ -24,6 +24,7 @@ CREATED = {
     "url": "https://n.example/inbox/20260930T100000Z-cafe",
     "feed_url": "https://n.example/inbox",
     "read_url": "https://n.example/r/AAAAAAAAAAAAAAAAAAAAAA/feed.xml",
+    "atom_url": "https://n.example/r/AAAAAAAAAAAAAAAAAAAAAA/atom.xml",
     "file": "20260930T100000Z-cafe.md",
     "file_url": "https://n.example/r/AAAAAAAAAAAAAAAAAAAAAA/20260930T100000Z-cafe.md",
 }
@@ -151,7 +152,7 @@ def test_tag_goes_in_the_list_query(server):
     assert "tag=ci" in server.requests[0]["path"]
 
 def test_post_to_a_feed_without_a_read_link_has_read_url_none(server):
-    server.reply(201, {**CREATED, "read_url": None})
+    server.reply(201, {**CREATED, "read_url": None, "atom_url": None, "atom_url": None})
     assert Client(server.url, "inbox").post("# Hi").read_url is None
 
 
@@ -424,7 +425,7 @@ def test_edit_and_delete_404_is_not_found_and_no_feed_is_config_error(server):
 
 # --- feed settings and deletion ---
 
-FEED = {"name": "inbox", "title": "My inbox", "description": "Things", "protected": False, "read_url": None, "image_url": None, "show_sender": True, "free_tier": None}
+FEED = {"name": "inbox", "title": "My inbox", "description": "Things", "protected": False, "read_url": None, "atom_url": None, "image_url": None, "show_sender": True, "free_tier": None}
 
 
 def test_feed_info_gets_the_feed(server):
@@ -545,7 +546,7 @@ def test_feed_calls_404_is_not_found_and_no_feed_is_config_error(server):
         Client(server.url).delete_feed()
 
 
-UPLOADED = {"id": "20261003T101010Z-u", "url": "https://n.example/inbox/20261003T101010Z-u", "feed_url": "https://n.example/inbox", "read_url": None, "file": "20261003T101010Z-u.png", "file_url": "https://n.example/r/X/20261003T101010Z-u.png"}
+UPLOADED = {"id": "20261003T101010Z-u", "url": "https://n.example/inbox/20261003T101010Z-u", "feed_url": "https://n.example/inbox", "read_url": None, "atom_url": None, "file": "20261003T101010Z-u.png", "file_url": "https://n.example/r/X/20261003T101010Z-u.png"}
 
 
 def test_a_picture_posts_its_bytes_as_its_type_and_the_answer_names_its_file(server):
@@ -574,7 +575,7 @@ def test_per_call_feed_and_password_win_and_a_refused_file_maps_to_the_usual_err
 def test_update_feed_sends_image_only_when_given(server):
     c = Client(server.url, "inbox")
     for kw in ({"image": "a.png"}, {"image": ""}, {}):
-        server.reply(200, {"name": "inbox", "title": "t", "description": "d", "protected": False, "read_url": None, "image_url": None, "show_sender": True, "free_tier": None})
+        server.reply(200, {"name": "inbox", "title": "t", "description": "d", "protected": False, "read_url": None, "atom_url": None, "image_url": None, "show_sender": True, "free_tier": None})
         c.update_feed("t", "d", **kw)
     assert [json.loads(r["body"]) for r in server.requests] == [
         {"title": "t", "description": "d", "image": "a.png"}, {"title": "t", "description": "d", "image": ""}, {"title": "t", "description": "d"}]
@@ -584,7 +585,7 @@ PNG = bytes([0x89, 0x50, 0x4E, 0x47])
 
 
 def img(n):
-    return {"id": f"I{n}", "url": f"https://n.example/inbox/I{n}", "feed_url": "https://n.example/inbox", "read_url": None, "file": f"F{n}.png", "file_url": f"https://n.example/r/X/F{n}.png"}
+    return {"id": f"I{n}", "url": f"https://n.example/inbox/I{n}", "feed_url": "https://n.example/inbox", "read_url": None, "atom_url": None, "file": f"F{n}.png", "file_url": f"https://n.example/r/X/F{n}.png"}
 
 
 def parts(request):
