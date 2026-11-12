@@ -73,6 +73,10 @@ export interface Storage {
   forgetFeed(feed: string, readId: string | null): Promise<void>;
   /** Throws NotFoundError (no such feed) or ReadIdTakenError. */
   setReadId(feed: string, readId: string): Promise<void>;
+  /** Gives the feed the name `to` (#350): its notes, files, settings, password, read id and drafts go with it; the old name is freed, nothing
+   *  is recorded. FeedNameTakenError when `to` is another feed's or a removed feed's (a tombstone), NotFoundError when there is no `feed`.
+   *  A feed whose read id is derived from its name keeps that id (it is stored first). */
+  renameFeed(feed: string, to: string): Promise<void>;
   /** undefined: no such feed. null: a feed without a read link. */
   feedReadId(feed: string): Promise<string | null | undefined>;
   feedForReadId(readId: string): Promise<string | null>;

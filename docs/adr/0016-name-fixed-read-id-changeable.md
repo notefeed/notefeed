@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted; the "name stays fixed" part is superseded by ADR 0054
 date: 2026-10-02
 decision-makers: Marcel Bruckner
 ---

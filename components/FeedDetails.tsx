@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignLeft, Fingerprint, ImagePlus, RefreshCw, Trash2, Type, UserRound, X } from "lucide-react";
+import { AlignLeft, Fingerprint, ImagePlus, PencilLine, RefreshCw, Trash2, Type, UserRound, X } from "lucide-react";
 import { useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { deleteFeed, updateFeed } from "@/app/_lib/api";
 import { danger, field, primary, secondary } from "@/components/styles";
@@ -14,7 +14,7 @@ import { putFeedImage, useApiForm } from "@/app/_lib/useApiForm";
 // access groups) sit between it and deleting, so deleting stays last. With
 // JavaScript they go through the generated API client and show refusals inline; without, the browser follows
 // the 303 (the feed page says "Saved." or shows the refusal as `error`, or the home page says "Feed deleted.").
-export function FeedDetails({ feed, title: savedTitle, description: savedDescription, image, imageUrl, images, showSender: savedShowSender, readId, readIdChoice, identity, error: initialError, sharing, posting, children }: { sharing?: ReactNode; posting?: ReactNode; children?: ReactNode; feed: string; title: string; description: string; image: string; imageUrl: string | null; images: { file: string; url: string; title: string }[]; showSender: boolean; readId: string | null; readIdChoice: "custom" | "random" | "fixed"; identity: boolean; error?: string }) {
+export function FeedDetails({ feed, title: savedTitle, description: savedDescription, image, imageUrl, images, showSender: savedShowSender, readId, readIdChoice, identity, renamable = true, error: initialError, sharing, posting, children }: { sharing?: ReactNode; posting?: ReactNode; children?: ReactNode; renamable?: boolean; feed: string; title: string; description: string; image: string; imageUrl: string | null; images: { file: string; url: string; title: string }[]; showSender: boolean; readId: string | null; readIdChoice: "custom" | "random" | "fixed"; identity: boolean; error?: string }) {
   const page = `/${feed}/settings`;
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, feedDetailsErrorMessage);
   const [title, setTitle] = useState(savedTitle);
@@ -22,6 +22,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
   const [showSender, setShowSender] = useState(savedShowSender);
   const [readIdValue, setReadIdValue] = useState(readId ?? "");
   const [confirm, setConfirm] = useState("");
+  const [newName, setNewName] = useState("");
   // False while rendering on the server, true once hydrated: without JavaScript the delete button stays enabled
   // and the server checks the name.
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
@@ -52,6 +53,12 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
       setPending(false);
     } else save(undefined, { title, description, image: up.file, ...(identity ? { show_sender: showSender } : {}) });
   }
+  // A rename (#350) goes to the settings page under the new name; on a protected feed that page asks for the password again.
+  const rename = (e: FormEvent) =>
+    run(e, () => updateFeed({ ...opts(), body: { title, description, ...(identity && { show_sender: showSender }), name: newName.trim() } }), () => {
+      router.replace(`/${newName.trim()}/settings?saved=1`);
+      router.refresh();
+    });
   const remove = (e: FormEvent) => run(e, () => deleteFeed(opts()), () => router.replace("/?deleted=" + feed), 404); // already gone: the goal is met
 
   const withSender = identity ? { show_sender: showSender } : {};
@@ -188,6 +195,25 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
       {children}
 
       <Group id="danger" label="Danger zone">
+        {renamable && (
+          <DisclosureRow icon={<PencilLine />} label="Rename this feed" danger>
+            <form method="post" action={`/${feed}/details`} onSubmit={rename}>
+              <input type="hidden" name="title" value={title} />
+              <input type="hidden" name="description" value={description} />
+              <p className="text-muted">
+                The feed keeps its notes, settings, password, license and read link. The old name stops working at once: scripts, AI agents and bookmarks need the new one, and a post to the old name later creates a new, empty feed. Browsers that unlocked this feed unlock it again. A short name can be guessed: protect the feed with a password if that matters.
+              </p>
+              <label htmlFor="feed-new-name" className="mb-1 mt-3 block text-muted">
+                New name
+              </label>
+              <input id="feed-new-name" name="name" required minLength={1} maxLength={64} pattern="[a-z0-9_\-]{1,64}" spellCheck={false} autoComplete="off" value={newName} onChange={(e) => setNewName(e.target.value)} className={`${field} mb-3 font-mono`} />
+              <button type="submit" disabled={pending || (hydrated && (newName.trim() === "" || newName.trim() === feed))} className={danger}>
+                <PencilLine aria-hidden className="h-4 w-4" />
+                Rename feed
+              </button>
+            </form>
+          </DisclosureRow>
+        )}
         <DisclosureRow icon={<Trash2 />} label="Delete this feed" danger>
           <form method="post" action={`/${feed}/delete`} onSubmit={remove}>
             <p className="text-muted">This deletes the feed and all its notes. It can&apos;t be undone. Type the feed&apos;s name to confirm.</p>

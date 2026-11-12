@@ -1,7 +1,7 @@
 // The database backend: SQLite and PostgreSQL through Kysely, one implementation for both. The database is the only source of truth
 // (no in-memory index): uniqueness is a constraint, counts are queries, so several containers stay consistent.
 import { sql, type Kysely } from "kysely";
-import { keyServiceDown, NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
+import { FeedNameTakenError, keyServiceDown, NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
 import { logger } from "../../log";
 import { noteFeedSize } from "../../metrics";
 import { newKey, type ImageStore } from "../images/types";
@@ -525,6 +525,50 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
         if (!changed(r.numUpdatedRows)) throw new NotFoundError("no such feed");
       } catch (e) {
         if (isUnique(e)) throw new ReadIdTakenError();
+        throw e;
+      }
+    },
+    // One transaction (#350): the old row's read id is parked, a row under the new name takes everything (on an encrypted database the
+    // data key is wrapped again and the feed's sealed values sealed again for the new fingerprint; the notes are bound to their own
+    // names, not the feed's, and stay as they are), the notes and the operator's marks move to it, and the old row goes.
+    async renameFeed(feed, to) {
+      if (to === feed) {
+        if (!(await feedKeys(await open(), feed))) throw new NotFoundError("no such feed");
+        return;
+      }
+      const db = await open();
+      const [from, name] = [ident("feed", feed), ident("feed", to)];
+      if (await db.selectFrom("tombstones").select("name").where("name", "=", name).executeTakeFirst()) throw new FeedNameTakenError();
+      const row = await db.selectFrom("feeds").selectAll().where("name", "=", from).executeTakeFirst();
+      if (!row) throw new NotFoundError("no such feed");
+      const old = row.key_id === null ? null : await keyOf(row);
+      const k = old ? await ring!.moveFeedKey(row, name) : null;
+      // A sealed value opened under the old name and sealed under the new one; a plain one as it is.
+      const again = (v: string | null, what: string) => (v === null || !k ? v : sealText(k.key, openText(old!, v, fa(from, what)), fa(name, what)));
+      try {
+        await db.transaction().execute(async (tx) => {
+          const parked = await tx.updateTable("feeds").set({ read_id: `renaming:${from}` }).where("name", "=", from).where("read_id", "=", row.read_id).executeTakeFirst();
+          if (!changed(parked.numUpdatedRows)) throw new NotFoundError("no such feed");
+          await tx
+            .insertInto("feeds")
+            .values({
+              name,
+              read_id: row.read_id,
+              password_hash: again(row.password_hash, "hash"),
+              settings: again(row.settings, "settings"),
+              created_at: Number(row.created_at),
+              key_id: k?.key_id ?? null,
+              data_key: k?.data_key ?? null,
+              name_sealed: k ? sealText(k.key, to, fa(name, "name")) : null,
+              read_id_sealed: again(row.read_id_sealed, "read_id"),
+            })
+            .execute();
+          await tx.updateTable("notes").set({ feed: name }).where("feed", "=", from).execute();
+          await tx.updateTable("note_tombstones").set({ feed: name }).where("feed", "=", from).execute();
+          await tx.deleteFrom("feeds").where("name", "=", from).execute();
+        });
+      } catch (e) {
+        if (isUnique(e)) throw new FeedNameTakenError(); // the name is the only unique value that is new
         throw e;
       }
     },

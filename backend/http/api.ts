@@ -447,6 +447,7 @@ const OPS: AnyOp[] = [
     description:
       "Replaces both the title (at most 100 characters) and the description (at most 500); surrounding whitespace is trimmed and control and text-direction override characters are refused. " +
       "`show_sender` (default true) shows who posted each note to readers; omitted leaves it as it is. `read_id` gives the feed another read link (3 to 64 characters: a-z, 0-9, - and _; empty for a random one): the old id is freed and answers like an unknown read id until another feed takes it, and the notes are not edited (a relative image link follows the new id, a full URL does not). A short readable read id is guessable, so protect the feed with a password if that matters. An instance can turn chosen read ids off (NOTEFEED_ALLOW_CUSTOM_IDS=0): then only an empty `read_id` is accepted. `image` is the file name `uploadImage` returned for this feed (title image), empty to remove it, or omitted to leave it as it is; any other value is a 400. " +
+      "`name` renames the feed (#350), after everything else is saved: the answer is the feed under its new name, and the old name answers like any unused one from then on. " +
       "Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed that exists: it is created by its first note. Read links can't change settings.",
     tags: ["Feeds"],
     password: true,
@@ -458,7 +459,7 @@ const OPS: AnyOp[] = [
       400: err("Invalid or reserved feed name, bad JSON, a title or description that is too long or has control or text-direction override characters, a malformed read id, a reserved feed's read id, or chosen read ids turned off"),
       401: UNAUTHORIZED,
       404: err("No such feed"),
-      409: err("The read id belongs to another feed or is held back for a reserved one"),
+      409: err("The read id or the new name belongs to another feed, or is held back"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
       503: UNAVAILABLE,
     },
@@ -474,8 +475,8 @@ const OPS: AnyOp[] = [
         throw new InvalidBodyError('JSON needs "title" and "description" strings');
       }
     };
-    await updateFeed(params.feed, clientIp(req.headers), read, feedAccess(req.headers, params.feed));
-    return { status: 200, body: await feedJson(params.feed, req.headers) };
+    const { feed } = await updateFeed(params.feed, clientIp(req.headers), read, feedAccess(req.headers, params.feed));
+    return { status: 200, body: await feedJson(feed, req.headers) };
   }),
 
   op({

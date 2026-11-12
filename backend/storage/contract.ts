@@ -1,6 +1,6 @@
 // The tests every Storage backend must pass. A backend's test file calls describeStorage() with a factory for a fresh, empty store.
 import { describe, expect, test } from "vitest";
-import { NotFoundError, ReadIdTakenError, RemovedFeedError } from "../errors";
+import { FeedNameTakenError, NotFoundError, ReadIdTakenError, RemovedFeedError } from "../errors";
 import { FeedGoneError, type Storage } from "./types";
 
 export type Harness = {
@@ -305,6 +305,45 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         await expect(s.setReadId("f", "gid-123")).rejects.toBeInstanceOf(ReadIdTakenError);
         expect(await s.feedReadId("f")).toBe("rid-f");
         await expect(s.setReadId("nope", "whatever-1")).rejects.toBeInstanceOf(NotFoundError);
+      });
+      t("renameFeed moves everything to the new name and frees the old one (#350)", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "text", { title: "T" }, 5);
+        await s.writeNote("f", "p", "png", new Uint8Array([0x89, 0x50, 1]), { of: "a" }, 4);
+        await s.writeNote("f", "d", "md", "draft", {}, 6, true);
+        await s.writeHash("f", "the-hash");
+        await s.writeSettings("f", { title: "Title", description: "D", image: "p.png", showSender: false });
+        await s.takedownNotes("f", [{ id: "x", ext: "md" }], { date: 3, draft: false }, null);
+        await s.renameFeed("f", "g");
+        expect(await s.feedReadId("g")).toBe("rid-f");
+        expect(await s.feedForReadId("rid-f")).toBe("g");
+        expect((await s.listNoteRefs("g", { drafts: true })).map((r) => `${r.id}.${r.ext}`)).toEqual(["d.md", "a.md", "p.png"]);
+        expect(text((await s.readNote("g", "a", ["md"], () => true))?.content)).toBe("text");
+        expect((await s.readNote("g", "a", ["md"], () => true))?.meta).toEqual({ title: "T" });
+        expect(await s.readFile("g", "p.png")).toEqual(Buffer.from([0x89, 0x50, 1]));
+        expect(await s.readHash("g")).toBe("the-hash");
+        expect(await s.readSettings("g")).toEqual({ title: "Title", description: "D", image: "p.png", showSender: false });
+        expect(await s.removedNote("g", "x")).toEqual({ date: 3, draft: false });
+        expect(await s.listFeeds()).toContain("g");
+        // The old name is free: nothing of it is left, and it can be a new feed.
+        expect(await s.feedReadId("f")).toBeUndefined();
+        expect(await s.listFeeds()).not.toContain("f");
+        expect(await s.listNoteRefs("f", { drafts: true })).toEqual([]);
+        expect(await s.readHash("f")).toBeNull();
+        expect(await s.createFeed("f", "fresh-id-9")).toEqual({ created: true });
+        expect(await s.feedCount()).toBe(2);
+      });
+      t("renameFeed: a taken or removed name is FeedNameTakenError and changes nothing; a missing feed is NotFoundError", async ({ storage: s }) => {
+        await s.writeNote("f", "a", "md", "text", {}, 5);
+        await s.createFeed("g", "gid-123");
+        await expect(s.renameFeed("f", "g")).rejects.toBeInstanceOf(FeedNameTakenError);
+        await s.createFeed("gone", "gone-id-1");
+        await s.takedownFeed("gone", "gone-id-1");
+        await expect(s.renameFeed("f", "gone")).rejects.toBeInstanceOf(FeedNameTakenError);
+        expect(await s.feedReadId("f")).toBe("rid-f");
+        expect((await s.listNoteRefs("f")).map((r) => r.id)).toEqual(["a"]);
+        await expect(s.renameFeed("nope", "other")).rejects.toBeInstanceOf(NotFoundError);
+        await s.renameFeed("f", "f"); // the same name: nothing to do
+        expect(await s.feedReadId("f")).toBe("rid-f");
       });
       t("deleteFeed removes the notes, the hash and the settings, and frees the read id", async ({ storage: s }) => {
         await s.writeNote("f", "a", "md", "x", {}, 0);

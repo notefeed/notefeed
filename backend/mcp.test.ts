@@ -533,6 +533,21 @@ describe("gate on a locked instance", () => {
   });
 });
 
+// Renaming a feed (#350): update_feed with name answers the feed under its new name; the old name is gone.
+describe("rename", () => {
+  test("update_feed with name moves the feed and answers it under the new name", async () => {
+    const posted = (await call("post_note", { feed: "before", markdown: "# Kept" })).structuredContent;
+    const renamed = (await call("update_feed", { feed: "before", name: "after" })).structuredContent;
+    expect(renamed.name).toBe("after");
+    expect(renamed.read_url).toBe(posted.read_url);
+    expect((await call("get_note", { feed: "after", id: posted.id })).structuredContent.content).toBe("# Kept");
+    expect((await call("get_feed", { feed: "before" })).isError).toBe(true);
+    const taken = await call("update_feed", { feed: "after", name: "api" });
+    expect(taken.isError).toBe(true);
+    expect(taken.content[0].text).toContain("not available");
+  });
+});
+
 // Drafts (#265): post_note and post_file take draft, edit_note publishes or makes a draft again, lists mark them.
 describe("drafts", () => {
   test("post_note as a draft is marked in the reply, list_notes and get_note", async () => {

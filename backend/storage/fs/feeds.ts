@@ -113,6 +113,19 @@ export async function removeLeftovers(): Promise<void> {
   }
 }
 
+// Gives a feed's directory another name (#350), in one rename: the feed is under the old name or the new one, never half moved.
+// false = `to` is taken (a non-empty directory; an empty one is no feed and is claimed, as in createFeedDir). NotFoundError-free: a
+// missing `from` is ENOENT, for the caller.
+export async function renameFeedDir(from: string, to: string): Promise<boolean> {
+  try {
+    await rename(/*turbopackIgnore: true*/ feedDir(from), feedDir(to));
+    return true;
+  } catch (e) {
+    if (isErrno(e, "ENOTEMPTY") || isErrno(e, "EEXIST")) return false;
+    throw e;
+  }
+}
+
 // Replaces `.readid` in one rename, so a crash leaves the old id or the new one, never a half-written file.
 export async function writeReadId(feed: string, id: string): Promise<void> {
   const tmp = join(feedDir(feed), `.${randomBytes(6).toString("hex")}.tmp`);

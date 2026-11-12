@@ -114,6 +114,13 @@ export class ReadIdTakenError extends NotefeedError {
   }
 }
 
+/** A feed's new name (#350) belongs to another feed, was a feed the operator removed, or is kept back. Same code as a taken read id. */
+export class FeedNameTakenError extends NotefeedError {
+  constructor() {
+    super("taken", "that feed name is not available");
+  }
+}
+
 export class EmptyNoteError extends NotefeedError {
   constructor() {
     super("empty_note", "note is empty");

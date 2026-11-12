@@ -2,10 +2,10 @@
 // feeds, which answers "does it exist", "how many", "which feed has this read id" and "what is this feed's read id" in O(1).
 // A feed's read id is a random one stored in its `.readid`; feeds from before that have none and keep the id derived from
 // their name (HMAC with the server secret), so no existing read link changes.
-import { NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
+import { FeedNameTakenError, NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
 import { logger } from "../../log";
 import type { Storage } from "../types";
-import { appendBlocklist, appendTombstone, createFeedDir, deleteFeedDir, feedDirExists, listFeedDirs, readBlocklist, readReadId, readTombstones, removeLeftovers, writeReadId } from "./feeds";
+import { appendBlocklist, appendTombstone, createFeedDir, deleteFeedDir, feedDirExists, listFeedDirs, readBlocklist, readReadId, readTombstones, removeLeftovers, renameFeedDir, writeReadId } from "./feeds";
 import { isErrno } from "./fs";
 
 const log = logger("feeds");
@@ -22,7 +22,7 @@ export type FeedDeps = {
 // their files with the index and kept current by the methods that append to them.
 type Index = { dir: string; byReadId: Map<string, string>; byFeed: Map<string, string | null>; removed: Set<string>; removedIds: Set<string>; blocked: Set<string> };
 
-type FeedMethods = Pick<Storage, "createFeed" | "deleteFeed" | "forgetFeed" | "setReadId" | "feedReadId" | "feedForReadId" | "listFeeds" | "listFeedNames" | "feedCount" | "takedownFeed" | "isRemoved" | "blockImages" | "isBlockedImage">;
+type FeedMethods = Pick<Storage, "createFeed" | "deleteFeed" | "forgetFeed" | "setReadId" | "renameFeed" | "feedReadId" | "feedForReadId" | "listFeeds" | "listFeedNames" | "feedCount" | "takedownFeed" | "isRemoved" | "blockImages" | "isBlockedImage">;
 
 export function createFeedMethods(deps: FeedDeps, dataDir: () => string): FeedMethods {
   // The index is read from disk once and then kept current by createFeed(), deleteFeed() and forgetFeed(), the only code that
@@ -169,6 +169,30 @@ export function createFeedMethods(deps: FeedDeps, dataDir: () => string): FeedMe
         }
         if (old !== null && idx.byReadId.get(old) === feed) idx.byReadId.delete(old);
         idx.byFeed.set(feed, readId);
+      });
+      changing = run.catch(() => {});
+      return run;
+    },
+
+    // In the same queue as setReadId, so a rename and a read id change never cross. The read id is written to `.readid` first: a feed
+    // from before `.readid` derives its id from its name, which would change its read link. A post to the old name that was under way
+    // finds the directory gone (FeedGoneError) and, like a post after a delete, makes a new feed under the old name.
+    renameFeed(feed, to) {
+      const run = changing.then(async () => {
+        const idx = await index();
+        const id = idx.byFeed.get(feed);
+        if (id === undefined) throw new NotFoundError("no such feed");
+        if (to === feed) return;
+        if (idx.byFeed.has(to) || idx.removed.has(to)) throw new FeedNameTakenError();
+        try {
+          if (id !== null) await writeReadId(feed, id);
+          if (!(await renameFeedDir(feed, to))) throw new FeedNameTakenError();
+        } catch (e) {
+          throw isErrno(e, "ENOENT") ? new NotFoundError("no such feed") : e;
+        }
+        idx.byFeed.delete(feed);
+        idx.byFeed.set(to, id);
+        if (id !== null && idx.byReadId.get(id) === feed) idx.byReadId.set(id, to);
       });
       changing = run.catch(() => {});
       return run;

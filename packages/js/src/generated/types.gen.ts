@@ -330,6 +330,10 @@ export type FeedSettings = {
      * A new read id (3 to 64 characters: a-z, 0-9, - and _), empty for a random one; omitted leaves it as it is. The old read link stops showing this feed, and may later show another one. Notes are not edited: a relative image link (`![](file)`) follows the new id, a full URL keeps the old one and is yours to change. Reserved feeds keep theirs. 409 when it is taken
      */
     read_id?: string;
+    /**
+     * A new name for the feed (1 to 64 characters: a-z, 0-9, - and _); omitted, empty or the current one leaves it as it is. Everything goes with it: notes, files, settings, password, license and read link. The old name stops working at once and is free: a post to it later creates a new feed. Scripts, MCP clients and browsers must use the new name (a browser that unlocked the feed unlocks it again). A short name is guessable: protect the feed with a password if that matters. Reserved feeds keep theirs. 409 when it is taken
+     */
+    name?: string;
 };
 
 export type FreeTier = {
@@ -1078,7 +1082,7 @@ export type UpdateFeedErrors = {
      */
     404: Error;
     /**
-     * The read id belongs to another feed or is held back for a reserved one
+     * The read id or the new name belongs to another feed, or is held back
      */
     409: Error;
     /**
