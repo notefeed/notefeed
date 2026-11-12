@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Judge every change against `docs/values.md` (V1–V13) and cite the point it touches; changing that page needs my approval.
 - The roadmap is `docs/roadmap.yml` (rendered on `docs/roadmap.md`): the pull request that finishes or changes a step updates it.
 - API first and AI-native (V11): everything the web UI can do is also in the REST API, both client packages and the MCP server, and the MCP tools matter most. A feature only the UI has is a gap.
-- Use the words in `CONTEXT.md`, not its _Avoid_ ones.
+- Use the words in `GLOSSARY.md`, not its _Avoid_ ones.
 
 ## Production (notefeed.me)
 
@@ -55,4 +55,4 @@ The five default triage labels, unchanged. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` at the repo root and ADRs in `docs/adr/`. See `docs/agents/domain.md`.
+Single-context: `GLOSSARY.md` at the repo root and ADRs in `docs/adr/`. See `docs/agents/domain.md`.
