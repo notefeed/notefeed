@@ -11,7 +11,7 @@ A named collection of notes, created by its first note.
 _Avoid_: Channel, topic, board
 
 **Feed name**:
-The fixed name of a feed, and the secret that grants reading and posting. It never changes.
+The name of a feed, and the secret that grants reading and posting. It can be changed (a rename, ADR 0054); the old name is freed.
 _Avoid_: Feed id, slug, key
 
 **Read id**:

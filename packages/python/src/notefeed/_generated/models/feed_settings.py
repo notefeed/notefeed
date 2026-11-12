@@ -26,6 +26,12 @@ class FeedSettings:
             leaves it as it is. The old read link stops showing this feed, and may later show another one. Notes are not
             edited: a relative image link (`![](file)`) follows the new id, a full URL keeps the old one and is yours to
             change. Reserved feeds keep theirs. 409 when it is taken
+        name (str | Unset): A new name for the feed (1 to 64 characters: a-z, 0-9, - and _); omitted, empty or the
+            current one leaves it as it is. Everything goes with it: notes, files, settings, password, license and read
+            link. The old name stops working at once and is free: a post to it later creates a new feed, without an error.
+            Change NOTEFEED_FEED, CI secrets, scripts and MCP configurations before they next run (a browser that unlocked
+            the feed unlocks it again). A short name is guessable: protect the feed with a password if that matters.
+            Reserved feeds keep theirs. 409 when it is taken
     """
 
     title: str
@@ -33,6 +39,7 @@ class FeedSettings:
     image: str | Unset = UNSET
     show_sender: bool | Unset = UNSET
     read_id: str | Unset = UNSET
+    name: str | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         title = self.title
@@ -44,6 +51,8 @@ class FeedSettings:
         show_sender = self.show_sender
 
         read_id = self.read_id
+
+        name = self.name
 
         field_dict: dict[str, Any] = {}
 
@@ -59,6 +68,8 @@ class FeedSettings:
             field_dict["show_sender"] = show_sender
         if read_id is not UNSET:
             field_dict["read_id"] = read_id
+        if name is not UNSET:
+            field_dict["name"] = name
 
         return field_dict
 
@@ -75,12 +86,15 @@ class FeedSettings:
 
         read_id = d.pop("read_id", UNSET)
 
+        name = d.pop("name", UNSET)
+
         feed_settings = cls(
             title=title,
             description=description,
             image=image,
             show_sender=show_sender,
             read_id=read_id,
+            name=name,
         )
 
         return feed_settings

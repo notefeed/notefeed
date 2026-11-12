@@ -21,6 +21,8 @@ export type Keyring = {
   feedKey(row: { name: string; data_key: string | null; key_id: string | null }): Promise<Buffer>;
   /** A data key for the feed with this fingerprint. */
   newFeedKey(name: string): Promise<{ key: Buffer; data_key: string; key_id: string }>;
+  /** The feed's data key, wrapped again for the fingerprint `to`: a renamed feed (#350) keeps its key, bound to its new name. */
+  moveFeedKey(row: { name: string; data_key: string | null; key_id: string | null }, to: string): Promise<{ key: Buffer; data_key: string; key_id: string }>;
 };
 
 /** A database this main key cannot open. Its message is safe to show: it names no secret. */
@@ -163,6 +165,10 @@ export async function openKeyring(db: Kysely<Schema>, kind: Kind, wrapper: KeyWr
       cache.set(r.data_key!, p);
       p.catch(() => cache.delete(r.data_key!));
       return p;
+    },
+    async moveFeedKey(r, to) {
+      const key = await wrapper.unwrap(r.data_key!, r.key_id!, `feed:${r.name}`);
+      return { key, data_key: await wrapper.wrap(key, `feed:${to}`), key_id: wrapper.keyId };
     },
     async newFeedKey(name) {
       const key = newDataKey();

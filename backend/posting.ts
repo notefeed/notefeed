@@ -3,12 +3,12 @@
 import { config } from "./config";
 import { applyImages, type ImagePlan } from "../shared/imagePlan.mjs";
 import { isAttachmentName, MAX_ATTACHMENTS, safeName } from "../shared/links";
-import { AuthError, BlockedImageError, FeedExistsError, FeedLimitError, ImageLimitError, ImagesOffError, ImageTooLargeError, InvalidBodyError, NotefeedError, NoteLimitError, NotFoundError, LicenseRequiredError, RateLimitedError, RemovedFeedError, ReservedFeedError, TitleImageDraftError, UnsupportedTypeError } from "./errors";
+import { AuthError, BlockedImageError, FeedExistsError, FeedNameTakenError, FeedLimitError, ImageLimitError, ImagesOffError, ImageTooLargeError, InvalidBodyError, NotefeedError, NoteLimitError, NotFoundError, LicenseRequiredError, RateLimitedError, RemovedFeedError, ReservedFeedError, TitleImageDraftError, UnsupportedTypeError } from "./errors";
 import { type FeedAccess, checkFeedAccess, checkNewPassword, createProtected } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
-import { assertFeed, createOpenFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, setReadId } from "./feeds";
+import { assertFeed, createOpenFeed, deleteFeed as removeWholeFeed, feedCount, hasFeed, isHeldBack, isRemovedFeed, readIdOf, renameFeed, setReadId } from "./feeds";
 import { attachLicense, checkLicenseKey, countingKeys, detachLicense } from "./licenseflow";
-import { hasActiveLicense, licensingOn, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
+import { hasActiveLicense, licensingOn, moveLicense, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
 import { isBlockedImage } from "./takedown";
 import { processImage } from "./imageprocess";
 import type { ImageType } from "../shared/images";
@@ -279,7 +279,8 @@ export async function deleteNote(feed: string, id: string, ip: string, access: F
 
 // Settings and deletion of a whole feed: the same gate as posting, then the feed must exist. An open feed is
 // changed by anyone who knows its name, as it is posted to (ADR 0001); a protected one needs its password.
-export async function updateFeed(feed: string, ip: string, read: () => Promise<unknown>, access: FeedAccess): Promise<FeedSettings> {
+// `name` (#350) renames the feed, last, after everything else is saved under the old name; the answer's `feed` is the name it has now.
+export async function updateFeed(feed: string, ip: string, read: () => Promise<unknown>, access: FeedAccess): Promise<FeedSettings & { feed: string }> {
   await admit(feed, ip, access);
   const given = checkSettings(await read()); // after admit: a refused request never has its body read
   if (!(await hasFeed(feed))) throw new NotFoundError("no such feed");
@@ -287,7 +288,9 @@ export async function updateFeed(feed: string, ip: string, read: () => Promise<u
   // A draft picture would show readers what they must not see (#265).
   if (given.image && (!(await hasImageNote(feed, given.image)) || (await getNote(feed, given.image.split(".")[0]))?.draft)) throw new InvalidBodyError("image must be empty or the file of an image note of this feed that is not a draft");
   const stored = await getStoredSettings(feed);
-  const { readId, ...rest } = given;
+  const { readId, name, ...rest } = given;
+  const newName = name === undefined || name === "" || name === feed ? undefined : name; // the page sends the current one back: no change
+  if (newName !== undefined) await checkRename(feed, newName); // first, so a refused name saves nothing
   const newId = readId === undefined || readId === (await readIdOf(feed)) ? undefined : readId; // the page sends the current one back: no change
   if (newId !== undefined && isHeldBack(feed)) throw new InvalidBodyError("a reserved feed keeps its read id");
   // First, so a read id that is refused (taken, badly formed, not allowed) saves nothing.
@@ -297,7 +300,35 @@ export async function updateFeed(feed: string, ip: string, read: () => Promise<u
   const checked = { ...rest, image, showSender: given.showSender ?? stored.showSender, ...(ownImage && { ownImage }) };
   await saveSettings(feed, checked);
   if (stored.ownImage && stored.image && stored.image !== image) await removeOwnImage(feed, stored.image);
-  return checked;
+  if (newName !== undefined) await renameWithLicense(feed, newName);
+  return { ...checked, feed: newName ?? feed };
+}
+
+// What renameFeed would refuse, asked before anything is saved: a bad, reserved or taken name.
+async function checkRename(feed: string, to: string): Promise<void> {
+  if (isHeldBack(feed)) throw new InvalidBodyError("a reserved feed keeps its name");
+  assertNewName(to);
+  if (await hasFeed(to)) throw new FeedNameTakenError();
+}
+
+function assertNewName(to: string): void {
+  try {
+    assertFeed(to);
+  } catch (e) {
+    if (e instanceof ReservedFeedError) throw new FeedNameTakenError();
+    throw new InvalidBodyError("name must be 1 to 64 characters: a-z, 0-9, - and _");
+  }
+}
+
+// The feed's license goes with it. Should moving it fail, the feed gets its old name back, so a license is never left on a name no feed has.
+async function renameWithLicense(feed: string, to: string): Promise<void> {
+  await renameFeed(feed, to);
+  try {
+    await moveLicense(feed, to);
+  } catch (e) {
+    await renameFeed(to, feed).catch((err) => log.error({ err }, "a renamed feed could not get its old name back after its license failed to move"));
+    throw e;
+  }
 }
 
 // The feed's own title image (#310): uploaded as the title image, it is stored as an image note but marked in the settings, so it is

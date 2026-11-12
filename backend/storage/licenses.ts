@@ -33,6 +33,8 @@ export interface LicenseStore {
   attach(keyHash: string, feed: string): Promise<AttachResult>;
   /** Takes the license off the feed. False when the feed had none. */
   detach(feed: string): Promise<boolean>;
+  /** The license of the feed `from` goes with it to its new name `to` (#350). False when `from` had none. */
+  moveFeed(from: string, to: string): Promise<boolean>;
   /** The webhook's changes. False when no license has this reference. */
   update(providerRef: string, patch: { status?: LicenseStatus; validUntil?: number | null }): Promise<boolean>;
   counts(now?: number): Promise<LicenseCounts>;

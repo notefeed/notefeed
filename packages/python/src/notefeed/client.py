@@ -351,16 +351,24 @@ class Client:
         feed_password: str | None = None,
         image: str | None = None,
         read_id: str | None = None,
+        name: str | None = None,
     ) -> Feed:
-        """Replace the feed's title and description (both; an empty string clears one). `image` sets the title image (a file name from upload_image), "" clears it, None keeps it. `read_id` gives the feed another read id (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; "" for a random one; None keeps it); the old one is freed, and relative image links in notes follow while full URLs do not. The feed must already exist. Same options as post()."""
+        """Replace the feed's title and description (both; an empty string clears one). `image` sets the title image (a file name from upload_image), "" clears it, None keeps it. `read_id` gives the feed another read id (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; "" for a random one; None keeps it); the old one is freed, and relative image links in notes follow while full URLs do not. `name` renames the feed (1 to 64 characters of `a-z`, `0-9`, `-`, `_`): everything goes with it and the old name stops working at once; when it was this client's own feed, the client uses the new name for the rest of this run; change NOTEFEED_FEED (or wherever the name is configured) before the next one. The feed must already exist. Same options as post()."""
+        if name:
+            _check_feed(name)
         settings = FeedSettings(
             title=title,
             description=description,
             image=UNSET if image is None else image,
             read_id=UNSET if read_id is None else read_id,
+            name=UNSET if name is None else name,
         )
-        kwargs = update_feed._get_kwargs(feed=self._feed_for(feed), body=settings, x_feed_password=self._fp(feed_password))
-        return self._parse(Feed, self._call(kwargs))
+        target = self._feed_for(feed)
+        kwargs = update_feed._get_kwargs(feed=target, body=settings, x_feed_password=self._fp(feed_password))
+        updated = self._parse(Feed, self._call(kwargs))
+        if target == self.feed and updated.name != target:
+            self.feed = updated.name
+        return updated
 
     def attach_license(self, key: str, feed: str | None = None, feed_password: str | None = None) -> Feed:
         """Put the license the key names on the feed, taking it off the feed it was on; a feed needs no password for it. Only on an instance that sells licenses. Same options as post()."""

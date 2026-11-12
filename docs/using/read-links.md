@@ -38,7 +38,7 @@ curl -O "$NOTEFEED_URL/r/$READ_ID/post-to-notefeed.md"   # always the newest ver
 
 ## Choosing a feed's read id
 
-The feed's name never changes, but its read id can be chosen: 3 to 64 characters of `a-z`, `0-9`, `-` and `_`.
+A feed's read id can be chosen (its name can change too, see [Renaming a feed](feeds.md#renaming-a-feed)): 3 to 64 characters of `a-z`, `0-9`, `-` and `_`.
 
 - **At creation:** send `X-Read-Id` with the post that creates the feed.
 - **Later:** `read_id` in the body of `PUT /api/v1/feeds/<feed>`, or the **Read id** field on the settings page. An empty value gives a new random one.

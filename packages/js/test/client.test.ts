@@ -234,6 +234,17 @@ describe("feed settings and deletion", () => {
     expect(server.requests[1].path).toBe("/api/v1/feeds/other");
     expect(server.requests[1].headers["x-feed-password"]).toBe("o");
   });
+  test("updateFeed with name renames, and the client's own feed follows (#350)", async () => {
+    const c = new Client({ url: server.url, feed: "inbox" });
+    server.reply(200, { ...FEED, name: "renamed" });
+    expect((await c.updateFeed({ title: "t", description: "d", name: "renamed" })).name).toBe("renamed");
+    expect(JSON.parse(server.requests[0].body.toString())).toEqual({ title: "t", description: "d", name: "renamed" });
+    expect(c.feed).toBe("renamed");
+    server.reply(200, { ...FEED, name: "other-new" });
+    await c.updateFeed({ title: "t", description: "d", name: "other-new" }, { feed: "other" });
+    expect(c.feed).toBe("renamed"); // another feed's rename leaves the client's own as it is
+    await expect(c.updateFeed({ title: "t", description: "d", name: "Bad Name" })).rejects.toBeInstanceOf(ConfigError);
+  });
   test("attachLicense PUTs the key, detachLicense DELETEs it; both return the feed", async () => {
     server.reply(200, FEED);
     server.reply(200, FEED);

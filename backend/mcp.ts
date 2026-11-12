@@ -245,13 +245,14 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "update_feed",
     {
-      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. license_key, only on an instance that sells licenses: puts that license on the feed (moving it from the feed it was on; no feed password needed), empty takes the feed's license off; it is applied first. new_password sets the feed's password: on a protected feed it changes it (password is the current one); an open feed takes it without one, which claims the feed (its name was all that protected it). From then on every call for the feed needs the new password; the read link stays open. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. name renames the feed, last: everything goes with it, the answer is the feed under its new name, and the old name stops working at once (a later post to it creates a new feed); a reserved feed keeps its name. license_key, only on an instance that sells licenses: puts that license on the feed (moving it from the feed it was on; no feed password needed), empty takes the feed's license off; it is applied first. new_password sets the feed's password: on a protected feed it changes it (password is the current one); an open feed takes it without one, which claims the feed (its name was all that protected it). From then on every call for the feed needs the new password; the read link stays open. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         title: z.string().optional(),
         description: z.string().optional(),
         image: z.string().optional(),
         read_id: z.string().optional(),
+        name: z.string().optional().describe("A new name for the feed (1 to 64 characters of a-z, 0-9, - and _). Everything goes with it; the old name stops working at once, so use the new one in every later call and tell the user to change it wherever it is configured (NOTEFEED_FEED, CI secrets, scripts, MCP configurations) before those next run: a post to the old name creates a new, empty feed without an error."),
         license_key: z.string().optional().describe("A license key to put on the feed; empty takes its license off. A wrong key counts as a failed attempt, like a wrong password."),
         new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end."),
         password,
@@ -259,9 +260,9 @@ function server(h: Headers): McpServer {
       outputSchema: FeedOut,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, title, description, image, read_id, license_key, new_password, password }) => {
-      const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined;
-      if (!settings && license_key === undefined && new_password === undefined) throw new InvalidBodyError("nothing to change: send title, description, image, read_id, license_key, new_password or several");
+    guard(async ({ feed, title, description, image, read_id, name, license_key, new_password, password }) => {
+      const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined || name !== undefined;
+      if (!settings && license_key === undefined && new_password === undefined) throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, license_key, new_password or several");
       const ip = clientIp(h);
       // First, so a key that is refused changes nothing else (#247); the license may be what the new password needs.
       if (license_key !== undefined) await setLicense(feed, ip, license_key.trim() === "" ? null : license_key, { password });
@@ -271,13 +272,16 @@ function server(h: Headers): McpServer {
       }
       // From here on the feed's password is the new one.
       const access = { password: new_password ?? password };
+      let now = feed;
       if (settings) {
-        await updateFeed(feed, ip, async () => {
-          const stored = await getStoredSettings(feed); // after the password check: what is left out stays
-          return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id };
-        }, access);
+        now = (
+          await updateFeed(feed, ip, async () => {
+            const stored = await getStoredSettings(feed); // after the password check: what is left out stays
+            return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id, name };
+          }, access)
+        ).feed;
       }
-      return ok(await feedJson(feed, h));
+      return ok(await feedJson(now, h));
     }),
   );
 

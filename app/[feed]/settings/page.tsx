@@ -68,6 +68,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         readId={readId}
         readIdChoice={isReservedFeed(feed) ? "fixed" : customIdsOn() ? "custom" : "random"}
         identity={identityOn()}
+        renamable={!isReservedFeed(feed)}
         error={detailsError ? feedDetailsErrorMessage(error, retry) : undefined}
         sharing={
           <>

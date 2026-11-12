@@ -572,6 +572,19 @@ def test_per_call_feed_and_password_win_and_a_refused_file_maps_to_the_usual_err
         with pytest.raises(cls):
             Client(server.url, "inbox").post(b"x", type="image/png")
 
+def test_update_feed_with_name_renames_and_the_clients_feed_follows(server):
+    c = Client(server.url, "inbox")
+    server.reply(200, {**FEED, "name": "renamed"})
+    assert c.update_feed("t", "d", name="renamed").name == "renamed"
+    assert json.loads(server.requests[0]["body"]) == {"title": "t", "description": "d", "name": "renamed"}
+    assert c.feed == "renamed"
+    server.reply(200, {**FEED, "name": "other-new"})
+    c.update_feed("t", "d", feed="other", name="other-new")
+    assert c.feed == "renamed"  # another feed's rename leaves the client's own as it is
+    with pytest.raises(ConfigError):
+        c.update_feed("t", "d", name="Bad Name")
+
+
 def test_update_feed_sends_image_only_when_given(server):
     c = Client(server.url, "inbox")
     for kw in ({"image": "a.png"}, {"image": ""}, {}):

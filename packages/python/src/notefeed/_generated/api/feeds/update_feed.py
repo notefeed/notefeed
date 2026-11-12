@@ -110,9 +110,10 @@ def sync_detailed(
     guessable, so protect the feed with a password if that matters. An instance can turn chosen read ids
     off (NOTEFEED_ALLOW_CUSTOM_IDS=0): then only an empty `read_id` is accepted. `image` is the file
     name `uploadImage` returned for this feed (title image), empty to remove it, or omitted to leave it
-    as it is; any other value is a 400. Needs the feed's password if it has one, and counts against the
-    post rate limit. Only on a feed that exists: it is created by its first note. Read links can't
-    change settings.
+    as it is; any other value is a 400. `name` renames the feed (#350), after everything else is saved:
+    the answer is the feed under its new name, and the old name answers like any unused one from then
+    on. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed
+    that exists: it is created by its first note. Read links can't change settings.
 
     Args:
         feed (str):
@@ -158,9 +159,10 @@ def sync(
     guessable, so protect the feed with a password if that matters. An instance can turn chosen read ids
     off (NOTEFEED_ALLOW_CUSTOM_IDS=0): then only an empty `read_id` is accepted. `image` is the file
     name `uploadImage` returned for this feed (title image), empty to remove it, or omitted to leave it
-    as it is; any other value is a 400. Needs the feed's password if it has one, and counts against the
-    post rate limit. Only on a feed that exists: it is created by its first note. Read links can't
-    change settings.
+    as it is; any other value is a 400. `name` renames the feed (#350), after everything else is saved:
+    the answer is the feed under its new name, and the old name answers like any unused one from then
+    on. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed
+    that exists: it is created by its first note. Read links can't change settings.
 
     Args:
         feed (str):
@@ -201,9 +203,10 @@ async def asyncio_detailed(
     guessable, so protect the feed with a password if that matters. An instance can turn chosen read ids
     off (NOTEFEED_ALLOW_CUSTOM_IDS=0): then only an empty `read_id` is accepted. `image` is the file
     name `uploadImage` returned for this feed (title image), empty to remove it, or omitted to leave it
-    as it is; any other value is a 400. Needs the feed's password if it has one, and counts against the
-    post rate limit. Only on a feed that exists: it is created by its first note. Read links can't
-    change settings.
+    as it is; any other value is a 400. `name` renames the feed (#350), after everything else is saved:
+    the answer is the feed under its new name, and the old name answers like any unused one from then
+    on. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed
+    that exists: it is created by its first note. Read links can't change settings.
 
     Args:
         feed (str):
@@ -247,9 +250,10 @@ async def asyncio(
     guessable, so protect the feed with a password if that matters. An instance can turn chosen read ids
     off (NOTEFEED_ALLOW_CUSTOM_IDS=0): then only an empty `read_id` is accepted. `image` is the file
     name `uploadImage` returned for this feed (title image), empty to remove it, or omitted to leave it
-    as it is; any other value is a 400. Needs the feed's password if it has one, and counts against the
-    post rate limit. Only on a feed that exists: it is created by its first note. Read links can't
-    change settings.
+    as it is; any other value is a 400. `name` renames the feed (#350), after everything else is saved:
+    the answer is the feed under its new name, and the old name answers like any unused one from then
+    on. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed
+    that exists: it is created by its first note. Read links can't change settings.
 
     Args:
         feed (str):

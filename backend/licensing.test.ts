@@ -11,7 +11,7 @@ import { countingKeys, hashKey } from "./licenseflow";
 import { freeTier, isLicensed, licenses, licensingOn, releaseLicense, resetLicensesForTests } from "./licensing";
 import { countNotes, createImageNote, createNote, listNotes } from "./notes";
 import { storage } from "./storage";
-import { createFeed, deleteFeed, postNote, postWithPictures, setLicense } from "./posting";
+import { createFeed, deleteFeed, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
 import { png as pngOf } from "./testimages";
 
 // better-sqlite3 and kysely need Node 22 (the project's version); on an older Node the SQL tests are skipped.
@@ -163,6 +163,17 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       expect(await isLicensed("pics")).toBe(true);
       expect(await isLicensed("new")).toBe(false);
       expect(await countNotes("pics", "image")).toBe(1);
+    });
+
+    test("a renamed feed keeps its license; the old name has none (#350)", async () => {
+      await licenses().createLicense({ keyHash: hashKey(KEY), providerRef: "sub_1", validUntil: null });
+      await text("old-name", "hi", "Passw0rd!x", KEY);
+      expect(await isLicensed("old-name")).toBe(true);
+      await updateFeed("old-name", "ip", async () => ({ title: "", description: "", name: "new-name" }), { password: "Passw0rd!x" });
+      expect(await isLicensed("new-name")).toBe(true);
+      expect(await isLicensed("old-name")).toBe(false);
+      expect(await protectedFeed("new-name")).toBe(true);
+      expect(await countNotes("new-name", "markdown")).toBe(1);
     });
 
     test("a key that is none, or of a lapsed license, creates nothing, with a password or without", async () => {

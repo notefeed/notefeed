@@ -43,7 +43,7 @@ test("title and description show on the feed page, the read-only view and in the
 test("a refused title says why, on the settings page", async ({ page }) => {
   const name = feedName();
   await post(page, name);
-  const refusal = "The title, description or read id is too long or too short, or has characters that aren't allowed.";
+  const refusal = "The title, description, read id or name is too long or too short, or has characters that aren't allowed.";
   // With JavaScript: the API refuses a tab, and the form shows it.
   await page.getByRole("link", { name: "Settings" }).click();
   await page.getByLabel("Title", { exact: true }).fill("a\tb");
@@ -197,4 +197,43 @@ test("a large picture is capped in width and height", async ({ page, request }) 
   const box = (await inline.boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(640 + 1);
   expect(box.height).toBeLessThanOrEqual(900 * 0.8 + 1);
+});
+
+// #350: a rename from the settings page lands on the new name's settings; the notes and the read link go along, the old name is free.
+test("a feed is renamed on its settings page and keeps its notes and read link", async ({ page }) => {
+  const name = feedName();
+  await post(page, name, "# Moving note");
+  const readHref = await page.getByRole("link", { name: "Open read-only view" }).getAttribute("href");
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Rename this feed" }).click();
+  const button = page.getByRole("button", { name: "Rename feed" });
+  await page.getByLabel("New name").fill(name);
+  await expect(button).toBeDisabled(); // the current name is no rename
+  const to = `${name}-new`;
+  await page.getByLabel("New name").fill(to);
+  await button.click();
+  await expect(page).toHaveURL(new RegExp(`/${to}/settings\\?saved=1$`));
+  await page.getByRole("link", { name: "Back to the feed" }).click();
+  await expect(page.getByRole("link", { name: "Moving note" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open read-only view" })).toHaveAttribute("href", readHref!);
+  await page.goto(`/${name}`);
+  await expect(page.getByText("No notes yet.")).toBeVisible();
+});
+
+test("a taken name is refused on the settings page, and without JavaScript a rename still works", async ({ page, browser, baseURL }: { page: Page; browser: Browser; baseURL?: string }) => {
+  const [mine, theirs] = [feedName(), feedName()];
+  await post(page, theirs);
+  await post(page, mine);
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.locator("summary", { hasText: "Rename this feed" }).click();
+  await page.getByLabel("New name").fill(theirs);
+  await page.getByRole("button", { name: "Rename feed" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "taken" })).toBeVisible();
+
+  const plain = await (await browser.newContext({ baseURL, javaScriptEnabled: false })).newPage();
+  await plain.goto(`/${mine}/settings`);
+  await plain.locator("summary", { hasText: "Rename this feed" }).click();
+  await plain.getByLabel("New name").fill(`${mine}-plain`);
+  await plain.getByRole("button", { name: "Rename feed" }).click();
+  await expect(plain).toHaveURL(new RegExp(`/${mine}-plain/settings\\?saved=1$`));
 });

@@ -188,6 +188,15 @@ export function createLicenseDb(file: string, wrapper: KeyWrapper | null = null)
       const r = await db.updateTable("licenses").set({ feed: null, feed_sealed: null }).where("feed", "=", ident("feed", feed)).executeTakeFirst();
       return Number(r.numUpdatedRows) > 0;
     },
+    async moveFeed(from, to) {
+      const db = await open();
+      // Encrypted, the sealed feed is bound to the license's id, so the row is found first.
+      const row = await db.selectFrom("licenses").select("id").where("feed", "=", ident("feed", from)).executeTakeFirst();
+      if (!row) return false;
+      const set = keys ? { feed: ident("feed", to), feed_sealed: sealText(keys.data, to, `license:${row.id}:feed`) } : { feed: to };
+      const r = await db.updateTable("licenses").set(set).where("id", "=", row.id).executeTakeFirst();
+      return Number(r.numUpdatedRows) > 0;
+    },
     async update(providerRef, patch) {
       const set: { status?: LicenseStatus; valid_until?: number | null } = {};
       if (patch.status !== undefined) set.status = patch.status;
