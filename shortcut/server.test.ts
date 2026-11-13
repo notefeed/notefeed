@@ -20,18 +20,21 @@ beforeEach(async () => {
 });
 
 type Picture = { picture: Uint8Array; name: string };
+/** A note shared from Notes: text, which "Get Images" would make into a picture of itself. */
+type RichText = { rich: string };
 /** A page shared from Safari: its text is the whole page, its URL the address. */
 type Page = { page: string; url: string };
-type Item = string | Picture | Page;
+type Item = string | Picture | Page | RichText;
 type Value = undefined | string | Picture | Item[] | Record<string, unknown>;
 type Action = { WFWorkflowActionIdentifier: string; WFWorkflowActionParameters: Record<string, unknown> };
 type Ref = { Type: string; OutputUUID?: string; VariableName?: string };
 
 const isPicture = (v: unknown): v is Picture => typeof v === "object" && v !== null && "picture" in v;
 const isPage = (v: unknown): v is Page => typeof v === "object" && v !== null && "page" in v;
+const isRich = (v: unknown): v is RichText => typeof v === "object" && v !== null && "rich" in v;
 const hasValue = (v: Value) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
 const asText = (v: Value): string =>
-  Array.isArray(v) ? v.map((i) => asText(i)).join("\n") : isPicture(v) ? v.name : isPage(v) ? v.page : typeof v === "string" ? v : "";
+  Array.isArray(v) ? v.map((i) => asText(i)).join("\n") : isPicture(v) ? v.name : isPage(v) ? v.page : isRich(v) ? v.rich : typeof v === "string" ? v : "";
 
 const host = "http://localhost:3000";
 /** Share `items` with the imported Shortcut (`answers` to its four questions); what it opened and showed. */
@@ -80,7 +83,13 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
         const { 1: otherwise, 2: end } = marks[g];
         const subject = arg((p.WFInput as { Variable: unknown }).Variable);
         const yes =
-          p.WFCondition === 100 ? hasValue(subject) : p.WFCondition === 99 ? asText(subject).includes(asText(arg(p.WFConditionalActionString))) : fail(p.WFCondition);
+          p.WFCondition === 100
+            ? hasValue(subject)
+            : p.WFCondition === 99
+              ? asText(subject).includes(asText(arg(p.WFConditionalActionString)))
+              : p.WFCondition === 4
+                ? asText(subject) === asText(arg(p.WFConditionalActionString))
+                : fail(p.WFCondition);
         const result = yes ? await run(i + 1, otherwise ?? end) : otherwise !== undefined ? await run(otherwise + 1, end) : undefined;
         if (result === "exit") return "exit";
         i = end;
@@ -104,16 +113,16 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       else if (id === "detect.images") {
         const v = arg(p.WFInput);
         const list: unknown[] = Array.isArray(v) ? v : [v];
-        out[uuid] = list.filter(isPicture);
+        // As on iOS: a rich text can be made into a picture of itself.
+        out[uuid] = list.flatMap((i) => (isPicture(i) ? [i] : isRich(i) ? [photo(i.rich.split("\n")[0])] : []));
       } else if (id === "detect.text") out[uuid] = asText(arg(p.WFInput));
       else if (id === "detect.link") {
         const v = arg(p.WFInput);
         out[uuid] = isPage(v) ? [v.url] : (asText(v).match(/https?:\/\/\S+/g) ?? []);
       } else if (id === "getitemtype") {
         const v = arg(p.WFInput);
-        out[uuid] = isPicture(v) ? "Image" : isPage(v) ? "Safari web page" : "Text";
-      } else if (id === "properties.files") out[uuid] = isPicture(arg(p.WFFolder)) ? "jpeg" : "";
-      else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
+        out[uuid] = isPicture(v) ? "Bild" : isPage(v) ? "Safari-Webseite" : "Text"; // in the phone's language
+      } else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
       else if (id === "image.convert") {
         const v = arg(p.WFInput);
         out[uuid] = Array.isArray(v) ? v[0] : v;
@@ -133,8 +142,7 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
     }
   };
   await run(0, actions.length);
-  // The temporary debug alerts (#334) are no answer.
-  return { opened, shown: shown.filter((m) => !m.startsWith("Debug, ")), debug: shown.filter((m) => m.startsWith("Debug, ")) };
+  return { opened, shown };
 }
 
 function fail(condition: unknown): never {
@@ -189,9 +197,11 @@ test("a page shared from Safari is its address, not the page's text; a text with
   expect((await notes())[0].content).toBe("Read this: https://example.com/a and https://example.com/b");
 });
 
-test("the temporary debug alert names each item's type, extension and text", async () => {
-  const { debug } = await share([photo("IMG_0001"), "Hi"]);
-  expect(debug).toEqual(["Debug, item: type [Image] extension [jpeg] text [IMG_0001]", "Debug, item: type [Text] extension [] text [Hi]"]);
+test("a note shared from Notes is its text, and its photo a picture: not a picture of the text", async () => {
+  await share([{ rich: "Einkauf\nSchienen 150cm\nMoosgummi" }, photo("Einkauf")]);
+  const all = await notes();
+  expect(all.filter((n) => n.type === "image/jpeg")).toHaveLength(1);
+  expect(all.find((n) => n.type === "text/markdown")!.content).toMatch(/^Einkauf\nSchienen 150cm\nMoosgummi\n\n!\[\]\([\w-]+\.jpg\)$/);
 });
 
 test("a link alone is a note of its own; nothing shared says so", async () => {

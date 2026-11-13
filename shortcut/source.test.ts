@@ -101,6 +101,11 @@ test("Add to Variable gets a variable, never a text with a variable in it (iOS a
   for (const p of params("appendvariable")) expect(p.WFInput).toMatchObject({ WFSerializationType: "WFTextTokenAttachment" });
 });
 
+test("no two actions share an id (the text branch is written twice)", () => {
+  const ids = sc.WFWorkflowActions.map((a) => a.WFWorkflowActionParameters.UUID).filter(Boolean);
+  expect(new Set(ids).size).toBe(ids.length);
+});
+
 test("it builds into a property list that reads back the same", () => {
   expect(parse(shortcutXml())).toEqual(sc);
 });

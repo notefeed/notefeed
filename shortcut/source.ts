@@ -43,9 +43,10 @@ const LINKS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51C";
 const FIRST_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51D";
 const HAS_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51E";
 const TEXT_HAS_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51F";
-const DEBUG_TYPE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A520";
-const DEBUG_EXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A521";
-const DEBUG_TEXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A522";
+const A_TEXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A520";
+const TEXT_TYPE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A521";
+const ITEM_TYPE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A522";
+const IS_TEXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A523";
 // Pictures holds ![](file) for each picture stored, Texts the text items, Problems a line for each picture refused.
 const PICTURES = "Pictures";
 const TEXTS = "Texts";
@@ -76,9 +77,9 @@ const action = (id: string, params: Record<string, unknown>) => ({ WFWorkflowAct
 /** "If `a` has any value" (mode 0), "Otherwise" (1) and "End If" (2) of one block. */
 const ifHasValue = (group: string, a: Attachment) =>
   action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 100, WFInput: { Type: "Variable", Variable: value(a) } });
-/** "If `a` contains `b`" (condition 99), as text. */
-const ifContains = (group: string, a: Attachment, b: Attachment) =>
-  action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 99, WFInput: { Type: "Variable", Variable: value(a) }, WFConditionalActionString: text("￼", b) });
+/** "If `a` contains `b`" (condition 99) and "If `a` is `b`" (4), as text. */
+const ifText = (condition: 4 | 99, group: string, a: Attachment, b: Attachment) =>
+  action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: condition, WFInput: { Type: "Variable", Variable: value(a) }, WFConditionalActionString: text("￼", b) });
 const otherwise = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 1 });
 const endIf = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 2 });
 
@@ -137,6 +138,27 @@ function cleaned(from: string, name: string, ...steps: Step[]) {
   return actions;
 }
 
+// An item that is text goes into Texts. A page shared from Safari is a "Safari web page", whose text is the whole page: then its
+// address is the note's text. Text that has the address in it (a URL alone, a note with a link) stays as it is. Written twice
+// (for an item of type Text and for one that has no picture), so `n` keeps the two copies' ids apart.
+const textItem = (n: 0 | 1) => {
+  const [t, links, first, hasLink, textHasLink] = [TEXT, LINKS, FIRST_LINK, HAS_LINK, TEXT_HAS_LINK].map((u) => (n === 0 ? u : `${u.slice(0, -4)}B${u.slice(-3)}`));
+  return [
+    action("detect.text", { UUID: t, WFInput: value(variable("Repeat Item")) }),
+    action("detect.link", { UUID: links, WFInput: value(variable("Repeat Item")) }),
+    action("getitemfromlist", { UUID: first, WFInput: value(output(links, "URLs")), WFItemSpecifier: "First Item" }),
+    ifHasValue(hasLink, output(first, "Item from List")),
+    ifText(99, textHasLink, output(t, "Text"), output(first, "Item from List")),
+    action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(t, "Text")) }),
+    otherwise(textHasLink),
+    action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(first, "Item from List")) }),
+    endIf(textHasLink),
+    otherwise(hasLink),
+    action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(t, "Text")) }),
+    endIf(hasLink),
+  ];
+};
+
 /** The Shortcut as the dictionary its file holds. */
 export function shortcutPlist(): Record<string, unknown> {
   cleanups = 0;
@@ -167,17 +189,18 @@ export function shortcutPlist(): Record<string, unknown> {
       ...cleaned(FEED, FEED_VAR, ["trim"], ["lowercase"]),
       ...cleaned(PASSWORD, PASSWORD_VAR, ["trim"]),
       ...cleaned(INSTANCE, INSTANCE_VAR, ["trim"]),
-      // Each item shared: a picture is posted on its own, as JPEG without its metadata (the server strips and shrinks it again anyway);
-      // stored, it goes into Pictures as ![](file), refused, into Problems with the server's reason. Anything else is text (a link
-      // becomes its address; a picture's text would be its file name, so pictures give none).
+      // The type of a text, in the phone's language ("Text"; "Get Type" names types in it, so no fixed word is compared).
+      action("gettext", { UUID: A_TEXT, WFTextActionText: "notefeed" }),
+      action("getitemtype", { UUID: TEXT_TYPE, WFInput: value(output(A_TEXT, "Text")) }),
+      // Each item shared. A text is text, even though it can be made into a picture (a note shared from Notes became a picture of its
+      // text). Anything else with a picture in it is a picture: posted on its own, as JPEG without its metadata (the server strips
+      // and shrinks it again anyway); stored, it goes into Pictures as ![](file), refused, into Problems with the server's reason.
+      // The rest is text too (a picture's text would be its file name, so pictures give none).
       action("repeat.each", { UUID: EACH, GroupingIdentifier: EACH, WFControlFlowMode: 0, WFInput: value({ Type: "ExtensionInput" }) }),
-      // TEMPORARY (#334): what each shared item is, to tell a photo from a note shared from Notes or a page from Safari.
-      action("getitemtype", { UUID: DEBUG_TYPE, WFInput: value(variable("Repeat Item")) }),
-      action("properties.files", { UUID: DEBUG_EXT, WFFolder: value(variable("Repeat Item")), WFContentItemPropertyName: "File Extension" }),
-      action("detect.text", { UUID: DEBUG_TEXT, WFInput: value(variable("Repeat Item")) }),
-      action("showresult", {
-        Text: text("Debug, item: type [￼] extension [￼] text [￼]", output(DEBUG_TYPE, "Type"), output(DEBUG_EXT, "File Extension"), output(DEBUG_TEXT, "Text")),
-      }),
+      action("getitemtype", { UUID: ITEM_TYPE, WFInput: value(variable("Repeat Item")) }),
+      ifText(4, IS_TEXT, output(ITEM_TYPE, "Type"), output(TEXT_TYPE, "Type")),
+      ...textItem(0),
+      otherwise(IS_TEXT),
       action("detect.images", { UUID: IMAGES, WFInput: value(variable("Repeat Item")) }),
       ifHasValue(IS_PICTURE, output(IMAGES, "Images")),
       action("image.convert", { UUID: JPEG, WFInput: value(output(IMAGES, "Images")), WFImageFormat: "JPEG", WFImagePreserveMetadata: false }),
@@ -193,21 +216,9 @@ export function shortcutPlist(): Record<string, unknown> {
       action("appendvariable", { WFVariableName: PROBLEMS, WFInput: value(output(PROBLEM_LINE, "Text")) }),
       endIf(STORED),
       otherwise(IS_PICTURE),
-      // A page shared from Safari is a "Safari web page", whose text is the whole page: then its address is the note's text. Text
-      // that has the address in it (a URL alone, a note with a link) stays as it is.
-      action("detect.text", { UUID: TEXT, WFInput: value(variable("Repeat Item")) }),
-      action("detect.link", { UUID: LINKS, WFInput: value(variable("Repeat Item")) }),
-      action("getitemfromlist", { UUID: FIRST_LINK, WFInput: value(output(LINKS, "URLs")), WFItemSpecifier: "First Item" }),
-      ifHasValue(HAS_LINK, output(FIRST_LINK, "Item from List")),
-      ifContains(TEXT_HAS_LINK, output(TEXT, "Text"), output(FIRST_LINK, "Item from List")),
-      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(TEXT, "Text")) }),
-      otherwise(TEXT_HAS_LINK),
-      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(FIRST_LINK, "Item from List")) }),
-      endIf(TEXT_HAS_LINK),
-      otherwise(HAS_LINK),
-      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(TEXT, "Text")) }),
-      endIf(HAS_LINK),
+      ...textItem(1),
       endIf(IS_PICTURE),
+      endIf(IS_TEXT),
       action("repeat.each", { GroupingIdentifier: EACH, WFControlFlowMode: 2 }),
       // The note: the text, then the pictures that arrived, without the blank lines an empty part leaves.
       join(JOINED_TEXTS, TEXTS),
