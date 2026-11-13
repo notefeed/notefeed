@@ -1,4 +1,5 @@
 "use client";
+import { useCopy } from "@/components/CopyProvider";
 
 import { DoneIcon, ShareIcon } from "@/components/icons";
 import { useState } from "react";
@@ -7,6 +8,7 @@ import { copyText } from "@/components/copy";
 // Shares the feed's read link: the system share sheet where there is one (secure contexts only), else the link goes to
 // the clipboard.
 export function ShareButton({ url, title }: { url: string; title: string }) {
+  const t = useCopy().copyButton;
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   async function share() {
     if (navigator.share) {
@@ -27,7 +29,7 @@ export function ShareButton({ url, title }: { url: string; title: string }) {
       className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-surface-2 px-3 py-2 text-[14px] font-bold text-ink hover:bg-rule/60"
     >
       {state === "copied" ? <DoneIcon aria-hidden className="h-4 w-4" /> : <ShareIcon aria-hidden className="h-4 w-4" />}
-      <span aria-live="polite">{state === "copied" ? "Link copied" : state === "failed" ? "Copy failed" : "Share"}</span>
+      <span aria-live="polite">{state === "copied" ? t.linkCopied : state === "failed" ? t.failed : t.share}</span>
     </button>
   );
 }

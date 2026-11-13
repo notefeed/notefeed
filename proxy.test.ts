@@ -18,6 +18,10 @@ const req = (path: string, init: { method?: string; headers?: Record<string, str
   new NextRequest(`http://localhost:3000${path}`, { method: init.method, headers: { host: "localhost:3000", ...init.headers } });
 const rewrite = (res: Response) => res.headers.get("x-middleware-rewrite");
 const isNext = (res: Response) => res.headers.get("x-middleware-next") === "1";
+// Where a page went: the path of the rewrite, or null when there is none.
+const rewrittenTo = (res: Response) => (rewrite(res) ? new URL(rewrite(res)!).pathname : null);
+// Through the proxy: as it was (a route handler, a static file) or rewritten to its language (a page, #352).
+const passes = (res: Response) => isNext(res) || (rewrittenTo(res)?.startsWith("/en") ?? false);
 
 test("POST /<feed> is rewritten to the notes route", () => {
   expect(rewrite(proxy(req("/backups", { method: "POST" })))).toBe("http://localhost:3000/api/v1/feeds/backups/notes");
@@ -68,14 +72,55 @@ test("POST / (e.g. an empty feed variable) is a JSON 404, not the start page", a
   expect(proxy(req("/", { method: "POST" })).status).toBe(404);
 });
 
-test.each(["/a/b", "/backups//x"])("POST %s (not one segment) is not rewritten", (p) => {
-  expect(rewrite(proxy(req(p, { method: "POST" })))).toBeNull();
+test.each(["/a/b", "/backups//x"])("POST %s (not one segment) is not rewritten to the notes route, only to its language", (p) => {
+  expect(rewrittenTo(proxy(req(p, { method: "POST" })))).toBe(`/en${p}`);
 });
 
-test("GET /<feed> is not rewritten", () => {
-  const res = proxy(req("/backups"));
+test("GET /<feed> is rewritten to its language only", () => {
+  expect(rewrittenTo(proxy(req("/backups")))).toBe("/en/backups");
+});
+
+// #352: every page is rewritten to /<lang>/…, so no URL carries the language; route handlers and static files are left alone.
+test.each([
+  ["/", "/en"],
+  ["/backups", "/en/backups"],
+  ["/backups/settings", "/en/backups/settings"],
+  ["/backups/Qw8nR2dLm5XaTc1VbJ7kUe", "/en/backups/Qw8nR2dLm5XaTc1VbJ7kUe"],
+  ["/r/q2Zc9kD0bTnVx4LmAe7sWp", "/en/r/q2Zc9kD0bTnVx4LmAe7sWp"],
+  ["/r/q2Zc9kD0bTnVx4LmAe7sWp/Qw8nR2dLm5XaTc1VbJ7kUe", "/en/r/q2Zc9kD0bTnVx4LmAe7sWp/Qw8nR2dLm5XaTc1VbJ7kUe"],
+  ["/login?next=/x", "/en/login"],
+  ["/oauth/authorize", "/en/oauth/authorize"],
+  ["/en", "/en/en"], // a feed called en is a feed, never the language
+])("the page %s is rendered as %s", (p, to) => {
+  expect(rewrittenTo(proxy(req(p)))).toBe(to);
+});
+
+test.each([
+  "/api/v1/feeds/x/notes",
+  "/mcp",
+  "/metrics",
+  "/health",
+  "/logout",
+  "/oauth/token",
+  "/oauth/register",
+  "/.well-known/oauth-authorization-server",
+  "/r/q2Zc9kD0bTnVx4LmAe7sWp/feed.xml",
+  "/r/q2Zc9kD0bTnVx4LmAe7sWp/atom.xml",
+  "/r/q2Zc9kD0bTnVx4LmAe7sWp/files/a.png",
+  "/r/q2Zc9kD0bTnVx4LmAe7sWp/skill.md",
+  "/icon.svg",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/shortcuts/notefeed.shortcut",
+])("%s is no page: left as it is", (p) => {
+  const res = proxy(req(p));
   expect(rewrite(res)).toBeNull();
   expect(isNext(res)).toBe(true);
+});
+
+test("the language: the nf_lang cookie if the UI speaks it, else Accept-Language, else English", () => {
+  expect(rewrittenTo(proxy(req("/", { headers: { "accept-language": "fr, en;q=0.5" } })))).toBe("/en");
+  expect(rewrittenTo(proxy(req("/", { headers: { cookie: "nf_lang=xx", "accept-language": "xx" } })))).toBe("/en");
 });
 
 test("encoded traversal: %2e%2e normalizes to / (not rewritten); a%2Fb stays encoded for the handler to reject", () => {
@@ -106,19 +151,19 @@ test("locked: what was shared to the start page survives the sign-in", () => {
 
 test("locked: a valid session cookie passes", () => {
   process.env.NOTEFEED_PASSWORD = "pw";
-  expect(isNext(proxy(req("/backups", { headers: { cookie: `${SESSION_COOKIE}=${login("pw", "test")}` } })))).toBe(true);
+  expect(passes(proxy(req("/backups", { headers: { cookie: `${SESSION_COOKIE}=${login("pw", "test")}` } })))).toBe(true);
 });
 
 test("identity on: an identity cookie passes the lock; a forged one, or one when identity is off, does not", () => {
   vi.stubEnv("NOTEFEED_SECRET", "a".repeat(40));
   for (const [k, v] of Object.entries({ ISSUER: "https://idp.example", CLIENT_ID: "id", CLIENT_SECRET: "s", ALLOW: "*" })) vi.stubEnv(`NOTEFEED_OIDC_${k}`, v);
   const cookie = `${IDENTITY_COOKIE}=${sign("identity", { sender: "Ann" })}`;
-  expect(isNext(proxy(req("/backups", { headers: { cookie } })))).toBe(true);
-  expect(isNext(proxy(req("/backups", { headers: { cookie: `${IDENTITY_COOKIE}=x.y` } })))).toBe(false);
+  expect(passes(proxy(req("/backups", { headers: { cookie } })))).toBe(true);
+  expect(passes(proxy(req("/backups", { headers: { cookie: `${IDENTITY_COOKIE}=x.y` } })))).toBe(false);
   vi.stubEnv("NOTEFEED_OIDC_ALLOW", "");
   vi.stubEnv("NOTEFEED_PASSWORD", "pw");
   const signed = `${IDENTITY_COOKIE}=${sign("identity", { sender: "Ann" })}`;
-  expect(isNext(proxy(req("/backups", { headers: { cookie: signed } })))).toBe(false);
+  expect(passes(proxy(req("/backups", { headers: { cookie: signed } })))).toBe(false);
 });
 
 test("locked: POST /login is rewritten without a session (that's how you get one)", () => {
@@ -128,12 +173,12 @@ test("locked: POST /login is rewritten without a session (that's how you get one
 
 test.each(["/r/x/feed.xml", "/login", "/_next/static/x.js", "/api/v1/feeds/backups/notes", "/api/login"])("locked: %s passes", (p) => {
   process.env.NOTEFEED_PASSWORD = "pw";
-  expect(isNext(proxy(req(p)))).toBe(true);
+  expect(passes(proxy(req(p)))).toBe(true);
 });
 
 test("locked: the service worker passes, so a browser whose sign-in ran out still gets its update", () => {
   process.env.NOTEFEED_PASSWORD = "pw";
-  expect(isNext(proxy(req("/sw.js")))).toBe(true);
+  expect(passes(proxy(req("/sw.js")))).toBe(true);
 });
 
 test.each([
@@ -146,7 +191,7 @@ test.each([
   "/.well-known/oauth-protected-resource/mcp",
 ])("locked: %s is not sent to /login", (p) => {
   process.env.NOTEFEED_PASSWORD = "pw";
-  expect(isNext(proxy(req(p)))).toBe(true);
+  expect(passes(proxy(req(p)))).toBe(true);
 });
 
 const OIDC = {
@@ -162,7 +207,7 @@ test.each(["password", "identity-only"])("locked (%s): /privacy and /imprint pas
   else for (const [k, v] of Object.entries(OIDC)) vi.stubEnv(k, v);
   for (const p of ["/privacy", "/imprint"]) {
     const res = proxy(req(p));
-    expect(isNext(res)).toBe(true);
+    expect(rewrittenTo(res)).toBe(`/en${p}`);
     expect(res.status).toBe(200);
   }
   expect(proxy(req("/privacy/")).status).toBe(308); // slash strip still runs before the lock check
@@ -194,10 +239,10 @@ test("locked: POST /<feed> is still rewritten (the handler checks the bearer)", 
   expect(rewrite(proxy(req("/backups", { method: "POST" })))).toBe("http://localhost:3000/api/v1/feeds/backups/notes");
 });
 
-test("matcher skips /r/ and /_next/", () => {
+test("matcher skips /_next/ and the favicon; /r/ passes through, for its pages' language", () => {
   const re = new RegExp(`^${config.matcher}$`);
-  for (const p of ["/r/x/feed.xml", "/_next/static/x.js", "/favicon.ico"]) expect(re.test(p)).toBe(false);
-  for (const p of ["/", "/backups", "/login", "/rabbit"]) expect(re.test(p)).toBe(true);
+  for (const p of ["/_next/static/x.js", "/favicon.ico"]) expect(re.test(p)).toBe(false);
+  for (const p of ["/", "/backups", "/login", "/rabbit", "/r/x", "/r/x/feed.xml"]) expect(re.test(p)).toBe(true);
 });
 
 // Next's proxy runtime rejects a relative Location ("Invalid URL" → 500), so it must be absolute

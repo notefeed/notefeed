@@ -2,11 +2,14 @@
 
 import { RememberedFeedLinks, useRememberedFeeds } from "@/components/RememberedFeeds";
 import { card, sectionLabel } from "@/components/styles";
+import { useCopy } from "@/components/CopyProvider";
 
 // The start page's "Your feeds": only when this browser remembers any (components/RememberedFeeds.tsx). `query`: what was
 // shared to notefeed, carried to the feed that is picked.
-export function HomeFeeds({ query = "", label = "Your feeds" }: { query?: string; label?: string }) {
+export function HomeFeeds({ query = "", label: given }: { query?: string; label?: string }) {
   const feeds = useRememberedFeeds();
+  const t = useCopy();
+  const label = given ?? t.homeFeeds.yours;
   if (!feeds.length) return null;
   return (
     <section aria-labelledby="your-feeds" className="mb-8">

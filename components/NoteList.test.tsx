@@ -1,52 +1,58 @@
+import type { ReactElement, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
+import { en } from "@/shared/copy/en";
 import { ImageNote, MarkdownNote, RemovedNote, UnreadableNote } from "@/backend";
 import { NoteArticle } from "./NoteArticle";
 import { NoteList } from "./NoteList";
 
 // A note as the backend hands it out, without touching the disk.
+// NoteList and NoteArticle are async server components (their words, #352): called, then rendered. English without a request.
+vi.mock("@/app/_lib/copy", () => ({ serverCopy: async () => en }));
+const render = async (el: ReactElement) => renderToStaticMarkup(<>{await (el.type as (p: unknown) => Promise<ReactNode>)(el.props)}</>);
+
 const at0 = new Date(0);
 const mdNote = ({ id, markdown, date = at0, title }: { id: string; markdown: string; date?: Date; title?: string }) =>
   new MarkdownNote({ id, ext: "md", meta: title === undefined ? {} : { title }, date, size: markdown.length }, markdown);
 const imgNote = ({ id, ext = "png", date = at0, title, alt }: { id: string; ext?: string; date?: Date; title?: string; alt?: string }) =>
   new ImageNote({ id, ext, meta: { ...(title && { title }), ...(alt && { alt }) }, date, size: 12 });
 
-const list = (notes: Parameters<typeof NoteList>[0]["notes"], imageBase = "/r/rid/") =>
-  renderToStaticMarkup(<NoteList notes={notes} base="/feed" imageBase={imageBase} />);
+const list = async (notes: Parameters<typeof NoteList>[0]["notes"], imageBase = "/r/rid/") =>
+  await render(<NoteList notes={notes} base="/feed" imageBase={imageBase} />);
 
-test("an image note shows its picture from the read link, linked to its page", () => {
-  const html = list([imgNote({ id: "20260930T100000Z-pic", ext: "jpg", date: new Date("2026-09-30T10:00:00Z") })]);
+test("an image note shows its picture from the read link, linked to its page", async () => {
+  const html = await list([imgNote({ id: "20260930T100000Z-pic", ext: "jpg", date: new Date("2026-09-30T10:00:00Z") })]);
   expect(html).toMatch(/<a [^>]*href="\/feed\/20260930T100000Z-pic"/);
   expect(html).toMatch(/<img src="\/r\/rid\/20260930T100000Z-pic\.jpg"/);
   expect(html).not.toContain("![]("); // no raw markdown
 });
 
-test("the picture's alt text is the note's alt, else its title, else empty", () => {
+test("the picture's alt text is the note's alt, else its title, else empty", async () => {
   const alts = (html: string) => [...html.matchAll(/<img[^>]*alt="([^"]*)"/g)].map((m) => m[1]);
   const at = new Date("2026-09-30T10:00:00Z");
-  expect(alts(list([imgNote({ id: "a", date: at })]))).toEqual([""]);
-  expect(alts(list([imgNote({ id: "b", date: at, title: "Titled" })]))).toEqual(["Titled"]);
+  expect(alts(await list([imgNote({ id: "a", date: at })]))).toEqual([""]);
+  expect(alts(await list([imgNote({ id: "b", date: at, title: "Titled" })]))).toEqual(["Titled"]);
 });
 
-test("an image note's title shows above the picture; none shows no id", () => {
+test("an image note's title shows above the picture; none shows no id", async () => {
   const at = new Date("2026-09-30T10:00:00Z");
-  expect(list([imgNote({ id: "x1", date: at, title: "A cat" })])).toContain(">A cat</p>");
-  expect(list([imgNote({ id: "x2", date: at })])).not.toContain(">x2<");
+  expect(await list([imgNote({ id: "x1", date: at, title: "A cat" })])).toContain(">A cat</p>");
+  expect(await list([imgNote({ id: "x2", date: at })])).not.toContain(">x2<");
 });
 
-test("a markdown note without a title of its own shows its text as written, in the list and on its page (ADR 0040)", () => {
-  const html = list([mdNote({ id: "m1", markdown: "# Hello\nsome *text*", date: new Date("2026-09-30T10:00:00Z") })]);
+test("a markdown note without a title of its own shows its text as written, in the list and on its page (ADR 0040)", async () => {
+  const html = await list([mdNote({ id: "m1", markdown: "# Hello\nsome *text*", date: new Date("2026-09-30T10:00:00Z") })]);
   expect(html).toMatch(/<div class="md break-words"><h1>Hello<\/h1>\s*<p>some <em>text<\/em>/);
   expect(html).not.toContain(">m1<"); // no id in place of a title
-  const page = (markdown: string) => renderToStaticMarkup(<NoteArticle note={mdNote({ id: "m1", markdown })} back="/feed" />);
-  expect(page("Ich liebe dich\n\n![](pic.png)")).toMatch(/<div class="md break-words"><p>Ich liebe dich<\/p>\s*<p><img src="pic.png"/);
-  expect(page("Ich liebe dich")).not.toContain("<h1");
+  const page = async (markdown: string) => await render(<NoteArticle note={mdNote({ id: "m1", markdown })} back="/feed" />);
+  expect(await page("Ich liebe dich\n\n![](pic.png)")).toMatch(/<div class="md break-words"><p>Ich liebe dich<\/p>\s*<p><img src="pic.png"/);
+  expect(await page("Ich liebe dich")).not.toContain("<h1");
 });
 
-test("a Report link per note fills the template with the read id, the note id and the file; none without a template (#154)", () => {
+test("a Report link per note fills the template with the read id, the note id and the file; none without a template (#154)", async () => {
   const at = new Date("2026-09-30T10:00:00Z");
   const report = { template: "https://r.example/?r={read_id}&n={note_id}&f={file}", readId: "rid" };
-  const html = renderToStaticMarkup(
+  const html = await render(
     <NoteList
       notes={[mdNote({ id: "m1", markdown: "# Hi", date: at }), imgNote({ id: "p1", ext: "jpg", date: at })]}
       base="/feed"
@@ -57,42 +63,46 @@ test("a Report link per note fills the template with the read id, the note id an
   expect(html).toContain('href="https://r.example/?r=rid&amp;n=m1&amp;f=m1.md" rel="nofollow noopener"');
   expect(html).toContain('href="https://r.example/?r=rid&amp;n=p1&amp;f=p1.jpg"');
   expect(html.match(/>Report<\/a>/g)).toHaveLength(2);
-  expect(list([mdNote({ id: "m1", markdown: "# Hi", date: at })])).not.toContain("Report");
-  const article = renderToStaticMarkup(<NoteArticle note={mdNote({ id: "m2", markdown: "# Hi", date: at })} back="/feed" report={report} />);
+  expect(await list([mdNote({ id: "m1", markdown: "# Hi", date: at })])).not.toContain("Report");
+  const article = await render(<NoteArticle note={mdNote({ id: "m2", markdown: "# Hi", date: at })} back="/feed" report={report} />);
   expect(article).toContain('href="https://r.example/?r=rid&amp;n=m2&amp;f=m2.md"');
 });
 
-test("a markdown note's own title is its heading on card and page, and the text shows whole", () => {
+test("a markdown note's own title is its heading on card and page, and the text shows whole", async () => {
   const note = mdNote({ id: "m1", markdown: "*Released today*\n\nThe notes.", title: "notefeed 1.0" });
-  const card = list([note]);
+  const card = await list([note]);
   expect(card).toContain(">notefeed 1.0</p>");
   expect(card).toContain("<em>Released today</em>");
-  const page = renderToStaticMarkup(<NoteArticle note={note} back="/feed" />);
+  const page = await render(<NoteArticle note={note} back="/feed" />);
   expect(page).toMatch(/<h1[^>]*>notefeed 1.0<\/h1><div[^>]*><p><em>Released today<\/em>/);
   // A stored title that is the text's own first line is shown once.
-  const same = renderToStaticMarkup(<NoteArticle note={mdNote({ id: "m2", markdown: "Hello\nworld", title: "Hello" })} back="/feed" />);
+  const same = await render(<NoteArticle note={mdNote({ id: "m2", markdown: "Hello\nworld", title: "Hello" })} back="/feed" />);
   expect(same.match(/Hello/g)).toHaveLength(1);
 });
 
-test("the note page shows the picture large, with its title", () => {
-  const html = renderToStaticMarkup(
+test("the note page shows the picture large, with its title", async () => {
+  const html = await render(
     <NoteArticle note={imgNote({ id: "p1", ext: "webp", title: "Cat", date: new Date("2026-09-30T10:00:00Z") })} back="/feed" imageBase="/r/rid/" />,
   );
   expect(html).toMatch(/<img src="\/r\/rid\/p1\.webp"/);
   expect(html).toContain(">Cat<");
 });
 
-test("a damaged note is a placeholder in its place: no title, no content, a link to its page, the reason in words", () => {
-  const html = list([mdNote({ id: "a", markdown: "# A", date: new Date(2) }), new UnreadableNote("b", "md", new Date(1))]);
+test("a damaged note is a placeholder in its place: no title, no content, a link to its page, the reason in words", async () => {
+  const html = await list([mdNote({ id: "a", markdown: "# A", date: new Date(2) }), new UnreadableNote("b", "md", new Date(1))]);
   expect(html.indexOf(">A<")).toBeLessThan(html.indexOf("can&#x27;t be shown"));
   expect(html).toContain("This note can&#x27;t be shown: its stored copy can&#x27;t be decrypted.");
   expect(html).toContain('href="/feed/b"');
   expect(html).not.toContain(">b<"); // the id is no title
 });
 
-test("a picture a markdown note in the list shows is not listed again; in the list only the note's time links, to the note (ADR 0040)", () => {
+test("a picture a markdown note in the list shows is not listed again; in the list only the note's time links, to the note (ADR 0040)", async () => {
   const at = new Date("2026-10-24T10:00:00Z");
-  const html = list([mdNote({ id: "n1", markdown: "# Herzii\n\n![](p1.png)", date: at }), imgNote({ id: "p1", date: at }), imgNote({ id: "p2", date: at })]);
+  const html = await list([
+    mdNote({ id: "n1", markdown: "# Herzii\n\n![](p1.png)", date: at }),
+    imgNote({ id: "p1", date: at }),
+    imgNote({ id: "p2", date: at }),
+  ]);
   expect(html.match(/<li /g)).toHaveLength(2); // the markdown note and the picture nobody shows
   expect(html).not.toMatch(/<a [^>]*><img/); // the card opens the note, a click on the picture too (components/NoteCard.tsx)
   const open = html.match(/<a [^>]*data-open[^>]*>/)?.[0];
@@ -103,50 +113,50 @@ test("a picture a markdown note in the list shows is not listed again; in the li
   expect(html).toMatch(/src="\/r\/rid\/p2\.png"/);
 });
 
-test("a scheduled note's card says Scheduled for", () => {
+test("a scheduled note's card says Scheduled for", async () => {
   const later = new Date(Date.now() + 86_400_000);
   const when = later.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-  const html = list([
+  const html = await list([
     mdNote({ id: "s1", markdown: "# Later", date: later }),
     mdNote({ id: "p1", markdown: "# Earlier", date: new Date("2026-09-30T10:00:00Z") }),
   ]);
   expect(html.match(/Scheduled for/g)).toHaveLength(1);
   expect(html).toContain(`Scheduled for ${when}`);
   expect(html.indexOf("Scheduled for")).toBeLessThan(html.indexOf("Earlier")); // on the scheduled note's card, the first
-  const page = renderToStaticMarkup(<NoteArticle note={mdNote({ id: "s1", markdown: "# Later", date: later })} back="/feed" />);
+  const page = await render(<NoteArticle note={mdNote({ id: "s1", markdown: "# Later", date: later })} back="/feed" />);
   expect(page).toContain(`Scheduled for ${when}`);
-  expect(renderToStaticMarkup(<NoteArticle note={mdNote({ id: "p1", markdown: "# Earlier" })} back="/feed" />)).not.toContain("Scheduled");
+  expect(await render(<NoteArticle note={mdNote({ id: "p1", markdown: "# Earlier" })} back="/feed" />)).not.toContain("Scheduled");
 });
 
-test("a draft's card says Draft, beside Scheduled when it is both (#265)", () => {
+test("a draft's card says Draft, beside Scheduled when it is both (#265)", async () => {
   const draft = (date = at0) => new MarkdownNote({ id: "d1", ext: "md", meta: {}, date, size: 7, draft: true }, "# Unready");
-  const html = list([draft(), mdNote({ id: "p1", markdown: "# Published" })]);
+  const html = await list([draft(), mdNote({ id: "p1", markdown: "# Published" })]);
   expect(html.match(/>Draft</g)).toHaveLength(1);
   expect(html.indexOf(">Draft<")).toBeLessThan(html.indexOf("Published"));
-  const both = renderToStaticMarkup(<NoteArticle note={draft(new Date(Date.now() + 86_400_000))} back="/feed" />);
+  const both = await render(<NoteArticle note={draft(new Date(Date.now() + 86_400_000))} back="/feed" />);
   expect(both).toContain(">Draft<");
   expect(both).toContain("Scheduled for");
-  expect(renderToStaticMarkup(<NoteArticle note={mdNote({ id: "p1", markdown: "# P" })} back="/feed" />)).not.toContain(">Draft<");
+  expect(await render(<NoteArticle note={mdNote({ id: "p1", markdown: "# P" })} back="/feed" />)).not.toContain(">Draft<");
 });
 
-test("no Report link on a draft or a scheduled note: readers can't see them, nor can the operator by the read link (#327)", () => {
+test("no Report link on a draft or a scheduled note: readers can't see them, nor can the operator by the read link (#327)", async () => {
   const report = { template: "https://r.example/?r={read_id}&n={note_id}&f={file}", readId: "rid" };
   const draft = new MarkdownNote({ id: "d1", ext: "md", meta: {}, date: at0, size: 4, draft: true }, "# Hi");
   const later = mdNote({ id: "s1", markdown: "# Hi", date: new Date(Date.now() + 86_400_000) });
-  const html = renderToStaticMarkup(<NoteList notes={[later, draft, mdNote({ id: "p1", markdown: "# Hi" })]} base="/feed" report={report} />);
+  const html = await render(<NoteList notes={[later, draft, mdNote({ id: "p1", markdown: "# Hi" })]} base="/feed" report={report} />);
   expect(html.match(/>Report<\/a>/g)).toHaveLength(1);
   expect(html).toContain("n=p1");
-  expect(renderToStaticMarkup(<NoteArticle note={draft} back="/feed" report={report} />)).not.toContain(">Report</a>");
-  expect(renderToStaticMarkup(<NoteArticle note={later} back="/feed" report={report} />)).not.toContain(">Report</a>");
+  expect(await render(<NoteArticle note={draft} back="/feed" report={report} />)).not.toContain(">Report</a>");
+  expect(await render(<NoteArticle note={later} back="/feed" report={report} />)).not.toContain(">Report</a>");
 });
 
-test("the operator's mark (#159) says what happened, links the terms when there are some, and has no Report link", () => {
+test("the operator's mark (#159) says what happened, links the terms when there are some, and has no Report link", async () => {
   const at = new Date("2026-09-30T10:00:00Z");
   const mark = new RemovedNote({ id: "m1", ext: "removed", meta: {}, date: at, size: 0 });
   const report = { template: "https://r.example/?r={read_id}&n={note_id}&f={file}", readId: "rid" };
-  const html = renderToStaticMarkup(<NoteList notes={[mark]} base="/feed" imageBase="/r/rid/" report={report} terms />);
+  const html = await render(<NoteList notes={[mark]} base="/feed" imageBase="/r/rid/" report={report} terms />);
   expect(html).toContain("Removed by the operator: this broke the content rules of this instance.");
   expect(html).toMatch(/<a [^>]*href="\/terms"/);
   expect(html).not.toContain("Report");
-  expect(renderToStaticMarkup(<NoteList notes={[mark]} base="/feed" />)).not.toContain('href="/terms"');
+  expect(await render(<NoteList notes={[mark]} base="/feed" />)).not.toContain('href="/terms"');
 });

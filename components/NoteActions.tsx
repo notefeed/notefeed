@@ -9,9 +9,10 @@ import { deleteNote, editNote, patchNote } from "@/app/_lib/api";
 import { MarkdownInput } from "@/components/MarkdownInput";
 import { usePendingImages } from "@/components/usePendingImages";
 import { multipart, multipartBody, useApiForm } from "@/app/_lib/useApiForm";
-import { noteErrorMessage, withPictures } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { useCopy } from "@/components/CopyProvider";
 import { NOTE_KINDS, type KindName } from "@/shared/notekinds";
-import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
+import { TAGS_PATTERN } from "@/shared/tags";
 
 // Edit and delete for a note, through the generated API client, with refusals shown inline (`error` is a first message to show).
 // The state of the note page's actions, for the two places they show: the bar (NoteActionsBar, in the shell's right column)
@@ -50,6 +51,7 @@ export function NoteActions({
 }) {
   const page = `/${feed}`;
   const images = usePendingImages();
+  const { noteErrorMessage, withPictures } = messagesFor(useCopy());
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, withPictures(noteErrorMessage, images.pending.length > 0));
   const [text, setText] = useState(markdown);
   const [title, setTitle] = useState(savedTitle); // the title set by hand: empty means the one the text gives
@@ -233,8 +235,10 @@ export function NoteActionsPanel() {
     setError,
     hydrated,
   } = useActions();
+  const all = useCopy();
+  const t = all.noteActions;
   return (
-    <section aria-label="Edit or delete this note" className="mt-4 text-sm">
+    <section aria-label={t.panel} className="mt-4 text-sm">
       {mode === "delete" && <DeleteDialog onSubmit={remove} onClose={() => setMode(null)} pending={pending} error={error} />}
       {mode === "edit" && (
         <>
@@ -247,7 +251,7 @@ export function NoteActionsPanel() {
                 <MarkdownInput
                   id="edit-markdown"
                   name="markdown"
-                  label="Note in markdown"
+                  label={t.noteInMarkdown}
                   value={text}
                   onChange={setText}
                   rows={10}
@@ -261,7 +265,7 @@ export function NoteActionsPanel() {
                 />
               )}
               <label htmlFor="edit-title" className="mt-3 block text-muted">
-                Title {hasText ? "(optional, otherwise taken from the text)" : "(optional)"}
+                {t.title} {hasText ? t.titleOptionalText : t.titleOptional}
               </label>
               <input
                 id="edit-title"
@@ -275,7 +279,7 @@ export function NoteActionsPanel() {
               {hasAlt && (
                 <>
                   <label htmlFor="edit-alt" className="mt-3 block text-muted">
-                    Alternative text (optional, for screen readers)
+                    {t.alt}
                   </label>
                   <input
                     id="edit-alt"
@@ -289,22 +293,22 @@ export function NoteActionsPanel() {
                 </>
               )}
               <label htmlFor="edit-tags" className="mt-3 block text-muted">
-                Tags (optional, separated by commas)
+                {t.tags}
               </label>
               <input
                 id="edit-tags"
                 name="tags"
                 type="text"
                 autoComplete="off"
-                placeholder="e.g. ci, deploy"
+                placeholder={t.tagsPlaceholder}
                 pattern={TAGS_PATTERN}
-                title={TAGS_HINT}
+                title={all.compose.tagsHint}
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 className={`${field} mt-1 max-w-md`}
               />
               <label htmlFor="edit-date" className="mt-3 block text-muted">
-                Date (in your time; a later one schedules the note)
+                {t.date}
               </label>
               <input
                 id="edit-date"
@@ -316,15 +320,15 @@ export function NoteActionsPanel() {
               />
               <label className="mt-3 flex items-center gap-2">
                 <input id="edit-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
-                Draft (readers don&apos;t see it, or its pictures, until it is published)
+                {t.draft}
               </label>
               <div className="mt-4 flex gap-2">
                 <button type="submit" disabled={pending} className={primary}>
                   <DoneIcon aria-hidden className="h-4 w-4" />
-                  {pending ? "Saving…" : "Save"}
+                  {pending ? t.saving : t.save}
                 </button>
                 <button type="button" onClick={() => setMode(null)} className={secondary}>
-                  Cancel
+                  {t.cancel}
                 </button>
               </div>
             </form>
@@ -345,6 +349,7 @@ export function NoteActionsPanel() {
 // which is the dialog element itself, closes it too. Cancel gets the focus, so a stray Enter deletes nothing. A refused delete
 // says why inside the dialog.
 function DeleteDialog({ onSubmit, onClose, pending, error }: { onSubmit: (e: FormEvent) => void; onClose: () => void; pending: boolean; error?: string }) {
+  const t = useCopy().noteActions;
   const ref = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -364,18 +369,18 @@ function DeleteDialog({ onSubmit, onClose, pending, error }: { onSubmit: (e: For
     >
       <form onSubmit={onSubmit}>
         <h2 id="delete-note-title" className="text-[17px] font-bold text-ink">
-          Delete this note?
+          {t.deleteTitle}
         </h2>
         <p id="delete-note-text" className="mt-1 text-muted">
-          This can&apos;t be undone.
+          {t.cantUndo}
         </p>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button type="submit" disabled={pending} className={`${primary} bg-error`}>
             <DeleteIcon aria-hidden className="h-4 w-4" />
-            Delete note
+            {t.deleteNote}
           </button>
           <button ref={cancel} type="button" onClick={onClose} className={secondary}>
-            Cancel
+            {t.cancel}
           </button>
         </div>
         <p id="note-actions-error" role="alert" className="mt-2 text-error empty:hidden">
@@ -391,14 +396,15 @@ function DeleteDialog({ onSubmit, onClose, pending, error }: { onSubmit: (e: For
 // (the "All notes" link above the note is hidden from lg, NoteArticle).
 export function NoteActionsBar() {
   const { back, mode, setMode, copied, copyLink, reportHref } = useActions();
+  const t = useCopy().noteActions;
   const button =
     "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2 xl:min-w-0 xl:flex-row xl:gap-3 xl:px-3 xl:py-2 xl:text-[14px]";
   return (
     <nav
-      aria-label="Note actions"
+      aria-label={t.bar}
       className="flex items-center justify-around bg-surface max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-t max-lg:border-rule max-lg:px-[max(0.75rem,env(safe-area-inset-left),env(safe-area-inset-right))] max-lg:pt-1.5 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:justify-start lg:gap-2 lg:rounded-2xl lg:border lg:border-rule lg:p-1.5 lg:shadow-card xl:flex-col xl:items-stretch xl:gap-0.5 xl:p-2"
     >
-      <p className={`${sectionLabel} hidden px-3 pb-1 pt-1.5 xl:block`}>This note</p>
+      <p className={`${sectionLabel} hidden px-3 pb-1 pt-1.5 xl:block`}>{t.thisNote}</p>
       <button
         type="button"
         aria-pressed={mode === "edit"}
@@ -406,21 +412,21 @@ export function NoteActionsBar() {
         className={`${button} ${mode === "edit" ? "text-carbon" : ""}`}
       >
         <EditIcon aria-hidden className="h-5 w-5" />
-        Edit
+        {t.edit}
       </button>
       <button type="button" onClick={copyLink} className={button}>
         {copied ? <DoneIcon aria-hidden className="h-5 w-5" /> : <NoteLinkIcon aria-hidden className="h-5 w-5" />}
-        <span aria-live="polite">{copied ? "Copied" : "Copy link"}</span>
+        <span aria-live="polite">{copied ? t.copied : t.copyLink}</span>
       </button>
       {reportHref && (
         <a href={reportHref} rel="nofollow noopener" className={button}>
           <ReportIcon aria-hidden className="h-5 w-5" />
-          Report
+          {t.report}
         </a>
       )}
       <button type="button" aria-pressed={mode === "delete"} onClick={() => setMode(mode === "delete" ? null : "delete")} className={`${button} text-error`}>
         <DeleteIcon aria-hidden className="h-5 w-5" />
-        Delete
+        {t.delete}
       </button>
       {/* Not on a phone, where the "All notes" link above the note is at hand: first in the row from lg, last in the right
           column from xl (the note's own link is hidden from lg). */}
@@ -428,7 +434,7 @@ export function NoteActionsBar() {
         <div className="mx-2 my-1 hidden border-t border-rule xl:block" />
         <Link href={back} className={`${button} text-carbon`}>
           <BackIcon aria-hidden className="h-5 w-5" />
-          All notes
+          {t.allNotes}
         </Link>
       </div>
     </nav>

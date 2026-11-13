@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { formatPrice, freePrice, saving, type LicensePeriod, type Plan } from "./plans";
+import { en } from "./copy/en";
+import { formatPrice as format, freePrice, saving as save, type LicensePeriod, type Plan } from "./plans";
+
+const formatPrice = (p: Plan) => format(p, en.buy.perPeriod);
+const saving = (m: Plan | undefined, y: Plan | undefined) => save(m, y, en.buy.save);
 
 const p = (period: LicensePeriod, amount: number, currency = "EUR"): Plan => ({ period, name: "", description: "", amount, currency, taxIncluded: true });
 

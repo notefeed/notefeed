@@ -3,14 +3,16 @@
 import { openCheckout } from "@creem_io/embed";
 import { IncludedIcon, LicenseKeyIcon, NotIncludedIcon, PurchasesIcon } from "@/components/icons";
 import { useEffect, useState, type ReactNode } from "react";
-import { errorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { useCopy } from "@/components/CopyProvider";
+import type { Copy } from "@/shared/copy";
 import { CopyButton } from "@/components/CopyButton";
 import { card, primary, secondary } from "@/components/styles";
-import { MANAGE_PURCHASES, formatPrice, freePrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
+import { formatPrice, freePrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
 
 const KEY = /^[A-Za-z0-9_-]{22,64}$/;
 
-async function urlFrom(path: string, body?: unknown): Promise<string> {
+async function urlFrom(all: Copy, path: string, body?: unknown): Promise<string> {
   const res = await fetch(path, {
     method: "POST",
     ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
@@ -20,7 +22,7 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
   throw new Error(
     answer.error && answer.code === "invalid_body"
       ? `${answer.error[0].toUpperCase()}${answer.error.slice(1)}.`
-      : (errorMessage(answer.code) ?? "Something went wrong."),
+      : (messagesFor(all).errorMessage(answer.code) ?? all.errors.somethingWrong),
   );
 }
 
@@ -44,6 +46,8 @@ export function BuyLicense({
   cap: number;
   account: string;
 }) {
+  const all = useCopy();
+  const t = all.buy;
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -77,7 +81,7 @@ export function BuyLicense({
     setBusy(true);
     setError("");
     try {
-      const url = await urlFrom("/api/licenses/checkout", { period });
+      const url = await urlFrom(all, "/api/licenses/checkout", { period });
       // The fake provider's checkout is this page itself.
       if (new URL(url, window.location.href).origin === window.location.origin) return window.location.assign(url);
       // The provider's checkout opens over this page. Paid, it comes back here with the checkout's id, as its redirect did; the
@@ -89,7 +93,7 @@ export function BuyLicense({
         onClose: () => setBusy(false),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(e instanceof Error ? e.message : all.errors.somethingWrong);
       setBusy(false);
     }
   }
@@ -102,7 +106,7 @@ export function BuyLicense({
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
               <LicenseKeyIcon aria-hidden className="h-[18px] w-[18px]" />
             </span>
-            Your license key
+            {t.yourKey}
           </h2>
           {key ? (
             <div className="mt-4 flex items-center gap-2 rounded-xl bg-surface-2 py-2 pl-4 pr-2">
@@ -111,20 +115,16 @@ export function BuyLicense({
             </div>
           ) : (
             <p role="status" className="mt-4">
-              {bought === "waiting" ? "Getting your key from the payment provider…" : "Thank you for your purchase. The key can't be shown here right now."}
+              {bought === "waiting" ? t.gettingKey : t.keyLater}
             </p>
           )}
           <p className="mt-4 text-muted">
-            {key ? "Enter it" : "Enter your key"} under <em>License</em> in a feed&apos;s settings, or under <em>Protect this feed</em> when you create a
-            protected feed. It works for one feed at a time and can be moved to another.
+            {key ? t.enterIt : t.enterYourKey} {t.under} <em>{t.licenseRow}</em> {t.inSettingsOr} <em>{t.protectRow}</em> {t.whenCreating}
           </p>
-          <p className="mt-2 text-muted">
-            The key is also in the payment provider&apos;s receipt e-mail and in its customer portal, so you can find it again there. The receipt is the record
-            of your purchase.
-          </p>
+          <p className="mt-2 text-muted">{t.receipt}</p>
         </section>
       ) : (
-        <section aria-label="Buy a license">
+        <section aria-label={t.buyLabel}>
           {intro && <div className="mb-5 text-[15px] text-muted">{intro}</div>}
           <div className={`grid gap-x-3 ${COLUMNS[plans.length] ?? "sm:grid-cols-3"}`}>
             <section aria-labelledby="plan-free" className={`${tile} max-sm:mb-3`}>
@@ -134,16 +134,17 @@ export function BuyLicense({
               <span />
               <p className="mt-1 text-xl font-bold tracking-tight">{freePrice(text.free.price, plans[0]?.currency)}</p>
               <div>{text.free.note && <p className="text-[13px] text-muted">{text.free.note}</p>}</div>
-              <Features features={text.free.features} cap={cap} className="mt-4" />
+              <Features t={all} features={text.free.features} cap={cap} className="mt-4" />
               <span />
             </section>
             {plans.map((plan, i) => (
               <Plan
                 key={plan.period}
+                t={all}
                 plan={plan}
                 text={text.plans}
                 cap={cap}
-                badge={(plan.period === "year" && saving(month, plan)) || text.plans.badge}
+                badge={(plan.period === "year" && saving(month, plan, t.save)) || text.plans.badge}
                 busy={busy}
                 onBuy={() => buy(plan.period)}
                 primary={i === plans.length - 1}
@@ -152,7 +153,7 @@ export function BuyLicense({
           </div>
           {plans.length === 0 && (
             <p role="status" className="mt-3 text-muted">
-              Licenses can&apos;t be bought right now. Please try again later.
+              {t.unavailable}
             </p>
           )}
           <p id="buy-error" role="alert" className="mt-2 text-error empty:hidden">
@@ -161,7 +162,7 @@ export function BuyLicense({
           {fineprint && <div className="mt-3 text-[12px] text-muted">{fineprint}</div>}
         </section>
       )}
-      <ManageLicense account={account} />
+      <ManageLicense t={all} account={account} />
     </div>
   );
 }
@@ -178,6 +179,7 @@ const tile = `${card} row-span-6 grid grid-rows-subgrid gap-0 p-5`;
 // description is for its checkout and receipt, where it can say more than a tile should.
 // `primary`: the highlighted one (the last, the yearly plan where one is sold); `badge`: what it saves, or license.md's badge.
 function Plan({
+  t,
   plan,
   text,
   cap,
@@ -186,6 +188,7 @@ function Plan({
   onBuy,
   primary: highlighted,
 }: {
+  t: Copy;
   plan: Sold;
   text: LicenseText["plans"];
   cap: number;
@@ -205,12 +208,12 @@ function Plan({
           <span className="inline-block rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">{badge}</span>
         )}
       </div>
-      <p className="mt-1 text-xl font-bold tracking-tight">{formatPrice(plan)}</p>
+      <p className="mt-1 text-xl font-bold tracking-tight">{formatPrice(plan, t.buy.perPeriod)}</p>
       <div>
-        {plan.taxIncluded && <p className="text-[13px] text-muted">VAT included</p>}
+        {plan.taxIncluded && <p className="text-[13px] text-muted">{t.buy.vatIncluded}</p>}
         {text.note && <p className="mt-2 text-[13px] text-muted">{text.note}</p>}
       </div>
-      <Features features={text.features} cap={cap} className="mb-5 mt-4" />
+      <Features t={t} features={text.features} cap={cap} className="mb-5 mt-4" />
       <button type="button" disabled={busy} onClick={onBuy} className={`${highlighted ? primary : secondary} w-full self-end py-2.5 text-[15px]`}>
         {text.button}
       </button>
@@ -219,11 +222,11 @@ function Plan({
 }
 
 // `{cap}` in a feature is the free tier's cap as the server keeps it.
-function Features({ features, cap, className }: { features: LicenseFeature[]; cap: number; className: string }) {
+function Features({ t, features, cap, className }: { t: Copy; features: LicenseFeature[]; cap: number; className: string }) {
   return (
     <ul className={`${className} space-y-2 text-[14px]`}>
       {features.map((f, i) => (
-        <Feature key={i} off={!f.included}>
+        <Feature key={i} t={t} off={!f.included}>
           {f.text.replaceAll("{cap}", String(cap))}
         </Feature>
       ))}
@@ -231,13 +234,13 @@ function Features({ features, cap, className }: { features: LicenseFeature[]; ca
   );
 }
 
-function Feature({ off = false, children }: { off?: boolean; children: ReactNode }) {
+function Feature({ t, off = false, children }: { t: Copy; off?: boolean; children: ReactNode }) {
   return (
     <li className={`flex items-start gap-2 ${off ? "text-muted" : ""}`}>
       {off ? (
-        <NotIncludedIcon aria-label="Not included:" className="mt-0.5 h-4 w-4 shrink-0" />
+        <NotIncludedIcon aria-label={t.buy.notIncluded} className="mt-0.5 h-4 w-4 shrink-0" />
       ) : (
-        <IncludedIcon aria-label="Included:" className="mt-0.5 h-4 w-4 shrink-0 text-carbon" />
+        <IncludedIcon aria-label={t.buy.included} className="mt-0.5 h-4 w-4 shrink-0 text-carbon" />
       )}
       {children}
     </li>
@@ -246,18 +249,18 @@ function Feature({ off = false, children }: { off?: boolean; children: ReactNode
 
 // Cancelling, the payment method and the invoices are the payment provider's pages, where buyers sign in with the e-mail
 // address they bought with. No key opens them: they show the buyer and every license bought, keys included (#316).
-function ManageLicense({ account }: { account: string }) {
+function ManageLicense({ t, account }: { t: Copy; account: string }) {
   return (
     <section aria-labelledby="manage" className={`${card} p-5 sm:p-6`}>
       <h2 id="manage" className="flex items-center gap-2 text-[17px] font-bold">
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
           <PurchasesIcon aria-hidden className="h-[18px] w-[18px]" />
         </span>
-        Cancel, payment and invoices
+        {t.buy.manageTitle}
       </h2>
-      <p className="mt-3 text-muted">{MANAGE_PURCHASES}</p>
+      <p className="mt-3 text-muted">{t.buy.managePurchases}</p>
       <a href={account} className={`${secondary} mt-4 inline-flex`}>
-        Manage your purchases
+        {t.buy.manage}
       </a>
     </section>
   );

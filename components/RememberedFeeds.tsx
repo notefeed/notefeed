@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CloseIcon } from "@/components/icons";
+import { useCopy } from "@/components/CopyProvider";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 // The feeds this browser has opened (issue #185): notefeed has no accounts, so "your feeds" is a list in localStorage,
@@ -91,7 +92,8 @@ export function FeedAvatar({ feed, size = "h-9 w-9" }: { feed: RememberedFeed; s
 // `query`: appended to each link (what was shared to notefeed, app/(site)/page.tsx).
 export function RememberedFeedLinks({ current, onNavigate, query = "" }: { current?: string; onNavigate?: () => void; query?: string }) {
   const feeds = useRememberedFeeds();
-  if (!feeds.length) return <p className="px-2 text-[13px] text-muted">Feeds you open are remembered here, on this device.</p>;
+  const t = useCopy().rememberedFeeds;
+  if (!feeds.length) return <p className="px-2 text-[13px] text-muted">{t.empty}</p>;
   return (
     <div className="space-y-0.5">
       {feeds.map((f) => (
@@ -112,8 +114,8 @@ export function RememberedFeedLinks({ current, onNavigate, query = "" }: { curre
             <button
               type="button"
               onClick={() => forgetFeed(f.name)}
-              title="Forget on this device"
-              aria-label={`Forget ${f.title || f.name} on this device`}
+              title={t.forget}
+              aria-label={t.forgetNamed(f.title || f.name)}
               className="mr-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-ink group-hover:inline-flex focus:inline-flex"
             >
               <CloseIcon aria-hidden className="h-4 w-4" />

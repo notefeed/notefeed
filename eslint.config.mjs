@@ -39,6 +39,13 @@ const eslintConfig = defineConfig([
     rules: { "no-restricted-imports": ["error", ICON_IMPORTS] },
   },
   { files: ["components/icons.ts"], rules: { "no-restricted-imports": ["error", FRONTEND_IMPORTS] } },
+  // Every word a person reads comes from the copy module (shared/copy, #352): no text in JSX but the product's name, a setting's name
+  // and punctuation. Attributes (aria-label, title, placeholder) can't be told apart from class names here; review keeps those.
+  {
+    files: ["app/**/*.tsx", "components/**/*.tsx"],
+    ignores: ["**/*.test.tsx"],
+    rules: { "react/jsx-no-literals": ["error", { noStrings: false, allowedStrings: ["notefeed", "NOTEFEED_FEED", ".", "·", "#", "…", "—"] }] },
+  },
   // Everything else (tests, e2e, scripts): no icons but through the icons module either.
   {
     files: ["**/*.test.ts", "**/*.test.tsx", "e2e/**", "scripts/**", "shortcut/**"],

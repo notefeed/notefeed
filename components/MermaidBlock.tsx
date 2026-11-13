@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { CloseIcon } from "@/components/icons";
+import { useCopy } from "@/components/CopyProvider";
 
 // A ```mermaid block on a note's page (#243), drawn in the browser: mermaid is loaded only when a page has one, and its strict security
 // level sanitizes the diagram's SVG (no scripts, no HTML labels, no click handlers). Until it is drawn, and when it can't be (a syntax
@@ -11,6 +12,7 @@ import { CloseIcon } from "@/components/icons";
 export function MermaidBlock({ source, children }: { source: string; children: ReactNode }) {
   const id = `mermaid-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
   const [svg, setSvg] = useState<string | null>(null);
+  const t = useCopy().mermaid;
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     let live = true;
@@ -32,8 +34,8 @@ export function MermaidBlock({ source, children }: { source: string; children: R
       <button
         type="button"
         onClick={() => dialog.current?.showModal()}
-        aria-label="Enlarge diagram"
-        title="Enlarge diagram"
+        aria-label={t.enlarge}
+        title={t.enlarge}
         className="block w-full cursor-zoom-in overflow-x-auto text-left"
       >
         {/* Sanitized by mermaid (securityLevel "strict"). */}
@@ -41,7 +43,7 @@ export function MermaidBlock({ source, children }: { source: string; children: R
       </button>
       <dialog
         ref={dialog}
-        aria-label="Diagram"
+        aria-label={t.diagram}
         onClick={(e) => e.target === e.currentTarget && dialog.current?.close()}
         className="mermaid-enlarged m-auto h-[calc(100dvh-2rem)] max-h-none w-[calc(100vw-2rem)] max-w-none rounded-2xl bg-surface p-0 text-ink backdrop:bg-black/60"
       >
@@ -50,7 +52,7 @@ export function MermaidBlock({ source, children }: { source: string; children: R
             <button
               type="button"
               onClick={() => dialog.current?.close()}
-              aria-label="Close"
+              aria-label={t.close}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
             >
               <CloseIcon aria-hidden className="h-5 w-5" />
@@ -61,7 +63,7 @@ export function MermaidBlock({ source, children }: { source: string; children: R
         </div>
       </dialog>
       <details className="mt-1 text-[13px] text-muted">
-        <summary className="cursor-pointer">Diagram source</summary>
+        <summary className="cursor-pointer">{t.source}</summary>
         {children}
       </details>
     </figure>

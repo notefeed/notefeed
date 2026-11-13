@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { IDENTITY_COOKIE, SESSION_COOKIE, locked, noteOutcome, publicUrl, sessionOk } from "@/backend";
+import { LANG_COOKIE, LANG_HEADER, negotiate } from "@/shared/copy";
 
 // Exactly one segment, after stripping one trailing slash. Kept percent-encoded: the route's
 // [feed] param is decoded by Next and the handler rejects anything outside FEED_RE ("a%2Fb" → "a/b" → 400).
@@ -12,6 +13,24 @@ function postTarget(pathname: string): string | null {
   const seg = ONE_SEGMENT.exec(pathname)?.[1];
   if (seg === undefined || seg === "logout" || seg === "mcp" || seg === "metrics" || seg === "health") return null; // /logout, /mcp, /metrics and /health are route handlers themselves
   return seg === "login" ? "/api/login" : `/api/v1/feeds/${seg}/notes`; // reserved names get the handler's 400
+}
+
+// The UI's language (Next's internationalization guide, #352): every page lives under app/[lang], and the proxy rewrites a page's
+// path to /<lang>/<path>, so no URL carries the language and every link, read link and bookmark stays as it was. The language is
+// the one picked (the nf_lang cookie), else the browser's Accept-Language, else English. Route handlers outside app/[lang] are
+// left alone: the API, MCP, metrics, health, logout, OAuth's endpoints, a read link's RSS, Atom and files, and the static files.
+// /<feed>'s own POST handlers (access, delete, details, license, files) live under app/[lang]/[feed], so they are rewritten too.
+const NOT_A_PAGE =
+  /^\/(?:api\/|_next\/|\.well-known\/|shortcuts\/|oauth\/(?:register|token)$|(?:mcp|metrics|health|logout)$|r\/[^/]+\/(?:[^/]*\.[^/]*|files\/.*)$|(?:icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js|favicon\.ico)$)/;
+
+function localized(req: NextRequest): NextResponse {
+  const { pathname, search } = req.nextUrl;
+  if (NOT_A_PAGE.test(pathname)) return NextResponse.next();
+  const lang = negotiate(req.cookies.get(LANG_COOKIE)?.value, req.headers.get("accept-language"));
+  // Also as a request header, for server components below a page that have no params of their own (app/_lib/copy.ts).
+  const headers = new Headers(req.headers);
+  headers.set(LANG_HEADER, lang);
+  return NextResponse.rewrite(new URL(`/${lang}${pathname === "/" ? "" : pathname}${search}`, req.url), { request: { headers } });
 }
 
 export function proxy(req: NextRequest) {
@@ -48,8 +67,8 @@ export function proxy(req: NextRequest) {
     pathname === "/imprint" ||
     /^\/(r|_next|api|oauth|\.well-known)\//.test(pathname) ||
     /^\/(icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js)$/.test(pathname);
-  if (!locked() || exempt) return NextResponse.next();
-  if (sessionOk(req.cookies.get(SESSION_COOKIE)?.value, req.cookies.get(IDENTITY_COOKIE)?.value)) return NextResponse.next();
+  if (!locked() || exempt) return localized(req);
+  if (sessionOk(req.cookies.get(SESSION_COOKIE)?.value, req.cookies.get(IDENTITY_COOKIE)?.value)) return localized(req);
   // Must be absolute (Next rejects a relative Location here); built from the public base,
   // not req.url, so it is right behind a reverse proxy.
   noteOutcome("auth");
@@ -59,7 +78,7 @@ export function proxy(req: NextRequest) {
   return NextResponse.redirect(login);
 }
 
-// /r/** (read-only feeds) and Next's assets never need the password; skip the proxy there (also exempted above).
+// Next's assets never pass through. /r/** (read-only feeds) does, for its pages' language; it is exempt from the lock above.
 export const config = {
-  matcher: "/((?!r/|_next/|favicon\\.ico).*)",
+  matcher: "/((?!_next/|favicon\\.ico).*)",
 };

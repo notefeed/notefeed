@@ -2,18 +2,22 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import GlobalError from "@/app/global-error";
-import ErrorBoundary from "@/app/error";
-import NotFound from "@/app/not-found";
-import { MAINTENANCE } from "@/app/_lib/messages";
+import ErrorBoundary from "@/app/[lang]/error";
+import NotFound from "@/app/[lang]/not-found";
+import { en } from "@/shared/copy/en";
+
+const MAINTENANCE = en.errors.maintenance;
 import { UNAVAILABLE_DIGEST } from "@/shared/errors";
 import { DamagedNote } from "./DamagedNote";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace() {}, refresh() {} }) }));
+// A server component's words, without a request: English (app/_lib/copy.ts reads the proxy's header).
+vi.mock("@/app/_lib/copy", () => ({ serverCopy: async () => en }));
 
 const failure = Object.assign(new Error("ECONNREFUSED 10.0.0.5:5432 secret-feed"), { digest: "abc123" });
 
-test("the not-found page says so in words and leads back to the start page", () => {
-  const html = renderToStaticMarkup(<NotFound />);
+test("the not-found page says so in words and leads back to the start page", async () => {
+  const html = renderToStaticMarkup(await NotFound());
   expect(html).toContain("<h1");
   expect(html).toContain("Nothing here");
   expect(html).toContain('href="/"');
