@@ -47,6 +47,10 @@ const A_TEXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A520";
 const TEXT_TYPE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A521";
 const ITEM_TYPE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A522";
 const IS_TEXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A523";
+const PAGE_URL = "6E0F3A1C-2B4D-4C5E-8F60-71829304A524";
+const IS_PAGE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A525";
+const MARKDOWN = "6E0F3A1C-2B4D-4C5E-8F60-71829304A526";
+const DEBUG_PAGE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A527";
 // Pictures holds ![](file) for each picture stored, Texts the text items, Problems a line for each picture refused.
 const PICTURES = "Pictures";
 const TEXTS = "Texts";
@@ -138,23 +142,28 @@ function cleaned(from: string, name: string, ...steps: Step[]) {
   return actions;
 }
 
-// An item that is text goes into Texts. A page shared from Safari is a "Safari web page", whose text is the whole page: then its
-// address is the note's text. Text that has the address in it (a URL alone, a note with a link) stays as it is. Written twice
-// (for an item of type Text and for one that has no picture), so `n` keeps the two copies' ids apart.
+// An item that is text goes into Texts, as markdown: a note from Notes is rich text (its checklists became "✓" and tabs, which
+// markdown shows as code), and the "￼" where it had a picture goes (the picture comes as an item of its own). A text whose
+// first link it doesn't contain (a page that arrived as its text) is that link. Text that has the address in it (a URL alone, a
+// note with a link) stays as it is. Written twice (for an item of type Text and for one that has no picture), so `n` keeps the
+// two copies' ids apart.
 const textItem = (n: 0 | 1) => {
-  const [t, links, first, hasLink, textHasLink] = [TEXT, LINKS, FIRST_LINK, HAS_LINK, TEXT_HAS_LINK].map((u) => (n === 0 ? u : `${u.slice(0, -4)}B${u.slice(-3)}`));
+  const [markdown, t, links, first, hasLink, textHasLink] = [MARKDOWN, TEXT, LINKS, FIRST_LINK, HAS_LINK, TEXT_HAS_LINK].map((u) =>
+    n === 0 ? u : `${u.slice(0, -4)}B${u.slice(-3)}`,
+  );
   return [
-    action("detect.text", { UUID: t, WFInput: value(variable("Repeat Item")) }),
+    action("getmarkdownfromrichtext", { UUID: markdown, WFInput: value(variable("Repeat Item")) }),
+    action("text.replace", { UUID: t, WFInput: text("￼", output(markdown, "Markdown from Rich Text")), WFReplaceTextFind: "^[\\s￼]+|[\\s￼]+$|￼", WFReplaceTextReplace: "", WFReplaceTextRegularExpression: true }),
     action("detect.link", { UUID: links, WFInput: value(variable("Repeat Item")) }),
     action("getitemfromlist", { UUID: first, WFInput: value(output(links, "URLs")), WFItemSpecifier: "First Item" }),
     ifHasValue(hasLink, output(first, "Item from List")),
-    ifText(99, textHasLink, output(t, "Text"), output(first, "Item from List")),
-    action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(t, "Text")) }),
+    ifText(99, textHasLink, output(t, "Updated Text"), output(first, "Item from List")),
+    action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(t, "Updated Text")) }),
     otherwise(textHasLink),
     action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(first, "Item from List")) }),
     endIf(textHasLink),
     otherwise(hasLink),
-    action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(t, "Text")) }),
+    action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(t, "Updated Text")) }),
     endIf(hasLink),
   ];
 };
@@ -172,7 +181,8 @@ export function shortcutPlist(): Record<string, unknown> {
     WFWorkflowTypes: ["ActionExtension"],
     WFWorkflowHasShortcutInputVariables: true,
     // notefeed takes markdown and pictures: images, text and links, nothing else.
-    WFWorkflowInputContentItemClasses: ["WFImageContentItem", "WFStringContentItem", "WFRichTextContentItem", "WFURLContentItem"],
+    // A page from Safari is taken as such, not as the text iOS would otherwise make of it, so that its address can be read.
+    WFWorkflowInputContentItemClasses: ["WFImageContentItem", "WFStringContentItem", "WFRichTextContentItem", "WFURLContentItem", "WFSafariWebPageContentItem"],
     // What the settings page shows: the address, the feed's name, its password and whether the instance has one.
     WFWorkflowImportQuestions: [
       { ActionIndex: 0, Category: "Parameter", DefaultValue: "https://notefeed.me", ParameterKey: "WFTextActionText", Text: "notefeed address (e.g. https://notefeed.me)" },
@@ -198,9 +208,17 @@ export function shortcutPlist(): Record<string, unknown> {
       // The rest is text too (a picture's text would be its file name, so pictures give none).
       action("repeat.each", { UUID: EACH, GroupingIdentifier: EACH, WFControlFlowMode: 0, WFInput: value({ Type: "ExtensionInput" }) }),
       action("getitemtype", { UUID: ITEM_TYPE, WFInput: value(variable("Repeat Item")) }),
+      // TEMPORARY (#334): what a page shared from Safari arrives as.
+      action("properties.safariwebpage", { UUID: DEBUG_PAGE, WFInput: value(variable("Repeat Item")), WFContentItemPropertyName: "Page URL" }),
+      action("showresult", { Text: text("Debug, item: type [￼] page [￼]", output(ITEM_TYPE, "Type"), output(DEBUG_PAGE, "Page URL")) }),
       ifText(4, IS_TEXT, output(ITEM_TYPE, "Type"), output(TEXT_TYPE, "Type")),
       ...textItem(0),
       otherwise(IS_TEXT),
+      // A page shared from Safari: its address is the note's text (its pictures and its text are the page's, not the sharer's).
+      action("properties.safariwebpage", { UUID: PAGE_URL, WFInput: value(variable("Repeat Item")), WFContentItemPropertyName: "Page URL" }),
+      ifHasValue(IS_PAGE, output(PAGE_URL, "Page URL")),
+      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(PAGE_URL, "Page URL")) }),
+      otherwise(IS_PAGE),
       action("detect.images", { UUID: IMAGES, WFInput: value(variable("Repeat Item")) }),
       ifHasValue(IS_PICTURE, output(IMAGES, "Images")),
       action("image.convert", { UUID: JPEG, WFInput: value(output(IMAGES, "Images")), WFImageFormat: "JPEG", WFImagePreserveMetadata: false }),
@@ -218,6 +236,7 @@ export function shortcutPlist(): Record<string, unknown> {
       otherwise(IS_PICTURE),
       ...textItem(1),
       endIf(IS_PICTURE),
+      endIf(IS_PAGE),
       endIf(IS_TEXT),
       action("repeat.each", { GroupingIdentifier: EACH, WFControlFlowMode: 2 }),
       // The note: the text, then the pictures that arrived, without the blank lines an empty part leaves.

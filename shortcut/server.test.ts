@@ -106,7 +106,8 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       else if (id === "text.changecase") out[uuid] = asText(arg(p.text)).toLowerCase();
       else if (id === "text.replace") {
         const flags = p.WFReplaceTextCaseSensitive === false ? "gi" : "g";
-        out[uuid] = asText(arg(p.WFInput)).replace(new RegExp(p.WFReplaceTextFind as string, flags), p.WFReplaceTextReplace as string);
+        const find = p.WFReplaceTextRegularExpression ? (p.WFReplaceTextFind as string) : (p.WFReplaceTextFind as string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        out[uuid] = asText(arg(p.WFInput)).replace(new RegExp(find, flags), p.WFReplaceTextReplace as string);
       } else if (id === "text.combine") out[uuid] = asText(arg(p.text));
       else if (id === "setvariable") vars[p.WFVariableName as string] = arg(p.WFInput);
       else if (id === "appendvariable") vars[p.WFVariableName as string] = [...((vars[p.WFVariableName as string] as Item[]) ?? []), arg(p.WFInput) as Item];
@@ -122,6 +123,10 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       } else if (id === "getitemtype") {
         const v = arg(p.WFInput);
         out[uuid] = isPicture(v) ? "Bild" : isPage(v) ? "Safari-Webseite" : "Text"; // in the phone's language
+      } else if (id === "getmarkdownfromrichtext") out[uuid] = asText(arg(p.WFInput)); // the stand-in's rich text has no formatting
+      else if (id === "properties.safariwebpage") {
+        const v = arg(p.WFInput);
+        out[uuid] = isPage(v) ? v.url : "";
       } else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
       else if (id === "image.convert") {
         const v = arg(p.WFInput);
@@ -142,7 +147,8 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
     }
   };
   await run(0, actions.length);
-  return { opened, shown };
+  // The temporary debug alerts (#334) are no answer.
+  return { opened, shown: shown.filter((m) => !m.startsWith("Debug, ")), debug: shown.filter((m) => m.startsWith("Debug, ")) };
 }
 
 function fail(condition: unknown): never {
@@ -198,7 +204,7 @@ test("a page shared from Safari is its address, not the page's text; a text with
 });
 
 test("a note shared from Notes is its text, and its photo a picture: not a picture of the text", async () => {
-  await share([{ rich: "Einkauf\nSchienen 150cm\nMoosgummi" }, photo("Einkauf")]);
+  await share([{ rich: "Einkauf\nSchienen 150cm\nMoosgummi\n￼" }, photo("Einkauf")]); // ￼: where the photo sat in the note
   const all = await notes();
   expect(all.filter((n) => n.type === "image/jpeg")).toHaveLength(1);
   expect(all.find((n) => n.type === "text/markdown")!.content).toMatch(/^Einkauf\nSchienen 150cm\nMoosgummi\n\n!\[\]\([\w-]+\.jpg\)$/);
