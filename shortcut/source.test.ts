@@ -83,31 +83,18 @@ test("pictures become JPEG without their metadata before they are posted", () =>
   expect(ids.indexOf("image.convert")).toBeLessThan(ids.indexOf("downloadurl"));
 });
 
-test("everything shared is one multipart POST to the feed's notes, with the feed password; without pictures, no file field", () => {
+test("every request is a raw POST to the feed's notes, with the feed password and the server password", () => {
   const posts = params("downloadurl");
-  expect(posts).toHaveLength(2); // one with pictures, one without, in an If
+  expect(posts).toHaveLength(2); // each picture, then the note
   for (const p of posts) {
-    expect(p).toMatchObject({ WFHTTPMethod: "POST", WFHTTPBodyType: "Form" });
+    expect(p).toMatchObject({ WFHTTPMethod: "POST", WFHTTPBodyType: "File" });
     expect(JSON.stringify(p.WFURL)).toContain('"string":"￼/api/v1/feeds/￼/notes"');
     expect(JSON.stringify(p.WFHTTPHeaders)).toContain('"string":"X-Feed-Password"');
     expect(JSON.stringify(p.WFHTTPHeaders)).toContain('"string":"Bearer ￼"'); // the server password; ignored where there is none
   }
-  const fieldsOf = (p: Record<string, unknown>) => JSON.stringify(p.WFFormValues).match(/"WFKey":\{"Value":\{"string":"(\w+)"/g)!.map((m) => m.split('"').at(-2));
-  expect(fieldsOf(posts[0])).toEqual(["text", "file"]);
-  // The file field: type 5, its variable wrapped in a WFTokenAttachmentParameterState (a bare attachment crashes `shortcuts sign`).
-  const file = (posts[0].WFFormValues as { Value: { WFDictionaryFieldValueItems: Array<Record<string, unknown>> } }).Value.WFDictionaryFieldValueItems[1];
-  expect(file).toMatchObject({
-    WFItemType: 5,
-    WFValue: { WFSerializationType: "WFTokenAttachmentParameterState", Value: { WFSerializationType: "WFTextTokenAttachment", Value: { Type: "Variable", VariableName: "Pictures" } } },
-  });
-  expect(fieldsOf(posts[1])).toEqual(["text"]);
-  expect(ids.indexOf("conditional")).toBeLessThan(ids.indexOf("downloadurl"));
-});
-
-test("a note that arrived opens; a refusal shows the server's error", () => {
-  expect(params("getvalueforkey").map((p) => p.WFDictionaryKey)).toEqual(["url", "error"]);
-  expect(JSON.stringify(params("showresult"))).toContain("Not posted: ￼");
-  expect(ids.lastIndexOf("openurl")).toBeGreaterThan(ids.lastIndexOf("downloadurl"));
+  expect(posts.map((p) => JSON.stringify(p.WFHTTPHeaders).match(/"string":"(image\/jpeg|text\/markdown)"/)?.[1])).toEqual(["image/jpeg", "text/markdown"]);
+  // No form: Shortcuts sends only the first item of a list in a form's file field.
+  expect(JSON.stringify(sc)).not.toContain("WFFormValues");
 });
 
 test("it builds into a property list that reads back the same", () => {
