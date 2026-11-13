@@ -104,12 +104,16 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
         out[uuid] = Array.isArray(v) ? v[0] : v;
       } else if (id === "downloadurl") {
         const url = new URL(asText(arg(p.WFURL)));
-        const body = arg(p.WFRequestVariable);
-        const req = new Request(url, {
-          method: p.WFHTTPMethod as string,
-          headers: { host: url.host, ...headersOf(p.WFHTTPHeaders) },
-          body: isPicture(body) ? (body.picture as BodyInit) : asText(body),
-        });
+        let body: BodyInit;
+        if (p.WFHTTPBodyType === "Form") {
+          const form = new FormData();
+          for (const [k, v] of Object.entries(headersOf(p.WFFormValues))) form.set(k, v);
+          body = form;
+        } else {
+          const v = arg(p.WFRequestVariable);
+          body = isPicture(v) ? (v.picture as BodyInit) : asText(v);
+        }
+        const req = new Request(url, { method: p.WFHTTPMethod as string, headers: { host: url.host, ...headersOf(p.WFHTTPHeaders) }, body });
         const res = await dispatch(req, url.pathname.slice(API_PREFIX.length + 1).split("/"));
         out[uuid] = (await res.json()) as Record<string, unknown>;
       } else if (id === "getvalueforkey") out[uuid] = (arg(p.WFInput) as Record<string, unknown>)[p.WFDictionaryKey as string] as Value;
@@ -120,7 +124,8 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
     }
   };
   await run(0, actions.length);
-  return { opened, shown };
+  // The temporary debug alert (#334) is no answer.
+  return { opened, shown: shown.filter((m) => !m.startsWith("Debug, ")), debug: shown.filter((m) => m.startsWith("Debug, ")) };
 }
 
 async function notes(feed = "phone", password = "") {
@@ -132,26 +137,33 @@ async function notes(feed = "phone", password = "") {
 const photo = (name: string): Picture => ({ picture: JPG, name });
 const broken = (name: string): Picture => ({ picture: new TextEncoder().encode("not a picture"), name });
 
+// The note's line breaks: Node's FormData sends them as \r\n (as the HTML form rules say), Shortcuts as \n.
 test("two photos and a text become one note with both pictures, which opens", async () => {
   const { opened, shown } = await share([photo("IMG_0001"), photo("IMG_0002"), "From the phone"]);
   const all = await notes();
   const note = all.find((n) => n.type === "text/markdown")!;
   expect(all.filter((n) => n.type === "image/jpeg")).toHaveLength(2);
-  expect(note.content).toMatch(/^From the phone\n\n!\[\]\([\w-]+\.jpg\)\n!\[\]\([\w-]+\.jpg\)$/);
+  expect(note.content).toMatch(/^From the phone\r?\n\r?\n!\[\]\([\w-]+\.jpg\)\r?\n!\[\]\([\w-]+\.jpg\)$/);
   expect(opened).toEqual([note.url]);
   expect(shown).toEqual([]);
+});
+
+test("the temporary debug alert shows the note's text before it is sent", async () => {
+  const { debug } = await share([photo("IMG_0001"), "Hi"]);
+  expect(debug).toHaveLength(1);
+  expect(debug[0]).toMatch(/^Debug, the note's text: \[Hi\n\n!\[\]\([\w-]+\.jpg\)\]$/);
 });
 
 test("photos alone: the note is the pictures, without their file names as text", async () => {
   await share([photo("IMG_0001"), photo("IMG_0002")]);
   const note = (await notes()).find((n) => n.type === "text/markdown")!;
-  expect(note.content).toMatch(/^!\[\]\([\w-]+\.jpg\)\n!\[\]\([\w-]+\.jpg\)$/);
+  expect(note.content).toMatch(/^!\[\]\([\w-]+\.jpg\)\r?\n!\[\]\([\w-]+\.jpg\)$/);
 });
 
 test("a picture refused doesn't stop the others: the note is posted with them, and a hint says what failed", async () => {
   const { opened, shown } = await share([photo("IMG_0001"), broken("IMG_0002"), "Look"]);
   const note = (await notes()).find((n) => n.type === "text/markdown")!;
-  expect(note.content).toMatch(/^Look\n\n!\[\]\([\w-]+\.jpg\)$/);
+  expect(note.content).toMatch(/^Look\r?\n\r?\n!\[\]\([\w-]+\.jpg\)$/);
   expect(shown).toHaveLength(1);
   expect(shown[0]).toMatch(/^Posted, but not everything:\nA picture was not posted: \S/);
   expect(opened).toEqual([note.url]);

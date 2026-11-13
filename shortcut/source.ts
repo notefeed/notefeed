@@ -74,21 +74,31 @@ const endIf = (group: string) => action("conditional", { GroupingIdentifier: gro
 const header = (key: string, v: ReturnType<typeof text>) => ({ WFItemType: 0, WFKey: text(key), WFValue: v });
 const headers = (...items: ReturnType<typeof header>[]) => ({ Value: { WFDictionaryFieldValueItems: items }, WFSerializationType: "WFDictionaryFieldValue" });
 
-// POST /api/v1/feeds/<feed>/notes with `body` as the note's file, of type `type`; with the feed's password (an empty header is no
-// password, so an open feed needs nothing) and the instance's (checked only where the instance has one; elsewhere ignored).
-const post = (uuid: string, type: string, body: Attachment) =>
+// POST /api/v1/feeds/<feed>/notes, with the feed's password (an empty header is no password, so an open feed needs nothing) and the
+// instance's (checked only where the instance has one; elsewhere ignored). A picture goes as the body itself, as image/jpeg; the
+// note as a form with one text field: sent as a raw body, its text arrived empty ("note is empty" on iOS 26), while a form's text
+// field arrived whole.
+const passwords = [header("X-Feed-Password", text("￼", variable(PASSWORD_VAR))), header("Authorization", text("Bearer ￼", variable(INSTANCE_VAR)))];
+const notesUrl = () => text("￼/api/v1/feeds/￼/notes", variable(ADDRESS_VAR), variable(FEED_VAR));
+const postPicture = (uuid: string, picture: Attachment) =>
   action("downloadurl", {
     UUID: uuid,
-    WFURL: text("￼/api/v1/feeds/￼/notes", variable(ADDRESS_VAR), variable(FEED_VAR)),
+    WFURL: notesUrl(),
     WFHTTPMethod: "POST",
     WFHTTPBodyType: "File",
-    WFRequestVariable: value(body),
+    WFRequestVariable: value(picture),
     ShowHeaders: true,
-    WFHTTPHeaders: headers(
-      header("Content-Type", text(type)),
-      header("X-Feed-Password", text("￼", variable(PASSWORD_VAR))),
-      header("Authorization", text("Bearer ￼", variable(INSTANCE_VAR))),
-    ),
+    WFHTTPHeaders: headers(header("Content-Type", text("image/jpeg")), ...passwords),
+  });
+const postNote = (uuid: string, note: Attachment) =>
+  action("downloadurl", {
+    UUID: uuid,
+    WFURL: notesUrl(),
+    WFHTTPMethod: "POST",
+    WFHTTPBodyType: "Form",
+    WFFormValues: headers(header("text", text("￼", note))),
+    ShowHeaders: true,
+    WFHTTPHeaders: headers(...passwords),
   });
 const valueFor = (uuid: string, of: Attachment, key: string) => action("getvalueforkey", { UUID: uuid, WFInput: value(of), WFDictionaryKey: key });
 /** Combine Text, one item per line: its input is `text`, not WFInput (as cherri lists it). */
@@ -153,7 +163,7 @@ export function shortcutPlist(): Record<string, unknown> {
       action("detect.images", { UUID: IMAGES, WFInput: value(variable("Repeat Item")) }),
       ifHasValue(IS_PICTURE, output(IMAGES, "Images")),
       action("image.convert", { UUID: JPEG, WFInput: value(output(IMAGES, "Images")), WFImageFormat: "JPEG", WFImagePreserveMetadata: false }),
-      post(POST_PICTURE, "image/jpeg", output(JPEG, "Converted Image")),
+      postPicture(POST_PICTURE, output(JPEG, "Converted Image")),
       valueFor(FILE_OF, output(POST_PICTURE, "Contents of URL"), "file"),
       ifHasValue(STORED, output(FILE_OF, "Dictionary Value")),
       action("appendvariable", { WFVariableName: PICTURES, WFInput: text("![](￼)", output(FILE_OF, "Dictionary Value")) }),
@@ -173,7 +183,9 @@ export function shortcutPlist(): Record<string, unknown> {
       action("gettext", { UUID: BODY, WFTextActionText: text("￼\n\n￼", output(JOINED_TEXTS, "Combined Text"), output(JOINED_PICTURES, "Combined Text")) }),
       action("text.replace", { UUID: NOTE, WFInput: text("￼", output(BODY, "Text")), WFReplaceTextFind: "^\\s+|\\s+$", WFReplaceTextReplace: "", WFReplaceTextRegularExpression: true }),
       ifHasValue(ANYTHING, output(NOTE, "Updated Text")),
-      post(POST_NOTE, "text/markdown", output(NOTE, "Updated Text")),
+      // TEMPORARY (#334): what the note's text is just before it is sent, to tell an empty text from a text sent empty.
+      action("showresult", { Text: text("Debug, the note's text: [￼]", output(NOTE, "Updated Text")) }),
+      postNote(POST_NOTE, output(NOTE, "Updated Text")),
       // The answer: the note's `url` to open (after a hint naming the pictures that didn't make it), or the server's `error` to show.
       valueFor(URL_OF, output(POST_NOTE, "Contents of URL"), "url"),
       ifHasValue(ARRIVED, output(URL_OF, "Dictionary Value")),
