@@ -12,7 +12,9 @@ API=https://notefeed.me/api/v1
 REPO=${GITHUB_REPOSITORY:-notefeed/notefeed}
 
 if [ -z "${DRY_RUN:-}" ] && [ "$(curl -sf "$API/read/news/notes?tag=$TAG" | jq '.notes | length')" != 0 ]; then echo "already in the news"; exit 0; fi
-note=$(curl -sf "$API/read/releases/notes?tag=$TAG" | jq -r '.notes[0].id // empty')
+# The release's note is tagged notefeed-vX.Y.Z; notes before 0.36 carry vX.Y.Z.
+note=$(curl -sf "$API/read/releases/notes?tag=notefeed-$TAG" | jq -r '.notes[0].id // empty')
+[ -n "$note" ] || note=$(curl -sf "$API/read/releases/notes?tag=$TAG" | jq -r '.notes[0].id // empty')
 [ -n "$note" ] || { echo "::error::$TAG has no note on /r/releases yet"; exit 1; }
 
 prev=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
