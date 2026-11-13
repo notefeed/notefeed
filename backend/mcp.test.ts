@@ -174,6 +174,7 @@ describe("tools", () => {
     const r = await call("post_note", { feed: "a", markdown: "# Hi" });
     const { id } = r.structuredContent;
     expect(r.structuredContent).toEqual({
+      guidance: expect.any(Array),
       id,
       url: `http://localhost:3000/a/${id}`,
       feed_url: "http://localhost:3000/a",
@@ -279,7 +280,7 @@ describe("tools", () => {
       expect(r.isError, tool).toBe(true);
       expect(JSON.stringify(r.content), tool).toContain("removed by the operator");
     }
-    expect((await call("delete_note", { feed: "a", id: note.id })).structuredContent).toEqual({ deleted: true });
+    expect((await call("delete_note", { feed: "a", id: note.id })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(Array) });
     expect((await call("list_notes", { feed: "a" })).structuredContent.notes).toEqual([]);
     expect((await call("get_note", { feed: "a", id: note.id })).isError).toBe(true);
   });
@@ -288,6 +289,7 @@ describe("tools", () => {
     const { id } = (await call("post_note", { feed: "a", markdown: "# Hi\nbody" })).structuredContent;
     const n = (await call("get_note", { feed: "a", id })).structuredContent;
     expect(n).toEqual({
+      guidance: expect.any(Array),
       id,
       type: "text/markdown",
       title: "Hi",
@@ -691,7 +693,7 @@ describe("edit_note and delete_note", () => {
     const e = await call("edit_note", { feed: "o", id, markdown: "# New" });
     expect(e.structuredContent).toMatchObject({ id, type: "text/markdown", title: "New", content: "# New" });
     expect((await call("get_note", { feed: "o", id })).structuredContent.content).toBe("# New");
-    expect((await call("delete_note", { feed: "o", id })).structuredContent).toEqual({ deleted: true });
+    expect((await call("delete_note", { feed: "o", id })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(Array) });
     expect((await call("get_note", { feed: "o", id })).isError).toBe(true);
   });
   test("a protected feed needs the password", async () => {
@@ -724,11 +726,12 @@ describe("feed tools", () => {
     await call("post_note", { feed: "f", markdown: "# Hi" });
     const u = await call("update_feed", { feed: "f", title: "T", description: "D" });
     expect(u.structuredContent).toMatchObject({ name: "f", title: "T", description: "D", protected: false });
-    expect((await call("get_feed", { feed: "f" })).structuredContent).toEqual(u.structuredContent);
+    // The same feed; only the guidance differs (update_feed's says what changed).
+    expect({ ...(await call("get_feed", { feed: "f" })).structuredContent, guidance: "" }).toEqual({ ...u.structuredContent, guidance: "" });
     // The iPhone Shortcut, for an agent to hand to a person (#334)
     expect((await call("get_feed", { feed: "f" })).structuredContent.shortcut_url).toBe("http://localhost:3000/shortcuts/Send%20to%20notefeed.shortcut");
     expect((await call("update_feed", { feed: "f", title: "x".repeat(101), description: "" })).isError).toBe(true);
-    expect((await call("delete_feed", { feed: "f" })).structuredContent).toEqual({ deleted: true });
+    expect((await call("delete_feed", { feed: "f" })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(Array) });
     expect((await call("get_feed", { feed: "f" })).content[0].text).toBe("no such feed");
   });
   test("update_feed keeps what is left out, and needs something to change", async () => {
@@ -747,7 +750,7 @@ describe("feed tools", () => {
     ] as const) {
       expect((await call(tool, { feed: "p", ...args })).content[0].text).toBe("missing or wrong password");
     }
-    expect((await call("delete_feed", { feed: "p", password: "pw" })).structuredContent).toEqual({ deleted: true });
+    expect((await call("delete_feed", { feed: "p", password: "pw" })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(Array) });
   });
 });
 
@@ -904,5 +907,84 @@ describe("edit_note validates before it changes anything", () => {
     expect((await call("get_note", { feed: "v", id })).structuredContent.content).toBe("# Old");
     const none = await call("edit_note", { feed: "v", id });
     expect(none.isError).toBe(true);
+  });
+});
+
+// #357: every tool result says what to tell the user or do next, worked out from what the call did.
+describe("guidance", () => {
+  const g = async (tool: string, args: Record<string, unknown>) => {
+    const r = await call(tool, args);
+    expect(r.isError).toBeFalsy();
+    const { guidance } = r.structuredContent as { guidance: unknown };
+    expect(Array.isArray(guidance) && guidance.length > 0 && guidance.every((g) => typeof g === "string" && g.trim())).toBe(true);
+    // The instructions as one text, for the assertions below.
+    return { ...r.structuredContent, guidance: (guidance as string[]).join(" ") } as { guidance: string; [k: string]: unknown };
+  };
+  const future = () => new Date(Date.now() + 86400_000).toISOString();
+
+  test("post_note: a new feed, a published note, a draft and a scheduled note each say so", async () => {
+    const first = await g("post_note", { feed: "gd", markdown: "# One" });
+    expect(first.guidance).toContain("created the feed");
+    expect(first.guidance).toContain(first.read_url as string);
+    expect(first.guidance).toContain(first.url as string);
+    const second = await g("post_note", { feed: "gd", markdown: "# Two" });
+    expect(second.guidance).not.toContain("created the feed");
+    expect(second.guidance).toContain("Readers see it");
+    expect((await g("post_note", { feed: "gd", markdown: "# D", draft: true })).guidance).toMatch(/draft.*edit_note.*draft false/is);
+    expect((await g("post_note", { feed: "gd", markdown: "# S", date: future() })).guidance).toMatch(/scheduled/i);
+  });
+
+  test("post_file says the URL is public once readers see the note", async () => {
+    expect((await g("post_file", { feed: "gf", type: "text/markdown", data: Buffer.from("# x").toString("base64") })).guidance).toMatch(/public/i);
+    expect((await g("post_file", { feed: "gf", type: "text/markdown", data: Buffer.from("# y").toString("base64"), draft: true })).guidance).toMatch(/draft/i);
+  });
+
+  test("list_notes says how to get the next page, or that there is none, and counts what readers don't see", async () => {
+    for (let i = 0; i < 3; i++) await createNote("gl", `# ${i}`);
+    await g("post_note", { feed: "gl", markdown: "# D", draft: true });
+    const page = await g("list_notes", { feed: "gl", limit: 2 });
+    expect(page.guidance).toContain(`before: "${page.next}"`);
+    const all = await g("list_notes", { feed: "gl", limit: 100 });
+    expect(all.guidance).toMatch(/no more notes/i);
+    expect(all.guidance).toMatch(/1 draft/);
+  });
+
+  test("get_note and edit_note say whether readers see the note", async () => {
+    const { id } = await g("post_note", { feed: "ge", markdown: "# D", draft: true });
+    expect((await g("get_note", { feed: "ge", id })).guidance).toMatch(/draft/i);
+    expect((await g("edit_note", { feed: "ge", id, draft: false })).guidance).toContain("Readers see it");
+    expect((await g("edit_note", { feed: "ge", id, date: future() })).guidance).toMatch(/scheduled/i);
+  });
+
+  test("delete_note and delete_feed say what can't be undone", async () => {
+    const { id } = await g("post_note", { feed: "gx", markdown: "# x" });
+    expect((await g("delete_note", { feed: "gx", id })).guidance).toMatch(/feed reader/i);
+    expect((await g("delete_feed", { feed: "gx" })).guidance).toMatch(/read link/i);
+  });
+
+  test("get_feed and create_feed say where the read link is, or that it comes with the first note", async () => {
+    expect((await g("create_feed", { feed: "gc" })).guidance).toMatch(/first note/i);
+    await createNote("gc", "# x");
+    const feed = await g("get_feed", { feed: "gc" });
+    expect(feed.guidance).toContain(feed.read_url as string);
+  });
+
+  test("update_feed: a new read link, a new name and a new password each say what to tell the user", async () => {
+    await createNote("gu", "# x");
+    expect((await g("update_feed", { feed: "gu", read_id: "" })).guidance).toMatch(/old read link stops working/i);
+    const renamed = await g("update_feed", { feed: "gu", name: "gu2" });
+    expect(renamed.guidance).toContain("gu2");
+    expect(renamed.guidance).toMatch(/NOTEFEED_FEED/);
+    expect((await g("update_feed", { feed: "gu2", new_password: "pw-123456" })).guidance).toMatch(/new password/i);
+    expect((await g("update_feed", { feed: "gu2", title: "T", password: "pw-123456" })).guidance).toMatch(/saved/i);
+  });
+
+  test("set_feed_image and get_licenses answer with guidance too", async () => {
+    await createNote("gi", "# x");
+    expect((await g("set_feed_image", { feed: "gi", type: "image/png", data: Buffer.from(PNG).toString("base64") })).guidance).toMatch(/title image/i);
+    vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
+    vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+    const lic = await g("get_licenses", {});
+    expect(lic.guidance).toContain(lic.buy_url as string);
   });
 });
