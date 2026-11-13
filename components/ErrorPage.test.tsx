@@ -48,7 +48,10 @@ test("a damaged note's page says what happened; its owner can delete it, a reade
 
 test("a page that failed on an unreachable key service is the maintenance page, on both error pages", () => {
   const down = Object.assign(new Error("the key service is unreachable"), { digest: UNAVAILABLE_DIGEST });
-  for (const html of [renderToStaticMarkup(<ErrorBoundary error={down} retry={() => {}} />), renderToStaticMarkup(<GlobalError error={down} retry={() => {}} />)]) {
+  for (const html of [
+    renderToStaticMarkup(<ErrorBoundary error={down} retry={() => {}} />),
+    renderToStaticMarkup(<GlobalError error={down} retry={() => {}} />),
+  ]) {
     expect(html).toContain("Down for maintenance");
     expect(html).toContain(MAINTENANCE);
     expect(html).toContain("Try again");

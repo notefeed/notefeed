@@ -17,7 +17,8 @@ const OLD_FILE = /(?<![A-Za-z0-9_-])(\d{8}T\d{6}Z-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-
 const POSTED_WITH = 60_000;
 
 /** The id a note with the old id `oldId` gets: an HMAC of feed and old id under the instance secret, 22 characters of base64url. */
-export const migratedId = (feed: string, oldId: string): string => createHmac("sha256", secret()).update(`note-id:${feed}:${oldId}`).digest("base64url").slice(0, 22);
+export const migratedId = (feed: string, oldId: string): string =>
+  createHmac("sha256", secret()).update(`note-id:${feed}:${oldId}`).digest("base64url").slice(0, 22);
 
 // The old id's time: the uuid v7's milliseconds, else the stamp's second. null: not an old id.
 function oldDate(id: string): number | null {

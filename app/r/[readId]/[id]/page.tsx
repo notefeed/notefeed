@@ -7,7 +7,17 @@ import { DamagedNote } from "@/components/DamagedNote";
 import { Removed } from "@/components/Removed";
 import { RemovedNote } from "@/components/RemovedNote";
 import { orDamaged } from "@/app/_lib/damaged";
-import { getReadFeedAbout, getReadNote, getReadPictures, hasLegalPage, instanceTitle, isRemovedReadId, isRemovedReadNote, readPath, reportTemplate } from "@/backend";
+import {
+  getReadFeedAbout,
+  getReadNote,
+  getReadPictures,
+  hasLegalPage,
+  instanceTitle,
+  isRemovedReadId,
+  isRemovedReadNote,
+  readPath,
+  reportTemplate,
+} from "@/backend";
 import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
 export const dynamic = "force-dynamic";

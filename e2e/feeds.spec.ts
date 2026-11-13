@@ -106,7 +106,9 @@ test("a refused save says why", async ({ page }) => {
   const name = feedName();
   await post(page, name);
   await page.getByRole("link", { name: "Settings" }).click();
-  await page.route("**/api/v1/feeds/*", (route) => route.fulfill({ status: 429, headers: { "retry-after": "7" }, json: { error: "slow down", code: "rate_limited" } }));
+  await page.route("**/api/v1/feeds/*", (route) =>
+    route.fulfill({ status: 429, headers: { "retry-after": "7" }, json: { error: "slow down", code: "rate_limited" } }),
+  );
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "seconds" })).toContainText("Too many requests, try again in 7 seconds.");
 });
@@ -189,7 +191,9 @@ test("a large picture is capped in width and height", async ({ page, request }) 
     g.fillRect(0, 0, 3000, 2000);
     return c.toDataURL("image/png").split(",")[1];
   });
-  const posted = await (await request.post(`/api/v1/feeds/${name}/notes`, { data: Buffer.from(png, "base64"), headers: { "Content-Type": "image/png" } })).json();
+  const posted = await (
+    await request.post(`/api/v1/feeds/${name}/notes`, { data: Buffer.from(png, "base64"), headers: { "Content-Type": "image/png" } })
+  ).json();
   await request.post(`/api/v1/feeds/${name}/notes`, { data: `# With a picture\n\n![](${posted.file})`, headers: { "Content-Type": "text/markdown" } });
   await page.goto(`/${name}`);
   const inline = page.locator(".md img").first();
@@ -242,7 +246,15 @@ test("a feed is renamed on its settings page and keeps its notes and read link",
   await expect(page.getByText("No notes yet.")).toBeVisible();
 });
 
-test("a taken name is refused on the settings page, and without JavaScript a rename still works", async ({ page, browser, baseURL }: { page: Page; browser: Browser; baseURL?: string }) => {
+test("a taken name is refused on the settings page, and without JavaScript a rename still works", async ({
+  page,
+  browser,
+  baseURL,
+}: {
+  page: Page;
+  browser: Browser;
+  baseURL?: string;
+}) => {
   const [mine, theirs] = [feedName(), feedName()];
   await post(page, theirs);
   await post(page, mine);

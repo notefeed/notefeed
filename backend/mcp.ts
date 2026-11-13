@@ -20,7 +20,19 @@ import { verify } from "./oauth/tokens";
 import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
 import { checkTags, TAG_RULE } from "./tags";
-import { checkDate, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
+import {
+  checkDate,
+  createFeed,
+  deleteFeed,
+  setFeedImage,
+  deleteNote,
+  editContent,
+  editMeta,
+  postNote,
+  postWithPictures,
+  setLicense,
+  updateFeed,
+} from "./posting";
 import { getStoredSettings } from "./feedsettings";
 import { atomPath, feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
@@ -31,9 +43,15 @@ const feed = z.string().regex(FEED_RE);
 const password = z.string().optional();
 const PROTECTED = "A protected feed needs its password as password.";
 // Every picture is processed on the server (ADR 0049): an assistant should send the file it has, not shrink it first.
-const PICTURES = "Send a picture as it is, full size (up to 10 MiB, 100 megapixels): it is stored turned upright, at most 2560 px on its long side and without metadata (EXIF, GPS position). If the server answers busy, try again after a few seconds.";
+const PICTURES =
+  "Send a picture as it is, full size (up to 10 MiB, 100 megapixels): it is stored turned upright, at most 2560 px on its long side and without metadata (EXIF, GPS position). If the server answers busy, try again after a few seconds.";
 // Drafts (#265): what a post takes, and what its answer says.
-const DRAFT_POST = z.boolean().optional().describe("Post it as a draft: only whoever can post to the feed sees it (on the feed page, here, in the API); readers do not, its pictures neither, until edit_note publishes it with draft false.");
+const DRAFT_POST = z
+  .boolean()
+  .optional()
+  .describe(
+    "Post it as a draft: only whoever can post to the feed sees it (on the feed page, here, in the API); readers do not, its pictures neither, until edit_note publishes it with draft false.",
+  );
 const DRAFT_OUT = z.literal(true).optional().describe("Only present when the note was stored as a draft");
 const NoteSummary = z.object({
   id: z.string(),
@@ -45,8 +63,16 @@ const NoteSummary = z.object({
   url: z.string(),
   sender: z.string().optional(),
   tags: z.array(z.string()),
-  unreadable: z.literal(true).optional().describe("A damaged note: its stored copy can't be decrypted, so its title and tags are empty and get_note refuses it. It can be deleted"),
-  removed: z.literal(true).optional().describe("The mark the operator left where a post was removed for breaking the content rules: it has the removed note's id and date and nothing else; get_note and edit_note refuse it. Deleting it works; the post does not come back"),
+  unreadable: z
+    .literal(true)
+    .optional()
+    .describe("A damaged note: its stored copy can't be decrypted, so its title and tags are empty and get_note refuses it. It can be deleted"),
+  removed: z
+    .literal(true)
+    .optional()
+    .describe(
+      "The mark the operator left where a post was removed for breaking the content rules: it has the removed note's id and date and nothing else; get_note and edit_note refuse it. Deleting it works; the post does not come back",
+    ),
 });
 const NoteFull = NoteSummary.extend({ content: z.string().optional() }); // the text of a text type; a picture has none
 
@@ -71,7 +97,19 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
 // reaches beyond this notefeed: its plans come from the payment provider.
 function server(h: Headers): McpServer {
   const base = publicUrl(h);
-  const summary = (feed: string, n: Note) => ({ id: n.id, type: n.type, title: n.title, date: n.date.toISOString(), ...(isScheduled(n) && { scheduled: true as const }), ...(isDraft(n) && { draft: true as const }), url: `${base}${feedPath(feed)}/${n.id}`, ...(n.sender !== undefined && { sender: n.sender }), tags: n.tags, ...(n.unreadable && { unreadable: true as const }), ...(n.removed && { removed: true as const }) });
+  const summary = (feed: string, n: Note) => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    date: n.date.toISOString(),
+    ...(isScheduled(n) && { scheduled: true as const }),
+    ...(isDraft(n) && { draft: true as const }),
+    url: `${base}${feedPath(feed)}/${n.id}`,
+    ...(n.sender !== undefined && { sender: n.sender }),
+    tags: n.tags,
+    ...(n.unreadable && { unreadable: true as const }),
+    ...(n.removed && { removed: true as const }),
+  });
   // A reserved name must not reach the filesystem lookup, so it is checked first.
   const checkAccess = async (feed: string, password?: string) => {
     assertFeed(feed);
@@ -80,12 +118,22 @@ function server(h: Headers): McpServer {
   const s = new McpServer({ name: "notefeed", version: runningVersion().version }); // the instance's version (#306)
 
   // One file as a note: the type must be accepted and the bytes must be what it says (postNote checks that); a picture is size-limited.
-  const postBytes = async (feed: string, f: { type: string; data: string; title?: string; alt?: string; name?: string; tags?: string[]; draft?: boolean }, password: string | undefined) => {
+  const postBytes = async (
+    feed: string,
+    f: { type: string; data: string; title?: string; alt?: string; name?: string; tags?: string[]; draft?: boolean },
+    password: string | undefined,
+  ) => {
     const parsed = parseMediaType(f.type);
     if (!parsed) throw new UnsupportedTypeError();
     const body = Buffer.from(f.data, "base64");
     if (parsed.type.name === "image" && body.length > config.maxImageBytes()) throw new ImageTooLargeError();
-    return postNote(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType, title: f.title, alt: f.alt, name: f.name, tags: f.tags, draft: f.draft }), { password }, sender(h));
+    return postNote(
+      feed,
+      clientIp(h),
+      async () => ({ body, mediaType: parsed.mediaType, title: f.title, alt: f.alt, name: f.name, tags: f.tags, draft: f.draft }),
+      { password },
+      sender(h),
+    );
   };
   const fileUrl = (readId: string | null, file: string) => (readId ? base + imagePath(readId, file) : "");
 
@@ -96,19 +144,70 @@ function server(h: Headers): McpServer {
       inputSchema: z.object({
         feed,
         markdown: z.string(),
-        title: z.string().optional().describe("The note's title (at most 100 characters, one line; control and text-direction override characters are refused); left out, it is taken from the text"),
-        name: z.string().optional().describe("A file name for the note, e.g. post-to-notefeed.md: the read link serves the newest note with that name at <read link>/<name>, a stable address for a file that changes. Not unique: post again under the same name for a new version."),
+        title: z
+          .string()
+          .optional()
+          .describe(
+            "The note's title (at most 100 characters, one line; control and text-direction override characters are refused); left out, it is taken from the text",
+          ),
+        name: z
+          .string()
+          .optional()
+          .describe(
+            "A file name for the note, e.g. post-to-notefeed.md: the read link serves the newest note with that name at <read link>/<name>, a stable address for a file that changes. Not unique: post again under the same name for a new version.",
+          ),
         password,
         tags: z.array(z.string()).optional().describe(`Labels for the note, e.g. ["ci","deploy"]: ${TAG_RULE}. Not verified; readers see them.`),
-        date: z.string().optional().describe("The note's date, if not now: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC), any time from 1970 to 9999. The note takes its place in the feed by this time. A future time schedules the note: readers see it from then on."),
+        date: z
+          .string()
+          .optional()
+          .describe(
+            "The note's date, if not now: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC), any time from 1970 to 9999. The note takes its place in the feed by this time. A future time schedules the note: readers see it from then on.",
+          ),
         draft: DRAFT_POST,
-        read_id: z.string().optional().describe("Only when this post creates the feed: its read id (3 to 64 characters of a-z, 0-9, - and _), random when left out. A short readable one is guessable. Fails if taken."),
-        license_key: z.string().optional().describe("Only on an instance that sells licenses, when this post creates the feed: the key of the license to put on it, with or without a password (a feed password is for licensed feeds; with a password and no key the post fails with license_required). A key that is none or has lapsed creates nothing. Ignored on an existing feed: use update_feed's license_key."),
+        read_id: z
+          .string()
+          .optional()
+          .describe(
+            "Only when this post creates the feed: its read id (3 to 64 characters of a-z, 0-9, - and _), random when left out. A short readable one is guessable. Fails if taken.",
+          ),
+        license_key: z
+          .string()
+          .optional()
+          .describe(
+            "Only on an instance that sells licenses, when this post creates the feed: the key of the license to put on it, with or without a password (a feed password is for licensed feeds; with a password and no key the post fails with license_required). A key that is none or has lapsed creates nothing. Ignored on an existing feed: use update_feed's license_key.",
+          ),
         attachments: z
-          .array(z.object({ name: z.string().refine(isAttachmentName, "Not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots").describe("What the markdown calls it: ![](name). Any single path segment (no / or \\; spaces allowed, written <name with spaces> or name%20with%20spaces in the markdown); unique when the markdown refers to it, else pictures of the same name are appended"), type: z.string().describe(`The picture's media type: ${ACCEPTED_TYPES}`), data: z.string().describe("The picture's bytes, standard base64 (not URL-safe)"), alt: z.string().optional().describe("Alternative text (at most 500 characters, one line; control and text-direction override characters are refused)") }))
+          .array(
+            z.object({
+              name: z
+                .string()
+                .refine(
+                  isAttachmentName,
+                  "Not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots",
+                )
+                .describe(
+                  "What the markdown calls it: ![](name). Any single path segment (no / or \\; spaces allowed, written <name with spaces> or name%20with%20spaces in the markdown); unique when the markdown refers to it, else pictures of the same name are appended",
+                ),
+              type: z.string().describe(`The picture's media type: ${ACCEPTED_TYPES}`),
+              data: z.string().describe("The picture's bytes, standard base64 (not URL-safe)"),
+              alt: z
+                .string()
+                .optional()
+                .describe("Alternative text (at most 500 characters, one line; control and text-direction override characters are refused)"),
+            }),
+          )
           .optional(),
       }),
-      outputSchema: z.object({ id: z.string(), url: z.string(), feed_url: z.string(), read_url: z.string().nullable(), atom_url: z.string().nullable(), draft: DRAFT_OUT, attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })) }),
+      outputSchema: z.object({
+        id: z.string(),
+        url: z.string(),
+        feed_url: z.string(),
+        read_url: z.string().nullable(),
+        atom_url: z.string().nullable(),
+        draft: DRAFT_OUT,
+        attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })),
+      }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, markdown, title, name, password, tags, date, draft, read_id, license_key, attachments = [] }) => {
@@ -116,12 +215,31 @@ function server(h: Headers): McpServer {
       const pictures = attachments.map((a) => {
         const clean = a.data.replace(/\s/g, "");
         const body = Buffer.from(clean, "base64");
-        if (body.toString("base64").replace(/=+$/, "") !== clean.replace(/=+$/, "")) throw new InvalidBodyError(`attachment "${safeName(a.name)}": data is not valid base64`);
+        if (body.toString("base64").replace(/=+$/, "") !== clean.replace(/=+$/, ""))
+          throw new InvalidBodyError(`attachment "${safeName(a.name)}": data is not valid base64`);
         return { name: a.name, body, mediaType: a.type, alt: a.alt };
       });
-      const { note, readId, pictures: stored } = await postWithPictures(feed, clientIp(h), async () => ({ text: markdown, pictures, title, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }), { password }, sender(h));
+      const {
+        note,
+        readId,
+        pictures: stored,
+      } = await postWithPictures(
+        feed,
+        clientIp(h),
+        async () => ({ text: markdown, pictures, title, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }),
+        { password },
+        sender(h),
+      );
       const feedUrl = base + feedPath(feed);
-      return ok({ id: note.id, url: `${feedUrl}/${note.id}`, feed_url: feedUrl, read_url: readId && base + rssPath(readId), atom_url: readId && base + atomPath(readId), ...(note.draft && { draft: true as const }), attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })) });
+      return ok({
+        id: note.id,
+        url: `${feedUrl}/${note.id}`,
+        feed_url: feedUrl,
+        read_url: readId && base + rssPath(readId),
+        atom_url: readId && base + atomPath(readId),
+        ...(note.draft && { draft: true as const }),
+        attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })),
+      });
     }),
   );
 
@@ -129,7 +247,13 @@ function server(h: Headers): McpServer {
     "list_notes",
     {
       description: `List a feed's notes, newest first, without their content. Pass the returned next as before for the next page. ${PROTECTED} ${SECRET_NOTE}`,
-      inputSchema: z.object({ feed, limit: z.number().int().min(1).max(100).default(20), before: z.string().optional(), tag: z.string().optional().describe("Only notes carrying this tag"), password }),
+      inputSchema: z.object({
+        feed,
+        limit: z.number().int().min(1).max(100).default(20),
+        before: z.string().optional(),
+        tag: z.string().optional().describe("Only notes carrying this tag"),
+        password,
+      }),
       outputSchema: z.object({ notes: z.array(NoteSummary), next: z.string().nullable() }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
@@ -148,7 +272,10 @@ function server(h: Headers): McpServer {
       inputSchema: z.object({
         feed,
         id: z.string(),
-        picture: z.boolean().optional().describe("true: a picture note's image comes along as an image, so a draft's pictures can be checked before it goes out. Ignored for a text note"),
+        picture: z
+          .boolean()
+          .optional()
+          .describe("true: a picture note's image comes along as an image, so a draft's pictures can be checked before it goes out. Ignored for a text note"),
         password,
       }),
       outputSchema: NoteFull,
@@ -178,21 +305,39 @@ function server(h: Headers): McpServer {
         id: z.string(),
         markdown: z.string().optional(),
         title: z.string().optional(),
-        tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list, e.g. ["ci","done"]: ${TAG_RULE}. Empty removes them; left out keeps them.`),
-        date: z.string().optional().describe("The note's new date: an ISO 8601 date and time with its offset or a date alone (midnight UTC), any time from 1970 to 9999. A future time schedules the note."),
-        draft: z.boolean().optional().describe("false publishes the note: readers see it from then on. true makes it a draft again, hidden from readers (refused while a picture of it is the feed's title image). Its pictures follow (a picture posted with a note can't be set on its own), and its date stays: a past date places it there, a future one schedules it."),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe(`The note's tags, the whole new list, e.g. ["ci","done"]: ${TAG_RULE}. Empty removes them; left out keeps them.`),
+        date: z
+          .string()
+          .optional()
+          .describe(
+            "The note's new date: an ISO 8601 date and time with its offset or a date alone (midnight UTC), any time from 1970 to 9999. A future time schedules the note.",
+          ),
+        draft: z
+          .boolean()
+          .optional()
+          .describe(
+            "false publishes the note: readers see it from then on. true makes it a draft again, hidden from readers (refused while a picture of it is the feed's title image). Its pictures follow (a picture posted with a note can't be set on its own), and its date stays: a past date places it there, a future one schedules it.",
+          ),
         password,
       }),
       outputSchema: NoteFull,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, id, markdown, title, tags, date, draft, password }) => {
-      if (markdown === undefined && title === undefined && tags === undefined && date === undefined && draft === undefined) throw new InvalidBodyError("nothing to change: send markdown, title, tags, date, draft or several");
+      if (markdown === undefined && title === undefined && tags === undefined && date === undefined && draft === undefined)
+        throw new InvalidBodyError("nothing to change: send markdown, title, tags, date, draft or several");
       checkLine("title", title, MAX_NOTE_TITLE);
       if (tags !== undefined) checkTags(tags);
       checkDate(date); // before the content is replaced: a bad title, tag or date must not leave a half edit
-      let note = markdown === undefined ? undefined : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), { password });
-      if (title !== undefined || tags !== undefined || date !== undefined || draft !== undefined) note = await editMeta(feed, id, clientIp(h), async () => ({ title, tags, date, draft }), { password });
+      let note =
+        markdown === undefined
+          ? undefined
+          : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), { password });
+      if (title !== undefined || tags !== undefined || date !== undefined || draft !== undefined)
+        note = await editMeta(feed, id, clientIp(h), async () => ({ title, tags, date, draft }), { password });
       return ok({ ...summary(feed, note!), ...(note!.content !== undefined && { content: note!.content }) });
     }),
   );
@@ -213,7 +358,13 @@ function server(h: Headers): McpServer {
 
   // The API's Feed with its fields inlined: an id in .meta() turns into a top-level $ref, and an
   // MCP output schema must be an object at its root. Built from FeedJson so a new field is declared here too (#245).
-  const FeedOut = z.object({ ...FeedJson.shape, free_tier: z.object(FreeTierJson.shape).nullable().describe(FeedJson.shape.free_tier.description ?? "") });
+  const FeedOut = z.object({
+    ...FeedJson.shape,
+    free_tier: z
+      .object(FreeTierJson.shape)
+      .nullable()
+      .describe(FeedJson.shape.free_tier.description ?? ""),
+  });
 
   s.registerTool(
     "get_feed",
@@ -252,8 +403,16 @@ function server(h: Headers): McpServer {
         description: z.string().optional(),
         image: z.string().optional(),
         read_id: z.string().optional(),
-        name: z.string().optional().describe("A new name for the feed (1 to 64 characters of a-z, 0-9, - and _). Everything goes with it; the old name stops working at once, so use the new one in every later call and tell the user to change it wherever it is configured (NOTEFEED_FEED, CI secrets, scripts, MCP configurations) before those next run: a post to the old name creates a new, empty feed without an error."),
-        license_key: z.string().optional().describe("A license key to put on the feed; empty takes its license off. A wrong key counts as a failed attempt, like a wrong password."),
+        name: z
+          .string()
+          .optional()
+          .describe(
+            "A new name for the feed (1 to 64 characters of a-z, 0-9, - and _). Everything goes with it; the old name stops working at once, so use the new one in every later call and tell the user to change it wherever it is configured (NOTEFEED_FEED, CI secrets, scripts, MCP configurations) before those next run: a post to the old name creates a new, empty feed without an error.",
+          ),
+        license_key: z
+          .string()
+          .optional()
+          .describe("A license key to put on the feed; empty takes its license off. A wrong key counts as a failed attempt, like a wrong password."),
         new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end."),
         password,
       }),
@@ -262,7 +421,8 @@ function server(h: Headers): McpServer {
     },
     guard(async ({ feed, title, description, image, read_id, name, license_key, new_password, password }) => {
       const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined || name !== undefined;
-      if (!settings && license_key === undefined && new_password === undefined) throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, license_key, new_password or several");
+      if (!settings && license_key === undefined && new_password === undefined)
+        throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, license_key, new_password or several");
       const ip = clientIp(h);
       // First, so a key that is refused changes nothing else (#247); the license may be what the new password needs.
       if (license_key !== undefined) await setLicense(feed, ip, license_key.trim() === "" ? null : license_key, { password });
@@ -275,10 +435,15 @@ function server(h: Headers): McpServer {
       let now = feed;
       if (settings) {
         now = (
-          await updateFeed(feed, ip, async () => {
-            const stored = await getStoredSettings(feed); // after the password check: what is left out stays
-            return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id, name };
-          }, access)
+          await updateFeed(
+            feed,
+            ip,
+            async () => {
+              const stored = await getStoredSettings(feed); // after the password check: what is left out stays
+              return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id, name };
+            },
+            access,
+          )
         ).feed;
       }
       return ok(await feedJson(now, h));
@@ -291,7 +456,10 @@ function server(h: Headers): McpServer {
       description: `Create a feed without posting a note, to reserve its name (feeds are otherwise created by their first note). password protects it from its first moment; read_id gives it that read link. Where licenses are sold, license_key is required and goes on the new feed. A feed that exists is refused. Set its title and description afterwards with update_feed. ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
-        password: z.string().optional().describe("A password for the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Left out: an open feed."),
+        password: z
+          .string()
+          .optional()
+          .describe("A password for the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Left out: an open feed."),
         license_key: z.string().optional().describe("The key of the license to put on the new feed; required where licenses are sold."),
         read_id: z.string().optional().describe("The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one."),
       }),
@@ -311,7 +479,10 @@ function server(h: Headers): McpServer {
       inputSchema: z.object({
         feed,
         license_key: z.string().describe("The key of the license on this feed, from the receipt or the provider's portal."),
-        new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end. Left out or empty removes the password."),
+        new_password: z
+          .string()
+          .optional()
+          .describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end. Left out or empty removes the password."),
       }),
       outputSchema: FeedOut,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
@@ -364,8 +535,14 @@ function server(h: Headers): McpServer {
         feed,
         type: z.string().describe("The file's media type"),
         data: z.string().describe("The file's bytes, base64"),
-        title: z.string().optional().describe("The note's title (at most 100 characters, one line; control and text-direction override characters are refused)"),
-        alt: z.string().optional().describe("Alternative text of a picture (at most 500 characters, one line; control and text-direction override characters are refused)"),
+        title: z
+          .string()
+          .optional()
+          .describe("The note's title (at most 100 characters, one line; control and text-direction override characters are refused)"),
+        alt: z
+          .string()
+          .optional()
+          .describe("Alternative text of a picture (at most 500 characters, one line; control and text-direction override characters are refused)"),
         name: z.string().optional().describe("The file's original name"),
         draft: DRAFT_POST,
         password,

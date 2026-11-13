@@ -35,7 +35,8 @@ function failedPage(from: { next?: string; authorize?: Record<string, string> } 
     ? `/oauth/authorize?${new URLSearchParams(from.authorize)}&error=${error}`
     : `/login?error=${error}${next === "/" ? "" : `&next=${encodeURIComponent(next)}`}`;
 }
-const failed = (from: Parameters<typeof failedPage>[0], error: string, h: Headers) => seeOther(failedPage(from, error), { "Set-Cookie": flightCookie(h, "", 0) });
+const failed = (from: Parameters<typeof failedPage>[0], error: string, h: Headers) =>
+  seeOther(failedPage(from, error), { "Set-Cookie": flightCookie(h, "", 0) });
 
 // The provider a start names (by id); with only one configured, naming none means that one.
 function chosen(id: string | null): Provider | undefined {
@@ -89,7 +90,12 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
   const flight = { state: random(16), nonce: random(16), verifier: random(32), provider: provider.id, next, ...(authorize ? { authorize } : {}) };
   // ponytail: an MCP client that registered many long redirect URIs makes this cookie exceed the browser's
   // 4 KB; the browser drops it and the callback refuses (fails closed). Keep only the client's hash if that bites.
-  const to = authorizeUrl(provider, meta, { redirectUri: redirectUri(h), state: flight.state, nonce: flight.nonce, challenge: createHash("sha256").update(flight.verifier).digest("base64url") });
+  const to = authorizeUrl(provider, meta, {
+    redirectUri: redirectUri(h),
+    state: flight.state,
+    nonce: flight.nonce,
+    challenge: createHash("sha256").update(flight.verifier).digest("base64url"),
+  });
   return seeOther(to, { "Set-Cookie": flightCookie(h, sign("oidc", flight), TTL.oidc) });
 }
 

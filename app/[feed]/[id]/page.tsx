@@ -10,7 +10,20 @@ import { UnlockForm } from "@/components/UnlockForm";
 import { orDamaged } from "@/app/_lib/damaged";
 import { noteErrorMessage } from "@/app/_lib/messages";
 import { reportUrl } from "@/shared/report";
-import { feedCookieName, feedPath, feedUnlocked, getFeedNote, getFeedPictures, hasLegalPage, imageUploadsOn, isRemovedFeed, isRemovedNote, licensingOn, readIdOf, reportTemplate } from "@/backend";
+import {
+  feedCookieName,
+  feedPath,
+  feedUnlocked,
+  getFeedNote,
+  getFeedPictures,
+  hasLegalPage,
+  imageUploadsOn,
+  isRemovedFeed,
+  isRemovedNote,
+  licensingOn,
+  readIdOf,
+  reportTemplate,
+} from "@/backend";
 import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
 export const dynamic = "force-dynamic";
@@ -60,16 +73,31 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[fe
   const link = kind.attachments(note.content).length ? attachmentLinks(await getFeedPictures(feed), feedPath(feed)) : undefined;
 
   return (
-    <NoteActions key={`${note.content}\n${note.meta.title}\n${note.alt}\n${note.tags.join(",")}\n${note.date.toISOString()}\n${note.draft}`} feed={feed} id={id} kind={kind.name} markdown={note.content ?? ""} title={note.meta.title ?? ""} alt={note.alt ?? ""} tags={note.tags} date={note.date.toISOString()} draft={note.draft} error={noteErrorMessage(error, retry)} images={imageUploadsOn()} imageBase={imageBase} reportHref={reportHref}>
-    <AppShell feed={feed} about={<NoteActionsBar />} docked>
-      {edited === "1" && (
-        <p role="status" className="mb-4 text-sm text-carbon">
-          Saved.
-        </p>
-      )}
-      <NoteArticle note={note} back={feedPath(feed)} imageBase={imageBase} backInBar link={link} />
-      <NoteActionsPanel />
-    </AppShell>
+    <NoteActions
+      key={`${note.content}\n${note.meta.title}\n${note.alt}\n${note.tags.join(",")}\n${note.date.toISOString()}\n${note.draft}`}
+      feed={feed}
+      id={id}
+      kind={kind.name}
+      markdown={note.content ?? ""}
+      title={note.meta.title ?? ""}
+      alt={note.alt ?? ""}
+      tags={note.tags}
+      date={note.date.toISOString()}
+      draft={note.draft}
+      error={noteErrorMessage(error, retry)}
+      images={imageUploadsOn()}
+      imageBase={imageBase}
+      reportHref={reportHref}
+    >
+      <AppShell feed={feed} about={<NoteActionsBar />} docked>
+        {edited === "1" && (
+          <p role="status" className="mb-4 text-sm text-carbon">
+            Saved.
+          </p>
+        )}
+        <NoteArticle note={note} back={feedPath(feed)} imageBase={imageBase} backInBar link={link} />
+        <NoteActionsPanel />
+      </AppShell>
     </NoteActions>
   );
 }

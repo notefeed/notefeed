@@ -57,5 +57,6 @@ test("withPictures points at a title or an alt text refused for its characters",
 });
 
 test("an unreachable key service is maintenance, on every form", () => {
-  for (const fn of [errorMessage, noteErrorMessage, feedErrorMessage, feedDetailsErrorMessage]) expect(fn("unavailable")).toBe("notefeed is down for maintenance. Please try again in a few minutes.");
+  for (const fn of [errorMessage, noteErrorMessage, feedErrorMessage, feedDetailsErrorMessage])
+    expect(fn("unavailable")).toBe("notefeed is down for maintenance. Please try again in a few minutes.");
 });

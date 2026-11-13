@@ -31,7 +31,11 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
       return;
     }
     const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    setError(body.error && body.code === "invalid_body" ? `${body.error[0].toUpperCase()}${body.error.slice(1)}.` : (errorMessage(body.code) ?? "Something went wrong."));
+    setError(
+      body.error && body.code === "invalid_body"
+        ? `${body.error[0].toUpperCase()}${body.error.slice(1)}.`
+        : (errorMessage(body.code) ?? "Something went wrong."),
+    );
   }
 
   return (
@@ -39,7 +43,13 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
       <DisclosureRow
         icon={<LicenseIcon />}
         label="License"
-        value={licensed ? <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[12px] font-bold text-carbon">Licensed</span> : `Free tier · ${Math.min(freeTier.notes, freeTier.cap)} of ${freeTier.cap} notes`}
+        value={
+          licensed ? (
+            <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[12px] font-bold text-carbon">Licensed</span>
+          ) : (
+            `Free tier · ${Math.min(freeTier.notes, freeTier.cap)} of ${freeTier.cap} notes`
+          )
+        }
       >
         {licensed ? (
           <>
@@ -86,7 +96,18 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
               <label htmlFor="license-key" className="sr-only">
                 License key
               </label>
-              <input id="license-key" value={key} onChange={(e) => setKey(e.target.value)} required maxLength={64} autoComplete="off" spellCheck={false} aria-describedby="license-error" placeholder="License key" className={`${field} font-mono`} />
+              <input
+                id="license-key"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                required
+                maxLength={64}
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby="license-error"
+                placeholder="License key"
+                className={`${field} font-mono`}
+              />
               <button type="submit" className={primary}>
                 Use key
               </button>

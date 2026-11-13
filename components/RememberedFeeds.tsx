@@ -26,7 +26,10 @@ function read(): RememberedFeed[] {
   let list: RememberedFeed[] = [];
   try {
     const parsed: unknown = JSON.parse(raw ?? "[]");
-    if (Array.isArray(parsed)) list = parsed.filter((f): f is RememberedFeed => typeof f?.name === "string").map((f) => ({ name: f.name, title: typeof f.title === "string" ? f.title : "", image: typeof f.image === "string" ? f.image : null }));
+    if (Array.isArray(parsed))
+      list = parsed
+        .filter((f): f is RememberedFeed => typeof f?.name === "string")
+        .map((f) => ({ name: f.name, title: typeof f.title === "string" ? f.title : "", image: typeof f.image === "string" ? f.image : null }));
   } catch {}
   cache = { raw, list };
   return list;
@@ -75,7 +78,10 @@ export function FeedAvatar({ feed, size = "h-9 w-9" }: { feed: RememberedFeed; s
     // eslint-disable-next-line @next/next/no-img-element
     <img src={feed.image} alt="" onError={() => setBroken(true)} className={`${size} shrink-0 rounded-full border border-rule bg-surface object-cover`} />
   ) : (
-    <span aria-hidden className={`${size} inline-flex shrink-0 items-center justify-center rounded-full bg-carbon-soft text-[13px] font-bold uppercase text-carbon`}>
+    <span
+      aria-hidden
+      className={`${size} inline-flex shrink-0 items-center justify-center rounded-full bg-carbon-soft text-[13px] font-bold uppercase text-carbon`}
+    >
       {(feed.title || feed.name)[0]}
     </span>
   );
@@ -90,7 +96,12 @@ export function RememberedFeedLinks({ current, onNavigate, query = "" }: { curre
     <div className="space-y-0.5">
       {feeds.map((f) => (
         <div key={f.name} className={`group flex items-center rounded-xl ${f.name === current ? "bg-carbon-soft" : "hover:bg-surface-2"}`}>
-          <Link href={`/${f.name}${query}`} onClick={onNavigate} aria-current={f.name === current ? "page" : undefined} className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2">
+          <Link
+            href={`/${f.name}${query}`}
+            onClick={onNavigate}
+            aria-current={f.name === current ? "page" : undefined}
+            className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2"
+          >
             <FeedAvatar feed={f} />
             <span className="min-w-0 flex-1">
               <span className={`block truncate text-[15px] font-bold leading-tight ${f.name === current ? "text-carbon" : ""}`}>{f.title || f.name}</span>
@@ -98,7 +109,13 @@ export function RememberedFeedLinks({ current, onNavigate, query = "" }: { curre
             </span>
           </Link>
           {f.name !== current && (
-            <button type="button" onClick={() => forgetFeed(f.name)} title="Forget on this device" aria-label={`Forget ${f.title || f.name} on this device`} className="mr-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-ink group-hover:inline-flex focus:inline-flex">
+            <button
+              type="button"
+              onClick={() => forgetFeed(f.name)}
+              title="Forget on this device"
+              aria-label={`Forget ${f.title || f.name} on this device`}
+              className="mr-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-ink group-hover:inline-flex focus:inline-flex"
+            >
               <CloseIcon aria-hidden className="h-4 w-4" />
             </button>
           )}

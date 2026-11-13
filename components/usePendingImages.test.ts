@@ -22,7 +22,11 @@ test("pendingBody: a box holding nothing but the pictures' references sends no t
 });
 
 test("pendingBody: a box holding only pictures sends each one's alt text, the first non-empty one when it is referred to twice", async () => {
-  const form = (await pendingBody("![](a.png) ![a cat](a.png)\n![the dog](a.png)\n![](b.png)\n![two\nlines](c.png)", [pic("a.png"), pic("b.png"), pic("c.png")]))!;
+  const form = (await pendingBody("![](a.png) ![a cat](a.png)\n![the dog](a.png)\n![](b.png)\n![two\nlines](c.png)", [
+    pic("a.png"),
+    pic("b.png"),
+    pic("c.png"),
+  ]))!;
   expect(form.has("text")).toBe(false);
   expect(form.get("alt.a.png")).toBe("a cat");
   expect(form.has("alt.b.png")).toBe(false);

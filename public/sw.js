@@ -25,14 +25,15 @@ async function receive(request) {
       const value = form.get(name);
       if (typeof value === "string" && value !== "") query.set(name, value);
     }
-    const pictures = form.getAll("files").filter((f) => typeof f !== "string" && PICTURES.includes(f.type)).slice(0, KEEP);
+    const pictures = form
+      .getAll("files")
+      .filter((f) => typeof f !== "string" && PICTURES.includes(f.type))
+      .slice(0, KEEP);
     await caches.delete(CACHE); // a new share replaces one that was never posted
     if (pictures.length) {
       const cache = await caches.open(CACHE);
       await Promise.all(
-        pictures.map((f, i) =>
-          cache.put(`/shared/${i}`, new Response(f, { headers: { "Content-Type": f.type, "X-Name": encodeURIComponent(f.name) } })),
-        ),
+        pictures.map((f, i) => cache.put(`/shared/${i}`, new Response(f, { headers: { "Content-Type": f.type, "X-Name": encodeURIComponent(f.name) } }))),
       );
       query.set("shared", "1");
     }

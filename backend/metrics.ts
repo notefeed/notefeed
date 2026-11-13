@@ -11,17 +11,35 @@ const COUNTS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000];
 
 type Metrics = {
   register: Registry;
-  duration: Histogram<"kind" | "status" | "feed_size">; dirs: Histogram<"kind" | "feed_size">; files: Histogram<"kind" | "feed_size">;
+  duration: Histogram<"kind" | "status" | "feed_size">;
+  dirs: Histogram<"kind" | "feed_size">;
+  files: Histogram<"kind" | "feed_size">;
   parse: Histogram;
   timeouts: Counter;
   unreadable: Counter;
   waiting: Gauge;
   images?: { count: Gauge; bytes: Gauge; missing: Gauge; at: Gauge };
-  events: { feedsCreated: Counter<"protected">; feedsDeleted: Counter<"reason">; posted: Counter<"kind">; edited: Counter<"kind" | "what">; deleted: Counter<"kind" | "reason">; licenses: Counter<"event"> };
+  events: {
+    feedsCreated: Counter<"protected">;
+    feedsDeleted: Counter<"reason">;
+    posted: Counter<"kind">;
+    edited: Counter<"kind" | "what">;
+    deleted: Counter<"kind" | "reason">;
+    licenses: Counter<"event">;
+  };
   usage: {
-    feeds: Gauge; protected: Gauge; readLink: Gauge; active: Gauge<"within">; notes: Gauge<"kind">; bytes: Gauge<"kind">; nearCap: Gauge<"notes">; licenses: Gauge<"state">;
-    dbBytes: Gauge; dbConnections: Gauge;
-    at: Gauge; took: Gauge;
+    feeds: Gauge;
+    protected: Gauge;
+    readLink: Gauge;
+    active: Gauge<"within">;
+    notes: Gauge<"kind">;
+    bytes: Gauge<"kind">;
+    nearCap: Gauge<"notes">;
+    licenses: Gauge<"state">;
+    dbBytes: Gauge;
+    dbConnections: Gauge;
+    at: Gauge;
+    took: Gauge;
   };
 };
 
@@ -32,21 +50,77 @@ function metrics(): Metrics {
     collectDefaultMetrics({ register, prefix: "notefeed_" });
     return {
       register,
-      duration: new Histogram({ name: "notefeed_request_duration_seconds", help: "Request duration by route kind, status class and the size of the feed it ran against", labelNames: ["kind", "status", "feed_size"], buckets: SECONDS, registers: [register] }),
-      dirs: new Histogram({ name: "notefeed_request_dir_reads", help: "Directory reads per request", labelNames: ["kind", "feed_size"], buckets: COUNTS, registers: [register] }),
-      files: new Histogram({ name: "notefeed_request_file_reads", help: "File reads per request", labelNames: ["kind", "feed_size"], buckets: COUNTS, registers: [register] }),
-      parse: new Histogram({ name: "notefeed_parse_duration_seconds", help: "How long reading a text in the picture-reading worker took", buckets: SECONDS, registers: [register] }),
-      timeouts: new Counter({ name: "notefeed_parse_timeouts_total", help: "Texts refused because reading them took longer than NOTEFEED_PARSE_TIMEOUT_MS", registers: [register] }),
-      unreadable: new Counter({ name: "notefeed_notes_unreadable_total", help: "Reads of a note whose stored copy could not be decrypted (encryption at rest): damaged or tampered with", registers: [register] }),
+      duration: new Histogram({
+        name: "notefeed_request_duration_seconds",
+        help: "Request duration by route kind, status class and the size of the feed it ran against",
+        labelNames: ["kind", "status", "feed_size"],
+        buckets: SECONDS,
+        registers: [register],
+      }),
+      dirs: new Histogram({
+        name: "notefeed_request_dir_reads",
+        help: "Directory reads per request",
+        labelNames: ["kind", "feed_size"],
+        buckets: COUNTS,
+        registers: [register],
+      }),
+      files: new Histogram({
+        name: "notefeed_request_file_reads",
+        help: "File reads per request",
+        labelNames: ["kind", "feed_size"],
+        buckets: COUNTS,
+        registers: [register],
+      }),
+      parse: new Histogram({
+        name: "notefeed_parse_duration_seconds",
+        help: "How long reading a text in the picture-reading worker took",
+        buckets: SECONDS,
+        registers: [register],
+      }),
+      timeouts: new Counter({
+        name: "notefeed_parse_timeouts_total",
+        help: "Texts refused because reading them took longer than NOTEFEED_PARSE_TIMEOUT_MS",
+        registers: [register],
+      }),
+      unreadable: new Counter({
+        name: "notefeed_notes_unreadable_total",
+        help: "Reads of a note whose stored copy could not be decrypted (encryption at rest): damaged or tampered with",
+        registers: [register],
+      }),
       waiting: new Gauge({ name: "notefeed_parse_waiting", help: "Texts waiting for a picture-reading worker", registers: [register] }),
       // What happened since the process started, for rates and trends. Labels are fixed values only.
       events: {
-        feedsCreated: new Counter({ name: "notefeed_feeds_created_total", help: "Feeds created, by whether they were protected from the start", labelNames: ["protected"], registers: [register] }),
-        feedsDeleted: new Counter({ name: "notefeed_feeds_deleted_total", help: "Feeds removed: deleted by their owner, or taken down by the operator", labelNames: ["reason"], registers: [register] }),
+        feedsCreated: new Counter({
+          name: "notefeed_feeds_created_total",
+          help: "Feeds created, by whether they were protected from the start",
+          labelNames: ["protected"],
+          registers: [register],
+        }),
+        feedsDeleted: new Counter({
+          name: "notefeed_feeds_deleted_total",
+          help: "Feeds removed: deleted by their owner, or taken down by the operator",
+          labelNames: ["reason"],
+          registers: [register],
+        }),
         posted: new Counter({ name: "notefeed_notes_posted_total", help: "Notes posted, by kind", labelNames: ["kind"], registers: [register] }),
-        edited: new Counter({ name: "notefeed_notes_edited_total", help: "Notes edited, by kind and by what changed (content or metadata)", labelNames: ["kind", "what"], registers: [register] }),
-        deleted: new Counter({ name: "notefeed_notes_deleted_total", help: "Notes deleted, by kind: by a writer, dropped past the free tier's cap, or taken down by the operator", labelNames: ["kind", "reason"], registers: [register] }),
-        licenses: new Counter({ name: "notefeed_license_events_total", help: "License events: bought, attached to a feed, renewed, lapsed", labelNames: ["event"], registers: [register] }),
+        edited: new Counter({
+          name: "notefeed_notes_edited_total",
+          help: "Notes edited, by kind and by what changed (content or metadata)",
+          labelNames: ["kind", "what"],
+          registers: [register],
+        }),
+        deleted: new Counter({
+          name: "notefeed_notes_deleted_total",
+          help: "Notes deleted, by kind: by a writer, dropped past the free tier's cap, or taken down by the operator",
+          labelNames: ["kind", "reason"],
+          registers: [register],
+        }),
+        licenses: new Counter({
+          name: "notefeed_license_events_total",
+          help: "License events: bought, attached to a feed, renewed, lapsed",
+          labelNames: ["event"],
+          registers: [register],
+        }),
       },
       // How much the instance holds, as of the last count (backend/usage.ts): counting means a pass over every feed, so it runs
       // at most every few minutes, never per scrape. Before the first count these are absent, not 0.
@@ -54,13 +128,41 @@ function metrics(): Metrics {
         feeds: new Gauge({ name: "notefeed_feeds", help: "Feeds, as of the last count", registers: [] }),
         protected: new Gauge({ name: "notefeed_feeds_protected", help: "Protected feeds (with a feed password), as of the last count", registers: [] }),
         readLink: new Gauge({ name: "notefeed_feeds_with_read_link", help: "Feeds that have a read link, as of the last count", registers: [] }),
-        active: new Gauge({ name: "notefeed_feeds_active", help: "Feeds with a note written within the last day, 7 or 30 days, as of the last count", labelNames: ["within"], registers: [] }),
+        active: new Gauge({
+          name: "notefeed_feeds_active",
+          help: "Feeds with a note written within the last day, 7 or 30 days, as of the last count",
+          labelNames: ["within"],
+          registers: [],
+        }),
         notes: new Gauge({ name: "notefeed_notes", help: "Stored notes by kind, as of the last count", labelNames: ["kind"], registers: [] }),
-        bytes: new Gauge({ name: "notefeed_notes_bytes", help: "Bytes of the stored notes by kind (an image's bytes wherever the image store keeps them), as of the last count", labelNames: ["kind"], registers: [] }),
-        nearCap: new Gauge({ name: "notefeed_feeds_free_cap", help: "Feeds by their notes against the free tier's cap: near (80% or more), at it, or over it (a license, or one lapsed since); only with licensing on", labelNames: ["notes"], registers: [] }),
-        licenses: new Gauge({ name: "notefeed_licenses", help: "Licenses: active (paid, on a feed), unattached (paid, the key not entered) and lapsed; only with licensing on", labelNames: ["state"], registers: [] }),
-        dbBytes: new Gauge({ name: "notefeed_database_size_bytes", help: "The database's size on disk (PostgreSQL or SQLite storage), as of the last count", registers: [] }),
-        dbConnections: new Gauge({ name: "notefeed_database_connections", help: "Open connections to the PostgreSQL database, from every client, as of the last count", registers: [] }),
+        bytes: new Gauge({
+          name: "notefeed_notes_bytes",
+          help: "Bytes of the stored notes by kind (an image's bytes wherever the image store keeps them), as of the last count",
+          labelNames: ["kind"],
+          registers: [],
+        }),
+        nearCap: new Gauge({
+          name: "notefeed_feeds_free_cap",
+          help: "Feeds by their notes against the free tier's cap: near (80% or more), at it, or over it (a license, or one lapsed since); only with licensing on",
+          labelNames: ["notes"],
+          registers: [],
+        }),
+        licenses: new Gauge({
+          name: "notefeed_licenses",
+          help: "Licenses: active (paid, on a feed), unattached (paid, the key not entered) and lapsed; only with licensing on",
+          labelNames: ["state"],
+          registers: [],
+        }),
+        dbBytes: new Gauge({
+          name: "notefeed_database_size_bytes",
+          help: "The database's size on disk (PostgreSQL or SQLite storage), as of the last count",
+          registers: [],
+        }),
+        dbConnections: new Gauge({
+          name: "notefeed_database_connections",
+          help: "Open connections to the PostgreSQL database, from every client, as of the last count",
+          registers: [],
+        }),
         at: new Gauge({ name: "notefeed_usage_counted_timestamp_seconds", help: "When the usage gauges were last counted", registers: [] }),
         took: new Gauge({ name: "notefeed_usage_count_duration_seconds", help: "How long the last count of the usage gauges took", registers: [] }),
       },
@@ -81,7 +183,13 @@ export function resetMetricsForTest(): void {
     g.reset();
     m.register.removeSingleMetric((g as unknown as { name: string }).name);
   }
-  for (const name of ["notefeed_images_unreferenced", "notefeed_images_unreferenced_bytes", "notefeed_images_missing", "notefeed_images_checked_timestamp_seconds"]) m.register.removeSingleMetric(name);
+  for (const name of [
+    "notefeed_images_unreferenced",
+    "notefeed_images_unreferenced_bytes",
+    "notefeed_images_missing",
+    "notefeed_images_checked_timestamp_seconds",
+  ])
+    m.register.removeSingleMetric(name);
   m.images = undefined;
 }
 
@@ -147,10 +255,22 @@ export function imagesSwept(left: { count: number; bytes: number; missing: numbe
   const m = metrics();
   const { register } = m;
   const g = (m.images ??= {
-    count: new Gauge({ name: "notefeed_images_unreferenced", help: "Objects in the image store that no note names, as of the last clean-up or report", registers: [register] }),
+    count: new Gauge({
+      name: "notefeed_images_unreferenced",
+      help: "Objects in the image store that no note names, as of the last clean-up or report",
+      registers: [register],
+    }),
     bytes: new Gauge({ name: "notefeed_images_unreferenced_bytes", help: "Their size in bytes", registers: [register] }),
-    missing: new Gauge({ name: "notefeed_images_missing", help: "Image notes whose object is not in the image store, as of the last clean-up or report", registers: [register] }),
-    at: new Gauge({ name: "notefeed_images_checked_timestamp_seconds", help: "When the image store was last checked for unreferenced objects", registers: [register] }),
+    missing: new Gauge({
+      name: "notefeed_images_missing",
+      help: "Image notes whose object is not in the image store, as of the last clean-up or report",
+      registers: [register],
+    }),
+    at: new Gauge({
+      name: "notefeed_images_checked_timestamp_seconds",
+      help: "When the image store was last checked for unreferenced objects",
+      registers: [register],
+    }),
   });
   g.count.set(left.count);
   g.bytes.set(left.bytes);
@@ -166,7 +286,8 @@ export const feedCreated = (isProtected: boolean): void => void (config.metrics(
 export const feedRemoved = (reason: "deleted" | "takedown"): void => void (config.metrics() && metrics().events.feedsDeleted.inc({ reason }));
 export const notePosted = (kind: NoteKind): void => void (config.metrics() && metrics().events.posted.inc({ kind }));
 export const noteEdited = (kind: NoteKind, what: "content" | "meta"): void => void (config.metrics() && metrics().events.edited.inc({ kind, what }));
-export const noteDeleted = (kind: NoteKind, reason: "deleted" | "free_cap" | "takedown"): void => void (config.metrics() && metrics().events.deleted.inc({ kind, reason }));
+export const noteDeleted = (kind: NoteKind, reason: "deleted" | "free_cap" | "takedown"): void =>
+  void (config.metrics() && metrics().events.deleted.inc({ kind, reason }));
 export const licenseEvent = (event: "bought" | "attached" | "renewed" | "lapsed"): void => void (config.metrics() && metrics().events.licenses.inc({ event }));
 
 /** One count of what the instance holds (backend/usage.ts makes it). Numbers only: nothing in it names a feed. */

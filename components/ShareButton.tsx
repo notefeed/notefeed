@@ -21,7 +21,11 @@ export function ShareButton({ url, title }: { url: string; title: string }) {
     );
   }
   return (
-    <button type="button" onClick={share} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-surface-2 px-3 py-2 text-[14px] font-bold text-ink hover:bg-rule/60">
+    <button
+      type="button"
+      onClick={share}
+      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-surface-2 px-3 py-2 text-[14px] font-bold text-ink hover:bg-rule/60"
+    >
       {state === "copied" ? <DoneIcon aria-hidden className="h-4 w-4" /> : <ShareIcon aria-hidden className="h-4 w-4" />}
       <span aria-live="polite">{state === "copied" ? "Link copied" : state === "failed" ? "Copy failed" : "Share"}</span>
     </button>

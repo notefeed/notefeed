@@ -51,7 +51,12 @@ describe("createImageNote", () => {
     expect(note.file).toBe(`${note.id}.png`);
     expect(readId).toBeTruthy();
     expect(Array.from(await readFile(join(feedDir(), note.file)))).toEqual(Array.from(PNG));
-    expect(JSON.parse(await readFile(join(feedDir(), `.${note.file}.json`), "utf8"))).toEqual({ sender: "Ann", tags: ["a"], name: "cat.png", date: expect.any(Number) });
+    expect(JSON.parse(await readFile(join(feedDir(), `.${note.file}.json`), "utf8"))).toEqual({
+      sender: "Ann",
+      tags: ["a"],
+      name: "cat.png",
+      date: expect.any(Number),
+    });
     expect(note.size).toBe(PNG.length);
   });
   test("an unsupported type is refused and creates nothing", async () => {

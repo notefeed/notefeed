@@ -74,7 +74,6 @@ export function sameOrigin(h: Headers): boolean {
   return origin !== null && URL.canParse(origin) && new URL(origin).host === new URL(publicUrl(h)).host;
 }
 
-
 // `headers` may repeat a name (two Set-Cookie).
 export function seeOther(location: string, headers: HeadersInit = {}): Response {
   const h = new Headers(headers);
@@ -111,7 +110,13 @@ export function feedAccess(h: Headers, feed: string): FeedAccess {
 // One of the web UI's plain forms for changing a feed or a note. Runs `act` once the post is known to come from
 // this instance's own page by someone who may use the instance; a refusal goes back to `page`. `onGone` answers
 // when the thing is already deleted (a double click): the goal is met.
-export async function formPost(req: Request, feed: string, page: string, act: (h: Headers, ip: string) => Promise<Response>, onGone?: () => Response): Promise<Response> {
+export async function formPost(
+  req: Request,
+  feed: string,
+  page: string,
+  act: (h: Headers, ip: string) => Promise<Response>,
+  onGone?: () => Response,
+): Promise<Response> {
   const h = req.headers;
   try {
     assertFeed(feed); // before anything touches the disk

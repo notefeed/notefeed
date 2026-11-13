@@ -45,9 +45,7 @@ def _get_kwargs(
     return _kwargs
 
 
-def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Error | NoteList | None:
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | NoteList | None:
     if response.status_code == 200:
         response_200 = NoteList.from_dict(response.json())
 
@@ -79,9 +77,7 @@ def _parse_response(
         return None
 
 
-def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Error | NoteList]:
+def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | NoteList]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,

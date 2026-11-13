@@ -23,7 +23,9 @@ test("200 ok while the storage answers, never cached; no image store, no check o
 });
 
 test("503 unavailable when the storage throws, and nothing of the error in the answer", async () => {
-  vi.spyOn(storageModule, "storage").mockReturnValue({ feedReadId: () => Promise.reject(new Error("connect ECONNREFUSED 10.0.0.5:5432")) } as unknown as storageModule.Storage);
+  vi.spyOn(storageModule, "storage").mockReturnValue({
+    feedReadId: () => Promise.reject(new Error("connect ECONNREFUSED 10.0.0.5:5432")),
+  } as unknown as storageModule.Storage);
   const res = await healthRoute();
   expect(res.status).toBe(503);
   expect(await res.json()).toEqual({ status: "unavailable", checks: { storage: "unavailable" }, version: "dev" });

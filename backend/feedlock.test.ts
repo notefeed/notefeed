@@ -6,17 +6,7 @@ import { storage } from "./storage";
 
 const writeNote = (...a: Parameters<ReturnType<typeof storage>["writeNote"]>) => storage().writeNote(...a);
 import { AuthError, FeedExistsError, InvalidBodyError, NotFoundError, TooManyAttemptsError } from "./errors";
-import {
-  changePassword,
-  checkFeedAccess,
-  cookieValue,
-  createProtected,
-  hashPassword,
-  protectedFeed,
-  removePassword,
-  unlock,
-  verifyHash,
-} from "./feedlock";
+import { changePassword, checkFeedAccess, cookieValue, createProtected, hashPassword, protectedFeed, removePassword, unlock, verifyHash } from "./feedlock";
 import { ensureFeed, listFeeds, resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
 

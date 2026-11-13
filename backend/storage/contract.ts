@@ -77,7 +77,10 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         await s.writeNote("f", "a", "md", "x", { sender: "S" }, 0);
         await s.writeNote("f", "b", "png", new Uint8Array([1]), {}, 0);
         const refs = (await s.listNoteRefs("f")).sort((x, y) => x.id.localeCompare(y.id));
-        expect(refs).toEqual([{ id: "a", ext: "md", date: 0, draft: false }, { id: "b", ext: "png", date: 0, draft: false }]);
+        expect(refs).toEqual([
+          { id: "a", ext: "md", date: 0, draft: false },
+          { id: "b", ext: "png", date: 0, draft: false },
+        ]);
         expect(await s.listNoteRefs("missing")).toEqual([]);
       });
       t("readMeta reads only the metadata", async ({ storage: s }) => {
@@ -121,7 +124,13 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
       });
       // a=1000, b=3000, c=2000, d=2000
       const dated = async (s: Storage) => {
-        for (const [id, date] of [["a", 1000], ["b", 3000], ["c", 2000], ["d", 2000]] as const) await s.writeNote("f", id, "md", id, {}, date);
+        for (const [id, date] of [
+          ["a", 1000],
+          ["b", 3000],
+          ["c", 2000],
+          ["d", 2000],
+        ] as const)
+          await s.writeNote("f", id, "md", id, {}, date);
       };
       const ids = async (s: Storage, q?: Parameters<Storage["listNoteRefs"]>[1]) => (await s.listNoteRefs("f", q)).map((r) => r.id);
       t("listNoteRefs is newest first, ties by id descending", async ({ storage: s }) => {
@@ -428,7 +437,15 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         await s.writeNote("f", "t", "md", "x", {}, 10);
         await s.writeNote("f", "p", "png", new Uint8Array([0x89, 0x50, 1]), { of: "t" }, 9);
         await s.writeNote("f", "k", "md", "keep", {}, 11);
-        await s.takedownNotes("f", [{ id: "t", ext: "md" }, { id: "p", ext: "png" }], { date: 10, draft: false }, "t");
+        await s.takedownNotes(
+          "f",
+          [
+            { id: "t", ext: "md" },
+            { id: "p", ext: "png" },
+          ],
+          { date: 10, draft: false },
+          "t",
+        );
         expect(await s.removedNote("f", "t")).toEqual({ date: 10, draft: false });
         expect(await s.removedNote("f", "p")).toEqual({ date: 10, draft: false });
         expect(await s.removedNote("f", "k")).toBeNull();

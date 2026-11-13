@@ -33,12 +33,21 @@ test("without the page, the key field, the count and the 402 banner stay, and no
   expect(banner).toContain("Pictures need a license.");
   expect(banner).toContain("This feed is on the free tier. Enter a license key under License in the feed&#x27;s settings.");
   expect(banner).toContain('href="/f/settings#license"');
-  expect(renderToStaticMarkup(<FreeTierNotice usage={usage} licensePage={false} />)).toContain("This feed is at its 10 free notes: each new note drops the oldest one.");
-  for (const html of [section, banner, renderToStaticMarkup(<FreeTierNotice usage={usage} licensePage={false} />), renderToStaticMarkup(<ProtectFeed feed="f" licensing licensePage={false} />)])
+  expect(renderToStaticMarkup(<FreeTierNotice usage={usage} licensePage={false} />)).toContain(
+    "This feed is at its 10 free notes: each new note drops the oldest one.",
+  );
+  for (const html of [
+    section,
+    banner,
+    renderToStaticMarkup(<FreeTierNotice usage={usage} licensePage={false} />),
+    renderToStaticMarkup(<ProtectFeed feed="f" licensing licensePage={false} />),
+  ])
     expect(html).not.toMatch(/Buy a license|A license<\/a>/);
 });
 
 test("with the page, the texts are as before", () => {
-  expect(renderToStaticMarkup(<LicenseNeeded isNew={false} password={false} keyGiven={false} licensePage />)).toContain("This feed is on the free tier. Buy a license and enter its key under License in the feed&#x27;s settings.");
+  expect(renderToStaticMarkup(<LicenseNeeded isNew={false} password={false} keyGiven={false} licensePage />)).toContain(
+    "This feed is on the free tier. Buy a license and enter its key under License in the feed&#x27;s settings.",
+  );
   expect(renderToStaticMarkup(<FreeTierNotice usage={usage} licensePage />)).toContain("keeps them all.");
 });

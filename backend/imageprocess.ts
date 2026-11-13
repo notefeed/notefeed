@@ -44,7 +44,7 @@ export function loadSharp(): Sharp {
 }
 
 /** Which sharp build runs: "wasm" is the only one notefeed means to. */
-export const sharpBuild = (): "wasm" | "native" => (loadSharp().versions as { emscripten?: string }).emscripten ? "wasm" : "native";
+export const sharpBuild = (): "wasm" | "native" => ((loadSharp().versions as { emscripten?: string }).emscripten ? "wasm" : "native");
 
 // At most RUNNING at a time; a request that would be the WAITING+1st in line is refused at once.
 let running = 0;
@@ -77,10 +77,13 @@ export async function processImage(body: Uint8Array, ext: ImageType): Promise<Ui
       if (FORMAT[meta.format ?? ""] !== ext) throw new UnsupportedTypeError(`the body is not a valid ${MEDIA[ext]}`);
       const image = input().timeout({ seconds: TIMEOUT_SECONDS }).rotate().resize(MAX_EDGE, MAX_EDGE, { fit: "inside", withoutEnlargement: true });
       const out =
-        ext === "jpg" ? image.jpeg({ quality: 85 })
-        : ext === "png" ? image.png({ palette: meta.isPalette === true })
-        : ext === "webp" ? image.webp({ quality: 85 })
-        : image.gif();
+        ext === "jpg"
+          ? image.jpeg({ quality: 85 })
+          : ext === "png"
+            ? image.png({ palette: meta.isPalette === true })
+            : ext === "webp"
+              ? image.webp({ quality: 85 })
+              : image.gif();
       return new Uint8Array(await out.toBuffer());
     } catch (e) {
       if (e instanceof UnsupportedTypeError) throw e;

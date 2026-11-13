@@ -48,7 +48,10 @@ test("the API answers 403 images_off to a picture and to a note with pictures, a
   expect((await picture.json()).code).toBe("images_off");
   const text = await request.post(`/api/v1/feeds/${name}/notes`, { headers: { ...auth, "Content-Type": "text/markdown" }, data: "# Text" });
   expect(text.status()).toBe(201);
-  const withPictures = await request.post(`/api/v1/feeds/${name}/notes`, { headers: auth, multipart: { text: "# Hi ![](a.png)", file: { name: "a.png", mimeType: "image/png", buffer: bytes } } });
+  const withPictures = await request.post(`/api/v1/feeds/${name}/notes`, {
+    headers: auth,
+    multipart: { text: "# Hi ![](a.png)", file: { name: "a.png", mimeType: "image/png", buffer: bytes } },
+  });
   expect(withPictures.status()).toBe(403);
   const listed = await (await request.get(`/api/v1/feeds/${name}/notes`, { headers: auth })).json();
   expect(listed.notes).toHaveLength(1);

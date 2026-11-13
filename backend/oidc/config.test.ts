@@ -10,7 +10,10 @@ const setAll = () => {
   process.env.NOTEFEED_OIDC_ALLOW = "a@x.com";
 };
 // Every NOTEFEED_OIDC_* variable, named providers' too.
-const clear = () => Object.keys(process.env).filter((k) => k.startsWith("NOTEFEED_OIDC_")).forEach((k) => delete process.env[k]);
+const clear = () =>
+  Object.keys(process.env)
+    .filter((k) => k.startsWith("NOTEFEED_OIDC_"))
+    .forEach((k) => delete process.env[k]);
 beforeEach(clear);
 afterEach(clear);
 const named = (name: string, v: Partial<Record<"ISSUER" | "CLIENT_ID" | "CLIENT_SECRET" | "ALLOW" | "SENDER_CLAIM" | "LABEL", string>>) => {
@@ -35,7 +38,14 @@ test("identityOn needs all four variables and a non-empty allow-list", () => {
 test("config.oidc splits, trims and lowercases the allow-list", () => {
   setAll();
   process.env.NOTEFEED_OIDC_ALLOW = " A@X.com, @Y.com ,*";
-  expect(config.oidc()).toEqual({ issuer: "https://idp.example", clientId: "id", clientSecret: "secret", allow: ["a@x.com", "@y.com", "*"], senderClaim: ["name", "email"], label: "" });
+  expect(config.oidc()).toEqual({
+    issuer: "https://idp.example",
+    clientId: "id",
+    clientSecret: "secret",
+    allow: ["a@x.com", "@y.com", "*"],
+    senderClaim: ["name", "email"],
+    label: "",
+  });
 });
 
 const allow = (list: string, claims: { email?: string; email_verified?: boolean }) => {
@@ -112,7 +122,15 @@ describe("several providers", () => {
   test("only the unprefixed set: one provider, id default, as before", () => {
     setAll();
     expect(providers()).toEqual([
-      { id: "default", label: "idp.example", issuer: "https://idp.example", clientId: "id", clientSecret: "secret", allow: ["a@x.com"], senderClaim: ["name", "email"] },
+      {
+        id: "default",
+        label: "idp.example",
+        issuer: "https://idp.example",
+        clientId: "id",
+        clientSecret: "secret",
+        allow: ["a@x.com"],
+        senderClaim: ["name", "email"],
+      },
     ]);
     expect(providerById("default")).toEqual(providers()[0]);
     expect(providerById("other")).toBeUndefined();
@@ -165,7 +183,8 @@ describe("several providers", () => {
   test("names with underscores and digits; lowercase or malformed names are not providers", () => {
     named("MY_IDP", FULL);
     named("IDP2", FULL);
-    for (const k of ["NOTEFEED_OIDC_lower_ISSUER", "NOTEFEED_OIDC__X_ISSUER", "NOTEFEED_OIDC_X__Y_ISSUER", "NOTEFEED_OIDC_X-Y_ISSUER"]) process.env[k] = FULL.ISSUER;
+    for (const k of ["NOTEFEED_OIDC_lower_ISSUER", "NOTEFEED_OIDC__X_ISSUER", "NOTEFEED_OIDC_X__Y_ISSUER", "NOTEFEED_OIDC_X-Y_ISSUER"])
+      process.env[k] = FULL.ISSUER;
     expect(providers().map((p) => p.id)).toEqual(["idp2", "my_idp"]);
     expect(providerById("my_idp")).toMatchObject({ issuer: FULL.ISSUER, clientId: "alpha-id" });
   });

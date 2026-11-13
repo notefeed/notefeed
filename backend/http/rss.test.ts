@@ -15,8 +15,7 @@ beforeEach(async () => {
   delete process.env.PUBLIC_URL;
 });
 
-const get = (id: string) =>
-  rssRoute(new Request(`${BASE}/r/${id}/feed.xml`, { headers: { host: "localhost:3000" } }), id);
+const get = (id: string) => rssRoute(new Request(`${BASE}/r/${id}/feed.xml`, { headers: { host: "localhost:3000" } }), id);
 
 test("serves the feed's notes with read-id links", async () => {
   const { note: a } = await createNote("secretname", "# One", new Date("2026-09-29T10:00:00Z"));

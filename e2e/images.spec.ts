@@ -269,12 +269,12 @@ test("a title image shows in the header and the read-only view, and can be remov
   await choose(page, "Choose image", PNG);
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue("Typed, not saved");
-  const header = page.locator("header img:not([src=\"/icon.svg\"])");
+  const header = page.locator('header img:not([src="/icon.svg"])');
   await expect(header).toBeVisible();
   expect(await header.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
   await page.getByRole("link", { name: "Open read-only view" }).click();
   await expect(page).toHaveURL(/\/r\/[^/]+$/);
-  await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toBeVisible();
+  await expect(page.locator('header img:not([src="/icon.svg"])')).toBeVisible();
   await expect(page.locator("ol > li img")).toHaveCount(0); // the feed's own image, not a post (#310)
   await page.goto(`/${name}`);
   await expect(page.locator("ol > li")).toHaveCount(1);
@@ -282,10 +282,10 @@ test("a title image shows in the header and the read-only view, and can be remov
   await page.locator("summary", { hasText: "Title image" }).click();
   await page.getByRole("button", { name: "Remove image" }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
-  await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toHaveCount(0);
+  await expect(page.locator('header img:not([src="/icon.svg"])')).toHaveCount(0);
   await page.getByRole("link", { name: "Open read-only view" }).click();
   await expect(page).toHaveURL(/\/r\/[^/]+$/);
-  await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toHaveCount(0);
+  await expect(page.locator('header img:not([src="/icon.svg"])')).toHaveCount(0);
 });
 
 // A noisy 4000×3000 JPEG: 5 to 10 MB, as a phone's camera makes them.
@@ -325,7 +325,7 @@ test("a title image chosen from a phone's camera is taken, and stored at 2560 px
   await page.locator("summary", { hasText: "Title image" }).click();
   await choose(page, "Choose image", photo);
   await expect(page.getByRole("status")).toHaveText("Saved.", { timeout: 30_000 }); // 5 to 10 MB up, then processed on the server
-  const header = page.locator("header img:not([src=\"/icon.svg\"])");
+  const header = page.locator('header img:not([src="/icon.svg"])');
   await expect(header).toBeVisible();
   expect(await storedSize(header)).toEqual([2560, 1920]);
 });
@@ -377,13 +377,13 @@ test("the title image can be picked from the feed's images, and goes when its no
   await page.locator("summary", { hasText: "Title image" }).click();
   await page.getByRole("button", { name: /^Use .* as the title image$/ }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
-  await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toBeVisible();
+  await expect(page.locator('header img:not([src="/icon.svg"])')).toBeVisible();
   await page.goto(`/${name}`);
   await page.locator("ol > li a").first().click();
   await page.getByText("Delete", { exact: true }).click();
   await page.getByRole("button", { name: "Delete note" }).click();
   await expect(page).toHaveURL(new RegExp(`/${name}\\?deleted=`));
-  await expect(page.locator("header img:not([src=\"/icon.svg\"])")).toHaveCount(0);
+  await expect(page.locator('header img:not([src="/icon.svg"])')).toHaveCount(0);
 });
 
 // The note box takes the focus and puts the cursor behind a picture's reference in the same step as the reference goes in (#164), so
@@ -431,7 +431,9 @@ test("the preview shows a dropped picture from its file, before it is uploaded",
 test("a note's picture shows once in the feed; clicking it opens the note, and there the picture's own note", async ({ page, request }) => {
   const name = feedName();
   const bytes = readFileSync(PNG);
-  const res = await request.post(`/api/v1/feeds/${name}/notes`, { multipart: { text: "# Herzii\n\n![](beach.png)", file: { name: "beach.png", mimeType: "image/png", buffer: bytes } } });
+  const res = await request.post(`/api/v1/feeds/${name}/notes`, {
+    multipart: { text: "# Herzii\n\n![](beach.png)", file: { name: "beach.png", mimeType: "image/png", buffer: bytes } },
+  });
   expect(res.status()).toBe(201);
   const posted = await res.json();
   const picture = posted.attachments[0];

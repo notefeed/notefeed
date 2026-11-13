@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { AuthError, EmptyNoteError, FeedExistsError, TitleImageDraftError, ReservedFeedError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
+import {
+  AuthError,
+  EmptyNoteError,
+  FeedExistsError,
+  TitleImageDraftError,
+  ReservedFeedError,
+  ImageLimitError,
+  ImageTooLargeError,
+  InvalidBodyError,
+  NotFoundError,
+  UnsupportedTypeError,
+} from "./errors";
 import { createProtected, protectedFeed } from "./feedlock";
 import { hasFeed, resetFeedsForTests } from "./feeds";
 import { getSettings } from "./feedsettings";
@@ -9,7 +20,22 @@ import * as notes from "./notes";
 import { countNotes, createImageNote, createNote, getNote, isScheduled, listNotes, MarkdownNote } from "./notes";
 import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
-import { checkDate, createFeed, deleteFeed, setFeedImage, updateFeed, deleteNote, editContent, editMeta, editWithPictures, MAX_ATTACHMENTS, type Picture, type PostBundle, postNote, postWithPictures } from "./posting";
+import {
+  checkDate,
+  createFeed,
+  deleteFeed,
+  setFeedImage,
+  updateFeed,
+  deleteNote,
+  editContent,
+  editMeta,
+  editWithPictures,
+  MAX_ATTACHMENTS,
+  type Picture,
+  type PostBundle,
+  postNote,
+  postWithPictures,
+} from "./posting";
 import { png } from "./testimages";
 
 // The text's write is the call after the pictures: a test makes it fail to see the pictures removed again.
@@ -29,14 +55,14 @@ const real = await vi.importActual<typeof import("./notes")>("./notes");
 beforeEach(async () => {
   resetFeedsForTests();
   resetRateLimitsForTests();
-  for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "NOTEFEED_MAX_IMAGE_BYTES", "NOTEFEED_MAX_IMAGES_PER_FEED", "NOTEFEED_MAX_FEEDS"]) delete process.env[k];
+  for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "NOTEFEED_MAX_IMAGE_BYTES", "NOTEFEED_MAX_IMAGES_PER_FEED", "NOTEFEED_MAX_FEEDS"])
+    delete process.env[k];
 });
 afterEach(() => {
   vi.mocked(notes.createNoteOf).mockClear().mockImplementation(real.createNoteOf);
   vi.mocked(notes.removeNote).mockReset().mockImplementation(real.removeNote);
   vi.unstubAllEnvs();
 });
-
 
 const pic = (name: string, extra: Partial<Picture> = {}): Picture => ({ name, body: png(), mediaType: "image/png", ...extra });
 const post = (bundle: PostBundle, feed = "f", access = {}) => postWithPictures(feed, "ip", async () => bundle, access, "Ann");
@@ -47,14 +73,23 @@ describe("postWithPictures", () => {
   test("with text undefined stores only the pictures", async () => {
     const r = await post({ pictures: [pic("a.png"), pic("b.png")], title: "Holiday", tags: ["trip"] });
     expect(r.note).toBe(r.pictures[0]);
-    expect(r.pictures.map((p) => [p.title, p.tags, p.sender])).toEqual([["Holiday", ["trip"], "Ann"], ["Holiday", ["trip"], "Ann"]]);
+    expect(r.pictures.map((p) => [p.title, p.tags, p.sender])).toEqual([
+      ["Holiday", ["trip"], "Ann"],
+      ["Holiday", ["trip"], "Ann"],
+    ]);
     expect(await countNotes("f", "markdown")).toBe(0);
     expect(await countNotes("f", "image")).toBe(2);
   });
 
   test("with no pictures it stores the same note as postNote", async () => {
     const r = await post({ text: "# Hi\n\nthere", pictures: [], title: "T", tags: ["x"] });
-    const p = await postNote("g", "ip", async () => ({ body: new TextEncoder().encode("# Hi\n\nthere"), mediaType: "text/markdown", title: "T", tags: ["x"] }), {}, "Ann");
+    const p = await postNote(
+      "g",
+      "ip",
+      async () => ({ body: new TextEncoder().encode("# Hi\n\nthere"), mediaType: "text/markdown", title: "T", tags: ["x"] }),
+      {},
+      "Ann",
+    );
     expect(r.pictures).toEqual([]);
     const strip = (n: notes.Note) => ({ ...n.meta, md: (n as MarkdownNote).markdown, type: n.type });
     expect(strip(r.note)).toEqual(strip(p.note));
@@ -67,7 +102,12 @@ describe("postWithPictures", () => {
   });
 
   test("stores the pictures then the text, in order, with the references swapped and unreferenced ones appended", async () => {
-    const r = await post({ text: "See ![cat](a.png) and ![](<b c.png>)", pictures: [pic("b c.png"), pic("a.png", { alt: "A cat" }), pic("d.png")], title: "T", tags: ["t"] });
+    const r = await post({
+      text: "See ![cat](a.png) and ![](<b c.png>)",
+      pictures: [pic("b c.png"), pic("a.png", { alt: "A cat" }), pic("d.png")],
+      title: "T",
+      tags: ["t"],
+    });
     const [b, a, d] = r.pictures;
     expect(r.pictures.map((p) => p.meta.name)).toEqual(["b c.png", "a.png", "d.png"]);
     expect(a.alt).toBe("A cat");
@@ -89,7 +129,12 @@ describe("postWithPictures", () => {
     ["an unsafe filename", { text: "x", pictures: [pic("a/b.png")] }, InvalidBodyError, "a\ufffdb.png"], // the echo is safeName's: a forbidden character as U+FFFD
     ["a non-image mediaType", { text: "x", pictures: [pic("a.md", { mediaType: "text/markdown" })] }, UnsupportedTypeError, "a.md"],
     ["bytes that are not that image", { text: "x", pictures: [pic("a.jpg", { mediaType: "image/jpeg" })] }, UnsupportedTypeError, "a.jpg"],
-    ["an oversized picture", { text: "x", pictures: [pic("a.png"), pic("big.png", { body: new Uint8Array([...png(), ...new Uint8Array(100)]) })] }, ImageTooLargeError, "big.png"],
+    [
+      "an oversized picture",
+      { text: "x", pictures: [pic("a.png"), pic("big.png", { body: new Uint8Array([...png(), ...new Uint8Array(100)]) })] },
+      ImageTooLargeError,
+      "big.png",
+    ],
     ["a bad alt", { text: "x", pictures: [pic("a.png", { alt: "a\nb" })] }, InvalidBodyError, "a.png"],
     ["more than MAX_ATTACHMENTS pictures", { text: "x", pictures: Array.from({ length: MAX_ATTACHMENTS + 1 }, (_, i) => pic(`${i}.png`)) }, InvalidBodyError],
     ["a blank text with no pictures", { text: " \n", pictures: [] }, EmptyNoteError],
@@ -133,7 +178,9 @@ describe("postWithPictures", () => {
   });
 
   test("a new protected feed with a bad second picture is not created", async () => {
-    await expect(post({ text: "x", pictures: [pic("a.png"), pic("b.png", { mediaType: "image/gif" })] }, "f", { password: "secret-password" })).rejects.toThrow(/^attachment "b.png": /);
+    await expect(post({ text: "x", pictures: [pic("a.png"), pic("b.png", { mediaType: "image/gif" })] }, "f", { password: "secret-password" })).rejects.toThrow(
+      /^attachment "b.png": /,
+    );
     expect(await hasFeed("f")).toBe(false);
     expect(await protectedFeed("f")).toBe(false);
   });
@@ -170,7 +217,14 @@ describe("postWithPictures", () => {
     });
     vi.mocked(notes.removeNote).mockResolvedValueOnce(false).mockRejectedValueOnce(new Error("EACCES"));
     const logs = await logsOf(() => expect(post({ text: "x", pictures: [pic("a.png"), pic("b.png"), pic("c.png")] }, "hidden-feed")).rejects.toBe(boom));
-    const ids = (await Promise.all(vi.mocked(notes.createNoteOf).mock.results.slice(0, 2).map((r) => r.value))).map((m) => m.note.id);
+    const ids = (
+      await Promise.all(
+        vi
+          .mocked(notes.createNoteOf)
+          .mock.results.slice(0, 2)
+          .map((r) => r.value),
+      )
+    ).map((m) => m.note.id);
     const lines = logs.filter((l) => l.msg === "a picture of a failed post could not be removed");
     expect(lines.map((l) => [l.level, l.component, l.note])).toEqual(ids.map((id) => ["error", "posting", id]));
     expect((lines[1].err as { message: string }).message).toBe("EACCES");
@@ -202,22 +256,41 @@ describe("checkDate", () => {
     for (const v of ["10000-01-01", "+010000-01-01T00:00:00Z", "9999-12-31T23:59:59-01:00"]) expect(() => checkDate(v), v).toThrow(InvalidBodyError);
   });
   test("checkDate refuses 1969-12-31T23:59:59Z", () => {
-    expect(() => checkDate("1969-12-31T23:59:59Z")).toThrow("date must be an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date (2026-10-01), from 1970 to 9999");
+    expect(() => checkDate("1969-12-31T23:59:59Z")).toThrow(
+      "date must be an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date (2026-10-01), from 1970 to 9999",
+    );
   });
-  test.each(["yesterday", "2026-10-01T09:30:00", "2026-10-01 09:30Z", "2026-02-30", "2026-13-01", "2026-10-01T24:00:00Z", "2026-10-01T09:60Z", "2026-10-01T09:30+24:00", "1970-01-01T00:30+01:00"])(
-    "refuses %s",
-    (v) => expect(() => checkDate(v)).toThrow(InvalidBodyError),
-  );
+  test.each([
+    "yesterday",
+    "2026-10-01T09:30:00",
+    "2026-10-01 09:30Z",
+    "2026-02-30",
+    "2026-13-01",
+    "2026-10-01T24:00:00Z",
+    "2026-10-01T09:60Z",
+    "2026-10-01T09:30+24:00",
+    "1970-01-01T00:30+01:00",
+  ])("refuses %s", (v) => expect(() => checkDate(v)).toThrow(InvalidBodyError));
   test("a time after now is taken", () => expect(checkDate("2026-10-26T12:00:01Z")?.getTime()).toBeGreaterThan(now.getTime()));
 });
 
 describe("dated posts", () => {
   test("postNote stores the note at that time", async () => {
-    const { note } = await postNote("f", "ip", async () => ({ body: new TextEncoder().encode("# old"), mediaType: "text/markdown", date: "2025-03-01T08:00:00Z" }), {});
+    const { note } = await postNote(
+      "f",
+      "ip",
+      async () => ({ body: new TextEncoder().encode("# old"), mediaType: "text/markdown", date: "2025-03-01T08:00:00Z" }),
+      {},
+    );
     expect(note.date.toISOString()).toBe("2025-03-01T08:00:00.000Z");
   });
   test("a future date posts a scheduled note", async () => {
-    const { note } = await postNote("f", "ip", async () => ({ body: new TextEncoder().encode("# soon"), mediaType: "text/markdown", date: "2099-01-01T00:00:00Z" }), {});
+    const { note } = await postNote(
+      "f",
+      "ip",
+      async () => ({ body: new TextEncoder().encode("# soon"), mediaType: "text/markdown", date: "2099-01-01T00:00:00Z" }),
+      {},
+    );
     expect(note.date.toISOString()).toBe("2099-01-01T00:00:00.000Z");
     expect(isScheduled(note)).toBe(true);
     expect((await getNote("f", note.id))?.date.toISOString()).toBe("2099-01-01T00:00:00.000Z");
@@ -226,7 +299,11 @@ describe("dated posts", () => {
     const r = await post({ text: "![](a.png)", pictures: [pic("a.png"), pic("b.png")], date: "2025-03-01T08:00:00Z" });
     const stored = await Promise.all(r.pictures.map((p) => getNote("f", p.id)));
     expect(stored.map((p) => p?.of)).toEqual([r.note.id, r.note.id]);
-    expect([...r.pictures, r.note].map((n) => n.date.toISOString())).toEqual(["2025-03-01T07:59:59.998Z", "2025-03-01T07:59:59.999Z", "2025-03-01T08:00:00.000Z"]);
+    expect([...r.pictures, r.note].map((n) => n.date.toISOString())).toEqual([
+      "2025-03-01T07:59:59.998Z",
+      "2025-03-01T07:59:59.999Z",
+      "2025-03-01T08:00:00.000Z",
+    ]);
     expect((await listNotes("f")).map((n) => n.id)).toEqual([r.note.id, r.pictures[1].id, r.pictures[0].id]);
   });
   test("attachments of a note dated at 1970 stay at 1970", async () => {
@@ -249,7 +326,8 @@ describe("dated posts", () => {
     try {
       const day = 86_400_000;
       const at = (offset: number) => new Date(Date.now() + offset).toISOString();
-      const text = (body: string, date?: string) => postNote("f", "ip", async () => ({ body: new TextEncoder().encode(body), mediaType: "text/markdown", date }), {});
+      const text = (body: string, date?: string) =>
+        postNote("f", "ip", async () => ({ body: new TextEncoder().encode(body), mediaType: "text/markdown", date }), {});
       // Posted out of date order: dropping by when a note was posted would drop the +1y one first.
       const later = (await text("# +1y", at(365 * day))).note;
       await text("# -1d", at(-day));
@@ -383,7 +461,9 @@ describe("createFeed", () => {
     await createFeed("locked", "ip", { password: "Passw0rd!x" });
     expect(await protectedFeed("locked")).toBe(true);
     await expect(createFeed("locked", "ip", { password: "Other!pass1" })).rejects.toBeInstanceOf(FeedExistsError);
-    await expect(postNote("locked", "ip", async () => ({ body: new TextEncoder().encode("hi"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(AuthError);
+    await expect(postNote("locked", "ip", async () => ({ body: new TextEncoder().encode("hi"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(
+      AuthError,
+    );
     await postNote("empty", "ip", async () => ({ body: new TextEncoder().encode("hi"), mediaType: "text/markdown" }), {});
     expect(await countNotes("empty")).toBe(1);
   });
@@ -427,7 +507,9 @@ describe("setFeedImage", () => {
   test("needs an existing feed and an image", async () => {
     await expect(setFeedImage("none", "ip", img(1), {})).rejects.toBeInstanceOf(NotFoundError);
     await createNote("f", "hi");
-    await expect(setFeedImage("f", "ip", async () => ({ body: new TextEncoder().encode("# no"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(UnsupportedTypeError);
+    await expect(setFeedImage("f", "ip", async () => ({ body: new TextEncoder().encode("# no"), mediaType: "text/markdown" }), {})).rejects.toBeInstanceOf(
+      UnsupportedTypeError,
+    );
   });
 });
 

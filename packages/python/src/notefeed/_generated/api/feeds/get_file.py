@@ -33,9 +33,7 @@ def _get_kwargs(
     return _kwargs
 
 
-def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Error | File | None:
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | File | None:
     if response.status_code == 200:
         response_200 = File(payload=BytesIO(response.content))
 
@@ -82,9 +80,7 @@ def _parse_response(
         return None
 
 
-def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Error | File]:
+def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | File]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,

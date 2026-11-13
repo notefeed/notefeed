@@ -22,7 +22,10 @@ const BACKEND_IMPORTS = {
 };
 const SHARED_IMPORTS = {
   patterns: [
-    { group: ["node:*", "@/backend", "@/backend/*", "@/app/*", "@/components/*", "**/backend/*"], message: "shared/ runs in the browser too: no Node, backend or frontend imports." },
+    {
+      group: ["node:*", "@/backend", "@/backend/*", "@/app/*", "@/components/*", "**/backend/*"],
+      message: "shared/ runs in the browser too: no Node, backend or frontend imports.",
+    },
   ],
 };
 

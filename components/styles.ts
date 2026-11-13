@@ -6,7 +6,8 @@ export const card = "rounded-2xl border border-rule bg-surface shadow-card";
 export const sectionLabel = "text-[11px] font-bold uppercase tracking-wide text-muted";
 // Buttons: the one primary action, a quiet one, a destructive one, and a round icon button (40px target).
 export const primary = "inline-flex items-center justify-center gap-1.5 rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon disabled:opacity-60";
-export const secondary = "inline-flex items-center justify-center gap-1.5 rounded-full bg-surface-2 px-3.5 py-1.5 font-bold text-ink hover:bg-rule/60 disabled:opacity-60";
+export const secondary =
+  "inline-flex items-center justify-center gap-1.5 rounded-full bg-surface-2 px-3.5 py-1.5 font-bold text-ink hover:bg-rule/60 disabled:opacity-60";
 export const danger = "inline-flex items-center justify-center gap-1.5 rounded-full border border-error px-4 py-1.5 font-bold text-error disabled:opacity-60";
 export const iconButton = "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink hover:bg-surface-2";
 // A text field on a surface, and one that is the content itself (the composer's title and text).

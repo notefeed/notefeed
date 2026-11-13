@@ -29,7 +29,13 @@ export function MermaidBlock({ source, children }: { source: string; children: R
   if (!svg) return children;
   return (
     <figure className="mermaid-diagram">
-      <button type="button" onClick={() => dialog.current?.showModal()} aria-label="Enlarge diagram" title="Enlarge diagram" className="block w-full cursor-zoom-in overflow-x-auto text-left">
+      <button
+        type="button"
+        onClick={() => dialog.current?.showModal()}
+        aria-label="Enlarge diagram"
+        title="Enlarge diagram"
+        className="block w-full cursor-zoom-in overflow-x-auto text-left"
+      >
         {/* Sanitized by mermaid (securityLevel "strict"). */}
         <div dangerouslySetInnerHTML={{ __html: svg }} />
       </button>
@@ -41,7 +47,12 @@ export function MermaidBlock({ source, children }: { source: string; children: R
       >
         <div className="flex h-full flex-col">
           <div className="flex justify-end p-2">
-            <button type="button" onClick={() => dialog.current?.close()} aria-label="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink">
+            <button
+              type="button"
+              onClick={() => dialog.current?.close()}
+              aria-label="Close"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
+            >
               <CloseIcon aria-hidden className="h-5 w-5" />
             </button>
           </div>

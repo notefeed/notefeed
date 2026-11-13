@@ -29,7 +29,9 @@ export const FORBIDDEN_IN_NAME = new RegExp(String.raw`[${TEXT_SET}/\\]`);
 export const safeName = (name: string): string => name.replace(new RegExp(FORBIDDEN_IN_NAME, "g"), "\ufffd").slice(0, 200);
 
 /** A file's original name as kept and shown: none of FORBIDDEN_IN_NAME, trimmed, at most 200 characters. */
-export const cleanName = (name: string | undefined): string | undefined => (name ?? "").replace(new RegExp(FORBIDDEN_IN_NAME, "g"), "").trim().slice(0, 200) || undefined;
+export const cleanName = (name: string | undefined): string | undefined =>
+  (name ?? "").replace(new RegExp(FORBIDDEN_IN_NAME, "g"), "").trim().slice(0, 200) || undefined;
 
 /** A name an attachment may have: one path segment of 1 to 200 characters, none of FORBIDDEN_IN_NAME, no leading/trailing space, not only dots. */
-export const isAttachmentName = (name: string): boolean => name.length >= 1 && name.length <= 200 && !FORBIDDEN_IN_NAME.test(name) && name === name.trim() && !/^\.+$/.test(name);
+export const isAttachmentName = (name: string): boolean =>
+  name.length >= 1 && name.length <= 200 && !FORBIDDEN_IN_NAME.test(name) && name === name.trim() && !/^\.+$/.test(name);

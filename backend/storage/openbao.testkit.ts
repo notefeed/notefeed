@@ -31,7 +31,9 @@ export async function openBaoForTests(): Promise<OpenBaoForTests | null> {
   const auths = (await root("sys/auth")) as { data: Record<string, unknown> };
   if (!auths.data["approle/"]) await root("sys/auth/approle", { type: "approle" }).catch(() => {}); // another test file may enable it first
   // Wider than production's policy (docs/self-hosting/storage.md): any key of this mount, so a test can point notefeed at another one.
-  const policy = ["encrypt", "decrypt", "rewrap"].map((op) => `path "${mount}/${op}/*" { capabilities = ["update"] }`).concat(`path "${mount}/keys/*" { capabilities = ["read"] }`);
+  const policy = ["encrypt", "decrypt", "rewrap"]
+    .map((op) => `path "${mount}/${op}/*" { capabilities = ["update"] }`)
+    .concat(`path "${mount}/keys/*" { capabilities = ["read"] }`);
   await root(`sys/policies/acl/${mount}`, { policy: policy.join("\n") }, "PUT");
   await root(`auth/approle/role/${mount}`, { token_policies: [mount], token_ttl: "60s", token_max_ttl: "300s" });
   const roleId = ((await root(`auth/approle/role/${mount}/role-id`)) as { data: { role_id: string } }).data.role_id;

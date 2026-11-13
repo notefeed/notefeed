@@ -45,7 +45,10 @@ export async function planInWorker(markdown: string, names: ReadonlySet<string>)
 function run(markdown: string, names: ReadonlySet<string>): Promise<ImagePlan> {
   const limit = config.parseTimeoutMs();
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./placeWorker.mjs", import.meta.url), { workerData: { markdown, names: [...names] }, resourceLimits: { maxOldGenerationSizeMb: MEMORY_MB } });
+    const worker = new Worker(new URL("./placeWorker.mjs", import.meta.url), {
+      workerData: { markdown, names: [...names] },
+      resourceLimits: { maxOldGenerationSizeMb: MEMORY_MB },
+    });
     const refuse = (why: string) => {
       parseTimedOut();
       void worker.terminate();

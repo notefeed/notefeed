@@ -68,10 +68,13 @@ export type Report = { template: string; readId: string };
 function ReportLink({ note, report }: { note: Note; report?: Report }) {
   if (!report || isDraft(note) || isScheduled(note)) return null;
   return (
-    <a href={reportUrl(report.template, { readId: report.readId, noteId: note.id, file: note.file })} rel="nofollow noopener" className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-carbon">
+    <a
+      href={reportUrl(report.template, { readId: report.readId, noteId: note.id, file: note.file })}
+      rel="nofollow noopener"
+      className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-carbon"
+    >
       <ReportIcon aria-hidden className="h-3.5 w-3.5" />
       Report
     </a>
   );
 }
-

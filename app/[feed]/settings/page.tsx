@@ -15,7 +15,26 @@ import { FeedAbout } from "@/components/FeedAbout";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { DisclosureRow, Row } from "@/components/SettingsRows";
 import { iconButton } from "@/components/styles";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, locked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath, atomPath, SHORTCUT_PATH } from "@/backend";
+import {
+  checkFeed,
+  feedCookieName,
+  feedPath,
+  feedUnlocked,
+  locked,
+  customIdsOn,
+  getFeed,
+  getFeedImages,
+  freeTier,
+  identityOn,
+  isReservedFeed,
+  licensePageOn,
+  licensingOn,
+  publicUrl,
+  readPath,
+  rssPath,
+  atomPath,
+  SHORTCUT_PATH,
+} from "@/backend";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Feed settings" };
@@ -41,7 +60,18 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
   return (
     <AppShell
       feed={feed}
-      about={<FeedAbout name={feed} title={title} description={description} imageUrl={data.imageUrl} readUrl={readId ? base + readPath(readId) : undefined} rssUrl={rssUrl} viewHref={readId ? readPath(readId) : undefined} base={feedPath(feed)} />}
+      about={
+        <FeedAbout
+          name={feed}
+          title={title}
+          description={description}
+          imageUrl={data.imageUrl}
+          readUrl={readId ? base + readPath(readId) : undefined}
+          rssUrl={rssUrl}
+          viewHref={readId ? readPath(readId) : undefined}
+          base={feedPath(feed)}
+        />
+      }
     >
       <RememberFeed feed={{ name: feed, title, image: data.imageUrl }} />
       <div className="mb-5 flex items-center gap-2">
@@ -94,7 +124,9 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         posting={
           <>
             <DisclosureRow icon={<ApiIcon />} label="REST API">
-              <p className="mb-2 text-muted">Everything the web page does, under <code className="font-mono">/api/v1</code>. This server&apos;s own spec:</p>
+              <p className="mb-2 text-muted">
+                Everything the web page does, under <code className="font-mono">/api/v1</code>. This server&apos;s own spec:
+              </p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`${base}/api/v1/openapi.json`}</pre>
               <DocsLink href={`${DOCS}/integrations/api/`}>REST API</DocsLink>
             </DisclosureRow>
@@ -109,7 +141,8 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
             </DisclosureRow>
             <DisclosureRow icon={<PhoneIcon />} label="Share from an iPhone">
               <p className="mb-2 text-muted">
-                A ready-made Shortcut puts <strong className="text-ink">Send to notefeed</strong> in the iPhone&apos;s share sheet: pictures, text and links you share arrive as one note in this feed.
+                A ready-made Shortcut puts <strong className="text-ink">Send to notefeed</strong> in the iPhone&apos;s share sheet: pictures, text and links you
+                share arrive as one note in this feed.
               </p>
               <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
                 <li>
@@ -120,8 +153,9 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
                   . Confirm with <strong className="text-ink">Download</strong>.
                 </li>
                 <li>
-                  Open the download: tap the <strong className="text-ink">download arrow</strong> in Safari&apos;s address bar, then <strong className="text-ink">Downloads</strong>, then{" "}
-                  <strong className="text-ink">Send to notefeed</strong>. (Or in the Files app: <strong className="text-ink">Downloads</strong>, then the file.)
+                  Open the download: tap the <strong className="text-ink">download arrow</strong> in Safari&apos;s address bar, then{" "}
+                  <strong className="text-ink">Downloads</strong>, then <strong className="text-ink">Send to notefeed</strong>. (Or in the Files app:{" "}
+                  <strong className="text-ink">Downloads</strong>, then the file.)
                 </li>
                 <li>
                   The Shortcuts app opens. Tap <strong className="text-ink">Set Up Shortcut</strong> and answer its four questions:
@@ -133,32 +167,38 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
                       the feed name: <code className="break-all font-mono">{feed}</code>
                     </li>
                     <li>the feed&apos;s password (leave it empty for an open feed)</li>
-                    <li>the server password, which is optional: {locked() ? "this server has one, the one you signed in with" : "leave it empty, this server has none"}</li>
+                    <li>
+                      the server password, which is optional:{" "}
+                      {locked() ? "this server has one, the one you signed in with" : "leave it empty, this server has none"}
+                    </li>
                   </ul>
                   Then tap <strong className="text-ink">Add Shortcut</strong>.
                 </li>
                 <li>
-                  Share from any app (Photos, Notes, Safari …), scroll to the very bottom of the share sheet and tap <strong className="text-ink">Send to notefeed</strong>. The first time, iOS asks
-                  whether it may send to your notefeed address: tap <strong className="text-ink">Always Allow</strong>.
+                  Share from any app (Photos, Notes, Safari …), scroll to the very bottom of the share sheet and tap{" "}
+                  <strong className="text-ink">Send to notefeed</strong>. The first time, iOS asks whether it may send to your notefeed address: tap{" "}
+                  <strong className="text-ink">Always Allow</strong>.
                 </li>
                 <li>
-                  For several feeds, add it once per feed and rename each: in the Shortcuts app, touch and hold it, then <strong className="text-ink">Rename</strong> (say,
-                  &ldquo;Send to {feed}&rdquo;).
+                  For several feeds, add it once per feed and rename each: in the Shortcuts app, touch and hold it, then{" "}
+                  <strong className="text-ink">Rename</strong> (say, &ldquo;Send to {feed}&rdquo;).
                 </li>
               </ol>
               <DocsLink href={`${DOCS}/using/sharing/#iphone`}>Sharing</DocsLink>
             </DisclosureRow>
             <DisclosureRow icon={<PhoneIcon />} label="Share from Android">
-              <p className="mb-2 text-muted">Installed as an app, notefeed is in Android&apos;s share sheet: pictures, text and links go into this feed&apos;s compose box, ready to post.</p>
+              <p className="mb-2 text-muted">
+                Installed as an app, notefeed is in Android&apos;s share sheet: pictures, text and links go into this feed&apos;s compose box, ready to post.
+              </p>
               <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
                 <li>
-                  On the phone, open this feed in <strong className="text-ink">Chrome</strong>, open Chrome&apos;s menu (<strong className="text-ink">⋮</strong>) and tap{" "}
-                  <strong className="text-ink">Add to Home screen</strong> or <strong className="text-ink">Install app</strong>.
+                  On the phone, open this feed in <strong className="text-ink">Chrome</strong>, open Chrome&apos;s menu (<strong className="text-ink">⋮</strong>
+                  ) and tap <strong className="text-ink">Add to Home screen</strong> or <strong className="text-ink">Install app</strong>.
                 </li>
                 <li>Open notefeed once from the home screen, so the share sheet can hand pictures to it.</li>
                 <li>
-                  Share from any app (Photos, a browser …) and tap <strong className="text-ink">notefeed</strong>. Pick this feed, <code className="break-all font-mono">{feed}</code>, check
-                  what is in the compose box, then <strong className="text-ink">Post</strong>.
+                  Share from any app (Photos, a browser …) and tap <strong className="text-ink">notefeed</strong>. Pick this feed,{" "}
+                  <code className="break-all font-mono">{feed}</code>, check what is in the compose box, then <strong className="text-ink">Post</strong>.
                 </li>
               </ol>
               <DocsLink href={`${DOCS}/using/sharing/#android`}>Sharing</DocsLink>

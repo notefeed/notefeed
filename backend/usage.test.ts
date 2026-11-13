@@ -40,7 +40,9 @@ afterEach(async () => {
 // The value of the sample `metric` with exactly these labels (none: the unlabelled one); undefined when there is none.
 async function sample(metric: string, labels: Record<string, string> = {}): Promise<number | undefined> {
   const { body } = await renderMetrics();
-  const want = Object.entries(labels).map(([k, v]) => `${k}="${v}"`).join(",");
+  const want = Object.entries(labels)
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(",");
   const line = body.split("\n").find((l) => l.startsWith(want ? `${metric}{${want}} ` : `${metric} `));
   return line === undefined ? undefined : Number(line.slice(line.lastIndexOf(" ") + 1));
 }
@@ -53,7 +55,11 @@ const md = (count: number) => ({ md: { count, bytes: count * 10 } });
 test("countUsage: kinds by extension, the windows of activity, and files that are no notes left out", () => {
   const c = countUsage(
     [
-      feed({ protected: true, lastWrite: NOW - DAY / 2, notes: { md: { count: 2, bytes: 20 }, png: { count: 1, bytes: 1000 }, jpg: { count: 2, bytes: 500 }, txt: { count: 9, bytes: 9 } } }),
+      feed({
+        protected: true,
+        lastWrite: NOW - DAY / 2,
+        notes: { md: { count: 2, bytes: 20 }, png: { count: 1, bytes: 1000 }, jpg: { count: 2, bytes: 500 }, txt: { count: 9, bytes: 9 } },
+      }),
       feed({ readLink: false, lastWrite: NOW - 3 * DAY, notes: md(1) }),
       feed({ lastWrite: NOW - 20 * DAY, notes: md(1) }),
       feed({ lastWrite: NOW - 40 * DAY, notes: md(1) }),
@@ -73,7 +79,18 @@ test("countUsage: kinds by extension, the windows of activity, and files that ar
 });
 
 test("countUsage: near the cap is 80% of it or more, at it is the cap exactly, over it more (a license); every note counts, images and marks too", () => {
-  const c = countUsage([feed({ notes: md(7) }), feed({ notes: md(8) }), feed({ notes: { ...md(6), png: { count: 2, bytes: 1 } } }), feed({ notes: { ...md(9), removed: { count: 1, bytes: 0 } } }), feed({ notes: { png: { count: 50, bytes: 1 } } }), feed({ notes: { txt: { count: 50, bytes: 1 } } })], 10, NOW);
+  const c = countUsage(
+    [
+      feed({ notes: md(7) }),
+      feed({ notes: md(8) }),
+      feed({ notes: { ...md(6), png: { count: 2, bytes: 1 } } }),
+      feed({ notes: { ...md(9), removed: { count: 1, bytes: 0 } } }),
+      feed({ notes: { png: { count: 50, bytes: 1 } } }),
+      feed({ notes: { txt: { count: 50, bytes: 1 } } }),
+    ],
+    10,
+    NOW,
+  );
   expect(c.freeCap).toEqual({ near: 2, at: 1, over: 1 });
 });
 

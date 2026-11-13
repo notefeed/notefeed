@@ -21,11 +21,24 @@ const log = logger("usage");
 
 /** The count of what `feeds` (Storage.usage) hold. `cap`: the free tier's note cap, null with licensing off. */
 export function countUsage(feeds: FeedUsage[], cap: number | null, now = Date.now()): Omit<UsageCount, "licenses"> {
-  const c: Omit<UsageCount, "licenses"> = { feeds: feeds.length, protected: 0, readLink: 0, active: { "1d": 0, "7d": 0, "30d": 0 }, notes: { markdown: { count: 0, bytes: 0 }, image: { count: 0, bytes: 0 } }, freeCap: cap === null ? null : { near: 0, at: 0, over: 0 } };
+  const c: Omit<UsageCount, "licenses"> = {
+    feeds: feeds.length,
+    protected: 0,
+    readLink: 0,
+    active: { "1d": 0, "7d": 0, "30d": 0 },
+    notes: { markdown: { count: 0, bytes: 0 }, image: { count: 0, bytes: 0 } },
+    freeCap: cap === null ? null : { near: 0, at: 0, over: 0 },
+  };
   for (const f of feeds) {
     if (f.protected) c.protected++;
     if (f.readLink) c.readLink++;
-    if (f.lastWrite !== null) for (const [within, days] of [["1d", 1], ["7d", 7], ["30d", 30]] as const) if (f.lastWrite >= now - days * DAY_MS) c.active[within]++;
+    if (f.lastWrite !== null)
+      for (const [within, days] of [
+        ["1d", 1],
+        ["7d", 7],
+        ["30d", 30],
+      ] as const)
+        if (f.lastWrite >= now - days * DAY_MS) c.active[within]++;
     let notes = 0; // every note counts against the free cap: texts, images, the operator's marks
     for (const [ext, n] of Object.entries(f.notes)) {
       const kind = typeForExt(ext)?.name;

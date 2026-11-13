@@ -16,7 +16,8 @@ let dir: string;
 beforeEach(async () => {
   dir = process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-readid-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
-  for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "NOTEFEED_ALLOW_CUSTOM_IDS", "NOTEFEED_RESERVED_FEEDS", "NOTEFEED_RESERVED_PASSWORD"]) delete process.env[k];
+  for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "NOTEFEED_ALLOW_CUSTOM_IDS", "NOTEFEED_RESERVED_FEEDS", "NOTEFEED_RESERVED_PASSWORD"])
+    delete process.env[k];
   resetFeedsForTests();
   resetRateLimitsForTests();
 });
@@ -29,7 +30,19 @@ async function call(method: string, path: string, body?: unknown) {
   // A post is the markdown as the body; the feed's password and read id are headers.
   if (method === "POST" && typeof body === "object" && body !== null && "markdown" in body) {
     const { markdown, password, read_id } = body as { markdown: string; password?: string; read_id?: string };
-    return dispatch(new Request(url, { method, body: markdown, headers: { host: headers.host, "content-type": "text/markdown", ...(password && { "x-feed-password": password }), ...(read_id !== undefined && { "x-read-id": read_id }) } }), segments);
+    return dispatch(
+      new Request(url, {
+        method,
+        body: markdown,
+        headers: {
+          host: headers.host,
+          "content-type": "text/markdown",
+          ...(password && { "x-feed-password": password }),
+          ...(read_id !== undefined && { "x-read-id": read_id }),
+        },
+      }),
+      segments,
+    );
   }
   return dispatch(new Request(url, { method, body: body === undefined ? undefined : JSON.stringify(body), headers }), segments);
 }
@@ -120,7 +133,14 @@ describe("changing it later", () => {
     process.env.NOTEFEED_RESERVED_FEEDS = "news";
     process.env.NOTEFEED_RESERVED_PASSWORD = "hunter22";
     resetFeedsForTests();
-    const res = await dispatch(new Request(`${BASE}${API_PREFIX}/feeds/news`, { method: "PUT", body: JSON.stringify({ title: "", description: "", read_id: "other" }), headers: { host: "localhost:3000", "content-type": "application/json", "x-feed-password": "hunter22" } }), ["feeds", "news"]);
+    const res = await dispatch(
+      new Request(`${BASE}${API_PREFIX}/feeds/news`, {
+        method: "PUT",
+        body: JSON.stringify({ title: "", description: "", read_id: "other" }),
+        headers: { host: "localhost:3000", "content-type": "application/json", "x-feed-password": "hunter22" },
+      }),
+      ["feeds", "news"],
+    );
     expect(res.status).toBe(400);
     expect(await readIdOf("news")).toBe("news");
   });

@@ -136,12 +136,26 @@ test("locked: the service worker passes, so a browser whose sign-in ran out stil
   expect(isNext(proxy(req("/sw.js")))).toBe(true);
 });
 
-test.each(["/mcp", "/metrics", "/health", "/oauth/authorize?x=1", "/oauth/token", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])("locked: %s is not sent to /login", (p) => {
+test.each([
+  "/mcp",
+  "/metrics",
+  "/health",
+  "/oauth/authorize?x=1",
+  "/oauth/token",
+  "/.well-known/oauth-authorization-server",
+  "/.well-known/oauth-protected-resource/mcp",
+])("locked: %s is not sent to /login", (p) => {
   process.env.NOTEFEED_PASSWORD = "pw";
   expect(isNext(proxy(req(p)))).toBe(true);
 });
 
-const OIDC = { NOTEFEED_SECRET: "a".repeat(40), NOTEFEED_OIDC_ISSUER: "https://idp.example", NOTEFEED_OIDC_CLIENT_ID: "id", NOTEFEED_OIDC_CLIENT_SECRET: "s", NOTEFEED_OIDC_ALLOW: "*" };
+const OIDC = {
+  NOTEFEED_SECRET: "a".repeat(40),
+  NOTEFEED_OIDC_ISSUER: "https://idp.example",
+  NOTEFEED_OIDC_CLIENT_ID: "id",
+  NOTEFEED_OIDC_CLIENT_SECRET: "s",
+  NOTEFEED_OIDC_ALLOW: "*",
+};
 
 test.each(["password", "identity-only"])("locked (%s): /privacy and /imprint pass without a session, other pages still redirect", (mode) => {
   if (mode === "password") process.env.NOTEFEED_PASSWORD = "pw";

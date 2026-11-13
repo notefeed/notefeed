@@ -42,5 +42,8 @@ export async function healthRoute(): Promise<Response> {
   const [storageState, images, keys] = await Promise.all([storageCheck(), imagesCheck(), keyService && check("key service check failed", keyService)]);
   const checks = { storage: storageState, ...(images && { images }), ...(keys && { keys }) };
   const ok = Object.values(checks).every((c) => c === "ok");
-  return Response.json({ status: ok ? "ok" : "unavailable", checks, version: runningVersion().version }, { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } });
+  return Response.json(
+    { status: ok ? "ok" : "unavailable", checks, version: runningVersion().version },
+    { status: ok ? 200 : 503, headers: { "Cache-Control": "no-store" } },
+  );
 }

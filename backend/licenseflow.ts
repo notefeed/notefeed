@@ -49,7 +49,8 @@ export async function receiveWebhook(rawBody: string, headers: Headers): Promise
     await apply(e);
     // The provider keeps charging a refunded subscription unless it is ended there too. The license has lapsed either way, so a
     // failure here (ended already, by the same event delivered before) is logged and not answered with an error.
-    if (e.type === "refunded") await provider.cancel(e.providerRef).catch((err) => log.warn({ err }, "a refunded subscription was not cancelled at the provider"));
+    if (e.type === "refunded")
+      await provider.cancel(e.providerRef).catch((err) => log.warn({ err }, "a refunded subscription was not cancelled at the provider"));
   }
   return events.length;
 }
@@ -72,7 +73,8 @@ async function apply(e: LicenseEvent): Promise<void> {
     case "ended": {
       // Delivered late, after the payment retried for that period went through: the license already runs on past it.
       const license = await store.byProviderRef(e.providerRef);
-      if (e.periodEnd !== null && license?.validUntil != null && license.validUntil > e.periodEnd) return void log.info("a late end of a period that is paid since");
+      if (e.periodEnd !== null && license?.validUntil != null && license.validUntil > e.periodEnd)
+        return void log.info("a late end of a period that is paid since");
       if (await store.update(e.providerRef, { status: "lapsed" })) licenseEvent("lapsed");
       return void log.info({ why: e.type }, "license lapsed");
     }

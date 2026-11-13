@@ -98,11 +98,22 @@ test("the API lists it marked unreadable and refuses it alone with the unreadabl
 test("MCP lists it marked unreadable and refuses it alone", async () => {
   const { bad } = await damaged();
   const call = async (name: string, args: Record<string, unknown>) => {
-    const _meta = { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" }, "io.modelcontextprotocol/clientCapabilities": {} };
+    const _meta = {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" },
+      "io.modelcontextprotocol/clientCapabilities": {},
+    };
     const res = await mcpRoute(
       new Request(`${BASE}/mcp`, {
         method: "POST",
-        headers: { host: "localhost:3000", "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": name },
+        headers: {
+          host: "localhost:3000",
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          "mcp-protocol-version": "2026-07-28",
+          "mcp-method": "tools/call",
+          "mcp-name": name,
+        },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args, _meta } }),
       }),
     );

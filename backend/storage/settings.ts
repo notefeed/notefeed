@@ -9,7 +9,13 @@ export function parseSettings(text: string | null): Settings {
   try {
     const j = JSON.parse(text ?? "");
     const image = typeof j.image === "string" ? j.image : "";
-    return { title: typeof j.title === "string" ? j.title : "", description: typeof j.description === "string" ? j.description : "", image, showSender: j.showSender !== false, ...(j.ownImage === true && image && { ownImage: true }) };
+    return {
+      title: typeof j.title === "string" ? j.title : "",
+      description: typeof j.description === "string" ? j.description : "",
+      image,
+      showSender: j.showSender !== false,
+      ...(j.ownImage === true && image && { ownImage: true }),
+    };
   } catch {
     return { ...EMPTY };
   }

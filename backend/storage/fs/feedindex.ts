@@ -5,7 +5,20 @@
 import { FeedNameTakenError, NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
 import { logger } from "../../log";
 import type { Storage } from "../types";
-import { appendBlocklist, appendTombstone, createFeedDir, deleteFeedDir, feedDirExists, listFeedDirs, readBlocklist, readReadId, readTombstones, removeLeftovers, renameFeedDir, writeReadId } from "./feeds";
+import {
+  appendBlocklist,
+  appendTombstone,
+  createFeedDir,
+  deleteFeedDir,
+  feedDirExists,
+  listFeedDirs,
+  readBlocklist,
+  readReadId,
+  readTombstones,
+  removeLeftovers,
+  renameFeedDir,
+  writeReadId,
+} from "./feeds";
 import { isErrno } from "./fs";
 
 const log = logger("feeds");
@@ -20,9 +33,32 @@ export type FeedDeps = {
 // `byFeed` holds null for a feed without a read link (its `.readid` can't be read, or its id belongs to another feed).
 // `removed` and `removedIds`: the tombstones (issue #155), `blocked`: the image hashes that may not come back; all three loaded from
 // their files with the index and kept current by the methods that append to them.
-type Index = { dir: string; byReadId: Map<string, string>; byFeed: Map<string, string | null>; removed: Set<string>; removedIds: Set<string>; blocked: Set<string> };
+type Index = {
+  dir: string;
+  byReadId: Map<string, string>;
+  byFeed: Map<string, string | null>;
+  removed: Set<string>;
+  removedIds: Set<string>;
+  blocked: Set<string>;
+};
 
-type FeedMethods = Pick<Storage, "createFeed" | "deleteFeed" | "forgetFeed" | "setReadId" | "renameFeed" | "feedReadId" | "feedForReadId" | "listFeeds" | "listFeedNames" | "feedCount" | "takedownFeed" | "isRemoved" | "blockImages" | "isBlockedImage">;
+type FeedMethods = Pick<
+  Storage,
+  | "createFeed"
+  | "deleteFeed"
+  | "forgetFeed"
+  | "setReadId"
+  | "renameFeed"
+  | "feedReadId"
+  | "feedForReadId"
+  | "listFeeds"
+  | "listFeedNames"
+  | "feedCount"
+  | "takedownFeed"
+  | "isRemoved"
+  | "blockImages"
+  | "isBlockedImage"
+>;
 
 export function createFeedMethods(deps: FeedDeps, dataDir: () => string): FeedMethods {
   // The index is read from disk once and then kept current by createFeed(), deleteFeed() and forgetFeed(), the only code that

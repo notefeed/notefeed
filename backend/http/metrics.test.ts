@@ -18,7 +18,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const scrape = (authorization?: string) => metricsRoute(new Request("http://localhost:3000/metrics", { headers: authorization === undefined ? {} : { authorization } }));
+const scrape = (authorization?: string) =>
+  metricsRoute(new Request("http://localhost:3000/metrics", { headers: authorization === undefined ? {} : { authorization } }));
 
 test("off: 404, whatever the request carries", async () => {
   vi.stubEnv("NOTEFEED_METRICS", "0");

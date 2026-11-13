@@ -41,7 +41,10 @@ export async function appendTombstone(t: Tombstone): Promise<void> {
 }
 export async function readBlocklist(): Promise<string[]> {
   const raw = await orMissing(readFile(/*turbopackIgnore: true*/ blocklistFile(), "utf8"), "");
-  return raw.split("\n").map((l) => l.trim()).filter((l) => /^[0-9a-f]{64}$/.test(l));
+  return raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^[0-9a-f]{64}$/.test(l));
 }
 export async function appendBlocklist(hashes: string[]): Promise<void> {
   if (!hashes.length) return;
@@ -57,7 +60,11 @@ export const readReadId = async (feed: string): Promise<string | null> =>
   (await orMissing(readFile(/*turbopackIgnore: true*/ readIdFile(feed), "utf8"), null))?.trim() ?? null;
 
 // Whether the feed's directory is there: a missing `.readid` alone is a legacy feed, not a gone one.
-export const feedDirExists = (feed: string): Promise<boolean> => stat(/*turbopackIgnore: true*/ feedDir(feed)).then(() => true, () => false);
+export const feedDirExists = (feed: string): Promise<boolean> =>
+  stat(/*turbopackIgnore: true*/ feedDir(feed)).then(
+    () => true,
+    () => false,
+  );
 
 // The one way a feed directory is made: a temp directory under DATA_DIR holding `.readid` (and `.password`
 // for a protected feed) is renamed into place, so the feed appears complete or not at all and is never open
@@ -96,7 +103,9 @@ export async function deleteFeedDir(feed: string): Promise<boolean> {
     throw e;
   }
   // The feed is gone either way; a failure here leaves a leftover the next start removes.
-  await rm(/*turbopackIgnore: true*/ gone, { recursive: true, force: true }).catch((err) => log.warn({ err }, "could not remove a deleted feed's files; they go at the next start"));
+  await rm(/*turbopackIgnore: true*/ gone, { recursive: true, force: true }).catch((err) =>
+    log.warn({ err }, "could not remove a deleted feed's files; they go at the next start"),
+  );
   return true;
 }
 

@@ -78,9 +78,7 @@ test("a shared text longer than the form's old 4 KiB still unlocks", async () =>
 test("over the limit: the wait, even for the right password", async () => {
   process.env.NOTEFEED_RATE_LIMIT = "2";
   for (let i = 0; i < 2; i++) await post("lockd", { action: "unlock", password: "nope" });
-  expect((await post("lockd", { action: "unlock", password: "pw" })).headers.get("location")).toMatch(
-    /^\/lockd\?error=too_many_attempts&retry=\d+$/,
-  );
+  expect((await post("lockd", { action: "unlock", password: "pw" })).headers.get("location")).toMatch(/^\/lockd\?error=too_many_attempts&retry=\d+$/);
 });
 
 test("unlock on an open feed just goes to the feed", async () => {
@@ -89,7 +87,10 @@ test("unlock on an open feed just goes to the feed", async () => {
   expect(res.headers.get("set-cookie")).toBeNull();
 });
 
-test.each([["another site", "https://evil.example"], ["no Origin", null]])("unlock from %s is refused before the password is looked at", async (_, origin) => {
+test.each([
+  ["another site", "https://evil.example"],
+  ["no Origin", null],
+])("unlock from %s is refused before the password is looked at", async (_, origin) => {
   process.env.NOTEFEED_RATE_LIMIT = "1";
   for (const password of ["pw", "nope", "nope"]) {
     const res = await post("lockd", { action: "unlock", password }, origin);

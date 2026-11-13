@@ -79,7 +79,11 @@ test("getFile serves a draft's picture to its owner; the read link does not", as
   const res = await send("GET", `/feeds/f/files/${file}`, null, null);
   expect(res.status).toBe(200);
   expect(res.headers.get("content-type")).toBe("image/png");
-  expect(Buffer.from(await res.arrayBuffer()).subarray(1, 4).toString()).toBe("PNG");
+  expect(
+    Buffer.from(await res.arrayBuffer())
+      .subarray(1, 4)
+      .toString(),
+  ).toBe("PNG");
   const again = await send("GET", `/feeds/f/files/${file}`, null, null, { "if-none-match": res.headers.get("etag")! });
   expect(again.status).toBe(304);
   const readId = await readIdOf();

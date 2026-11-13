@@ -17,7 +17,26 @@ const ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
 // cannot differ from the posted note, with the waiting pictures shown from their files and the stored ones from `imageBase` (the feed's
 // read link). The textarea is hidden, not unmounted, while previewing, so the text, the cursor and the form's submit stay as they are.
 // `images` false (NOTEFEED_IMAGE_UPLOADS=0, issue #152): no button, and a dropped or pasted file is refused with the reason in its place.
-export function MarkdownInput({ id, name, label, value, onChange, rows, placeholder, describedBy, className = "", pending, onPendingChange, onMessage, images = true, imageBase, bare = false, above, below, children }: {
+export function MarkdownInput({
+  id,
+  name,
+  label,
+  value,
+  onChange,
+  rows,
+  placeholder,
+  describedBy,
+  className = "",
+  pending,
+  onPendingChange,
+  onMessage,
+  images = true,
+  imageBase,
+  bare = false,
+  above,
+  below,
+  children,
+}: {
   id: string;
   name: string;
   label: string;
@@ -39,7 +58,11 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
-  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [tab, setTab] = useState<"write" | "preview">("write");
   const [height, setHeight] = useState<number>(); // the text box's height when the preview opened: the preview keeps it, so nothing jumps
   const previewing = hydrated && tab === "preview";
@@ -115,7 +138,13 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
       </label>
       {above}
       {previewing && (
-        <div id={`${id}-preview`} role="region" aria-label="Preview" style={{ minHeight: height }} className={`box-border ${bare ? "py-1" : "rounded-xl border border-rule p-3"}`}>
+        <div
+          id={`${id}-preview`}
+          role="region"
+          aria-label="Preview"
+          style={{ minHeight: height }}
+          className={`box-border ${bare ? "py-1" : "rounded-xl border border-rule p-3"}`}
+        >
           {value.trim() ? <NoteView markdown={value} imageBase={imageBase} resolve={resolve} /> : <p className="text-muted">Nothing to preview.</p>}
         </div>
       )}
@@ -144,7 +173,12 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={p.preview} alt="" className="h-16 w-16 rounded-xl border border-rule object-cover" />
               <span className="sr-only">{p.token}</span>
-              <button type="button" onClick={() => remove(p)} aria-label={`Remove ${p.token}`} className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper">
+              <button
+                type="button"
+                onClick={() => remove(p)}
+                aria-label={`Remove ${p.token}`}
+                className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper"
+              >
                 <CloseIcon aria-hidden className="h-3.5 w-3.5" />
               </button>
             </li>
@@ -186,7 +220,13 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
                 if (files.length) add(files);
               }}
             />
-            <button type="button" onClick={() => picker.current?.click()} aria-label="Add image" title="Add image" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
+            <button
+              type="button"
+              onClick={() => picker.current?.click()}
+              aria-label="Add image"
+              title="Add image"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-carbon hover:bg-surface-2"
+            >
               <PictureIcon aria-hidden className="h-[18px] w-[18px]" />
             </button>
           </>

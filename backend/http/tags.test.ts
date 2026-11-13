@@ -23,7 +23,8 @@ beforeEach(async () => {
 
 const send = (path: string[], init: RequestInit = {}, query = "") =>
   dispatch(new Request(`${BASE}/${path.join("/")}${query}`, { ...init, headers: { host: "localhost:3000", ...init.headers } }), path);
-const post = (body: BodyInit, headers: Record<string, string> = {}) => send(["feeds", "t", "notes"], { method: "POST", body, headers: { "content-type": "text/markdown", ...headers } });
+const post = (body: BodyInit, headers: Record<string, string> = {}) =>
+  send(["feeds", "t", "notes"], { method: "POST", body, headers: { "content-type": "text/markdown", ...headers } });
 const json = (tags: string[], markdown = "# Hi") => post(markdown, { "x-note-tags": tags.join(",") });
 const list = async (query = "") => (await (await send(["feeds", "t", "notes"], {}, query)).json()).notes as { id: string; tags: string[] }[];
 

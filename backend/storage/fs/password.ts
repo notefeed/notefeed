@@ -10,8 +10,7 @@ const file = (feed: string) => join(feedDir(feed), ".password");
 const tmpName = () => `.${randomBytes(6).toString("hex")}.tmp`;
 
 // Read per request, never cached: deleting the file by hand unlocks the feed at once.
-export const readHash = (feed: string): Promise<string | null> =>
-  orMissing(readFile(/*turbopackIgnore: true*/ file(feed), "utf8"), null);
+export const readHash = (feed: string): Promise<string | null> => orMissing(readFile(/*turbopackIgnore: true*/ file(feed), "utf8"), null);
 
 // Temp file + rename: a crash leaves either the old hash or the new one.
 export async function writeHash(feed: string, hash: string): Promise<void> {

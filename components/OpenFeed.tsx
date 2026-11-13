@@ -28,7 +28,13 @@ export function OpenFeed({ value, error, carry = [] }: { value: string; error?: 
           aria-invalid={error ? true : undefined}
           className={`${field} flex-1 font-mono`}
         />
-        <Link href="/" prefetch={false} aria-label="Suggest another name" title="Suggest another name" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink hover:bg-rule/60">
+        <Link
+          href="/"
+          prefetch={false}
+          aria-label="Suggest another name"
+          title="Suggest another name"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink hover:bg-rule/60"
+        >
           <RandomNameIcon aria-hidden className="h-[18px] w-[18px]" />
         </Link>
         <button type="submit" className={primary}>

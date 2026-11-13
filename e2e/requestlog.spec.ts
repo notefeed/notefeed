@@ -6,7 +6,10 @@ const feedName = () => `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 
 
 type Line = Record<string, unknown>;
 const lines = async (): Promise<Line[]> =>
-  (await readFile(LOG, "utf8")).split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l) as Line);
+  (await readFile(LOG, "utf8"))
+    .split("\n")
+    .filter((l) => l.startsWith("{"))
+    .map((l) => JSON.parse(l) as Line);
 
 test("a request through Next gets its line, with the handler's route and outcome and the id its other lines carry", async ({ request, page }) => {
   const name = feedName();
@@ -23,7 +26,11 @@ test("a request through Next gets its line, with the handler's route and outcome
     const mine = posted.map((p) => all.filter((l) => l.req === p.req)).find((group) => group.some((l) => l.msg === "feed created"));
     expect(mine?.find((l) => l.msg === "request")).toMatchObject({ component: "http", method: "POST", route: "/api/v1/feeds/[feed]/notes", status: 201 });
     expect(all.some((l) => l.msg === "request" && l.method === "GET" && l.route === "/[feed]" && l.status === 200)).toBe(true);
-    expect(all.some((l) => l.msg === "request" && l.method === "PUT" && l.route === "/api/v1/feeds/[feed]/notes/[id]" && l.status === 404 && l.outcome === "not_found")).toBe(true);
+    expect(
+      all.some(
+        (l) => l.msg === "request" && l.method === "PUT" && l.route === "/api/v1/feeds/[feed]/notes/[id]" && l.status === 404 && l.outcome === "not_found",
+      ),
+    ).toBe(true);
   }).toPass({ timeout: 5000 });
 
   // The path was in three requests, the feed's name in none of the lines.

@@ -84,6 +84,7 @@ def test_bytes_are_a_file_of_the_given_type_and_need_one(server):
     with pytest.raises(ConfigError):
         Client(server.url, "inbox").post(png)
 
+
 def test_title_tags_alt_name_and_read_id_go_as_headers_and_nothing_is_sent_for_what_is_left_out(server):
     Client(server.url, "inbox").post("x", title="T", tags=["ci", "deploy"], read_id="my-feed", license_key="k" * 22)
     Client(server.url, "inbox").post("x", tags=[])
@@ -91,6 +92,7 @@ def test_title_tags_alt_name_and_read_id_go_as_headers_and_nothing_is_sent_for_w
     assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Read-Id"], h["X-License-Key"]) == ("T", "ci,deploy", "my-feed", "k" * 22)
     for k in ("X-Note-Title", "X-Note-Tags", "X-Note-Alt", "X-Note-Name", "X-Note-Date", "X-Read-Id", "X-License-Key"):
         assert k not in server.requests[1]["headers"]
+
 
 def test_date_goes_as_x_note_date_a_naive_datetime_is_refused(server):
     c = Client(server.url, "inbox")
@@ -102,6 +104,7 @@ def test_date_goes_as_x_note_date_a_naive_datetime_is_refused(server):
         c.post("x", date=datetime(2025, 3, 1, 8, 0))
     assert len(server.requests) == 3
 
+
 def test_update_sends_the_date_and_refuses_a_naive_datetime(server):
     server.reply(200, note(10))
     server.reply(200, note(10))
@@ -112,6 +115,7 @@ def test_update_sends_the_date_and_refuses_a_naive_datetime(server):
     with pytest.raises(ConfigError):
         c.update("i", date=datetime(2025, 3, 1, 8, 0))
     assert len(server.requests) == 2
+
 
 def test_update_patches_title_and_alt_as_json_and_leaves_out_what_is_none(server):
     server.reply(200, note(10))
@@ -125,6 +129,7 @@ def test_update_patches_title_and_alt_as_json_and_leaves_out_what_is_none(server
     assert json.loads(server.requests[1]["body"]) == {"title": "T"}
     assert (q["headers"]["Authorization"], q["headers"]["X-Feed-Password"]) == ("Bearer pw", "fp")
 
+
 def test_update_sends_tags_as_the_whole_new_list_an_empty_one_too(server):
     server.reply(200, note(10))
     server.reply(200, note(10))
@@ -133,11 +138,13 @@ def test_update_sends_tags_as_the_whole_new_list_an_empty_one_too(server):
     c.update("i", tags=[])
     assert [json.loads(q["body"]) for q in server.requests] == [{"tags": ["done", "ci"]}, {"tags": []}]
 
+
 def test_a_picture_is_posted_like_any_note_with_its_alt_and_name_as_headers(server):
     server.reply(201, UPLOADED)
     Client(server.url, "inbox").post(b"x", type="image/png", tags=["a", "b"], title="Cat", alt="a cat", name="cat.png")
     h = server.requests[0]["headers"]
     assert (h["Content-Type"], h["X-Note-Tags"], h["X-Note-Title"], h["X-Note-Alt"], h["X-Note-Name"]) == ("image/png", "a,b", "Cat", "a cat", "cat.png")
+
 
 def test_non_ascii_title_alt_and_name_go_as_utf8_bytes(server):
     server.reply(201, UPLOADED)
@@ -146,10 +153,12 @@ def test_non_ascii_title_alt_and_name_go_as_utf8_bytes(server):
     utf8 = lambda v: v.encode("latin-1").decode("utf-8")  # how a server reads the header bytes
     assert (utf8(h["X-Note-Title"]), utf8(h["X-Note-Alt"]), utf8(h["X-Note-Name"])) == ("Café 日本語", "Größe", "Größe.png")
 
+
 def test_tag_goes_in_the_list_query(server):
     server.reply(200, {"notes": [], "next": None})
     assert list(Client(server.url, "inbox").notes(tag="ci")) == []
     assert "tag=ci" in server.requests[0]["path"]
+
 
 def test_post_to_a_feed_without_a_read_link_has_read_url_none(server):
     server.reply(201, {**CREATED, "read_url": None, "atom_url": None, "atom_url": None})
@@ -163,7 +172,9 @@ def test_password_is_a_bearer_and_a_per_call_feed_wins(server):
 
 
 def test_feed_password_goes_as_x_feed_password_and_a_per_call_one_wins(server):
-    server.route = lambda method, path: (200, {"notes": [], "next": None}) if method == "GET" and "/notes/" not in path else (200, note(10)) if method == "GET" else (201, CREATED)
+    server.route = lambda method, path: (
+        (200, {"notes": [], "next": None}) if method == "GET" and "/notes/" not in path else (200, note(10)) if method == "GET" else (201, CREATED)
+    )
     c = Client(server.url, "inbox", feed_password="fp")
     c.post("x")
     list(c.notes())
@@ -403,6 +414,7 @@ def test_edit_puts_the_new_content_as_the_notes_type_and_returns_the_note(server
         assert server.requests[1]["headers"]["Content-Type"] == "image/png"
         assert server.requests[1]["headers"]["X-Feed-Password"] == "o"
 
+
 def test_delete_sends_delete_and_returns_none(server):
     server.reply(204, "")
     with Client(server.url, "inbox", feed_password="fp") as c:
@@ -425,7 +437,18 @@ def test_edit_and_delete_404_is_not_found_and_no_feed_is_config_error(server):
 
 # --- feed settings and deletion ---
 
-FEED = {"name": "inbox", "title": "My inbox", "description": "Things", "protected": False, "read_url": None, "atom_url": None, "image_url": None, "show_sender": True, "shortcut_url": "https://n.example/shortcuts/Send%20to%20notefeed.shortcut", "free_tier": None}
+FEED = {
+    "name": "inbox",
+    "title": "My inbox",
+    "description": "Things",
+    "protected": False,
+    "read_url": None,
+    "atom_url": None,
+    "image_url": None,
+    "show_sender": True,
+    "shortcut_url": "https://n.example/shortcuts/Send%20to%20notefeed.shortcut",
+    "free_tier": None,
+}
 
 
 def test_feed_info_gets_the_feed(server):
@@ -464,7 +487,12 @@ def test_attach_license_puts_the_key_and_detach_license_deletes_it(server):
         assert c.attach_license("k" * 22).name == "inbox"
         assert c.detach_license(feed="other").name == "inbox"
     put, delete = server.requests
-    assert (put["method"], put["path"], json.loads(put["body"]), put["headers"]["X-Feed-Password"]) == ("PUT", "/api/v1/feeds/inbox/license", {"key": "k" * 22}, "fp")
+    assert (put["method"], put["path"], json.loads(put["body"]), put["headers"]["X-Feed-Password"]) == (
+        "PUT",
+        "/api/v1/feeds/inbox/license",
+        {"key": "k" * 22},
+        "fp",
+    )
     assert (delete["method"], delete["path"]) == ("DELETE", "/api/v1/feeds/other/license")
 
 
@@ -487,13 +515,25 @@ def test_create_feed_posts_the_protection_and_returns_the_feed(server):
     assert c.create_feed(password="N3wPassw0rd!", license_key="k" * 22, read_id="my-read").name == "inbox"
     c.create_feed(feed="other")
     made, bare = server.requests
-    assert (made["method"], made["path"], json.loads(made["body"])) == ("POST", "/api/v1/feeds/inbox", {"password": "N3wPassw0rd!", "license_key": "k" * 22, "read_id": "my-read"})
+    assert (made["method"], made["path"], json.loads(made["body"])) == (
+        "POST",
+        "/api/v1/feeds/inbox",
+        {"password": "N3wPassw0rd!", "license_key": "k" * 22, "read_id": "my-read"},
+    )
     assert "X-Feed-Password" not in made["headers"]
     assert (bare["path"], json.loads(bare["body"])) == ("/api/v1/feeds/other", {})
 
 
 def test_licenses_gets_what_is_sold_and_where_buyers_manage_it_without_a_feed_password(server):
-    server.reply(200, {"plans": [{"period": "year", "name": "Yearly", "description": "", "amount": 1990, "currency": "EUR", "tax_included": True}], "buy_url": "https://n.test/license", "manage_url": "https://pay.test/login", "manage": "Sign in there."})
+    server.reply(
+        200,
+        {
+            "plans": [{"period": "year", "name": "Yearly", "description": "", "amount": 1990, "currency": "EUR", "tax_included": True}],
+            "buy_url": "https://n.test/license",
+            "manage_url": "https://pay.test/login",
+            "manage": "Sign in there.",
+        },
+    )
     c = Client(server.url, "inbox", feed_password="fp")
     got = c.licenses()
     assert (got.buy_url, got.manage_url, got.manage) == ("https://n.test/license", "https://pay.test/login", "Sign in there.")
@@ -510,7 +550,11 @@ def test_recover_feed_password_posts_the_key_and_the_new_password_without_a_feed
     assert c.recover_feed_password("k" * 22, "N3wPassw0rd!") is None
     c.recover_feed_password("k" * 22, feed="other")
     set_, removed = server.requests
-    assert (set_["method"], set_["path"], json.loads(set_["body"])) == ("POST", "/api/v1/feeds/inbox/password/recover", {"key": "k" * 22, "password": "N3wPassw0rd!"})
+    assert (set_["method"], set_["path"], json.loads(set_["body"])) == (
+        "POST",
+        "/api/v1/feeds/inbox/password/recover",
+        {"key": "k" * 22, "password": "N3wPassw0rd!"},
+    )
     assert "X-Feed-Password" not in set_["headers"]
     assert (removed["path"], json.loads(removed["body"])) == ("/api/v1/feeds/other/password/recover", {"key": "k" * 22, "password": ""})
 
@@ -522,7 +566,13 @@ def test_set_feed_image_puts_the_image_with_its_type_and_remove_deletes_it(serve
     assert c.set_feed_image(b"\x89PNG", "image/png").name == "inbox"
     assert c.remove_feed_image(feed="other").name == "inbox"
     put, delete = server.requests
-    assert (put["method"], put["path"], put["headers"]["Content-Type"], put["headers"]["X-Feed-Password"], put["body"]) == ("PUT", "/api/v1/feeds/inbox/image", "image/png", "fp", b"\x89PNG")
+    assert (put["method"], put["path"], put["headers"]["Content-Type"], put["headers"]["X-Feed-Password"], put["body"]) == (
+        "PUT",
+        "/api/v1/feeds/inbox/image",
+        "image/png",
+        "fp",
+        b"\x89PNG",
+    )
     assert (delete["method"], delete["path"]) == ("DELETE", "/api/v1/feeds/other/image")
 
 
@@ -546,7 +596,15 @@ def test_feed_calls_404_is_not_found_and_no_feed_is_config_error(server):
         Client(server.url).delete_feed()
 
 
-UPLOADED = {"id": "20261003T101010Z-u", "url": "https://n.example/inbox/20261003T101010Z-u", "feed_url": "https://n.example/inbox", "read_url": None, "atom_url": None, "file": "20261003T101010Z-u.png", "file_url": "https://n.example/r/X/20261003T101010Z-u.png"}
+UPLOADED = {
+    "id": "20261003T101010Z-u",
+    "url": "https://n.example/inbox/20261003T101010Z-u",
+    "feed_url": "https://n.example/inbox",
+    "read_url": None,
+    "atom_url": None,
+    "file": "20261003T101010Z-u.png",
+    "file_url": "https://n.example/r/X/20261003T101010Z-u.png",
+}
 
 
 def test_a_picture_posts_its_bytes_as_its_type_and_the_answer_names_its_file(server):
@@ -559,6 +617,7 @@ def test_a_picture_posts_its_bytes_as_its_type_and_the_answer_names_its_file(ser
     assert q["headers"]["Content-Type"] == "image/png"
     assert (q["headers"]["Authorization"], q["headers"]["X-Feed-Password"]) == ("Bearer pw", "fp")
 
+
 def test_per_call_feed_and_password_win_and_a_refused_file_maps_to_the_usual_errors(server):
     server.reply(201, UPLOADED)
     Client(server.url, "inbox", feed_password="fp").post(b"x", type="image/png", feed="other", feed_password="o")
@@ -566,11 +625,17 @@ def test_per_call_feed_and_password_win_and_a_refused_file_maps_to_the_usual_err
     assert server.requests[0]["headers"]["X-Feed-Password"] == "o"
     with pytest.raises(ConfigError):
         Client(server.url).post(b"x", type="image/png")
-    for status, code, cls in [(415, "unsupported_type", InvalidRequestError), (413, "too_large", NoteTooLargeError),
-                              (507, "image_limit", LimitReachedError), (403, "images_off", ImagesOffError), (404, "not_found", NotFoundError)]:
+    for status, code, cls in [
+        (415, "unsupported_type", InvalidRequestError),
+        (413, "too_large", NoteTooLargeError),
+        (507, "image_limit", LimitReachedError),
+        (403, "images_off", ImagesOffError),
+        (404, "not_found", NotFoundError),
+    ]:
         server.reply(status, {"error": code, "code": code})
         with pytest.raises(cls):
             Client(server.url, "inbox").post(b"x", type="image/png")
+
 
 def test_update_feed_with_name_renames_and_the_clients_feed_follows(server):
     c = Client(server.url, "inbox")
@@ -588,17 +653,42 @@ def test_update_feed_with_name_renames_and_the_clients_feed_follows(server):
 def test_update_feed_sends_image_only_when_given(server):
     c = Client(server.url, "inbox")
     for kw in ({"image": "a.png"}, {"image": ""}, {}):
-        server.reply(200, {"name": "inbox", "title": "t", "description": "d", "protected": False, "read_url": None, "atom_url": None, "image_url": None, "show_sender": True, "shortcut_url": "https://n.example/shortcuts/Send%20to%20notefeed.shortcut", "free_tier": None})
+        server.reply(
+            200,
+            {
+                "name": "inbox",
+                "title": "t",
+                "description": "d",
+                "protected": False,
+                "read_url": None,
+                "atom_url": None,
+                "image_url": None,
+                "show_sender": True,
+                "shortcut_url": "https://n.example/shortcuts/Send%20to%20notefeed.shortcut",
+                "free_tier": None,
+            },
+        )
         c.update_feed("t", "d", **kw)
     assert [json.loads(r["body"]) for r in server.requests] == [
-        {"title": "t", "description": "d", "image": "a.png"}, {"title": "t", "description": "d", "image": ""}, {"title": "t", "description": "d"}]
+        {"title": "t", "description": "d", "image": "a.png"},
+        {"title": "t", "description": "d", "image": ""},
+        {"title": "t", "description": "d"},
+    ]
 
 
 PNG = bytes([0x89, 0x50, 0x4E, 0x47])
 
 
 def img(n):
-    return {"id": f"I{n}", "url": f"https://n.example/inbox/I{n}", "feed_url": "https://n.example/inbox", "read_url": None, "atom_url": None, "file": f"F{n}.png", "file_url": f"https://n.example/r/X/F{n}.png"}
+    return {
+        "id": f"I{n}",
+        "url": f"https://n.example/inbox/I{n}",
+        "feed_url": "https://n.example/inbox",
+        "read_url": None,
+        "atom_url": None,
+        "file": f"F{n}.png",
+        "file_url": f"https://n.example/r/X/F{n}.png",
+    }
 
 
 def parts(request):
@@ -606,7 +696,15 @@ def parts(request):
     from email.parser import BytesParser
 
     msg = BytesParser().parsebytes(b"Content-Type: " + request["headers"]["Content-Type"].encode() + b"\r\n\r\n" + request["body"])
-    return [(p.get_param("name", header="content-disposition"), p.get_filename(), p.get_content_type() if p.get("Content-Type") else None, p.get_payload(decode=True)) for p in msg.get_payload()]
+    return [
+        (
+            p.get_param("name", header="content-disposition"),
+            p.get_filename(),
+            p.get_content_type() if p.get("Content-Type") else None,
+            p.get_payload(decode=True),
+        )
+        for p in msg.get_payload()
+    ]
 
 
 def answer(*ns):
@@ -616,7 +714,11 @@ def answer(*ns):
 def test_attachments_go_in_one_multipart_request(server):
     server.reply(201, answer(1, 2))
     r = Client(server.url, "inbox", feed_password="pw").post(
-        "hi ![](a.png)\nline\n", title="T", tags=["x"], read_id="my-read", license_key="k" * 22,
+        "hi ![](a.png)\nline\n",
+        title="T",
+        tags=["x"],
+        read_id="my-read",
+        license_key="k" * 22,
         attachments=[Attachment("a.png", PNG, "image/png", alt="A"), Attachment("b.png", PNG, "image/png")],
     )
     assert len(server.requests) == 1
@@ -649,7 +751,9 @@ def test_no_attachments_gives_an_empty_list(server):
 
 def test_no_text_with_attachments_sends_no_text_part_and_returns_the_servers_answer(server):
     server.reply(201, {**img(1), "attachments": [img(1), img(2)]})
-    r = Client(server.url, "inbox").post(None, title="T", tags=["x"], date="2025-03-01", attachments=[Attachment("a.png", PNG, "image/png"), Attachment("b.png", PNG, "image/png")])
+    r = Client(server.url, "inbox").post(
+        None, title="T", tags=["x"], date="2025-03-01", attachments=[Attachment("a.png", PNG, "image/png"), Attachment("b.png", PNG, "image/png")]
+    )
     q = server.requests[0]
     assert [p[:3] for p in parts(q)] == [("file", "a.png", "image/png"), ("file", "b.png", "image/png")]
     assert (q["headers"]["X-Note-Title"], q["headers"]["X-Note-Tags"], q["headers"]["X-Note-Date"]) == ("T", "x", "2025-03-01")
@@ -684,7 +788,7 @@ def test_invalid_attachments_are_refused_before_anything_is_sent(server, content
     assert server.requests == []
 
 
-@pytest.mark.parametrize("name", ["Screenshot 2026-10-03.png", "\U0001F600.png", "ü.png", "a.b"])
+@pytest.mark.parametrize("name", ["Screenshot 2026-10-03.png", "\U0001f600.png", "ü.png", "a.b"])
 def test_attachment_names_are_sent_as_given(server, name):
     server.reply(201, answer(1))
     Client(server.url, "inbox").post("x", attachments=[Attachment(name, PNG, "image/png")])

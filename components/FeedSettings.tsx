@@ -66,7 +66,15 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
               <label htmlFor="settings-recover-key" className="mb-1 block text-muted">
                 This feed&apos;s license key
               </label>
-              <input id="settings-recover-key" name="key" required autoComplete="off" spellCheck={false} maxLength={64} className={`${field} mb-3 w-full font-mono`} />
+              <input
+                id="settings-recover-key"
+                name="key"
+                required
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={64}
+                className={`${field} mb-3 w-full font-mono`}
+              />
               <label htmlFor="settings-recover-next" className="mb-1 block text-muted">
                 New password (empty removes it)
               </label>
@@ -111,7 +119,8 @@ export function ProtectFeed({ feed, error }: { feed: string; error?: string }) {
       <DisclosureRow icon={<FeedPasswordIcon />} label="Feed password" value="Off" open={!!error}>
         <form method="post" action={`/${feed}/access`} className="max-w-sm">
           <p className="mb-3 text-muted">
-            Anyone who knows this feed&apos;s name can read, post to and change it, and set this password too. A password stops that: from then on everyone who posts, scripts included, needs it, and so does this page. The read link and RSS stay open.
+            Anyone who knows this feed&apos;s name can read, post to and change it, and set this password too. A password stops that: from then on everyone who
+            posts, scripts included, needs it, and so does this page. The read link and RSS stay open.
           </p>
           <label htmlFor="protect-password" className="mb-1 block text-muted">
             Password

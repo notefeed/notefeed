@@ -18,7 +18,12 @@ const textOf = (node: Node): string => (node.type === "text" || node.type === "i
 export function slugger(): (text: string) => string {
   const seen = new Map<string, number>();
   return (text) => {
-    const base = text.trim().toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s/g, "-") || "section";
+    const base =
+      text
+        .trim()
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+        .replace(/\s/g, "-") || "section";
     const n = seen.get(base);
     seen.set(base, (n ?? -1) + 1);
     return n === undefined ? base : `${base}-${n + 1}`;

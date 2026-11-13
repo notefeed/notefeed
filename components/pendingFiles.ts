@@ -61,7 +61,10 @@ export function altsOf(text: string, tokens: readonly string[]): Record<string, 
   const alts: Record<string, string> = {};
   for (const token of tokens) {
     for (const [, raw] of text.matchAll(new RegExp(`!\\[([^\\]]*)\\]\\(${escapeRe(token)}\\)`, "g"))) {
-      const alt = Array.from(raw.replace(new RegExp(FORBIDDEN_IN_TEXT, "g"), " ").replace(/\s+/g, " ").trim()).slice(0, MAX_ALT).join("").trim();
+      const alt = Array.from(raw.replace(new RegExp(FORBIDDEN_IN_TEXT, "g"), " ").replace(/\s+/g, " ").trim())
+        .slice(0, MAX_ALT)
+        .join("")
+        .trim();
       if (alt) {
         alts[token] = alt;
         break;

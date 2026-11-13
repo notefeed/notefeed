@@ -22,7 +22,12 @@ const nextConfig: NextConfig = {
   // packages. The proxy's trace doesn't take these excludes, so the Dockerfile removes what it brings; backend/imageprocess.ts
   // refuses to load them either way.
   outputFileTracingExcludes: {
-    "*": ["node_modules/@img/sharp-linux*/**", "node_modules/@img/sharp-libvips*/**", "node_modules/@img/sharp-darwin*/**", "node_modules/@img/sharp-win32*/**"],
+    "*": [
+      "node_modules/@img/sharp-linux*/**",
+      "node_modules/@img/sharp-libvips*/**",
+      "node_modules/@img/sharp-darwin*/**",
+      "node_modules/@img/sharp-win32*/**",
+    ],
   },
 };
 

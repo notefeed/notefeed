@@ -43,4 +43,5 @@ export function open(key: Buffer, sealed: Uint8Array, aad: string): Buffer {
 export const sealText = (key: Buffer, plain: string, aad: string): string => seal(key, Buffer.from(plain), aad).toString("base64url");
 export const openText = (key: Buffer, sealed: string, aad: string): string => open(key, Buffer.from(sealed, "base64url"), aad).toString("utf8");
 
-export const fingerprint = (key: Buffer, kind: FingerprintKind, value: string): string => createHmac("sha256", key).update(`${kind}:${value}`).digest("base64url");
+export const fingerprint = (key: Buffer, kind: FingerprintKind, value: string): string =>
+  createHmac("sha256", key).update(`${kind}:${value}`).digest("base64url");

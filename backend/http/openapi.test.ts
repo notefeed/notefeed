@@ -21,7 +21,9 @@ test("every $ref points at a component", () => {
 });
 
 test("postNote lists every media type the registry accepts, each as a binary body, and the multipart form", () => {
-  const doc = openApiDocument("https://notefeed.me") as { paths: Record<string, { post?: { requestBody: { content: Record<string, { schema: { format?: string } }> } } }> };
+  const doc = openApiDocument("https://notefeed.me") as {
+    paths: Record<string, { post?: { requestBody: { content: Record<string, { schema: { format?: string } }> } } }>;
+  };
   const content = doc.paths["/api/v1/feeds/{feed}/notes"].post!.requestBody.content;
   const { "multipart/form-data": multipart, ...files } = content;
   expect(Object.keys(files).sort()).toEqual(["image/gif", "image/jpeg", "image/png", "image/webp", "text/markdown"]);

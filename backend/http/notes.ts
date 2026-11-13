@@ -70,7 +70,8 @@ export async function readMultipart(req: Request, kind: "edit"): Promise<PostBun
 export async function readMultipart(req: Request, kind: "post"): Promise<PostBundle>;
 export async function readMultipart(req: Request, kind: "post" | "edit"): Promise<PostBundle> {
   const header = headerOf(req);
-  if (header("x-note-alt") || header("x-note-name")) throw new InvalidBodyError("with a multipart body, send alt texts as alt.<file name> fields and the file name with each file");
+  if (header("x-note-alt") || header("x-note-name"))
+    throw new InvalidBodyError("with a multipart body, send alt texts as alt.<file name> fields and the file name with each file");
   const bytes = await readCapped(req, Math.min(MAX_BYTES + MAX_ATTACHMENTS * config.maxImageBytes() + MULTIPART_SLACK, MAX_REQUEST_BYTES));
   if (!bytes) throw new NoteTooLargeError();
   const form = await parseForm(bytes, req.headers).catch(() => {
@@ -81,14 +82,24 @@ export async function readMultipart(req: Request, kind: "post" | "edit"): Promis
   const alts = new Map<string, string>();
   for (const [key, value] of form.entries()) {
     if (key === "text" && text === undefined) text = typeof value === "string" ? value : await textFile(value);
-    else if (key === "file" && typeof value !== "string" && value.name) pictures.push({ name: value.name, body: new Uint8Array(await value.arrayBuffer()), mediaType: value.type });
+    else if (key === "file" && typeof value !== "string" && value.name)
+      pictures.push({ name: value.name, body: new Uint8Array(await value.arrayBuffer()), mediaType: value.type });
     else if (key.startsWith("alt.") && typeof value === "string" && !alts.has(key.slice(4))) alts.set(key.slice(4), value.trim());
     else throw new InvalidBodyError(`unexpected part "${safeName(key)}": send one text field, files with their file names, and alt.<file name> fields`);
   }
   for (const name of alts.keys()) if (!pictures.some((p) => p.name === name)) throw new InvalidBodyError(`alt.${safeName(name)}: no file of that name`);
   for (const p of pictures) p.alt = alts.get(p.name) || undefined;
   if (kind === "edit" && text === undefined) throw new InvalidBodyError("send the note's new text as a text field");
-  return { text, pictures, title: header("x-note-title"), tags: tagsFromHeader(req.headers.get("x-note-tags")), date: header("x-note-date"), draft: draftHeader(req), readId: header("x-read-id"), licenseKey: header("x-license-key") };
+  return {
+    text,
+    pictures,
+    title: header("x-note-title"),
+    tags: tagsFromHeader(req.headers.get("x-note-tags")),
+    date: header("x-note-date"),
+    draft: draftHeader(req),
+    readId: header("x-read-id"),
+    licenseKey: header("x-license-key"),
+  };
 }
 
 // The answer for one stored note; `readId` is its feed's.

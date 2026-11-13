@@ -48,7 +48,10 @@ test("one provider: one form with the authorize fields and its provider", async 
 });
 
 test("two providers: a form each, in order, one disclosure", async () => {
-  providers.list = [{ id: "default", label: "Authentik" }, { id: "work", label: "Work" }];
+  providers.list = [
+    { id: "default", label: "Authentik" },
+    { id: "work", label: "Work" },
+  ];
   const html = await render({});
   expect(forms(html)).toEqual([
     { provider: "default", client: "x", button: "Sign in with Authentik" },

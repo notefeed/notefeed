@@ -25,7 +25,10 @@ async function share(page: Page, fields: Record<string, string>, files: Shared[]
     document.body.append(form);
   }, fields);
   if (files.length) await page.setInputFiles("#share-files", files);
-  await Promise.all([page.waitForURL((u) => u.pathname === "/" && u.search !== ""), page.evaluate(() => document.querySelector<HTMLFormElement>("form[action='/api/share']")!.submit())]);
+  await Promise.all([
+    page.waitForURL((u) => u.pathname === "/" && u.search !== ""),
+    page.evaluate(() => document.querySelector<HTMLFormElement>("form[action='/api/share']")!.submit()),
+  ]);
 }
 
 const stored = (page: Page) => page.evaluate(async () => (await (await caches.open("notefeed-share")).keys()).length);
@@ -80,7 +83,11 @@ test("a feed opened with shared=1 and nothing stored opens as usual", async ({ p
 });
 
 test("of more pictures than a note takes, the first are attached", async ({ page }) => {
-  await share(page, {}, Array.from({ length: MAX_ATTACHMENTS + 1 }, (_, i) => ({ ...PNG, name: `p${i}.png` })));
+  await share(
+    page,
+    {},
+    Array.from({ length: MAX_ATTACHMENTS + 1 }, (_, i) => ({ ...PNG, name: `p${i}.png` })),
+  );
   await page.goto(`/${feedName()}?shared=1`);
   await expect(waiting(page)).toHaveCount(MAX_ATTACHMENTS);
   await expect(page.getByText(`A note can have at most ${MAX_ATTACHMENTS} pictures.`)).toBeVisible();
@@ -88,7 +95,10 @@ test("of more pictures than a note takes, the first are attached", async ({ page
 
 test("a shared picture waits through the feed password", async ({ page }) => {
   const name = feedName();
-  const created = await page.request.post(`/api/v1/feeds/${name}/notes`, { headers: { "Content-Type": "text/markdown", "X-Feed-Password": "secret-pw" }, data: "first" });
+  const created = await page.request.post(`/api/v1/feeds/${name}/notes`, {
+    headers: { "Content-Type": "text/markdown", "X-Feed-Password": "secret-pw" },
+    data: "first",
+  });
   expect(created.ok()).toBe(true);
   await share(page, { share_text: "behind a password" }, [PNG]);
   await page.goto(`/${name}?share_text=behind%20a%20password&shared=1`);
@@ -116,7 +126,11 @@ test("a share the browser can't read still goes on to the start page", async ({ 
 });
 
 test("of many pictures, only one more than a note takes is kept", async ({ page }) => {
-  await share(page, {}, Array.from({ length: MAX_ATTACHMENTS + 5 }, (_, i) => ({ ...PNG, name: `p${i}.png` })));
+  await share(
+    page,
+    {},
+    Array.from({ length: MAX_ATTACHMENTS + 5 }, (_, i) => ({ ...PNG, name: `p${i}.png` })),
+  );
   expect(await stored(page)).toBe(MAX_ATTACHMENTS + 1);
 });
 

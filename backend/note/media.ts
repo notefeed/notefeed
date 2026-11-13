@@ -14,7 +14,8 @@ export const ACCEPTED_TYPES = MEDIA_TYPES.map((m) => m.mediaType).join(", ");
 
 /** The media type a stored extension is posted and listed as; `application/octet-stream` for one we don't know. The operator's mark
  *  (`removed`, #159) is listed under its own type and is in MEDIA_TYPES on purpose not: nothing can be posted as one. */
-export const mediaTypeOf = (ext: string): string => (ext === "removed" ? REMOVED_TYPE : (MEDIA_TYPES.find((m) => m.ext === ext)?.mediaType ?? "application/octet-stream"));
+export const mediaTypeOf = (ext: string): string =>
+  ext === "removed" ? REMOVED_TYPE : (MEDIA_TYPES.find((m) => m.ext === ext)?.mediaType ?? "application/octet-stream");
 
 const UTF8 = /^charset=("?)utf-8\1$/i;
 

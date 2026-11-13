@@ -7,7 +7,13 @@ export type FooterLink = { href: string; label: string; external?: boolean };
 // (backend/legal.ts), looked for on every request: a link only where there is a page; the license page only while
 // the instance sells licenses and has its license.md (ADR 0035); a Support link where the operator gave an address.
 export async function footerLinks(): Promise<{ product: FooterLink[]; legal: FooterLink[]; version: RunningVersion }> {
-  const [imprint, privacy, terms, license, feeds] = await Promise.all([hasLegalPage("imprint"), hasLegalPage("privacy"), hasLegalPage("terms"), licensePageOn(), footerFeedLinks()]);
+  const [imprint, privacy, terms, license, feeds] = await Promise.all([
+    hasLegalPage("imprint"),
+    hasLegalPage("privacy"),
+    hasLegalPage("terms"),
+    licensePageOn(),
+    footerFeedLinks(),
+  ]);
   return {
     product: [
       { href: "https://docs.notefeed.me/", label: "Docs", external: true },

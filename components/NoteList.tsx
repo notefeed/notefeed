@@ -37,10 +37,27 @@ function groupByDay(notes: Note[]): [string, Note[]][] {
 // image links point. The day label sticks below the phone's top bar (components/AppShell.tsx), at the top from lg.
 // An attachment that a note in the list shows is left out (shared/notekinds.ts).
 // `terms`: the instance has a terms page, which the operator's mark (#159) links to.
-export function NoteList({ notes, base, imageBase, posted, report, terms }: { notes: Note[]; base: string; imageBase?: string; posted?: string; report?: Report; terms?: boolean }) {
+export function NoteList({
+  notes,
+  base,
+  imageBase,
+  posted,
+  report,
+  terms,
+}: {
+  notes: Note[];
+  base: string;
+  imageBase?: string;
+  posted?: string;
+  report?: Report;
+  terms?: boolean;
+}) {
   return groupByDay(withoutAttachments(notes)).map(([day, items]) => (
     <section key={day} aria-labelledby={`day-${dayKey(items[0].date)}`} className="mb-6">
-      <h2 id={`day-${dayKey(items[0].date)}`} className={`${sectionLabel} sticky top-14 z-10 -mx-4 bg-paper/90 px-4 py-1.5 backdrop-blur-sm lg:top-0 lg:-mx-6 lg:px-6`}>
+      <h2
+        id={`day-${dayKey(items[0].date)}`}
+        className={`${sectionLabel} sticky top-14 z-10 -mx-4 bg-paper/90 px-4 py-1.5 backdrop-blur-sm lg:top-0 lg:-mx-6 lg:px-6`}
+      >
         {day}
       </h2>
       <ol className="mt-2 space-y-3">

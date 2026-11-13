@@ -132,7 +132,8 @@ function lineRefusal(code: unknown, detail: string | undefined): string | undefi
 
 // The post that creates a protected feed brought a license key the server does not know (backend/licenseflow.ts checkLicenseKey).
 const KEY_REFUSED = "that is not a license key";
-const keyRefusal = (code: unknown, detail: string | undefined) => (code === "invalid_body" && detail === KEY_REFUSED ? "That is not a license key. Check it against the key from your purchase." : undefined);
+const keyRefusal = (code: unknown, detail: string | undefined) =>
+  code === "invalid_body" && detail === KEY_REFUSED ? "That is not a license key. Check it against the key from your purchase." : undefined;
 
 // The same, for a note sent with its pictures: a refusal that names a picture (`attachment "a.png": …`) is worded as an image
 // refusal, after the picture's name; any other goes to `message`, except a "too_large" that names no picture when the request had

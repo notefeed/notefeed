@@ -12,29 +12,57 @@ export const MAX_LIMIT = 100;
 
 export const NoteJson = z
   .object({
-    id: z.string().regex(NOTE_ID).describe("The note's id: 22 random characters (base64url) for notes made here, older notes may have another form; any name without a dot for a file placed by hand. It says nothing about the note's date"),
-    type: z.string().describe("The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)"),
+    id: z
+      .string()
+      .regex(NOTE_ID)
+      .describe(
+        "The note's id: 22 random characters (base64url) for notes made here, older notes may have another form; any name without a dot for a file placed by hand. It says nothing about the note's date",
+      ),
+    type: z
+      .string()
+      .describe(
+        "The media type of the note's file: `text/markdown`, `image/png`, `image/jpeg`, `image/gif` or `image/webp`; `application/x-notefeed-removed` for the operator's mark (see `removed`)",
+      ),
     file: z.string().describe("The note's file name, `<id>.<extension>`"),
-    file_url: z.url().nullable().describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
+    file_url: z
+      .url()
+      .nullable()
+      .describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
     size: z.number().int().describe("The size of the note's file in bytes"),
-    title: z.string().describe("The title set for the note, else the first heading or the first non-empty line of a markdown note, else the picture's alt text; may be empty"),
+    title: z
+      .string()
+      .describe("The title set for the note, else the first heading or the first non-empty line of a markdown note, else the picture's alt text; may be empty"),
     content: z.string().optional().describe("The note's text, byte-for-byte as posted: for a text type (markdown) only; absent for a picture"),
     alt: z.string().optional().describe("Alternative text of an image note, when it has one"),
     name: z.string().optional().describe("The file name an image was posted with, when it came with one"),
-    date: z.iso.datetime().describe("Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it"),
-    scheduled: z.literal(true).optional().describe("Present, and true, when the note's date is after now: it is stored, and readers see it from its date on. Absent for every other note"),
-    draft: z.literal(true).optional().describe("Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note"),
+    date: z.iso
+      .datetime()
+      .describe("Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it"),
+    scheduled: z
+      .literal(true)
+      .optional()
+      .describe("Present, and true, when the note's date is after now: it is stored, and readers see it from its date on. Absent for every other note"),
+    draft: z
+      .literal(true)
+      .optional()
+      .describe(
+        "Present, and true, for a draft: only whoever can post to the feed sees it; readers do not, until it is published (PATCH `draft: false`). Absent for every other note",
+      ),
     url: z.url().describe("The note's page in the web UI"),
     sender: z.string().nullable().optional().describe("Verified sign-in name of the poster; absent when the note was posted without a sign-in"),
     tags: z.array(z.string()).describe("Labels the poster gave the note (not verified, and shown to readers like the note itself); empty when none"),
     unreadable: z
       .literal(true)
       .optional()
-      .describe("Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note"),
+      .describe(
+        "Present, and true, for a damaged note: its stored copy can't be decrypted. A list shows it in its place, with its id, file, type and time; its title and tags are empty, its size 0, it has no content, and reading it alone is a 500 with the code `unreadable`. Deleting it works. Absent for every other note",
+      ),
     removed: z
       .literal(true)
       .optional()
-      .describe("Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note"),
+      .describe(
+        "Present, and true, for the mark the operator left where a post was removed for breaking the content rules (type `application/x-notefeed-removed`): it has the removed note's id and date, no content, an empty title, size 0, and `file_url` null; getting it alone is a 410 with the code `removed`, and so is any edit. Deleting it works; the post does not come back. Absent for every other note",
+      ),
   })
   .meta({ id: "Note" });
 export type NoteJson = z.infer<typeof NoteJson>;
@@ -51,29 +79,49 @@ export const Created = z
     id: z.string().regex(NOTE_ID),
     url: z.url().describe("The note's page in the web UI"),
     feed_url: z.url().describe("The feed's page in the web UI"),
-    read_url: z.url().nullable().describe("The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds"),
+    read_url: z
+      .url()
+      .nullable()
+      .describe(
+        "The feed's read-only RSS link, safe to share; null only if the server can't read the feed's stored read id, or if that id and the derived one both belong to other feeds",
+      ),
     atom_url: z.url().nullable().describe("The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"),
     file: z.string().describe("The note's file name, `<id>.<extension>`. For an image note, pass it as a feed's `image` setting"),
-    file_url: z.url().nullable().describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
-    draft: z.literal(true).optional().describe("Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published"),
+    file_url: z
+      .url()
+      .nullable()
+      .describe("Where the note's file is served, absolute, under the feed's read id (public like the read link); null while the feed has no read link"),
+    draft: z
+      .literal(true)
+      .optional()
+      .describe("Present, and true, when the note was stored as a draft (`X-Note-Draft: true`): readers do not see it, or its file, until it is published"),
   })
   .meta({ id: "Created" });
 export type Created = z.infer<typeof Created>;
 
 const Attachments = z.array(Created).optional().describe("A multipart request's pictures, one per `file` part, in their order; absent for a raw body");
-export const Posted = Created.extend({ attachments: Attachments }).describe("The note the post is about: its text note, or with no `text` part its first picture").meta({ id: "Posted" });
+export const Posted = Created.extend({ attachments: Attachments })
+  .describe("The note the post is about: its text note, or with no `text` part its first picture")
+  .meta({ id: "Posted" });
 export type Posted = z.infer<typeof Posted>;
 export const NoteEdited = NoteJson.extend({ attachments: Attachments }).meta({ id: "NoteEdited" });
 
 // A note with its pictures, as multipart/form-data. `alt.<file name>` fields can't be listed by name: they are described in text.
 export const MultipartNote = z
   .object({
-    text: z.string().optional().describe("The markdown note (UTF-8): a field, or a file part (its name is ignored; its type, if any, `text/markdown` or `application/octet-stream`) to keep its line breaks as they are, since a form field's are sent as CRLF. At most one; required on a PUT. Its references to the files (`![](chart.png)`, `[x]: chart.png`) are swapped for the stored files; a file it never refers to is appended as `![](file)`"),
+    text: z
+      .string()
+      .optional()
+      .describe(
+        "The markdown note (UTF-8): a field, or a file part (its name is ignored; its type, if any, `text/markdown` or `application/octet-stream`) to keep its line breaks as they are, since a form field's are sent as CRLF. At most one; required on a PUT. Its references to the files (`![](chart.png)`, `[x]: chart.png`) are swapped for the stored files; a file it never refers to is appended as `![](file)`",
+      ),
     file: z
       .array(z.string().meta({ format: "binary" }))
       .max(MAX_ATTACHMENTS)
       .optional()
-      .describe(`A picture: up to ${MAX_ATTACHMENTS} parts, each with a file name (one path segment, 1 to 200 characters, unique in the request) and its image \`Content-Type\`. An \`alt.<file name>\` field gives one its alternative text`),
+      .describe(
+        `A picture: up to ${MAX_ATTACHMENTS} parts, each with a file name (one path segment, 1 to 200 characters, unique in the request) and its image \`Content-Type\`. An \`alt.<file name>\` field gives one its alternative text`,
+      ),
   })
   .meta({ id: "MultipartNote" });
 
@@ -84,8 +132,14 @@ export const ErrorJson = z
   })
   .meta({ id: "Error" });
 
-const NoteTitle = z.string().describe("The note's title, at most 100 characters, one line (control and text-direction override characters are refused); empty or left out means the title is taken from the text (a markdown note) or there is none (an image)");
-const NoteAlt = z.string().describe("Alternative text of an image note, at most 500 characters, one line (control and text-direction override characters are refused)");
+const NoteTitle = z
+  .string()
+  .describe(
+    "The note's title, at most 100 characters, one line (control and text-direction override characters are refused); empty or left out means the title is taken from the text (a markdown note) or there is none (an image)",
+  );
+const NoteAlt = z
+  .string()
+  .describe("Alternative text of an image note, at most 500 characters, one line (control and text-direction override characters are refused)");
 const DATE_FORMAT = "An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). ";
 const DATE_RULE = "When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on.";
 const NoteDate = z.string().describe(`${DATE_FORMAT}${DATE_RULE} The note's attachments move with it.`);
@@ -93,9 +147,17 @@ export const MetaJson = z
   .object({
     title: NoteTitle.optional(),
     alt: NoteAlt.optional(),
-    tags: z.array(z.string()).optional().describe(`The note's tags, the whole new list (\`["ci","done"]\`): ${TAG_RULE}. Empty removes them all; omitted leaves them as they are.`),
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe(`The note's tags, the whole new list (\`["ci","done"]\`): ${TAG_RULE}. Empty removes them all; omitted leaves them as they are.`),
     date: NoteDate.optional(),
-    draft: z.boolean().optional().describe("true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)"),
+    draft: z
+      .boolean()
+      .optional()
+      .describe(
+        "true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)",
+      ),
   })
   .meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
@@ -123,12 +185,24 @@ export const FeedPasswordHeader = z
   );
 export const NoteTagsHeader = z
   .string()
-  .describe(`Tags for the note, comma-separated (\`ci,deploy\`): ${TAG_RULE}. For a raw markdown body; a JSON or form body's own \`tags\` wins. Empty is none.`);
-export const NoteTitleHeader = NoteTitle.describe("The note's title, for a raw body; a JSON or form body's own `title` wins. At most 100 characters, one line, with no control or text-direction override characters.");
+  .describe(
+    `Tags for the note, comma-separated (\`ci,deploy\`): ${TAG_RULE}. For a raw markdown body; a JSON or form body's own \`tags\` wins. Empty is none.`,
+  );
+export const NoteTitleHeader = NoteTitle.describe(
+  "The note's title, for a raw body; a JSON or form body's own `title` wins. At most 100 characters, one line, with no control or text-direction override characters.",
+);
 export const NoteDateHeader = z.string().describe(`${DATE_FORMAT}${DATE_RULE} Empty is now.`);
-export const NoteDraftHeader = z.enum(["true", "false"]).describe("`true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published");
+export const NoteDraftHeader = z
+  .enum(["true", "false"])
+  .describe(
+    "`true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published",
+  );
 export const NoteAltHeader = NoteAlt.describe("For an image body: its alternative text; a form's own `alt` wins.");
-export const ReadIdHeader = z.string().describe("The read id the feed gets when this post creates it: 3 to 64 characters (a-z, 0-9, - and _), random when left out or empty, ignored for a feed that exists. A short readable one is guessable: protect the feed with a password if that matters. 409 when it is taken");
+export const ReadIdHeader = z
+  .string()
+  .describe(
+    "The read id the feed gets when this post creates it: 3 to 64 characters (a-z, 0-9, - and _), random when left out or empty, ignored for a feed that exists. A short readable one is guessable: protect the feed with a password if that matters. 409 when it is taken",
+  );
 export const LicenseKeyHeader = z
   .string()
   .describe(
@@ -144,8 +218,14 @@ export const NoteNameHeader = z
   );
 export const CurrentPasswordHeader = z.string().describe("The feed's current password");
 
-const TITLE = z.string().describe("Display title, at most 100 characters, one line (control and text-direction override characters are refused); empty means none (the feed's name is shown)");
-const DESCRIPTION = z.string().describe("Description, at most 500 characters, one line (control and text-direction override characters are refused); may be empty");
+const TITLE = z
+  .string()
+  .describe(
+    "Display title, at most 100 characters, one line (control and text-direction override characters are refused); empty means none (the feed's name is shown)",
+  );
+const DESCRIPTION = z
+  .string()
+  .describe("Description, at most 500 characters, one line (control and text-direction override characters are refused); may be empty");
 const IMAGE_URL = z.url().nullable().describe("The feed's title image (absolute URL, served under the read id), or null");
 export const FeedSettingsJson = z
   .object({
@@ -154,16 +234,25 @@ export const FeedSettingsJson = z
     image: z
       .string()
       .optional()
-      .describe("The file name of an image uploaded to this feed (see uploadImage), shown as the feed's title image; empty removes it, omitted leaves it as it is"),
-    show_sender: z.boolean().optional().describe("Whether readers (RSS, the read API and pages) see who posted each note; omitted leaves it as it is, a new feed starts with true"),
+      .describe(
+        "The file name of an image uploaded to this feed (see uploadImage), shown as the feed's title image; empty removes it, omitted leaves it as it is",
+      ),
+    show_sender: z
+      .boolean()
+      .optional()
+      .describe("Whether readers (RSS, the read API and pages) see who posted each note; omitted leaves it as it is, a new feed starts with true"),
     read_id: z
       .string()
       .optional()
-      .describe("A new read id (3 to 64 characters: a-z, 0-9, - and _), empty for a random one; omitted leaves it as it is. The old read link stops showing this feed, and may later show another one. Notes are not edited: a relative image link (`![](file)`) follows the new id, a full URL keeps the old one and is yours to change. Reserved feeds keep theirs. 409 when it is taken"),
+      .describe(
+        "A new read id (3 to 64 characters: a-z, 0-9, - and _), empty for a random one; omitted leaves it as it is. The old read link stops showing this feed, and may later show another one. Notes are not edited: a relative image link (`![](file)`) follows the new id, a full URL keeps the old one and is yours to change. Reserved feeds keep theirs. 409 when it is taken",
+      ),
     name: z
       .string()
       .optional()
-      .describe("A new name for the feed (1 to 64 characters: a-z, 0-9, - and _); omitted, empty or the current one leaves it as it is. Everything goes with it: notes, files, settings, password, license and read link. The old name stops working at once and is free: a post to it later creates a new feed, without an error. Change NOTEFEED_FEED, CI secrets, scripts and MCP configurations before they next run (a browser that unlocked the feed unlocks it again). A short name is guessable: protect the feed with a password if that matters. Reserved feeds keep theirs. 409 when it is taken"),
+      .describe(
+        "A new name for the feed (1 to 64 characters: a-z, 0-9, - and _); omitted, empty or the current one leaves it as it is. Everything goes with it: notes, files, settings, password, license and read link. The old name stops working at once and is free: a post to it later creates a new feed, without an error. Change NOTEFEED_FEED, CI secrets, scripts and MCP configurations before they next run (a browser that unlocked the feed unlocks it again). A short name is guessable: protect the feed with a password if that matters. Reserved feeds keep theirs. 409 when it is taken",
+      ),
   })
   .meta({ id: "FeedSettings" });
 export const FreeTierJson = z
@@ -187,7 +276,11 @@ export const LicensesJson = z
       )
       .describe("What is sold right now, monthly then yearly; empty while the payment provider can't be read"),
     buy_url: z.url().describe("The license page: a person buys there, and gets the key after paying"),
-    manage_url: z.url().describe("The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it"),
+    manage_url: z
+      .url()
+      .describe(
+        "The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it",
+      ),
     manage: z.string().describe("How managing a purchase works, in a sentence to show a person"),
   })
   .meta({ id: "Licenses" });
@@ -197,7 +290,10 @@ export const FeedJson = z
     title: TITLE,
     description: DESCRIPTION,
     protected: z.boolean().describe("Whether the feed has its own password"),
-    read_url: z.url().nullable().describe("The feed's read-only RSS link; null while the feed has no notes, or if the server can't read the feed's stored read id"),
+    read_url: z
+      .url()
+      .nullable()
+      .describe("The feed's read-only RSS link; null while the feed has no notes, or if the server can't read the feed's stored read id"),
     atom_url: z.url().nullable().describe("The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"),
     image_url: IMAGE_URL,
     show_sender: z.boolean().describe("Whether readers see who posted each note"),
@@ -216,12 +312,38 @@ export const ReadFeedJson = z.object({ title: TITLE, description: DESCRIPTION, i
 // A raw request body, not JSON.
 export const FileBody = z.string().meta({ format: "binary" }).describe("The note, a file: its bytes, of the type `Content-Type` declares");
 
-export const COMPONENTS = [NoteJson, NoteList, Created, Posted, NoteEdited, MultipartNote, ErrorJson, MetaJson, PasswordJson, RecoveryJson, CreateFeedJson, LicenseKeyJson, FeedSettingsJson, FreeTierJson, FeedJson, ReadFeedJson, LicensesJson];
+export const COMPONENTS = [
+  NoteJson,
+  NoteList,
+  Created,
+  Posted,
+  NoteEdited,
+  MultipartNote,
+  ErrorJson,
+  MetaJson,
+  PasswordJson,
+  RecoveryJson,
+  CreateFeedJson,
+  LicenseKeyJson,
+  FeedSettingsJson,
+  FreeTierJson,
+  FeedJson,
+  ReadFeedJson,
+  LicensesJson,
+];
 
 export const FeedParam = z.string().regex(FEED_RE).describe("The feed's name. It is the write key: anyone who knows it can post.");
-export const ReadIdParam = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).describe("The feed's read id, from its read link: 22 random characters, one the feed's owner chose, or the feed's own name for a reserved feed. Read-only; never reveals the name of any other feed.");
+export const ReadIdParam = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,64}$/)
+  .describe(
+    "The feed's read id, from its read link: 22 random characters, one the feed's owner chose, or the feed's own name for a reserved feed. Read-only; never reveals the name of any other feed.",
+  );
 export const NoteIdParam = z.string().regex(NOTE_ID).describe("The note's id");
-export const FileParam = z.string().regex(/^[A-Za-z0-9_-]{1,128}\.[A-Za-z0-9]{1,16}$/).describe("A note's file name, `<id>.<ext>` (its `file`)");
+export const FileParam = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,128}\.[A-Za-z0-9]{1,16}$/)
+  .describe("A note's file name, `<id>.<ext>` (its `file`)");
 
 export const PageQuery = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(50).describe(`Notes per page, 1–${MAX_LIMIT}`),

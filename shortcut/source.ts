@@ -79,7 +79,10 @@ function text(template: string, ...parts: Attachment[]) {
   }
   return { Value: { string: template, attachmentsByRange }, WFSerializationType: "WFTextTokenString" };
 }
-const action = (id: string, params: Record<string, unknown>) => ({ WFWorkflowActionIdentifier: `is.workflow.actions.${id}`, WFWorkflowActionParameters: params });
+const action = (id: string, params: Record<string, unknown>) => ({
+  WFWorkflowActionIdentifier: `is.workflow.actions.${id}`,
+  WFWorkflowActionParameters: params,
+});
 /** "If `a` has any value" (mode 0), "Otherwise" (1) and "End If" (2) of one block. */
 const ifHasValue = (group: string, a: Attachment) =>
   action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 100, WFInput: { Type: "Variable", Variable: value(a) } });
@@ -143,7 +146,17 @@ function cleaned(from: string, name: string, ...steps: Step[]) {
     const input = text("￼", last);
     if (step[0] === "trim") actions.push(action("text.trimwhitespace", { UUID: uuid, WFInput: input }));
     else if (step[0] === "lowercase") actions.push(action("text.changecase", { UUID: uuid, text: input, WFCaseType: "lowercase" }));
-    else actions.push(action("text.replace", { UUID: uuid, WFInput: input, WFReplaceTextFind: step[1], WFReplaceTextReplace: step[2], WFReplaceTextRegularExpression: true, WFReplaceTextCaseSensitive: false }));
+    else
+      actions.push(
+        action("text.replace", {
+          UUID: uuid,
+          WFInput: input,
+          WFReplaceTextFind: step[1],
+          WFReplaceTextReplace: step[2],
+          WFReplaceTextRegularExpression: true,
+          WFReplaceTextCaseSensitive: false,
+        }),
+      );
     last = output(uuid, "Updated Text");
   }
   actions.push(action("setvariable", { WFVariableName: name, WFInput: value(last) }));
@@ -161,7 +174,13 @@ const textItem = (n: 0 | 1) => {
   );
   return [
     action("getmarkdownfromrichtext", { UUID: markdown, WFInput: value(variable("Repeat Item")) }),
-    action("text.replace", { UUID: t, WFInput: text("￼", output(markdown, "Markdown from Rich Text")), WFReplaceTextFind: "^[\\s￼]+|[\\s￼]+$|￼", WFReplaceTextReplace: "", WFReplaceTextRegularExpression: true }),
+    action("text.replace", {
+      UUID: t,
+      WFInput: text("￼", output(markdown, "Markdown from Rich Text")),
+      WFReplaceTextFind: "^[\\s￼]+|[\\s￼]+$|￼",
+      WFReplaceTextReplace: "",
+      WFReplaceTextRegularExpression: true,
+    }),
     action("detect.link", { UUID: links, WFInput: value(variable("Repeat Item")) }),
     action("getitemfromlist", { UUID: first, WFInput: value(output(links, "URLs")), WFItemSpecifier: "First Item" }),
     ifHasValue(hasLink, output(first, "Item from List")),
@@ -193,10 +212,22 @@ export function shortcutPlist(): Record<string, unknown> {
     WFWorkflowInputContentItemClasses: ["WFImageContentItem", "WFStringContentItem", "WFRichTextContentItem", "WFURLContentItem", "WFSafariWebPageContentItem"],
     // What the settings page shows: the address, the feed's name, its password and whether the instance has one.
     WFWorkflowImportQuestions: [
-      { ActionIndex: 0, Category: "Parameter", DefaultValue: "https://notefeed.me", ParameterKey: "WFTextActionText", Text: "notefeed address (e.g. https://notefeed.me)" },
+      {
+        ActionIndex: 0,
+        Category: "Parameter",
+        DefaultValue: "https://notefeed.me",
+        ParameterKey: "WFTextActionText",
+        Text: "notefeed address (e.g. https://notefeed.me)",
+      },
       { ActionIndex: 1, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Feed name" },
       { ActionIndex: 2, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Feed password (empty for an open feed)" },
-      { ActionIndex: 3, Category: "Parameter", DefaultValue: "", ParameterKey: "WFTextActionText", Text: "Server password: optional, leave empty unless your own server asks for one at sign-in (never on notefeed.me)" },
+      {
+        ActionIndex: 3,
+        Category: "Parameter",
+        DefaultValue: "",
+        ParameterKey: "WFTextActionText",
+        Text: "Server password: optional, leave empty unless your own server asks for one at sign-in (never on notefeed.me)",
+      },
     ],
     WFWorkflowActions: [
       action("gettext", { UUID: ADDRESS, WFTextActionText: "" }),
@@ -258,7 +289,13 @@ export function shortcutPlist(): Record<string, unknown> {
       join(JOINED_PICTURES, PICTURES),
       join(JOINED_PROBLEMS, PROBLEMS),
       action("gettext", { UUID: BODY, WFTextActionText: text("￼\n\n￼", output(JOINED_TEXTS, "Combined Text"), output(JOINED_PICTURES, "Combined Text")) }),
-      action("text.replace", { UUID: NOTE, WFInput: text("￼", output(BODY, "Text")), WFReplaceTextFind: "^\\s+|\\s+$", WFReplaceTextReplace: "", WFReplaceTextRegularExpression: true }),
+      action("text.replace", {
+        UUID: NOTE,
+        WFInput: text("￼", output(BODY, "Text")),
+        WFReplaceTextFind: "^\\s+|\\s+$",
+        WFReplaceTextReplace: "",
+        WFReplaceTextRegularExpression: true,
+      }),
       ifHasValue(ANYTHING, output(NOTE, "Updated Text")),
       postNote(POST_NOTE, output(NOTE, "Updated Text")),
       // The answer: the note's `url` to open (after a hint naming the pictures that didn't make it), or the server's `error` to show.

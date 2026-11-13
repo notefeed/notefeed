@@ -23,13 +23,24 @@ const NAME_RE = /^[A-Za-z0-9_-]{1,128}\.([A-Za-z0-9]{1,16})$/;
 // status), and any other file in a line of text. Never cached.
 const DAMAGED_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="160" viewBox="0 0 480 160"><rect width="480" height="160" rx="16" fill="#e7e8e3"/><text x="240" y="86" text-anchor="middle" font-family="system-ui, sans-serif" font-size="18" fill="#55575c">This picture can't be shown</text></svg>`;
 function damaged(ext: string): Response {
-  const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox" };
+  const headers = {
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+  };
   if ((IMAGE_EXTS as string[]).includes(ext)) return new Response(DAMAGED_SVG, { status: 500, headers: { ...headers, "Content-Type": "image/svg+xml" } });
-  return new Response("This note can't be shown: its stored copy can't be decrypted.", { status: 500, headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" } });
+  return new Response("This note can't be shown: its stored copy can't be decrypted.", {
+    status: 500,
+    headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" },
+  });
 }
 
 export const fileRoute = (readId: string, file: string, ifNoneMatch?: string | null): Promise<Response> =>
-  measured("feed_file", () => serveFile(readId, file, ifNoneMatch), (r) => r.status);
+  measured(
+    "feed_file",
+    () => serveFile(readId, file, ifNoneMatch),
+    (r) => r.status,
+  );
 
 async function serveFile(readId: string, file: string, ifNoneMatch?: string | null): Promise<Response> {
   noteRoute("/r/[readId]/files/[file]"); // reached by a rewrite: the path has the shape of a note's page
@@ -51,13 +62,17 @@ async function serveFile(readId: string, file: string, ifNoneMatch?: string | nu
 // GET /<feed>/files/<file>: ownerFile for the feed's own pages, with the browser's unlock cookie (`cookie`) as the page has it. A locked
 // feed answers 401 without saying whether the file is there.
 export const ownerFileRoute = (feed: string, file: string, cookie: string | undefined, ifNoneMatch?: string | null): Promise<Response> =>
-  measured("feed_owner_file", async () => {
-    noteRoute("/[feed]/files/[file]");
-    if (checkFeed(feed)) return new Response("not found", { status: 404 });
-    if (await isRemovedFeed(feed)) return new Response("removed by the operator", { status: 410 });
-    if ((await feedUnlocked(feed, cookie)) === "locked") return new Response("locked", { status: 401, headers: { "Cache-Control": "no-store" } });
-    return ownerFile(feed, file, ifNoneMatch);
-  }, (r) => r.status);
+  measured(
+    "feed_owner_file",
+    async () => {
+      noteRoute("/[feed]/files/[file]");
+      if (checkFeed(feed)) return new Response("not found", { status: 404 });
+      if (await isRemovedFeed(feed)) return new Response("removed by the operator", { status: 410 });
+      if ((await feedUnlocked(feed, cookie)) === "locked") return new Response("locked", { status: 401, headers: { "Cache-Control": "no-store" } });
+      return ownerFile(feed, file, ifNoneMatch);
+    },
+    (r) => r.status,
+  );
 
 /** A file of `feed` (`<id>.<ext>`, its note's own name) for whoever may post to the feed, drafts and scheduled notes too (#349). The caller
  *  has checked access. The feed's own page shows its notes' pictures from here, so a draft can be checked before it goes out; readers keep

@@ -19,10 +19,14 @@ beforeEach(async () => {
 const PNG = png(1);
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
-  const segments = url.pathname.slice(API_PREFIX.length + 1).split("/").map(decodeURIComponent);
+  const segments = url.pathname
+    .slice(API_PREFIX.length + 1)
+    .split("/")
+    .map(decodeURIComponent);
   return dispatch(new Request(url, { method, body: init.body, headers: { host: "localhost:3000", ...init.headers } }), segments);
 }
-const post = async (body: BodyInit, headers: Record<string, string>, type = "text/markdown") => (await call("POST", "/feeds/f/notes", { body, headers: { "content-type": type, ...headers } })).json();
+const post = async (body: BodyInit, headers: Record<string, string>, type = "text/markdown") =>
+  (await call("POST", "/feeds/f/notes", { body, headers: { "content-type": type, ...headers } })).json();
 const raw = async (name: string) => {
   const res = await fileRoute((await readIdOf("f"))!, name);
   return { status: res.status, type: res.headers.get("content-type"), text: res.status === 200 ? await res.text() : "" };

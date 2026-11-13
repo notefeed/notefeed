@@ -1,7 +1,19 @@
 import { beforeEach, expect, test } from "vitest";
 import { cookieValue, createProtected } from "./feedlock";
 import { readIdOf, resetFeedsForTests } from "./feeds";
-import { feedUnlocked, getFeed, footerFeedLinks, getFeedImages, getFeedNote, getReadFeed, getReadNote, getReadPictures, identitySender, passwordSet, signInProviders } from "./index";
+import {
+  feedUnlocked,
+  getFeed,
+  footerFeedLinks,
+  getFeedImages,
+  getFeedNote,
+  getReadFeed,
+  getReadNote,
+  getReadPictures,
+  identitySender,
+  passwordSet,
+  signInProviders,
+} from "./index";
 import { sign } from "./oauth/tokens";
 import { createImageNote, createNote, removeNote } from "./notes";
 import { saveSettings } from "./feedsettings";

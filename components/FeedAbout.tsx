@@ -10,7 +10,20 @@ import { card, sectionLabel } from "@/components/styles";
 // `name` only on the writable pages; the read-only pages never show it. `readUrl` and `rssUrl` exist once the feed has a
 // note. `tags` are the tags of the notes the page shows (the newest ones), `tag` the one the list is filtered by. `children`:
 // what goes right under the card (a new feed's protection, components/ProtectFeed.tsx).
-export function FeedAbout({ name, title, description, imageUrl, readUrl, rssUrl, viewHref, settingsHref, tags = [], tag, base, children }: {
+export function FeedAbout({
+  name,
+  title,
+  description,
+  imageUrl,
+  readUrl,
+  rssUrl,
+  viewHref,
+  settingsHref,
+  tags = [],
+  tag,
+  base,
+  children,
+}: {
   name?: string;
   title: string;
   description: string;
@@ -30,7 +43,11 @@ export function FeedAbout({ name, title, description, imageUrl, readUrl, rssUrl,
       <header className={`${card} p-4 xl:p-5`}>
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl ?? "/icon.svg"} alt="" className={`h-14 w-14 shrink-0 rounded-full border border-rule bg-surface xl:h-16 xl:w-16 ${imageUrl ? "object-cover" : "p-2"}`} />
+          <img
+            src={imageUrl ?? "/icon.svg"}
+            alt=""
+            className={`h-14 w-14 shrink-0 rounded-full border border-rule bg-surface xl:h-16 xl:w-16 ${imageUrl ? "object-cover" : "p-2"}`}
+          />
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold leading-tight tracking-tight">{title || name || "notefeed"}</h1>
             {name && title && <p className="mt-0.5 truncate font-mono text-[13px] text-carbon">{name}</p>}
@@ -42,7 +59,10 @@ export function FeedAbout({ name, title, description, imageUrl, readUrl, rssUrl,
             {readUrl && <ShareButton url={readUrl} title={title} />}
             {rssUrl && !name && (
               // The read-only view: following the feed is the one thing to do here.
-              <a href={rssUrl} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-carbon px-4 py-2 text-[14px] font-bold text-on-carbon">
+              <a
+                href={rssUrl}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-carbon px-4 py-2 text-[14px] font-bold text-on-carbon"
+              >
                 <RssIcon aria-hidden className="h-4 w-4" />
                 Subscribe<span className="sr-only"> via RSS</span>
               </a>

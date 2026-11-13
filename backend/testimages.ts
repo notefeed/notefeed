@@ -21,5 +21,7 @@ export function png(n = 1): Uint8Array<ArrayBuffer> {
   const header = Buffer.from([0, 0, 0, 2, 0, 0, 0, 2, 8, 2, 0, 0, 0]); // 2 × 2, 8 bits, RGB
   const rgb = [n >> 16, (n >> 8) & 255, n & 255].map((v) => v & 255);
   const row = [0, ...rgb, ...rgb]; // filter byte, two pixels
-  return Uint8Array.from(Buffer.concat([PNG.subarray(0, 8), chunk("IHDR", header), chunk("IDAT", deflateSync(Buffer.from([...row, ...row]))), chunk("IEND", Buffer.alloc(0))]));
+  return Uint8Array.from(
+    Buffer.concat([PNG.subarray(0, 8), chunk("IHDR", header), chunk("IDAT", deflateSync(Buffer.from([...row, ...row]))), chunk("IEND", Buffer.alloc(0))]),
+  );
 }

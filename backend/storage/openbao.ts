@@ -33,7 +33,13 @@ export type OpenBaoOptions = {
 type Op = "encrypt" | "decrypt" | "rewrap";
 type Item = Record<string, string | number>;
 type Pending = { item: Item; resolve: (v: string) => void; reject: (e: unknown) => void };
-type Reply = { status: number; body: { data?: { batch_results?: { error?: string; ciphertext?: string; plaintext?: string }[] } & Record<string, unknown>; auth?: { client_token: string; lease_duration: number; renewable: boolean } } };
+type Reply = {
+  status: number;
+  body: {
+    data?: { batch_results?: { error?: string; ciphertext?: string; plaintext?: string }[] } & Record<string, unknown>;
+    auth?: { client_token: string; lease_duration: number; renewable: boolean };
+  };
+};
 
 const BATCH = 500;
 const RESULT: Record<Op, "ciphertext" | "plaintext"> = { encrypt: "ciphertext", decrypt: "plaintext", rewrap: "ciphertext" };
@@ -76,7 +82,8 @@ export function createOpenBaoWrapper(o: OpenBaoOptions): OpenBaoWrapper {
 
   async function login(): Promise<string> {
     const r = await send("POST", "auth/approle/login", null, { role_id: o.roleId, secret_id: o.secretId });
-    if (r.status !== 200 || !r.body.auth) throw new Error(`OpenBao refused notefeed's AppRole login (${r.status}): check NOTEFEED_OPENBAO_ROLE_ID and NOTEFEED_OPENBAO_SECRET_ID`);
+    if (r.status !== 200 || !r.body.auth)
+      throw new Error(`OpenBao refused notefeed's AppRole login (${r.status}): check NOTEFEED_OPENBAO_ROLE_ID and NOTEFEED_OPENBAO_SECRET_ID`);
     const { client_token, lease_duration, renewable } = r.body.auth;
     const now = Date.now();
     session = { token: client_token, until: now + lease_duration * 1000, renewAt: now + (lease_duration * 1000 * 2) / 3, renewable };
@@ -109,7 +116,10 @@ export function createOpenBaoWrapper(o: OpenBaoOptions): OpenBaoWrapper {
     if (r.status !== 403) return r;
     session = null;
     const again = await send(method, path, await token(), body);
-    if (again.status === 403) throw new Error("OpenBao refused notefeed's AppRole (403): its policy must allow encrypt, decrypt and rewrap on the transit key and read on its metadata");
+    if (again.status === 403)
+      throw new Error(
+        "OpenBao refused notefeed's AppRole (403): its policy must allow encrypt, decrypt and rewrap on the transit key and read on its metadata",
+      );
     return again;
   }
 

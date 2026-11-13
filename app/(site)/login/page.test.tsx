@@ -45,7 +45,10 @@ test("a configured label wins over the host", async () => {
 });
 
 test("two providers: two links in order, each naming its provider, one disclosure", async () => {
-  providers.list = [{ id: "default", label: "Authentik" }, { id: "my_idp", label: "Work" }];
+  providers.list = [
+    { id: "default", label: "Authentik" },
+    { id: "my_idp", label: "Work" },
+  ];
   const html = await render({ next: "/a b" });
   expect(links(html)).toEqual([
     ["/api/oidc/start?provider=default&next=%2Fa%20b", "Sign in with Authentik"],

@@ -14,7 +14,13 @@ beforeEach(async () => {
   await createNote("openfeed", "# Old");
 });
 
-const send = (route: typeof feedSettingsRoute, feed: string, fields: Record<string, string>, origin: string | null = "http://localhost:3000", cookie?: string) => {
+const send = (
+  route: typeof feedSettingsRoute,
+  feed: string,
+  fields: Record<string, string>,
+  origin: string | null = "http://localhost:3000",
+  cookie?: string,
+) => {
   const body = new URLSearchParams(fields);
   return route(
     new Request(`http://localhost:3000/${feed}/x`, {
@@ -35,7 +41,9 @@ test("settings are saved and the feed page says so", async () => {
 });
 
 test("an invalid title goes back with the code", async () => {
-  expect(loc(await send(feedSettingsRoute, "openfeed", { title: "x".repeat(101), description: "" }))).toBe("/openfeed/settings?form=details&error=invalid_body");
+  expect(loc(await send(feedSettingsRoute, "openfeed", { title: "x".repeat(101), description: "" }))).toBe(
+    "/openfeed/settings?form=details&error=invalid_body",
+  );
 });
 
 test("a feed that doesn't exist cannot get settings", async () => {
@@ -55,7 +63,10 @@ test("deleting a feed that is already gone still lands on the notice (a double c
   expect(loc(await send(feedDeleteRoute, "openfeed", { confirm: "openfeed" }))).toBe("/?deleted=openfeed");
 });
 
-test.each([["another site", "https://evil.example"], ["no Origin", null]])("from %s: refused, nothing changed", async (_, origin) => {
+test.each([
+  ["another site", "https://evil.example"],
+  ["no Origin", null],
+])("from %s: refused, nothing changed", async (_, origin) => {
   expect(loc(await send(feedSettingsRoute, "openfeed", { title: "Hacked", description: "" }, origin))).toBe("/openfeed/settings?form=details&error=auth");
   expect(loc(await send(feedDeleteRoute, "openfeed", { confirm: "openfeed" }, origin))).toBe("/openfeed/settings?form=details&error=auth");
   expect(await getSettings("openfeed")).toEqual({ title: "", description: "", image: "", showSender: true });

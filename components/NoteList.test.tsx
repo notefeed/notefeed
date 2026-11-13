@@ -6,11 +6,13 @@ import { NoteList } from "./NoteList";
 
 // A note as the backend hands it out, without touching the disk.
 const at0 = new Date(0);
-const mdNote = ({ id, markdown, date = at0, title }: { id: string; markdown: string; date?: Date; title?: string }) => new MarkdownNote({ id, ext: "md", meta: title === undefined ? {} : { title }, date, size: markdown.length }, markdown);
+const mdNote = ({ id, markdown, date = at0, title }: { id: string; markdown: string; date?: Date; title?: string }) =>
+  new MarkdownNote({ id, ext: "md", meta: title === undefined ? {} : { title }, date, size: markdown.length }, markdown);
 const imgNote = ({ id, ext = "png", date = at0, title, alt }: { id: string; ext?: string; date?: Date; title?: string; alt?: string }) =>
   new ImageNote({ id, ext, meta: { ...(title && { title }), ...(alt && { alt }) }, date, size: 12 });
 
-const list = (notes: Parameters<typeof NoteList>[0]["notes"], imageBase = "/r/rid/") => renderToStaticMarkup(<NoteList notes={notes} base="/feed" imageBase={imageBase} />);
+const list = (notes: Parameters<typeof NoteList>[0]["notes"], imageBase = "/r/rid/") =>
+  renderToStaticMarkup(<NoteList notes={notes} base="/feed" imageBase={imageBase} />);
 
 test("an image note shows its picture from the read link, linked to its page", () => {
   const html = list([imgNote({ id: "20260930T100000Z-pic", ext: "jpg", date: new Date("2026-09-30T10:00:00Z") })]);
@@ -44,7 +46,14 @@ test("a markdown note without a title of its own shows its text as written, in t
 test("a Report link per note fills the template with the read id, the note id and the file; none without a template (#154)", () => {
   const at = new Date("2026-09-30T10:00:00Z");
   const report = { template: "https://r.example/?r={read_id}&n={note_id}&f={file}", readId: "rid" };
-  const html = renderToStaticMarkup(<NoteList notes={[mdNote({ id: "m1", markdown: "# Hi", date: at }), imgNote({ id: "p1", ext: "jpg", date: at })]} base="/feed" imageBase="/r/rid/" report={report} />);
+  const html = renderToStaticMarkup(
+    <NoteList
+      notes={[mdNote({ id: "m1", markdown: "# Hi", date: at }), imgNote({ id: "p1", ext: "jpg", date: at })]}
+      base="/feed"
+      imageBase="/r/rid/"
+      report={report}
+    />,
+  );
   expect(html).toContain('href="https://r.example/?r=rid&amp;n=m1&amp;f=m1.md" rel="nofollow noopener"');
   expect(html).toContain('href="https://r.example/?r=rid&amp;n=p1&amp;f=p1.jpg"');
   expect(html.match(/>Report<\/a>/g)).toHaveLength(2);
@@ -66,7 +75,9 @@ test("a markdown note's own title is its heading on card and page, and the text 
 });
 
 test("the note page shows the picture large, with its title", () => {
-  const html = renderToStaticMarkup(<NoteArticle note={imgNote({ id: "p1", ext: "webp", title: "Cat", date: new Date("2026-09-30T10:00:00Z") })} back="/feed" imageBase="/r/rid/" />);
+  const html = renderToStaticMarkup(
+    <NoteArticle note={imgNote({ id: "p1", ext: "webp", title: "Cat", date: new Date("2026-09-30T10:00:00Z") })} back="/feed" imageBase="/r/rid/" />,
+  );
   expect(html).toMatch(/<img src="\/r\/rid\/p1\.webp"/);
   expect(html).toContain(">Cat<");
 });
@@ -95,7 +106,10 @@ test("a picture a markdown note in the list shows is not listed again; in the li
 test("a scheduled note's card says Scheduled for", () => {
   const later = new Date(Date.now() + 86_400_000);
   const when = later.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-  const html = list([mdNote({ id: "s1", markdown: "# Later", date: later }), mdNote({ id: "p1", markdown: "# Earlier", date: new Date("2026-09-30T10:00:00Z") })]);
+  const html = list([
+    mdNote({ id: "s1", markdown: "# Later", date: later }),
+    mdNote({ id: "p1", markdown: "# Earlier", date: new Date("2026-09-30T10:00:00Z") }),
+  ]);
   expect(html.match(/Scheduled for/g)).toHaveLength(1);
   expect(html).toContain(`Scheduled for ${when}`);
   expect(html.indexOf("Scheduled for")).toBeLessThan(html.indexOf("Earlier")); // on the scheduled note's card, the first

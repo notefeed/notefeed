@@ -36,10 +36,33 @@ test("the level filters", () => {
 
 test("redaction is a safety net for fields nobody should pass", () => {
   const { l, parsed } = capture();
-  l.info({ password: "p", token: "t", code: "c", state: "s", nonce: "n", email: "a@x.com", name: "Ann", client_secret: "cs", nested: { secret: "s", cookie: "c", authorization: "Bearer x", email: "a@x.com", name: "Ann" } }, "x");
+  l.info(
+    {
+      password: "p",
+      token: "t",
+      code: "c",
+      state: "s",
+      nonce: "n",
+      email: "a@x.com",
+      name: "Ann",
+      client_secret: "cs",
+      nested: { secret: "s", cookie: "c", authorization: "Bearer x", email: "a@x.com", name: "Ann" },
+    },
+    "x",
+  );
   const [o] = parsed();
   const R = "[redacted]";
-  expect(o).toMatchObject({ password: R, token: R, code: R, state: R, nonce: R, email: R, name: R, client_secret: R, nested: { secret: R, cookie: R, authorization: R, email: R, name: R } });
+  expect(o).toMatchObject({
+    password: R,
+    token: R,
+    code: R,
+    state: R,
+    nonce: R,
+    email: R,
+    name: R,
+    client_secret: R,
+    nested: { secret: R, cookie: R, authorization: R, email: R, name: R },
+  });
   expect(JSON.stringify(o)).not.toMatch(/a@x\.com|Ann|Bearer/);
 });
 
@@ -115,7 +138,15 @@ test("component loggers write through logTo, with the level it sets; an Error in
   l.info({ err: Object.assign(new Error(`open '${NOTE}'`), { code: "ENOENT" }) }, "shown");
   restore();
   l.error("after restore: not captured");
-  expect(lines.map((s) => JSON.parse(s))).toEqual([{ level: "info", time: expect.any(String), component: "feeds", msg: "shown", err: expect.objectContaining({ type: "Error", message: "open '/data/<path>'", code: "ENOENT" }) }]);
+  expect(lines.map((s) => JSON.parse(s))).toEqual([
+    {
+      level: "info",
+      time: expect.any(String),
+      component: "feeds",
+      msg: "shown",
+      err: expect.objectContaining({ type: "Error", message: "open '/data/<path>'", code: "ENOENT" }),
+    },
+  ]);
   expect(lines.join("")).not.toMatch(SECRETS);
 });
 

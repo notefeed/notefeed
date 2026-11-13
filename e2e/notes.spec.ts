@@ -228,7 +228,10 @@ test("a note dated tomorrow shows as scheduled on the feed page and not on the r
   const card = page.getByRole("listitem").filter({ hasText: "Coming tomorrow" });
   await expect(card).toContainText("Scheduled for");
   await expect(page.getByRole("listitem").filter({ hasText: "Out now" })).not.toContainText("Scheduled");
-  await card.getByRole("link", { name: /Coming tomorrow/ }).first().click();
+  await card
+    .getByRole("link", { name: /Coming tomorrow/ })
+    .first()
+    .click();
   await expect(page.getByRole("article")).toContainText("Scheduled for");
 
   await page.goto(new URL(readUrl).pathname.replace(/\/[^/]*$/, ""));
@@ -287,7 +290,16 @@ test("the read link serves the newest note with a name at /r/<read id>/<name>", 
 // Long notes (#243): a table of contents and heading anchors, highlighted code and a drawn mermaid diagram on the note's own page.
 test("a long note's page has contents, anchors, highlighted code and drawn diagrams", async ({ page }) => {
   const name = feedName();
-  const md = ["# Long read", "## Setup", "```yaml\nkey: value\n```", "## Diagram", "```mermaid\ngraph TD; A-->B\n```", "## Broken", "```mermaid\nnot a diagram ((\n```", "### Last"].join("\n\n");
+  const md = [
+    "# Long read",
+    "## Setup",
+    "```yaml\nkey: value\n```",
+    "## Diagram",
+    "```mermaid\ngraph TD; A-->B\n```",
+    "## Broken",
+    "```mermaid\nnot a diagram ((\n```",
+    "### Last",
+  ].join("\n\n");
   await page.goto(`/${name}`);
   await page.getByLabel("Note in markdown").fill(md);
   await page.getByRole("button", { name: "Post note" }).click();
@@ -335,7 +347,12 @@ test("on a wide screen the note column takes the free width", async ({ page }) =
 // Atom beside RSS (#324): the read page links both, atom.xml is well-formed Atom with the note, and an edit moves only its `updated`.
 test("the read link serves Atom beside RSS, and an edit moves the entry's updated", async ({ page, request }) => {
   const name = feedName();
-  const made = await (await request.post(`/api/v1/feeds/${name}/notes`, { headers: { "Content-Type": "text/markdown", "X-Note-Date": "2025-03-01T08:00:00Z" }, data: "# Atom note\n\nHello **there**" })).json();
+  const made = await (
+    await request.post(`/api/v1/feeds/${name}/notes`, {
+      headers: { "Content-Type": "text/markdown", "X-Note-Date": "2025-03-01T08:00:00Z" },
+      data: "# Atom note\n\nHello **there**",
+    })
+  ).json();
   expect(made.atom_url).toBe(made.read_url.replace(/feed\.xml$/, "atom.xml"));
   const readPath = new URL(made.read_url).pathname.replace(/\/feed\.xml$/, "");
   await page.goto(readPath);
@@ -348,7 +365,14 @@ test("the read link serves Atom beside RSS, and an edit moves the entry's update
     page.evaluate((x) => {
       const doc = new DOMParser().parseFromString(x, "application/xml");
       const entry = doc.querySelector("entry");
-      return { error: doc.querySelector("parsererror")?.textContent ?? null, root: doc.documentElement.namespaceURI, title: entry?.querySelector("title")?.textContent, published: entry?.querySelector("published")?.textContent, updated: entry?.querySelector("updated")?.textContent, content: entry?.querySelector("content")?.textContent };
+      return {
+        error: doc.querySelector("parsererror")?.textContent ?? null,
+        root: doc.documentElement.namespaceURI,
+        title: entry?.querySelector("title")?.textContent,
+        published: entry?.querySelector("published")?.textContent,
+        updated: entry?.querySelector("updated")?.textContent,
+        content: entry?.querySelector("content")?.textContent,
+      };
     }, xml);
   const before = await parse(await res.text());
   expect(before).toMatchObject({ error: null, root: "http://www.w3.org/2005/Atom", title: "Atom note", published: "2025-03-01T08:00:00.000Z" });

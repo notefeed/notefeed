@@ -20,7 +20,10 @@ beforeEach(async () => {
 // Through the dispatcher, which (outside production) checks every reply against what its entry declares.
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
-  const segments = url.pathname.slice(API_PREFIX.length + 1).split("/").map(decodeURIComponent);
+  const segments = url.pathname
+    .slice(API_PREFIX.length + 1)
+    .split("/")
+    .map(decodeURIComponent);
   return dispatch(new Request(url, { method, body: init.body, headers: { host: "localhost:3000", ...init.headers } }), segments);
 }
 const json = async (res: Response) => res.json();
@@ -52,7 +55,9 @@ describe("POST /feeds/{feed}", () => {
     expect((await post("locked", "# hi")).status).toBe(401);
     expect((await post("locked", "# hi", { "x-feed-password": "Passw0rd!x" })).status).toBe(201);
     expect((await call("POST", "/feeds/bad", { body: "not json", headers: { "content-type": "application/json" } })).status).toBe(400);
-    expect((await call("POST", "/feeds/bad", { body: JSON.stringify({ password: " padded " }), headers: { "content-type": "application/json" } })).status).toBe(400);
+    expect((await call("POST", "/feeds/bad", { body: JSON.stringify({ password: " padded " }), headers: { "content-type": "application/json" } })).status).toBe(
+      400,
+    );
   });
 });
 
@@ -118,7 +123,11 @@ describe("GET /feeds/{feed}/notes", () => {
   });
 
   test("400 for an invalid or reserved name, including an encoded slash", async () => {
-    for (const [feed, code] of [["Bad", "invalid_feed"], ["api", "reserved_feed"], ["a%2Fb", "invalid_feed"]]) {
+    for (const [feed, code] of [
+      ["Bad", "invalid_feed"],
+      ["api", "reserved_feed"],
+      ["a%2Fb", "invalid_feed"],
+    ]) {
       const res = await call("GET", `/feeds/${feed}/notes`);
       expect(res.status).toBe(400);
       expect((await json(res)).code).toBe(code);
@@ -342,7 +351,8 @@ describe("editing and deleting notes", () => {
   const md = { "content-type": "text/markdown" };
   const put = (path: string, body: string, headers: Record<string, string> = {}) => call("PUT", path, { body, headers: { ...md, ...headers } });
   const make = async (feed = "backups", headers: Record<string, string> = {}) => (await json(await post(feed, "# Old", headers))).id as string;
-  const markdownOf = async (feed: string, id: string, headers: Record<string, string> = {}) => (await json(await call("GET", `/feeds/${feed}/notes/${id}`, { headers }))).content;
+  const markdownOf = async (feed: string, id: string, headers: Record<string, string> = {}) =>
+    (await json(await call("GET", `/feeds/${feed}/notes/${id}`, { headers }))).content;
 
   test("PUT with markdown: 200, same id and date, new title, readable everywhere", async () => {
     const id = await make();
@@ -410,7 +420,12 @@ describe("editing and deleting notes", () => {
     const id = await make("locked", { "x-feed-password": "pw" });
     let pulled = false;
     const body = new ReadableStream({ pull: (c) => ((pulled = true), c.close()) }, { highWaterMark: 0 });
-    const req = new Request(`${BASE}${API_PREFIX}/feeds/locked/notes/${id}`, { method: "PUT", body, headers: { host: "localhost:3000", ...md }, duplex: "half" } as RequestInit);
+    const req = new Request(`${BASE}${API_PREFIX}/feeds/locked/notes/${id}`, {
+      method: "PUT",
+      body,
+      headers: { host: "localhost:3000", ...md },
+      duplex: "half",
+    } as RequestInit);
     expect((await dispatch(req, ["feeds", "locked", "notes", id])).status).toBe(401);
     expect(pulled).toBe(false);
   });

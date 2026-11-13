@@ -24,7 +24,9 @@ test("the spec's example parses; included defaults to true; the body is the intr
     ],
     button: "Subscribe",
   });
-  expect(t.intro).toBe("A license lifts the free tier's limits for one feed. Reading a feed is always free, and there are no accounts: the license is a key you keep.");
+  expect(t.intro).toBe(
+    "A license lifts the free tier's limits for one feed. Reading a feed is always free, and there are no accounts: the license is a key you keep.",
+  );
   expect(t.fineprint).toBe("A subscription renews until you cancel it. See the [terms](/terms).");
 });
 

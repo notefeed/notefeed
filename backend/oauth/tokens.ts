@@ -21,7 +21,9 @@ export const TTL = { code: 300, access: 3600, refresh: 2592000, identity: 604800
 
 // Derived per call: secret() is cached, the password is not, and either may change.
 function key(): Buffer {
-  const pw = createHash("sha256").update(config.password() ?? "").digest();
+  const pw = createHash("sha256")
+    .update(config.password() ?? "")
+    .digest();
   return createHmac("sha256", secret()).update(pw).digest();
 }
 

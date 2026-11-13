@@ -21,7 +21,12 @@ const NOT_SETTINGS = new Set([
 function sourceFiles(): string[] {
   const all = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8" }).split("\n");
   return all.filter(
-    (f) => /\.(ts|tsx|mjs|js)$/.test(f) && !/(^|\/)(docs|e2e|packages|test|scripts)\//.test(f) && !/\.test\.tsx?$/.test(f) && !/(^|\/)(app\/_lib\/api)\//.test(f) && !/\.config\.(ts|mts|mjs)$/.test(f),
+    (f) =>
+      /\.(ts|tsx|mjs|js)$/.test(f) &&
+      !/(^|\/)(docs|e2e|packages|test|scripts)\//.test(f) &&
+      !/\.test\.tsx?$/.test(f) &&
+      !/(^|\/)(app\/_lib\/api)\//.test(f) &&
+      !/\.config\.(ts|mts|mjs)$/.test(f),
   );
 }
 

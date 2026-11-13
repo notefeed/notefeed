@@ -3,7 +3,28 @@
  * OpenAPI description (./generated, `npm run generate` in the repo). No runtime dependencies.
  */
 import { createClient, createConfig } from "./generated/client/index.js";
-import { changeFeedPassword, createFeed, deleteFeed, deleteFeedLicense, deleteNote, editNote, getFeed, getFile, getLicenses, getNote, getReadNote, listNotes, listReadNotes, patchNote, postNote, putFeedLicense, recoverFeedPassword, removeFeedImage, setFeedImage, updateFeed } from "./generated/sdk.gen.js";
+import {
+  changeFeedPassword,
+  createFeed,
+  deleteFeed,
+  deleteFeedLicense,
+  deleteNote,
+  editNote,
+  getFeed,
+  getFile,
+  getLicenses,
+  getNote,
+  getReadNote,
+  listNotes,
+  listReadNotes,
+  patchNote,
+  postNote,
+  putFeedLicense,
+  recoverFeedPassword,
+  removeFeedImage,
+  setFeedImage,
+  updateFeed,
+} from "./generated/sdk.gen.js";
 import type { Created, Error as ApiError, Feed, FeedSettings, Licenses, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
@@ -147,12 +168,26 @@ export class Client {
    */
   async post(
     content: string | Uint8Array | Blob | null,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; draft?: boolean; readId?: string; licenseKey?: string; attachments?: Attachment[] } = {},
+    options: {
+      feed?: string;
+      feedPassword?: string;
+      type?: string;
+      title?: string;
+      tags?: string[];
+      alt?: string;
+      name?: string;
+      date?: string | Date;
+      draft?: boolean;
+      readId?: string;
+      licenseKey?: string;
+      attachments?: Attachment[];
+    } = {},
   ): Promise<Created & { attachments: Created[] }> {
     const { attachments = [], ...own } = options;
     if (content === null && attachments.length === 0) throw new ConfigError("no content and no attachments");
     if (attachments.length === 0) return { ...(await this.postOne(content!, own)), attachments: [] };
-    if (content !== null && (typeof content !== "string" || (own.type ?? "text/markdown") !== "text/markdown")) throw new ConfigError("attachments go with a markdown string");
+    if (content !== null && (typeof content !== "string" || (own.type ?? "text/markdown") !== "text/markdown"))
+      throw new ConfigError("attachments go with a markdown string");
     if (own.alt || own.name) throw new ConfigError("alt and name do not go with attachments: give each attachment its alt");
     const form = new FormData();
     if (content !== null) form.append("text", new Blob([content], { type: "text/markdown" }));
@@ -180,7 +215,19 @@ export class Client {
 
   private async postOne(
     content: string | Uint8Array | Blob,
-    options: { feed?: string; feedPassword?: string; type?: string; title?: string; tags?: string[]; alt?: string; name?: string; date?: string | Date; draft?: boolean; readId?: string; licenseKey?: string },
+    options: {
+      feed?: string;
+      feedPassword?: string;
+      type?: string;
+      title?: string;
+      tags?: string[];
+      alt?: string;
+      name?: string;
+      date?: string | Date;
+      draft?: boolean;
+      readId?: string;
+      licenseKey?: string;
+    },
   ): Promise<Created> {
     const feed = this.feedFor(options.feed);
     const { body, type } = asFile(content, options.type);
@@ -208,7 +255,11 @@ export class Client {
   }
 
   /** Set a note's title, alt text (for pictures), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (`false` publishes it, `true` hides it from readers again; its date stays); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
-  async update(id: string, meta: { title?: string; alt?: string; tags?: string[]; date?: string | Date; draft?: boolean }, options: { feed?: string; feedPassword?: string } = {}): Promise<Note> {
+  async update(
+    id: string,
+    meta: { title?: string; alt?: string; tags?: string[]; date?: string | Date; draft?: boolean },
+    options: { feed?: string; feedPassword?: string } = {},
+  ): Promise<Note> {
     const feed = this.feedFor(options.feed);
     const { date, ...rest } = meta;
     const body = { ...rest, ...(date !== undefined && { date: dateString(date) }) };
@@ -264,7 +315,11 @@ export class Client {
   /** Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `readId` gives it that read link. Where licenses are sold `licenseKey` is required and goes on the new feed. A feed that exists is refused (409). */
   async createFeed(options: { feed?: string; password?: string; licenseKey?: string; readId?: string } = {}): Promise<Feed> {
     const feed = this.feedFor(options.feed);
-    const body = { ...(options.password ? { password: options.password } : {}), ...(options.licenseKey ? { license_key: options.licenseKey } : {}), ...(options.readId ? { read_id: options.readId } : {}) };
+    const body = {
+      ...(options.password ? { password: options.password } : {}),
+      ...(options.licenseKey ? { license_key: options.licenseKey } : {}),
+      ...(options.readId ? { read_id: options.readId } : {}),
+    };
     return this.call(createFeed({ client: this.api, path: { feed }, body, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
@@ -278,7 +333,15 @@ export class Client {
   async setFeedImage(content: Uint8Array, type: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
     const feed = this.feedFor(options.feed);
     const opts = this.opts(options.feedPassword);
-    return this.call(setFeedImage({ client: this.api, path: { feed }, body: new Blob([content as BlobPart], { type }), ...opts, headers: { ...opts.headers, "Content-Type": type } }));
+    return this.call(
+      setFeedImage({
+        client: this.api,
+        path: { feed },
+        body: new Blob([content as BlobPart], { type }),
+        ...opts,
+        headers: { ...opts.headers, "Content-Type": type },
+      }),
+    );
   }
 
   /** Remove the feed's title image; one set with setFeedImage is deleted. Same options as post(). */
@@ -312,7 +375,10 @@ export class Client {
     const feed = this.feedFor(options.feed);
     const request = getFile({ client: this.api, path: { feed, file: name }, parseAs: "arrayBuffer", ...this.opts(options.feedPassword) });
     // Asked for as an ArrayBuffer, whatever the generated type says; wrapped so call() checks it like any other answer.
-    const asBytes = request.then((r) => ({ ...r, data: (r.data as unknown) instanceof ArrayBuffer ? { bytes: new Uint8Array(r.data as unknown as ArrayBuffer) } : undefined }));
+    const asBytes = request.then((r) => ({
+      ...r,
+      data: (r.data as unknown) instanceof ArrayBuffer ? { bytes: new Uint8Array(r.data as unknown as ArrayBuffer) } : undefined,
+    }));
     return (await this.call<{ bytes: Uint8Array }>(asBytes as Promise<Result<{ bytes: Uint8Array }>>)).bytes;
   }
 

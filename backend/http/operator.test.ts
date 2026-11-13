@@ -37,7 +37,9 @@ afterEach(async () => {
 
 // `authorization` null: the header is not sent.
 const call = (method: "GET" | "DELETE", authorization: string | null = `Bearer ${TOKEN}`) =>
-  unreferencedImagesRoute(new Request("http://localhost:3000/api/operator/images/unreferenced", { method, headers: authorization === null ? {} : { authorization } }));
+  unreferencedImagesRoute(
+    new Request("http://localhost:3000/api/operator/images/unreferenced", { method, headers: authorization === null ? {} : { authorization } }),
+  );
 
 // A file in the image folder that no note names, written `hours` ago.
 async function orphan(bytes: string, hours: number): Promise<string> {
@@ -99,7 +101,14 @@ test.skipIf(!node22)("GET reports what no note names and removes nothing; DELETE
 
   const cleaned = await call("DELETE");
   expect(cleaned.status).toBe(200);
-  expect(await cleaned.json()).toEqual({ store: "fs", unreferenced: { count: 2, bytes: 8 }, deleted: { count: 2, bytes: 8 }, failed: 0, too_recent: 1, missing: 0 });
+  expect(await cleaned.json()).toEqual({
+    store: "fs",
+    unreferenced: { count: 2, bytes: 8 },
+    deleted: { count: 2, bytes: 8 },
+    failed: 0,
+    too_recent: 1,
+    missing: 0,
+  });
   expect((await files()).sort()).toEqual([kept, young].sort());
   expect((await s.readFile("f", "p.png"))?.toString()).toBe("a note's image");
 });
@@ -149,18 +158,36 @@ test.skipIf(!node22)("takedown: removes the rows and the image objects, names th
   await s.writeNote("bad", "t", "md", "# text", {}, 0);
   await s.writeNote("bad", "p", "png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]), {}, 0);
   const [key] = await files();
-  const res = await takedownRoute(new Request("http://localhost:3000/api/operator/takedown", { method: "POST", body: JSON.stringify({ target: "https://x.test/r/rid-bad/p.png" }), headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` } }));
+  const res = await takedownRoute(
+    new Request("http://localhost:3000/api/operator/takedown", {
+      method: "POST",
+      body: JSON.stringify({ target: "https://x.test/r/rid-bad/p.png" }),
+      headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` },
+    }),
+  );
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ removed: true, already_removed: false, notes: 2, images: 1, blocked: 1, image_keys: [key] });
   expect(await files()).toEqual([]);
   expect(await s.isRemoved({ readId: "rid-bad" })).toBe(true);
-  expect(await s.isBlockedImage(createHash("sha256").update(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1])).digest("hex"))).toBe(true);
-  expect((await (s as Partial<SqlStorage>).sweepImages!({ remove: true, olderThanMs: 0 }))).toMatchObject({ unreferenced: { count: 0 }, missing: 0 });
+  expect(
+    await s.isBlockedImage(
+      createHash("sha256")
+        .update(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]))
+        .digest("hex"),
+    ),
+  ).toBe(true);
+  expect(await (s as Partial<SqlStorage>).sweepImages!({ remove: true, olderThanMs: 0 })).toMatchObject({ unreferenced: { count: 0 }, missing: 0 });
 });
 
 // POST /api/operator/images/move (#128): the same gate, a JSON body naming the source.
 const move = (body: unknown, authorization: string | null = `Bearer ${TOKEN}`) =>
-  moveImagesRoute(new Request("http://localhost:3000/api/operator/images/move", { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body), headers: { "content-type": "application/json", ...(authorization === null ? {} : { authorization }) } }));
+  moveImagesRoute(
+    new Request("http://localhost:3000/api/operator/images/move", {
+      method: "POST",
+      body: typeof body === "string" ? body : JSON.stringify(body),
+      headers: { "content-type": "application/json", ...(authorization === null ? {} : { authorization }) },
+    }),
+  );
 
 test("move: the gate is the same (404 without a token, 401 with a wrong one)", async () => {
   expect((await move({ from: "db" }, "Bearer wrong")).status).toBe(401);
@@ -169,7 +196,8 @@ test("move: the gate is the same (404 without a token, 401 with a wrong one)", a
 });
 
 test.skipIf(!node22)("move: a body that names no source is 400; the rows go into the folder; the folder itself as the source is 409", async () => {
-  for (const body of ["not json", {}, { from: "nowhere" }, { from: "fs" }, { from: "s3", endpoint: "x" }, { from: "db", limit: 0 }]) expect((await move(body)).status, JSON.stringify(body)).toBe(400);
+  for (const body of ["not json", {}, { from: "nowhere" }, { from: "fs" }, { from: "s3", endpoint: "x" }, { from: "db", limit: 0 }])
+    expect((await move(body)).status, JSON.stringify(body)).toBe(400);
   // Images posted while NOTEFEED_IMAGES was db: their rows hold the bytes.
   vi.stubEnv("NOTEFEED_IMAGES", "db");
   resetStorageForTests();
@@ -201,7 +229,13 @@ test("move: on the file system backend there is no database, 409", async () => {
 
 // POST /api/operator/reseal (#212): the same gate; encrypts the notes stored before encryption was turned on.
 const reseal = (body: unknown, authorization: string | null = `Bearer ${TOKEN}`) =>
-  resealRoute(new Request("http://localhost:3000/api/operator/reseal", { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body), headers: { "content-type": "application/json", ...(authorization === null ? {} : { authorization }) } }));
+  resealRoute(
+    new Request("http://localhost:3000/api/operator/reseal", {
+      method: "POST",
+      body: typeof body === "string" ? body : JSON.stringify(body),
+      headers: { "content-type": "application/json", ...(authorization === null ? {} : { authorization }) },
+    }),
+  );
 
 test("reseal: the gate is the same (404 without a token, 401 with a wrong one)", async () => {
   expect((await reseal({}, "Bearer wrong")).status).toBe(401);

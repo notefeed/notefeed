@@ -17,10 +17,41 @@ import truststore
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
-from ._generated.api.feeds import change_feed_password, create_feed, delete_feed, delete_feed_license, delete_note, edit_note, get_feed, get_file, get_note, list_notes, patch_note, post_note, put_feed_license, recover_feed_password, remove_feed_image, set_feed_image, update_feed
+from ._generated.api.feeds import (
+    change_feed_password,
+    create_feed,
+    delete_feed,
+    delete_feed_license,
+    delete_note,
+    edit_note,
+    get_feed,
+    get_file,
+    get_note,
+    list_notes,
+    patch_note,
+    post_note,
+    put_feed_license,
+    recover_feed_password,
+    remove_feed_image,
+    set_feed_image,
+    update_feed,
+)
 from ._generated.api.licenses import get_licenses
 from ._generated.api.read import get_read_note, list_read_notes
-from ._generated.models import CreateFeedJson, Created, Feed, FeedSettings, LicenseKey, Licenses, Note, NoteList, NoteMeta, PasswordJson, PostNoteXNoteDraft, RecoveryJson
+from ._generated.models import (
+    CreateFeedJson,
+    Created,
+    Feed,
+    FeedSettings,
+    LicenseKey,
+    Licenses,
+    Note,
+    NoteList,
+    NoteMeta,
+    PasswordJson,
+    PostNoteXNoteDraft,
+    RecoveryJson,
+)
 from ._generated.types import UNSET, File
 
 
@@ -257,7 +288,11 @@ class Client:
         if not attachments:
             if content is None:
                 raise ConfigError("no content given")
-            return Posted(**attrs.asdict(self._post_one(content, feed, feed_password, type, title, tags, alt, name, read_id, license_key, created, drafted), recurse=False))
+            return Posted(
+                **attrs.asdict(
+                    self._post_one(content, feed, feed_password, type, title, tags, alt, name, read_id, license_key, created, drafted), recurse=False
+                )
+            )
         if (content is not None and not isinstance(content, str)) or (type or "text/markdown") != "text/markdown":
             raise ConfigError("attachments go with a markdown string")
         if alt or name:
@@ -335,7 +370,13 @@ class Client:
         draft: bool | None = None,
     ) -> Note:
         """Set a note's title, alt text (for pictures), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (False publishes it, True hides it from readers again; its date stays); "" removes a title or alt, so a markdown note's title follows its text again; tags replace the whole list ([] removes them); None leaves it. Same options as post()."""
-        meta = NoteMeta(title=UNSET if title is None else title, alt=UNSET if alt is None else alt, tags=UNSET if tags is None else list(tags), date=_date(date), draft=UNSET if draft is None else draft)
+        meta = NoteMeta(
+            title=UNSET if title is None else title,
+            alt=UNSET if alt is None else alt,
+            tags=UNSET if tags is None else list(tags),
+            date=_date(date),
+            draft=UNSET if draft is None else draft,
+        )
         kwargs = patch_note._get_kwargs(feed=self._feed_for(feed), id=id, body=meta, x_feed_password=self._fp(feed_password))
         return self._parse(Note, self._call(kwargs))
 
@@ -414,17 +455,11 @@ class Client:
         """Delete the feed with all its notes, settings and password, for good; its name is free again. Same options as post()."""
         self._call(delete_feed._get_kwargs(feed=self._feed_for(feed), x_feed_password=self._fp(feed_password)))
 
-    def notes(
-        self, feed: str | None = None, page_size: int = 50, feed_password: str | None = None, tag: str | None = None
-    ) -> Iterator[Note]:
+    def notes(self, feed: str | None = None, page_size: int = 50, feed_password: str | None = None, tag: str | None = None) -> Iterator[Note]:
         """Every note in the feed, newest first, fetched a page at a time; stop iterating whenever you like.
         `tag`: only notes carrying it."""
         feed, fp = self._feed_for(feed), self._fp(feed_password)
-        return self._pages(
-            lambda before: list_notes._get_kwargs(
-                feed=feed, limit=page_size, before=before, tag=tag or UNSET, x_feed_password=fp
-            )
-        )
+        return self._pages(lambda before: list_notes._get_kwargs(feed=feed, limit=page_size, before=before, tag=tag or UNSET, x_feed_password=fp))
 
     def note(self, id: str, feed: str | None = None, feed_password: str | None = None) -> Note:
         kwargs = get_note._get_kwargs(feed=self._feed_for(feed), id=id, x_feed_password=self._fp(feed_password))
@@ -438,9 +473,7 @@ class Client:
 
     def read_notes(self, read_id: str, page_size: int = 50, tag: str | None = None) -> Iterator[Note]:
         """Like notes(), by the feed's read id: public, read-only, needs no password."""
-        return self._pages(
-            lambda before: list_read_notes._get_kwargs(read_id=read_id, limit=page_size, before=before, tag=tag or UNSET)
-        )
+        return self._pages(lambda before: list_read_notes._get_kwargs(read_id=read_id, limit=page_size, before=before, tag=tag or UNSET))
 
     def licenses(self) -> Licenses:
         """What licenses are sold (plans, amounts in cents), where a person buys one (`buy_url`) and where buyers manage their purchases at the payment provider, signed in by e-mail (`manage_url`); no key opens that page. Only where licenses are sold."""
@@ -526,4 +559,3 @@ class Client:
             retry = (response.headers.get("Retry-After") or "").strip()
             raise RateLimitedError(message, response.status_code, code, int(retry) if re.fullmatch(r"[0-9]+", retry) else None)
         raise cls(message, response.status_code, code)
-

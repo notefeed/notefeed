@@ -40,7 +40,8 @@ export async function startFakeS3(accessKey: string, buckets: string[] = [], por
         return answer(fail.status, "<Error/>");
       }
       const auth = req.headers.authorization ?? "";
-      if (!auth.startsWith(`AWS4-HMAC-SHA256 Credential=${accessKey}/`) || !auth.includes("Signature=")) return answer(403, "<Error><Code>AccessDenied</Code></Error>");
+      if (!auth.startsWith(`AWS4-HMAC-SHA256 Credential=${accessKey}/`) || !auth.includes("Signature="))
+        return answer(403, "<Error><Code>AccessDenied</Code></Error>");
       const [, bucket, ...rest] = path.split("/");
       const key = rest.join("/");
       if (key === "" && req.method === "GET" && url.searchParams.get("list-type") === "2") {
@@ -48,11 +49,23 @@ export async function startFakeS3(accessKey: string, buckets: string[] = [], por
         // Pages of `max-keys`, in key order; the continuation token is the last key given.
         const max = Number(url.searchParams.get("max-keys") ?? 1000);
         const after = url.searchParams.get("continuation-token") ?? "";
-        const all = [...objects.keys()].filter((id) => id.startsWith(`${bucket}/`)).map((id) => id.slice(bucket.length + 1)).sort().filter((k) => k > after);
+        const all = [...objects.keys()]
+          .filter((id) => id.startsWith(`${bucket}/`))
+          .map((id) => id.slice(bucket.length + 1))
+          .sort()
+          .filter((k) => k > after);
         const page = all.slice(0, max);
         const more = all.length > page.length;
-        const contents = page.map((k) => `<Contents><Key>${escapeXml(k)}</Key><LastModified>${(modified.get(`${bucket}/${k}`) ?? new Date()).toISOString()}</LastModified><Size>${objects.get(`${bucket}/${k}`)!.byteLength}</Size></Contents>`).join("");
-        return answer(200, `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>${escapeXml(bucket)}</Name><IsTruncated>${more}</IsTruncated>${contents}${more ? `<NextContinuationToken>${escapeXml(page.at(-1)!)}</NextContinuationToken>` : ""}</ListBucketResult>`);
+        const contents = page
+          .map(
+            (k) =>
+              `<Contents><Key>${escapeXml(k)}</Key><LastModified>${(modified.get(`${bucket}/${k}`) ?? new Date()).toISOString()}</LastModified><Size>${objects.get(`${bucket}/${k}`)!.byteLength}</Size></Contents>`,
+          )
+          .join("");
+        return answer(
+          200,
+          `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>${escapeXml(bucket)}</Name><IsTruncated>${more}</IsTruncated>${contents}${more ? `<NextContinuationToken>${escapeXml(page.at(-1)!)}</NextContinuationToken>` : ""}</ListBucketResult>`,
+        );
       }
       if (key === "") {
         if (req.method !== "PUT") return answer(405);

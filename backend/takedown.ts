@@ -100,7 +100,11 @@ async function storedRef(feed: string, id: string): Promise<NoteRef | undefined>
 
 // The text an attachment was posted with, from its metadata; none for a damaged one, whose metadata can't be read.
 async function postedWith(feed: string, ref: NoteRef): Promise<string | undefined> {
-  return (await storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null)))?.of;
+  return (
+    await storage()
+      .readMeta(feed, ref)
+      .catch((e) => (unreadableNote(ref.id, e), null))
+  )?.of;
 }
 
 /** The takedown of one post (#159): the note a target names, the text note it was posted with, and every attachment of that text.
@@ -132,13 +136,20 @@ export async function takedownNote(target: string): Promise<NoteTakedown> {
   const hashes = new Set<string>();
   for (const ref of post) {
     if (typeForExt(ref.ext)?.name !== "image") continue; // a text has no bytes to block
-    const bytes = await storage().readFile(feed, `${ref.id}.${ref.ext}`).catch((e) => (unreadableNote(ref.id, e), null));
+    const bytes = await storage()
+      .readFile(feed, `${ref.id}.${ref.ext}`)
+      .catch((e) => (unreadableNote(ref.id, e), null));
     if (bytes) hashes.add(imageHash(bytes));
   }
   await storage().blockImages([...hashes]); // before the bytes go: a takedown cut short never leaves them unblocked
   let keys: string[];
   try {
-    ({ keys } = await storage().takedownNotes(feed, post.map((r) => ({ id: r.id, ext: r.ext })), { date: text.date, draft: text.draft }, markId));
+    ({ keys } = await storage().takedownNotes(
+      feed,
+      post.map((r) => ({ id: r.id, ext: r.ext })),
+      { date: text.date, draft: text.draft },
+      markId,
+    ));
   } catch (e) {
     if (e instanceof FeedGoneError) throw new NotFoundError("no feed has this read id"); // deleted meanwhile, by its owner
     throw e;

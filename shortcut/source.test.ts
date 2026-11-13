@@ -73,7 +73,12 @@ test("the answers are cleaned up as a phone keyboard types them: spaces, capital
     }
     return vars;
   };
-  expect(run(["notefeed.me/ ", "Homelab-7f3k ", " pw ", ""])).toEqual({ Address: "https://notefeed.me", Feed: "homelab-7f3k", "Feed password": "pw", "Server password": "" });
+  expect(run(["notefeed.me/ ", "Homelab-7f3k ", " pw ", ""])).toEqual({
+    Address: "https://notefeed.me",
+    Feed: "homelab-7f3k",
+    "Feed password": "pw",
+    "Server password": "",
+  });
   expect(run(["Https://notes.example.com", "homelab", "", "secret"])).toMatchObject({ Address: "Https://notes.example.com", Feed: "homelab" });
   expect(run(["http://localhost:3000//", "a", "", ""]).Address).toBe("http://localhost:3000");
   expect(run(["", "a", "", ""]).Address).toBe("https://notefeed.me"); // the default kept: iOS leaves the answer empty

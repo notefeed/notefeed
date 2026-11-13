@@ -69,7 +69,8 @@ test.beforeAll(async () => {
     req.on("end", () => {
       received.push({ url: req.url ?? "", type: req.headers["content-type"], body });
       const cors = { "access-control-allow-origin": "http://localhost:3100", "content-type": "application/json" };
-      if (req.method === "OPTIONS") return res.writeHead(204, { ...cors, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type" }).end();
+      if (req.method === "OPTIONS")
+        return res.writeHead(204, { ...cors, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type" }).end();
       const data = JSON.parse(body || "{}") as Record<string, string>;
       if (!data.reason) res.writeHead(400, cors).end(JSON.stringify({ errors: ["Reason is required"] }));
       else res.writeHead(201, cors).end(JSON.stringify({ id: "abc" }));
@@ -105,7 +106,17 @@ test("the report page posts to the inbox with the note's ids and shows the answe
   const last = received.at(-1)!;
   expect(last.url).toBe("/f/notefeed-report");
   expect(last.type).toBe("application/json");
-  expect(JSON.parse(last.body)).toMatchObject({ read_id: "r1d", note_id: "20260930T100000Z-abc", file: "20260930T100000Z-abc.md", reason: "Personal data", text: "This note shows my address.", name: "Ada Reporter", email: "", good_faith: "Yes", _gotcha: "" });
+  expect(JSON.parse(last.body)).toMatchObject({
+    read_id: "r1d",
+    note_id: "20260930T100000Z-abc",
+    file: "20260930T100000Z-abc.md",
+    reason: "Personal data",
+    text: "This note shows my address.",
+    name: "Ada Reporter",
+    email: "",
+    good_faith: "Yes",
+    _gotcha: "",
+  });
 });
 
 test("the inbox's redirects land on the page: sent, or back with the errors and what was typed", async ({ page }) => {

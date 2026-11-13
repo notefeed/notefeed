@@ -68,9 +68,7 @@ def _get_kwargs(
     return _kwargs
 
 
-def _parse_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Error | Posted | None:
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | Posted | None:
     if response.status_code == 201:
         response_201 = Posted.from_dict(response.json())
 
@@ -142,9 +140,7 @@ def _parse_response(
         return None
 
 
-def _build_response(
-    *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Error | Posted]:
+def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | Posted]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,

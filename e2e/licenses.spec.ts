@@ -14,7 +14,9 @@ async function buy(request: APIRequestContext, ref: string): Promise<string> {
   const { key } = await (await request.post("/api/licenses/key", { data: { checkout } })).json();
   const events = JSON.stringify([{ type: "started", providerRef: ref, key, validUntil: null }]);
   const signature = createHmac("sha256", "e2e-webhook").update(events).digest("hex");
-  expect((await request.post("/api/licenses/webhook", { data: events, headers: { "Content-Type": "application/json", "x-fake-signature": signature } })).status()).toBe(200);
+  expect(
+    (await request.post("/api/licenses/webhook", { data: events, headers: { "Content-Type": "application/json", "x-fake-signature": signature } })).status(),
+  ).toBe(200);
   return key;
 }
 
@@ -125,7 +127,9 @@ test("on a protected feed, a new key from the settings page replaces a refunded 
 
   const refund = JSON.stringify([{ type: "refunded", providerRef: ref }]);
   const signature = createHmac("sha256", "e2e-webhook").update(refund).digest("hex");
-  expect((await request.post("/api/licenses/webhook", { data: refund, headers: { "Content-Type": "application/json", "x-fake-signature": signature } })).status()).toBe(200);
+  expect(
+    (await request.post("/api/licenses/webhook", { data: refund, headers: { "Content-Type": "application/json", "x-fake-signature": signature } })).status(),
+  ).toBe(200);
 
   const second = await buy(request, `${ref}_2`);
   await page.goto(`/${feed}/settings`);
@@ -140,7 +144,9 @@ test("on a protected feed, a new key from the settings page replaces a refunded 
 test("a lost feed password is set anew with the feed's license key", async ({ page, request }) => {
   const feed = feedName();
   const key = await buy(request, `sub_${feed}`);
-  expect((await request.post(`/${feed}`, { data: "# Secret", headers: { ...text, "X-Feed-Password": "Passw0rd!x", "X-License-Key": key } })).status()).toBe(201);
+  expect((await request.post(`/${feed}`, { data: "# Secret", headers: { ...text, "X-Feed-Password": "Passw0rd!x", "X-License-Key": key } })).status()).toBe(
+    201,
+  );
   await page.goto(`/${feed}`);
   await expect(page.getByLabel("Feed password")).toBeVisible(); // this browser never unlocked it
   await page.getByText("Forgot the password?").click();
@@ -160,7 +166,9 @@ test("a lost feed password is set anew with the feed's license key", async ({ pa
 test("an unlocked browser resets a lost password with the license key in the settings", async ({ page, request }) => {
   const feed = feedName();
   const key = await buy(request, `sub_${feed}`);
-  expect((await request.post(`/${feed}`, { data: "# Secret", headers: { ...text, "X-Feed-Password": "Passw0rd!x", "X-License-Key": key } })).status()).toBe(201);
+  expect((await request.post(`/${feed}`, { data: "# Secret", headers: { ...text, "X-Feed-Password": "Passw0rd!x", "X-License-Key": key } })).status()).toBe(
+    201,
+  );
   await page.goto(`/${feed}`);
   await page.getByLabel("Feed password").fill("Passw0rd!x");
   await page.getByRole("button", { name: "Unlock" }).click();

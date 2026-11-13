@@ -111,7 +111,15 @@ async function find(feed: string, id: string, exts: readonly string[]): Promise<
 // first, so a listed note always has its metadata and date; a failure removes it again. The feed directory must exist (ensureFeed
 // creates it): a feed deleted meanwhile is FeedGoneError, never a directory made again without its `.readid`.
 // Never overwrites, never leaves a partial content file behind.
-export async function writeNote(feed: string, base: string, ext: string, content: string | Uint8Array, meta: Meta, date: number, draft = false): Promise<string> {
+export async function writeNote(
+  feed: string,
+  base: string,
+  ext: string,
+  content: string | Uint8Array,
+  meta: Meta,
+  date: number,
+  draft = false,
+): Promise<string> {
   const dir = feedDir(feed);
   const tmp = join(dir, `.${randomBytes(6).toString("hex")}.tmp`);
   const json = JSON.stringify({ ...meta, ...plain(date, draft) });
@@ -166,7 +174,10 @@ async function namesIn(feed: string): Promise<{ id: string; ext: string }[]> {
 
 // The caller filters by type. Each note's sidecar is read for its date (a note without one, its content file's mtime); the order,
 // `upTo`, `drafts`, `before` and `limit` are then applied here, in memory.
-export async function listNoteRefs(feed: string, q: { upTo?: number; before?: string; limit?: number; drafts?: boolean; removed?: boolean } = {}): Promise<NoteRef[]> {
+export async function listNoteRefs(
+  feed: string,
+  q: { upTo?: number; before?: string; limit?: number; drafts?: boolean; removed?: boolean } = {},
+): Promise<NoteRef[]> {
   // A note the operator removed is in no list, also while a takedown cut short has not deleted it yet (#159); the mark, which has
   // the id of the text it stands for, is.
   const [all, removed] = await Promise.all([namesIn(feed), q.removed ? new Map() : removedNotes(feed)]);
@@ -221,7 +232,15 @@ export async function readNote(feed: string, id: string, exts: readonly string[]
   if (content === null) return null;
   const raw = await sidecarOf(feed, id, found.ext);
   const meta = raw === null ? {} : parseMeta(raw);
-  return { ext: found.ext, content, size: found.info.size, meta, mtime: found.info.mtime, date: dateOf(raw, meta, found.info.mtimeMs), draft: storedDraft(raw) };
+  return {
+    ext: found.ext,
+    content,
+    size: found.info.size,
+    meta,
+    mtime: found.info.mtime,
+    date: dateOf(raw, meta, found.info.mtimeMs),
+    draft: storedDraft(raw),
+  };
 }
 
 // Only the sidecar: what the tag filter needs. null when the note itself is not there.
@@ -272,7 +291,12 @@ export async function updateMeta(feed: string, id: string, exts: readonly string
     }
     return true;
   }
-  return writeSidecar(feed, id, found.ext, JSON.stringify(date === undefined ? { ...merged, ...(draft && { draft: true }) } : { ...merged, ...plain(date, draft) }));
+  return writeSidecar(
+    feed,
+    id,
+    found.ext,
+    JSON.stringify(date === undefined ? { ...merged, ...(draft && { draft: true }) } : { ...merged, ...plain(date, draft) }),
+  );
 }
 
 // Rewrites the sidecar with the new date, its metadata and draft flag kept, as updateMeta does. False when there is no such note.
@@ -348,10 +372,19 @@ export async function deleteNote(feed: string, id: string, exts: readonly string
 // goes with the feed. The tombstones first, then the notes, then the mark, as in the database backends. The first line of an id holds.
 const removedNotesFile = (feed: string) => join(feedDir(feed), ".removed-notes");
 
-export async function takedownNotes(feed: string, notes: { id: string; ext: string }[], post: { date: number; draft: boolean }, markId: string | null): Promise<{ keys: string[] }> {
+export async function takedownNotes(
+  feed: string,
+  notes: { id: string; ext: string }[],
+  post: { date: number; draft: boolean },
+  markId: string | null,
+): Promise<{ keys: string[] }> {
   if (notes.length > 0) {
     try {
-      await appendFile(/*turbopackIgnore: true*/ removedNotesFile(feed), notes.map((n) => JSON.stringify({ id: n.id, date: post.date, draft: post.draft }) + "\n").join(""), { mode: 0o600 });
+      await appendFile(
+        /*turbopackIgnore: true*/ removedNotesFile(feed),
+        notes.map((n) => JSON.stringify({ id: n.id, date: post.date, draft: post.draft }) + "\n").join(""),
+        { mode: 0o600 },
+      );
     } catch (e) {
       if (isErrno(e, "ENOENT")) throw new FeedGoneError();
       throw e;

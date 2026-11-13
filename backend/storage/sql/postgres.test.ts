@@ -73,7 +73,10 @@ describe.skipIf(!base || !supported)("postgres", () => {
     describeStorage("postgres with images in S3", async () => {
       await resetSchema();
       const { AwsClient } = await import("aws4fetch");
-      const made = await new AwsClient({ accessKeyId: o.accessKey, secretAccessKey: o.secretKey, service: "s3", region: o.region }).fetch(`${o.endpoint.replace(/\/+$/, "")}/${o.bucket}`, { method: "PUT" });
+      const made = await new AwsClient({ accessKeyId: o.accessKey, secretAccessKey: o.secretKey, service: "s3", region: o.region }).fetch(
+        `${o.endpoint.replace(/\/+$/, "")}/${o.bucket}`,
+        { method: "PUT" },
+      );
       if (!made.ok && made.status !== 409) throw new Error(`could not make the test bucket (${made.status})`);
       return { storage: fresh({ store: createS3ImageStore(o), external: (ext) => ext === "png" }), cleanup: async () => {} };
     });
@@ -83,7 +86,10 @@ describe.skipIf(!base || !supported)("postgres", () => {
       await resetSchema();
       const mine = { ...o, bucket: `${o.bucket}-sweep` };
       const { AwsClient } = await import("aws4fetch");
-      const made = await new AwsClient({ accessKeyId: o.accessKey, secretAccessKey: o.secretKey, service: "s3", region: o.region }).fetch(`${o.endpoint.replace(/\/+$/, "")}/${mine.bucket}`, { method: "PUT" });
+      const made = await new AwsClient({ accessKeyId: o.accessKey, secretAccessKey: o.secretKey, service: "s3", region: o.region }).fetch(
+        `${o.endpoint.replace(/\/+$/, "")}/${mine.bucket}`,
+        { method: "PUT" },
+      );
       if (!made.ok && made.status !== 409) throw new Error(`could not make the test bucket (${made.status})`);
       const store = createS3ImageStore(mine);
       const s = fresh({ store, external: (ext) => ext === "png" });
@@ -162,7 +168,12 @@ describe.skipIf(!base || !supported)("postgres", () => {
     const w = createLocalWrapper(randomBytes(32).toString("hex"));
     const other = fresh(undefined, w);
     await other.listFeeds(); // converts the feeds first
-    const hooked = createSqlStorage(async () => (await connect("postgres", url())).withPlugin(after(["ext", "metadata", "sealed"], async () => void (await other.reseal({ limit: 10 })))), "postgres", undefined, w);
+    const hooked = createSqlStorage(
+      async () => (await connect("postgres", url())).withPlugin(after(["ext", "metadata", "sealed"], async () => void (await other.reseal({ limit: 10 })))),
+      "postgres",
+      undefined,
+      w,
+    );
     open.push(hooked);
     expect(await hooked.updateMeta("f", "n", ["md"], { title: "new" })).toBe(true);
     expect(await other.readMeta("f", { id: "n", ext: "md" })).toEqual({ title: "new" });

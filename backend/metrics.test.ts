@@ -50,21 +50,29 @@ test("statusClass: a redirect counts as 2xx", () => {
 });
 
 test("measured records one duration sample with kind, status class and feed size", async () => {
-  const reply = await measured("getFeed", async () => (noteFeedSize(5), { status: 404 }), (r) => r.status);
+  const reply = await measured(
+    "getFeed",
+    async () => (noteFeedSize(5), { status: 404 }),
+    (r) => r.status,
+  );
   expect(reply).toEqual({ status: 404 });
   expect(await sample("notefeed_request_duration_seconds_count", { kind: "getFeed", status: "4xx", feed_size: "lt10" })).toBe(1);
 });
 
 test("measured records the disk work of the request, per kind and feed size", async () => {
-  await measured("listNotes", async () => {
-    countDir();
-    countDir();
-    countFile();
-    countFile();
-    countFile();
-    noteFeedSize(150);
-    return 200;
-  }, (s) => s);
+  await measured(
+    "listNotes",
+    async () => {
+      countDir();
+      countDir();
+      countFile();
+      countFile();
+      countFile();
+      noteFeedSize(150);
+      return 200;
+    },
+    (s) => s,
+  );
   expect(await sample("notefeed_request_dir_reads_sum", { kind: "listNotes", feed_size: "lt1000" })).toBe(2);
   expect(await sample("notefeed_request_file_reads_sum", { kind: "listNotes", feed_size: "lt1000" })).toBe(3);
 });
@@ -79,18 +87,34 @@ test("the counters do nothing outside a scope", async () => {
 });
 
 test("a request that never reads a feed is recorded with feed_size none", async () => {
-  await measured("getOpenApi", async () => 200, (s) => s);
+  await measured(
+    "getOpenApi",
+    async () => 200,
+    (s) => s,
+  );
   expect(await sample("notefeed_request_duration_seconds_count", { kind: "getOpenApi", feed_size: "none" })).toBe(1);
 });
 
 test("a throwing request is recorded as 5xx and the error goes on", async () => {
-  await expect(measured("postNote", async () => Promise.reject(new Error("boom")), () => 200)).rejects.toThrow("boom");
+  await expect(
+    measured(
+      "postNote",
+      async () => Promise.reject(new Error("boom")),
+      () => 200,
+    ),
+  ).rejects.toThrow("boom");
   expect(await sample("notefeed_request_duration_seconds_count", { kind: "postNote", status: "5xx" })).toBe(1);
 });
 
 test("with metrics off, measured returns the result and records nothing", async () => {
   process.env.NOTEFEED_METRICS = "0";
-  expect(await measured("getFeed", async () => 7, () => 200)).toBe(7);
+  expect(
+    await measured(
+      "getFeed",
+      async () => 7,
+      () => 200,
+    ),
+  ).toBe(7);
   const { body } = await renderMetrics();
   expect(body).not.toContain("notefeed_request_duration_seconds_count{");
 });
@@ -100,7 +124,11 @@ test("reading a feed's notes reports its size and its directory and file reads t
   process.env.DATA_DIR = root;
   await mkdir(join(root, "f"));
   for (const t of ["a", "b", "c"]) await writeNote("f", `20260101T000000Z-${t}`, "md", t, {}, 0); // ids with a time are placed without a read
-  await measured("listNotes", () => listNotes("f", 50), () => 200);
+  await measured(
+    "listNotes",
+    () => listNotes("f", 50),
+    () => 200,
+  );
   expect(await sample("notefeed_request_duration_seconds_count", { kind: "listNotes", feed_size: "lt10" })).toBe(1);
   // One listing of the folder, whatever the number of notes (#96: it used to be one more per note); per note, a read of its sidecar
   // for its date, then of its text and its sidecar.
@@ -113,6 +141,10 @@ test("a file of a feed read by name counts as one file read", async () => {
   process.env.DATA_DIR = root;
   await mkdir(join(root, "f"));
   await writeFile(join(root, "f", "x.txt"), "hi");
-  await measured("feed_file", () => readFeedFile("f", "x.txt"), () => 200);
+  await measured(
+    "feed_file",
+    () => readFeedFile("f", "x.txt"),
+    () => 200,
+  );
   expect(await sample("notefeed_request_file_reads_sum", { kind: "feed_file" })).toBe(1);
 });

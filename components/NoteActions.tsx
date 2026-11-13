@@ -17,7 +17,37 @@ import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
 // The state of the note page's actions, for the two places they show: the bar (NoteActionsBar, in the shell's right column)
 // and the forms (NoteActionsPanel, under the note). `reportHref`: the note's Report link, in the bar (the note shows none).
 // `date`: the note's date, an ISO string. `tags`: the note's tags, as stored.
-export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: savedAlt, tags: savedTags, date: savedDate, draft: savedDraft = false, error: initialError, images: imagesOn = true, imageBase, reportHref, children }: { feed: string; id: string; kind: KindName; markdown: string; title: string; alt: string; tags: string[]; date: string; draft?: boolean; error?: string; images?: boolean; imageBase?: string; reportHref?: string; children: ReactNode }) {
+export function NoteActions({
+  feed,
+  id,
+  kind,
+  markdown,
+  title: savedTitle,
+  alt: savedAlt,
+  tags: savedTags,
+  date: savedDate,
+  draft: savedDraft = false,
+  error: initialError,
+  images: imagesOn = true,
+  imageBase,
+  reportHref,
+  children,
+}: {
+  feed: string;
+  id: string;
+  kind: KindName;
+  markdown: string;
+  title: string;
+  alt: string;
+  tags: string[];
+  date: string;
+  draft?: boolean;
+  error?: string;
+  images?: boolean;
+  imageBase?: string;
+  reportHref?: string;
+  children: ReactNode;
+}) {
   const page = `/${feed}`;
   const images = usePendingImages();
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, withPictures(noteErrorMessage, images.pending.length > 0));
@@ -29,7 +59,11 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
   // date once hydrated (empty in the server's render, so both renders agree), and only a changed date is sent.
   const [changedDate, setDate] = useState<string | null>(null);
   const [draft, setDraft] = useState(savedDraft); // a draft (#265): unticking publishes it, ticking hides it from readers again
-  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const date = changedDate ?? (hydrated ? localDateTime(new Date(savedDate)) : "");
   const { text: hasText, alt: hasAlt } = NOTE_KINDS[kind]; // what the edit form offers: a text, an alternative text
   const [mode, setMode] = useState<"edit" | "delete" | null>(initialError ? "edit" : null);
@@ -47,7 +81,13 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
     const dateChanged = changedDate !== null && changedDate !== "" && changedDate !== localDateTime(new Date(savedDate)); // emptied: kept
     const tagList = splitTags(tags);
     const tagsChanged = tagList.join(",") !== savedTags.join(","); // the server folds case and drops repeats: "CI" for "ci" is sent, and stored as before
-    const meta = { ...(title !== savedTitle && { title }), ...(hasAlt && alt !== savedAlt && { alt }), ...(tagsChanged && { tags: tagList }), ...(dateChanged && { date: new Date(changedDate).toISOString() }), ...(draft !== savedDraft && { draft }) };
+    const meta = {
+      ...(title !== savedTitle && { title }),
+      ...(hasAlt && alt !== savedAlt && { alt }),
+      ...(tagsChanged && { tags: tagList }),
+      ...(dateChanged && { date: new Date(changedDate).toISOString() }),
+      ...(draft !== savedDraft && { draft }),
+    };
     const metaChanged = Object.keys(meta).length > 0;
     if (!textChanged && !metaChanged) return setMode(null);
     const call = async () => {
@@ -67,17 +107,61 @@ export function NoteActions({ feed, id, kind, markdown, title: savedTitle, alt: 
       router.refresh();
     });
   }
-  const remove = (e: FormEvent) => run(e, () => deleteNote(opts()), () => router.replace(`${page}?deleted=${id}`), 404); // already gone: the goal is met
+  const remove = (e: FormEvent) =>
+    run(
+      e,
+      () => deleteNote(opts()),
+      () => router.replace(`${page}?deleted=${id}`),
+      404,
+    ); // already gone: the goal is met
 
   const [copied, setCopied] = useState(false);
-  const copyLink = () => copyText(window.location.href).then(() => setCopied(true), () => {});
+  const copyLink = () =>
+    copyText(window.location.href).then(
+      () => setCopied(true),
+      () => {},
+    );
 
-  const value = { back: page, mode, setMode, text, setText, title, setTitle, alt, setAlt, tags, setTags, date, setDate, draft, setDraft, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated, copied, copyLink, reportHref };
+  const value = {
+    back: page,
+    mode,
+    setMode,
+    text,
+    setText,
+    title,
+    setTitle,
+    alt,
+    setAlt,
+    tags,
+    setTags,
+    date,
+    setDate,
+    draft,
+    setDraft,
+    hasText,
+    hasAlt,
+    images,
+    imagesOn,
+    imageBase,
+    save,
+    remove,
+    pending,
+    error,
+    setError,
+    hydrated,
+    copied,
+    copyLink,
+    reportHref,
+  };
   return <Actions.Provider value={value}>{children}</Actions.Provider>;
 }
 
 // The tags as typed, a list as the API takes it: split at commas, trimmed, empty ones dropped (as backend/tags.ts splits a header).
-const splitTags = (typed: string) => typed.split(",").map((t) => t.trim()).filter(Boolean);
+const splitTags = (typed: string) =>
+  typed
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
 
 // A datetime-local value for `d` in the browser's time, to the minute as the field shows it.
 function localDateTime(d: Date): string {
@@ -122,66 +206,128 @@ const useActions = () => useContext(Actions)!;
 // Edit opens its form under the note: a sheet on a phone, a card from lg. On a phone the text box is shorter, so the fields below it and
 // Save fit on the screen without scrolling the sheet. Delete asks in a dialog (DeleteDialog).
 export function NoteActionsPanel() {
-  const { mode, setMode, text, setText, title, setTitle, alt, setAlt, tags, setTags, date, setDate, draft, setDraft, hasText, hasAlt, images, imagesOn, imageBase, save, remove, pending, error, setError, hydrated } = useActions();
+  const {
+    mode,
+    setMode,
+    text,
+    setText,
+    title,
+    setTitle,
+    alt,
+    setAlt,
+    tags,
+    setTags,
+    date,
+    setDate,
+    draft,
+    setDraft,
+    hasText,
+    hasAlt,
+    images,
+    imagesOn,
+    imageBase,
+    save,
+    remove,
+    pending,
+    error,
+    setError,
+    hydrated,
+  } = useActions();
   return (
     <section aria-label="Edit or delete this note" className="mt-4 text-sm">
       {mode === "delete" && <DeleteDialog onSubmit={remove} onClose={() => setMode(null)} pending={pending} error={error} />}
       {mode === "edit" && (
         <>
           {hydrated && <div aria-hidden className="fixed inset-0 z-40 bg-ink/40 lg:hidden" onClick={() => setMode(null)} />}
-          <div className={`${card} p-4 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[90dvh] max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:shadow-sheet max-lg:pb-8`}>
-              <form onSubmit={save}>
-                {hasText && (
-                  <MarkdownInput
-                    id="edit-markdown"
-                    name="markdown"
-                    label="Note in markdown"
-                    value={text}
-                    onChange={setText}
-                    rows={10}
-                    describedBy="note-actions-error"
-                    className="font-mono max-lg:h-44"
-                    pending={images.pending}
-                    onPendingChange={images.setPending}
-                    onMessage={setError}
-                    images={imagesOn}
-                    imageBase={imageBase}
+          <div
+            className={`${card} p-4 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:max-h-[90dvh] max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:shadow-sheet max-lg:pb-8`}
+          >
+            <form onSubmit={save}>
+              {hasText && (
+                <MarkdownInput
+                  id="edit-markdown"
+                  name="markdown"
+                  label="Note in markdown"
+                  value={text}
+                  onChange={setText}
+                  rows={10}
+                  describedBy="note-actions-error"
+                  className="font-mono max-lg:h-44"
+                  pending={images.pending}
+                  onPendingChange={images.setPending}
+                  onMessage={setError}
+                  images={imagesOn}
+                  imageBase={imageBase}
+                />
+              )}
+              <label htmlFor="edit-title" className="mt-3 block text-muted">
+                Title {hasText ? "(optional, otherwise taken from the text)" : "(optional)"}
+              </label>
+              <input
+                id="edit-title"
+                name="title"
+                maxLength={100}
+                autoComplete="off"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className={`${field} mt-1 max-w-md`}
+              />
+              {hasAlt && (
+                <>
+                  <label htmlFor="edit-alt" className="mt-3 block text-muted">
+                    Alternative text (optional, for screen readers)
+                  </label>
+                  <input
+                    id="edit-alt"
+                    name="alt"
+                    maxLength={500}
+                    autoComplete="off"
+                    value={alt}
+                    onChange={(e) => setAlt(e.target.value)}
+                    className={`${field} mt-1 max-w-md`}
                   />
-                )}
-                <label htmlFor="edit-title" className="mt-3 block text-muted">
-                  Title {hasText ? "(optional, otherwise taken from the text)" : "(optional)"}
-                </label>
-                <input id="edit-title" name="title" maxLength={100} autoComplete="off" value={title} onChange={(e) => setTitle(e.target.value)} className={`${field} mt-1 max-w-md`} />
-                {hasAlt && (
-                  <>
-                    <label htmlFor="edit-alt" className="mt-3 block text-muted">
-                      Alternative text (optional, for screen readers)
-                    </label>
-                    <input id="edit-alt" name="alt" maxLength={500} autoComplete="off" value={alt} onChange={(e) => setAlt(e.target.value)} className={`${field} mt-1 max-w-md`} />
-                  </>
-                )}
-                <label htmlFor="edit-tags" className="mt-3 block text-muted">
-                  Tags (optional, separated by commas)
-                </label>
-                <input id="edit-tags" name="tags" type="text" autoComplete="off" placeholder="e.g. ci, deploy" pattern={TAGS_PATTERN} title={TAGS_HINT} value={tags} onChange={(e) => setTags(e.target.value)} className={`${field} mt-1 max-w-md`} />
-                <label htmlFor="edit-date" className="mt-3 block text-muted">
-                  Date (in your time; a later one schedules the note)
-                </label>
-                <input id="edit-date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} mt-1 max-w-md`} />
-                <label className="mt-3 flex items-center gap-2">
-                  <input id="edit-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
-                  Draft (readers don&apos;t see it, or its pictures, until it is published)
-                </label>
-                <div className="mt-4 flex gap-2">
-                  <button type="submit" disabled={pending} className={primary}>
-                    <DoneIcon aria-hidden className="h-4 w-4" />
-                    {pending ? "Saving…" : "Save"}
-                  </button>
-                  <button type="button" onClick={() => setMode(null)} className={secondary}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
+                </>
+              )}
+              <label htmlFor="edit-tags" className="mt-3 block text-muted">
+                Tags (optional, separated by commas)
+              </label>
+              <input
+                id="edit-tags"
+                name="tags"
+                type="text"
+                autoComplete="off"
+                placeholder="e.g. ci, deploy"
+                pattern={TAGS_PATTERN}
+                title={TAGS_HINT}
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                className={`${field} mt-1 max-w-md`}
+              />
+              <label htmlFor="edit-date" className="mt-3 block text-muted">
+                Date (in your time; a later one schedules the note)
+              </label>
+              <input
+                id="edit-date"
+                name="date"
+                type="datetime-local"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={`${field} mt-1 max-w-md`}
+              />
+              <label className="mt-3 flex items-center gap-2">
+                <input id="edit-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
+                Draft (readers don&apos;t see it, or its pictures, until it is published)
+              </label>
+              <div className="mt-4 flex gap-2">
+                <button type="submit" disabled={pending} className={primary}>
+                  <DoneIcon aria-hidden className="h-4 w-4" />
+                  {pending ? "Saving…" : "Save"}
+                </button>
+                <button type="button" onClick={() => setMode(null)} className={secondary}>
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </>
       )}
@@ -245,14 +391,20 @@ function DeleteDialog({ onSubmit, onClose, pending, error }: { onSubmit: (e: For
 // (the "All notes" link above the note is hidden from lg, NoteArticle).
 export function NoteActionsBar() {
   const { back, mode, setMode, copied, copyLink, reportHref } = useActions();
-  const button = "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2 xl:min-w-0 xl:flex-row xl:gap-3 xl:px-3 xl:py-2 xl:text-[14px]";
+  const button =
+    "inline-flex min-w-16 flex-col items-center gap-0.5 rounded-xl px-3 py-1.5 text-[11px] hover:bg-surface-2 xl:min-w-0 xl:flex-row xl:gap-3 xl:px-3 xl:py-2 xl:text-[14px]";
   return (
     <nav
       aria-label="Note actions"
       className="flex items-center justify-around bg-surface max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:border-t max-lg:border-rule max-lg:px-[max(0.75rem,env(safe-area-inset-left),env(safe-area-inset-right))] max-lg:pt-1.5 max-lg:pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:justify-start lg:gap-2 lg:rounded-2xl lg:border lg:border-rule lg:p-1.5 lg:shadow-card xl:flex-col xl:items-stretch xl:gap-0.5 xl:p-2"
     >
       <p className={`${sectionLabel} hidden px-3 pb-1 pt-1.5 xl:block`}>This note</p>
-      <button type="button" aria-pressed={mode === "edit"} onClick={() => setMode(mode === "edit" ? null : "edit")} className={`${button} ${mode === "edit" ? "text-carbon" : ""}`}>
+      <button
+        type="button"
+        aria-pressed={mode === "edit"}
+        onClick={() => setMode(mode === "edit" ? null : "edit")}
+        className={`${button} ${mode === "edit" ? "text-carbon" : ""}`}
+      >
         <EditIcon aria-hidden className="h-5 w-5" />
         Edit
       </button>

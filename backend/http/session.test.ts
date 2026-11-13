@@ -80,7 +80,9 @@ test("a wrong password logs a warning without password or address; the too-many-
 
 test("a wrong password bearer is a debug line", async () => {
   const h = new Headers({ host: "localhost:3000", authorization: "Bearer nope-secret" });
-  expect(await logsOf(() => expect(() => authorize(h, "ip")).toThrow(AuthError))).toEqual([{ level: "debug", component: "auth", msg: "password bearer refused" }]);
+  expect(await logsOf(() => expect(() => authorize(h, "ip")).toThrow(AuthError))).toEqual([
+    { level: "debug", component: "auth", msg: "password bearer refused" },
+  ]);
   expect(await logsOf(() => expect(() => authorize(h, "ip")).toThrow(AuthError), "info")).toEqual([]);
 });
 
@@ -164,7 +166,11 @@ describe("identity session", () => {
 
   test("a tampered, expired or wrong-kind cookie is refused", () => {
     const t = sign("identity", { sender: "Ann" });
-    for (const bad of [t.slice(0, -2) + (t.endsWith("AA") ? "BB" : "AA"), sign("identity", { sender: "Ann" }, Date.now() - 8 * 86400_000), sign("access", { aud: "x", sender: "Ann" })]) {
+    for (const bad of [
+      t.slice(0, -2) + (t.endsWith("AA") ? "BB" : "AA"),
+      sign("identity", { sender: "Ann" }, Date.now() - 8 * 86400_000),
+      sign("access", { aud: "x", sender: "Ann" }),
+    ]) {
       expect(ok({ ...SAME, cookie: `${IDENTITY_COOKIE}=${bad}` })).toBe(false);
       expect(sender(new Headers({ ...SAME, cookie: `${IDENTITY_COOKIE}=${bad}` }))).toBeUndefined();
     }

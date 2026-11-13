@@ -10,10 +10,30 @@ import type { Note } from "@/backend";
 // and the right column start level, as on the feed's page.
 // `backAside`: from xl the way back is a card in the right column (components/BackToFeed.tsx, #307), not above the note.
 // `link`: the pages of the feed's attachments, which the note's attachments link to (shared/notekinds.ts).
-export function NoteArticle({ note, back, imageBase, report, backInBar = false, backAside = false, link }: { note: Note; back: string; imageBase?: string; report?: Report; backInBar?: boolean; backAside?: boolean; link?: (src: string) => string | undefined }) {
+export function NoteArticle({
+  note,
+  back,
+  imageBase,
+  report,
+  backInBar = false,
+  backAside = false,
+  link,
+}: {
+  note: Note;
+  back: string;
+  imageBase?: string;
+  report?: Report;
+  backInBar?: boolean;
+  backAside?: boolean;
+  link?: (src: string) => string | undefined;
+}) {
   return (
     <>
-      <Link href={back} aria-label="Back to all notes" className={`-ml-2 mb-3 h-7 items-center gap-1 rounded-full px-2 text-sm text-carbon hover:bg-surface-2 ${backInBar ? "inline-flex lg:hidden" : backAside ? "inline-flex xl:hidden" : "inline-flex"}`}>
+      <Link
+        href={back}
+        aria-label="Back to all notes"
+        className={`-ml-2 mb-3 h-7 items-center gap-1 rounded-full px-2 text-sm text-carbon hover:bg-surface-2 ${backInBar ? "inline-flex lg:hidden" : backAside ? "inline-flex xl:hidden" : "inline-flex"}`}
+      >
         <BackIcon aria-hidden className="h-4 w-4" />
         All notes
       </Link>
