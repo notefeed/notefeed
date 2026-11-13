@@ -119,12 +119,17 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       } else if (id === "detect.text") out[uuid] = asText(arg(p.WFInput));
       else if (id === "detect.link") {
         const v = arg(p.WFInput);
-        out[uuid] = isPage(v) ? [v.url] : isPicture(v) ? [] : (asText(v).match(/https?:\/\/\S+/g) ?? []);
+        out[uuid] = isPage(v) || isPicture(v) ? [] : (asText(v).match(/https?:\/\/\S+/g) ?? []); // as on iOS: none in a page
       } else if (id === "getitemtype") {
         const v = arg(p.WFInput);
         out[uuid] = isPicture(v) ? "Bild" : isPage(v) ? "Safari-Webseite" : "Text"; // in the phone's language
       } else if (id === "getmarkdownfromrichtext") out[uuid] = asText(arg(p.WFInput)); // the stand-in's rich text has no formatting
-      else if (id === "properties.safariwebpage") throw new Error("Get Details of Safari Web Page stops the Shortcut on anything else");
+      else if (id === "properties.safariwebpage") {
+        // As on iOS: a page gives its address; anything else stops the whole Shortcut.
+        const v = arg(p.WFInput);
+        if (!isPage(v)) throw new Error("Get Details of Safari Web Page stopped the Shortcut: not a page");
+        out[uuid] = v.url;
+      }
       else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
       else if (id === "image.convert") {
         const v = arg(p.WFInput);
@@ -145,8 +150,7 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
     }
   };
   await run(0, actions.length);
-  // The temporary debug alerts (#334) are no answer.
-  return { opened, shown: shown.filter((m) => !m.startsWith("Debug, ")), debug: shown.filter((m) => m.startsWith("Debug, ")) };
+  return { opened, shown };
 }
 
 function fail(condition: unknown): never {

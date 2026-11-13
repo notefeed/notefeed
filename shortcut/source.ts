@@ -51,6 +51,8 @@ const ITEM_LINKS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A524";
 const IS_PAGE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A525";
 const MARKDOWN = "6E0F3A1C-2B4D-4C5E-8F60-71829304A526";
 const ITEM_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A527";
+const IS_SAFARI = "6E0F3A1C-2B4D-4C5E-8F60-71829304A528";
+const PAGE_URL = "6E0F3A1C-2B4D-4C5E-8F60-71829304A529";
 // Pictures holds ![](file) for each picture stored, Texts the text items, Problems a line for each picture refused.
 const PICTURES = "Pictures";
 const TEXTS = "Texts";
@@ -82,8 +84,14 @@ const action = (id: string, params: Record<string, unknown>) => ({ WFWorkflowAct
 const ifHasValue = (group: string, a: Attachment) =>
   action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 100, WFInput: { Type: "Variable", Variable: value(a) } });
 /** "If `a` contains `b`" (condition 99) and "If `a` is `b`" (4), as text. */
-const ifText = (condition: 4 | 99, group: string, a: Attachment, b: Attachment) =>
-  action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: condition, WFInput: { Type: "Variable", Variable: value(a) }, WFConditionalActionString: text("￼", b) });
+const ifText = (condition: 4 | 99, group: string, a: Attachment, b: Attachment | string) =>
+  action("conditional", {
+    GroupingIdentifier: group,
+    WFControlFlowMode: 0,
+    WFCondition: condition,
+    WFInput: { Type: "Variable", Variable: value(a) },
+    WFConditionalActionString: typeof b === "string" ? b : text("￼", b),
+  });
 const otherwise = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 1 });
 const endIf = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 2 });
 
@@ -211,13 +219,16 @@ export function shortcutPlist(): Record<string, unknown> {
       ifText(4, IS_TEXT, output(ITEM_TYPE, "Type"), output(TEXT_TYPE, "Type")),
       ...textItem(0),
       otherwise(IS_TEXT),
-      // Not text: a page from Safari or a link is its address (a page's pictures and text are the page's, not the sharer's). Read
-      // with "Get URLs from Input", which gives nothing for a photo: "Get Details of Safari Web Page" stops the whole Shortcut
-      // on anything that isn't a page.
+      // A page from Safari is its address (its pictures and text are the page's, not the sharer's). "Get URLs from Input" finds
+      // none in a page, and "Get Details of Safari Web Page" stops the whole Shortcut on anything that isn't one: so it runs only
+      // on an item whose type names Safari ("Safari-Webseite", "Safari web page": the brand stays in every language).
+      ifText(99, IS_SAFARI, output(ITEM_TYPE, "Type"), "Safari"),
+      action("properties.safariwebpage", { UUID: PAGE_URL, WFInput: value(variable("Repeat Item")), WFContentItemPropertyName: "Page URL" }),
+      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(PAGE_URL, "Page URL")) }),
+      otherwise(IS_SAFARI),
+      // A link is its address; "Get URLs from Input" gives nothing for a photo.
       action("detect.link", { UUID: ITEM_LINKS, WFInput: value(variable("Repeat Item")) }),
       action("getitemfromlist", { UUID: ITEM_LINK, WFInput: value(output(ITEM_LINKS, "URLs")), WFItemSpecifier: "First Item" }),
-      // TEMPORARY (#334): what an item that isn't text is, and the address found in it.
-      action("showresult", { Text: text("Debug, item: type [￼] link [￼]", output(ITEM_TYPE, "Type"), output(ITEM_LINK, "Item from List")) }),
       ifHasValue(IS_PAGE, output(ITEM_LINK, "Item from List")),
       action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(ITEM_LINK, "Item from List")) }),
       otherwise(IS_PAGE),
@@ -239,6 +250,7 @@ export function shortcutPlist(): Record<string, unknown> {
       ...textItem(1),
       endIf(IS_PICTURE),
       endIf(IS_PAGE),
+      endIf(IS_SAFARI),
       endIf(IS_TEXT),
       action("repeat.each", { GroupingIdentifier: EACH, WFControlFlowMode: 2 }),
       // The note: the text, then the pictures that arrived, without the blank lines an empty part leaves.
