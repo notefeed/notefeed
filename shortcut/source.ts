@@ -43,6 +43,9 @@ const LINKS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51C";
 const FIRST_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51D";
 const HAS_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51E";
 const TEXT_HAS_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51F";
+const DEBUG_TYPE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A520";
+const DEBUG_EXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A521";
+const DEBUG_TEXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A522";
 // Pictures holds ![](file) for each picture stored, Texts the text items, Problems a line for each picture refused.
 const PICTURES = "Pictures";
 const TEXTS = "Texts";
@@ -168,6 +171,13 @@ export function shortcutPlist(): Record<string, unknown> {
       // stored, it goes into Pictures as ![](file), refused, into Problems with the server's reason. Anything else is text (a link
       // becomes its address; a picture's text would be its file name, so pictures give none).
       action("repeat.each", { UUID: EACH, GroupingIdentifier: EACH, WFControlFlowMode: 0, WFInput: value({ Type: "ExtensionInput" }) }),
+      // TEMPORARY (#334): what each shared item is, to tell a photo from a note shared from Notes or a page from Safari.
+      action("getitemtype", { UUID: DEBUG_TYPE, WFInput: value(variable("Repeat Item")) }),
+      action("properties.files", { UUID: DEBUG_EXT, WFFolder: value(variable("Repeat Item")), WFContentItemPropertyName: "File Extension" }),
+      action("detect.text", { UUID: DEBUG_TEXT, WFInput: value(variable("Repeat Item")) }),
+      action("showresult", {
+        Text: text("Debug, item: type [￼] extension [￼] text [￼]", output(DEBUG_TYPE, "Type"), output(DEBUG_EXT, "File Extension"), output(DEBUG_TEXT, "Text")),
+      }),
       action("detect.images", { UUID: IMAGES, WFInput: value(variable("Repeat Item")) }),
       ifHasValue(IS_PICTURE, output(IMAGES, "Images")),
       action("image.convert", { UUID: JPEG, WFInput: value(output(IMAGES, "Images")), WFImageFormat: "JPEG", WFImagePreserveMetadata: false }),

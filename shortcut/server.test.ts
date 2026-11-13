@@ -109,7 +109,11 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       else if (id === "detect.link") {
         const v = arg(p.WFInput);
         out[uuid] = isPage(v) ? [v.url] : (asText(v).match(/https?:\/\/\S+/g) ?? []);
-      } else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
+      } else if (id === "getitemtype") {
+        const v = arg(p.WFInput);
+        out[uuid] = isPicture(v) ? "Image" : isPage(v) ? "Safari web page" : "Text";
+      } else if (id === "properties.files") out[uuid] = isPicture(arg(p.WFFolder)) ? "jpeg" : "";
+      else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
       else if (id === "image.convert") {
         const v = arg(p.WFInput);
         out[uuid] = Array.isArray(v) ? v[0] : v;
@@ -129,7 +133,8 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
     }
   };
   await run(0, actions.length);
-  return { opened, shown };
+  // The temporary debug alerts (#334) are no answer.
+  return { opened, shown: shown.filter((m) => !m.startsWith("Debug, ")), debug: shown.filter((m) => m.startsWith("Debug, ")) };
 }
 
 function fail(condition: unknown): never {
@@ -182,6 +187,11 @@ test("a page shared from Safari is its address, not the page's text; a text with
   expect((await notes())[0].content).toBe("https://notefeed.me/debug");
   await share(["Read this: https://example.com/a and https://example.com/b"]);
   expect((await notes())[0].content).toBe("Read this: https://example.com/a and https://example.com/b");
+});
+
+test("the temporary debug alert names each item's type, extension and text", async () => {
+  const { debug } = await share([photo("IMG_0001"), "Hi"]);
+  expect(debug).toEqual(["Debug, item: type [Image] extension [jpeg] text [IMG_0001]", "Debug, item: type [Text] extension [] text [Hi]"]);
 });
 
 test("a link alone is a note of its own; nothing shared says so", async () => {
