@@ -201,6 +201,11 @@ export const FeedJson = z
     atom_url: z.url().nullable().describe("The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"),
     image_url: IMAGE_URL,
     show_sender: z.boolean().describe("Whether readers see who posted each note"),
+    shortcut_url: z
+      .url()
+      .describe(
+        "The iPhone Shortcut \"Send to notefeed\": opened on an iPhone, it adds notefeed to the share sheet; at setup it asks for the server's address, this feed's name, its password and, optional, the server password",
+      ),
     free_tier: FreeTierJson.nullable().describe(
       "A feed without a license on an instance that sells them: its notes against the free tier's cap. null when no cap applies (a licensed feed, or an instance that sells no licenses)",
     ),

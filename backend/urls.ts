@@ -21,6 +21,8 @@ export const readPath = (readId: string) => `/r/${readId}`;
 export const imagePath = (readId: string, file: string) => `${readPath(readId)}/${file}`;
 export const rssPath = (readId: string) => `${readPath(readId)}/feed.xml`;
 export const atomPath = (readId: string) => `${readPath(readId)}/atom.xml`;
+/** The iPhone Shortcut (#334), served from public/shortcuts/. iOS names it after the file: "Send to notefeed" in the share sheet. */
+export const SHORTCUT_PATH = "/shortcuts/Send%20to%20notefeed.shortcut";
 
 // Where to go after login: a same-origin path, else "/". A second "/" or any "\" would make it
 // protocol-relative (browsers read "\" as "/"), and browsers drop tabs and newlines, so "/\t/x" is "//x".

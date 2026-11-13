@@ -15,7 +15,7 @@ import { FeedAbout } from "@/components/FeedAbout";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { DisclosureRow, Row } from "@/components/SettingsRows";
 import { iconButton } from "@/components/styles";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, locked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath, atomPath } from "@/backend";
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, locked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath, atomPath, SHORTCUT_PATH } from "@/backend";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Feed settings" };
@@ -114,7 +114,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
               <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
                 <li>
                   On the iPhone, open this page in Safari and tap{" "}
-                  <a href="/shortcuts/Send%20to%20notefeed.shortcut" download="Send to notefeed.shortcut" className="text-carbon underline">
+                  <a href={SHORTCUT_PATH} download="Send to notefeed.shortcut" className="text-carbon underline">
                     Download the Shortcut
                   </a>
                   . Confirm with <strong className="text-ink">Download</strong>.

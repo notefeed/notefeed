@@ -27,6 +27,9 @@ class Feed:
         atom_url (None | str): The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
         image_url (None | str): The feed's title image (absolute URL, served under the read id), or null
         show_sender (bool): Whether readers see who posted each note
+        shortcut_url (str): The iPhone Shortcut "Send to notefeed": opened on an iPhone, it adds notefeed to the share
+            sheet; at setup it asks for the server's address, this feed's name, its password and, optional, the server
+            password
         free_tier (FreeTier | None): A feed without a license on an instance that sells them: its notes against the free
             tier's cap. null when no cap applies (a licensed feed, or an instance that sells no licenses)
     """
@@ -39,6 +42,7 @@ class Feed:
     atom_url: None | str
     image_url: None | str
     show_sender: bool
+    shortcut_url: str
     free_tier: FreeTier | None
 
     def to_dict(self) -> dict[str, Any]:
@@ -63,6 +67,8 @@ class Feed:
 
         show_sender = self.show_sender
 
+        shortcut_url = self.shortcut_url
+
         free_tier: dict[str, Any] | None
         if isinstance(self.free_tier, FreeTier):
             free_tier = self.free_tier.to_dict()
@@ -81,6 +87,7 @@ class Feed:
                 "atom_url": atom_url,
                 "image_url": image_url,
                 "show_sender": show_sender,
+                "shortcut_url": shortcut_url,
                 "free_tier": free_tier,
             }
         )
@@ -123,6 +130,8 @@ class Feed:
 
         show_sender = d.pop("show_sender")
 
+        shortcut_url = d.pop("shortcut_url")
+
         def _parse_free_tier(data: object) -> FreeTier | None:
             if data is None:
                 return data
@@ -147,6 +156,7 @@ class Feed:
             atom_url=atom_url,
             image_url=image_url,
             show_sender=show_sender,
+            shortcut_url=shortcut_url,
             free_tier=free_tier,
         )
 

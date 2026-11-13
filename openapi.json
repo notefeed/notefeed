@@ -3695,6 +3695,11 @@
             "type": "boolean",
             "description": "Whether readers see who posted each note"
           },
+          "shortcut_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The iPhone Shortcut \"Send to notefeed\": opened on an iPhone, it adds notefeed to the share sheet; at setup it asks for the server's address, this feed's name, its password and, optional, the server password"
+          },
           "free_tier": {
             "anyOf": [
               {
@@ -3716,6 +3721,7 @@
           "atom_url",
           "image_url",
           "show_sender",
+          "shortcut_url",
           "free_tier"
         ],
         "additionalProperties": false

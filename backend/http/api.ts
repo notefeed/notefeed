@@ -13,7 +13,7 @@ import { freeTier, licenseAccountUrl, licensePlans } from "../licensing";
 import { MANAGE_PURCHASES } from "../../shared/plans";
 import { PASSWORD_RULE } from "../../shared/password";
 import { TAG_RULE } from "../tags";
-import { API_PREFIX, atomPath, feedPath, imagePath, publicUrl, readPath, rssPath } from "../urls";
+import { API_PREFIX, atomPath, feedPath, imagePath, publicUrl, readPath, rssPath, SHORTCUT_PATH } from "../urls";
 import { MEDIA_TYPES } from "../note/media";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
 import { MAX_ATTACHMENTS, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
@@ -166,6 +166,7 @@ export async function feedJson(feed: string, headers: Headers): Promise<z.infer<
     atom_url: readId && publicUrl(headers) + atomPath(readId),
     image_url: readId && image ? publicUrl(headers) + imagePath(readId, image) : null,
     show_sender: showSender,
+    shortcut_url: publicUrl(headers) + SHORTCUT_PATH,
     free_tier: await freeTier(feed),
   };
 }

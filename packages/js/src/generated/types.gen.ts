@@ -389,6 +389,10 @@ export type Feed = {
      */
     show_sender: boolean;
     /**
+     * The iPhone Shortcut "Send to notefeed": opened on an iPhone, it adds notefeed to the share sheet; at setup it asks for the server's address, this feed's name, its password and, optional, the server password
+     */
+    shortcut_url: string;
+    /**
      * A feed without a license on an instance that sells them: its notes against the free tier's cap. null when no cap applies (a licensed feed, or an instance that sells no licenses)
      */
     free_tier: FreeTier | null;
