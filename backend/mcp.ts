@@ -15,6 +15,7 @@ import { runningVersion } from "./version";
 import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
 import { logger } from "./log";
+import * as next from "./mcpguidance";
 import { checkLine, getNote, isDraft, isScheduled, listNotes, MAX_NOTE_TITLE, refuseRemovedNote, type Note } from "./notes";
 import { verify } from "./oauth/tokens";
 import { MAX_REQUEST_BYTES } from "../shared/images";
@@ -76,6 +77,12 @@ const NoteSummary = z.object({
 });
 const NoteFull = NoteSummary.extend({ content: z.string().optional() }); // the text of a text type; a picture has none
 
+// What to tell the user or do next, worked out from what the call did (#357): in every tool's result, where a client that drops
+// the tool descriptions still sees it.
+const GUIDANCE = z.string().describe("What to tell the user or do next, worked out from what this call did");
+const NoteOut = NoteFull.extend({ guidance: GUIDANCE });
+const Deleted = z.object({ deleted: z.literal(true), guidance: GUIDANCE });
+
 // A tool result: the body as structured content and, for clients that only read text, as JSON text.
 const ok = <T extends object>(body: T) => ({ structuredContent: body, content: [{ type: "text" as const, text: JSON.stringify(body) }] });
 
@@ -115,6 +122,8 @@ function server(h: Headers): McpServer {
     assertFeed(feed);
     await checkFeedAccess(feed, { password }, clientIp(h));
   };
+  const state = (n: Note) => ({ draft: isDraft(n), scheduled: isScheduled(n), date: n.date.toISOString() });
+  const feedGuidance = (f: z.infer<typeof FeedJson>) => ({ readUrl: f.read_url, protected: f.protected, freeTier: f.free_tier });
   const s = new McpServer({ name: "notefeed", version: runningVersion().version }); // the instance's version (#306)
 
   // One file as a note: the type must be accepted and the bytes must be what it says (postNote checks that); a picture is size-limited.
@@ -207,6 +216,7 @@ function server(h: Headers): McpServer {
         atom_url: z.string().nullable(),
         draft: DRAFT_OUT,
         attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })),
+        guidance: GUIDANCE,
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
@@ -219,6 +229,7 @@ function server(h: Headers): McpServer {
           throw new InvalidBodyError(`attachment "${safeName(a.name)}": data is not valid base64`);
         return { name: a.name, body, mediaType: a.type, alt: a.alt };
       });
+      const existed = await hasFeed(feed); // only for the guidance: whether this post created the feed
       const {
         note,
         readId,
@@ -231,14 +242,17 @@ function server(h: Headers): McpServer {
         sender(h),
       );
       const feedUrl = base + feedPath(feed);
+      const url = `${feedUrl}/${note.id}`;
+      const readUrl = readId && base + rssPath(readId);
       return ok({
         id: note.id,
-        url: `${feedUrl}/${note.id}`,
+        url,
         feed_url: feedUrl,
-        read_url: readId && base + rssPath(readId),
+        read_url: readUrl,
         atom_url: readId && base + atomPath(readId),
         ...(note.draft && { draft: true as const }),
         attachments: stored.map((p) => ({ id: p.id, file: p.file, url: fileUrl(readId, p.file) })),
+        guidance: next.afterPost({ ...state(note), url, readUrl, created: !existed, attachments: stored.length }),
       });
     }),
   );
@@ -254,14 +268,21 @@ function server(h: Headers): McpServer {
         tag: z.string().optional().describe("Only notes carrying this tag"),
         password,
       }),
-      outputSchema: z.object({ notes: z.array(NoteSummary), next: z.string().nullable() }),
+      outputSchema: z.object({ notes: z.array(NoteSummary), next: z.string().nullable(), guidance: GUIDANCE }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, limit, before, tag, password }) => {
       await checkAccess(feed, password);
       const found = await listNotes(feed, limit + 1, before, tag?.toLowerCase(), undefined, true); // one extra: is there a next page?
       const shown = found.slice(0, limit);
-      return ok({ notes: shown.map((n) => summary(feed, n)), next: found.length > limit ? shown[shown.length - 1].id : null });
+      const nextId = found.length > limit ? shown[shown.length - 1].id : null;
+      const guidance = next.afterList({
+        next: nextId,
+        drafts: shown.filter((n) => isDraft(n)).length,
+        scheduled: shown.filter((n) => isScheduled(n)).length,
+        shown: shown.length,
+      });
+      return ok({ notes: shown.map((n) => summary(feed, n)), next: nextId, guidance });
     }),
   );
 
@@ -278,7 +299,7 @@ function server(h: Headers): McpServer {
           .describe("true: a picture note's image comes along as an image, so a draft's pictures can be checked before it goes out. Ignored for a text note"),
         password,
       }),
-      outputSchema: NoteFull,
+      outputSchema: NoteOut,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, id, picture, password }) => {
@@ -286,7 +307,7 @@ function server(h: Headers): McpServer {
       await refuseRemovedNote(feed, id);
       const note = await getNote(feed, id);
       if (!note) throw new NotFoundError("no such note");
-      const result = ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }) });
+      const result = ok({ ...summary(feed, note), ...(note.content !== undefined && { content: note.content }), guidance: next.afterGetNote(state(note)) });
       if (!picture || !note.type.startsWith("image/")) return result;
       // The owner's view of the file (#349): drafts and scheduled notes too.
       const file = await ownerFile(feed, note.file, null, "throw");
@@ -323,7 +344,7 @@ function server(h: Headers): McpServer {
           ),
         password,
       }),
-      outputSchema: NoteFull,
+      outputSchema: NoteOut,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
     guard(async ({ feed, id, markdown, title, tags, date, draft, password }) => {
@@ -338,7 +359,8 @@ function server(h: Headers): McpServer {
           : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), { password });
       if (title !== undefined || tags !== undefined || date !== undefined || draft !== undefined)
         note = await editMeta(feed, id, clientIp(h), async () => ({ title, tags, date, draft }), { password });
-      return ok({ ...summary(feed, note!), ...(note!.content !== undefined && { content: note!.content }) });
+      const edited = summary(feed, note!);
+      return ok({ ...edited, ...(note!.content !== undefined && { content: note!.content }), guidance: next.afterEdit({ ...state(note!), url: edited.url }) });
     }),
   );
 
@@ -347,12 +369,12 @@ function server(h: Headers): McpServer {
     {
       description: `Permanently delete a note. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, id: z.string(), password }),
-      outputSchema: z.object({ deleted: z.literal(true) }),
+      outputSchema: Deleted,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, id, password }) => {
       await deleteNote(feed, id, clientIp(h), { password });
-      return ok({ deleted: true as const });
+      return ok({ deleted: true as const, guidance: next.afterDeleteNote() });
     }),
   );
 
@@ -364,6 +386,7 @@ function server(h: Headers): McpServer {
       .object(FreeTierJson.shape)
       .nullable()
       .describe(FeedJson.shape.free_tier.description ?? ""),
+    guidance: GUIDANCE,
   });
 
   s.registerTool(
@@ -377,7 +400,8 @@ function server(h: Headers): McpServer {
     guard(async ({ feed, password }) => {
       await checkAccess(feed, password);
       if (!(await hasFeed(feed))) throw new NotFoundError("no such feed");
-      return ok(await feedJson(feed, h));
+      const f = await feedJson(feed, h);
+      return ok({ ...f, guidance: next.afterFeed(feedGuidance(f)) });
     }),
   );
 
@@ -387,10 +411,13 @@ function server(h: Headers): McpServer {
       description:
         "Only on an instance that sells licenses. What a license costs (plans, amounts in cents), where a person buys one (buy_url, the license page: the key comes after paying) and where buyers manage their purchases: cancelling, the payment method, invoices and their keys are at the payment provider (manage_url), signed in with the e-mail address they bought with. No license key opens that page. A key goes on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.",
       inputSchema: z.object({}),
-      outputSchema: z.object(LicensesJson.shape),
+      outputSchema: z.object({ ...LicensesJson.shape, guidance: GUIDANCE }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     },
-    guard(async () => ok(await licensesJson(h))),
+    guard(async () => {
+      const l = await licensesJson(h);
+      return ok({ ...l, guidance: next.afterLicenses(l) });
+    }),
   );
 
   s.registerTool(
@@ -424,6 +451,7 @@ function server(h: Headers): McpServer {
       if (!settings && license_key === undefined && new_password === undefined)
         throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, license_key, new_password or several");
       const ip = clientIp(h);
+      const readIdBefore = read_id === undefined ? undefined : (await feedJson(feed, h).catch(() => undefined))?.read_url;
       // First, so a key that is refused changes nothing else (#247); the license may be what the new password needs.
       if (license_key !== undefined) await setLicense(feed, ip, license_key.trim() === "" ? null : license_key, { password });
       if (new_password !== undefined) {
@@ -446,7 +474,15 @@ function server(h: Headers): McpServer {
           )
         ).feed;
       }
-      return ok(await feedJson(now, h));
+      const f = await feedJson(now, h);
+      const guidance = next.afterUpdate({
+        ...feedGuidance(f),
+        name: now !== feed ? now : undefined,
+        readIdChanged: read_id !== undefined && f.read_url !== readIdBefore,
+        newPassword: new_password !== undefined,
+        license: license_key === undefined ? undefined : license_key.trim() === "" ? "off" : "on",
+      });
+      return ok({ ...f, guidance });
     }),
   );
 
@@ -468,7 +504,8 @@ function server(h: Headers): McpServer {
     },
     guard(async ({ feed, password, license_key, read_id }) => {
       await createFeed(feed, clientIp(h), { password, licenseKey: license_key, readId: read_id });
-      return ok(await feedJson(feed, h));
+      const f = await feedJson(feed, h);
+      return ok({ ...f, guidance: next.afterCreate(feedGuidance(f)) });
     }),
   );
 
@@ -490,7 +527,7 @@ function server(h: Headers): McpServer {
     guard(async ({ feed, license_key, new_password }) => {
       assertFeed(feed); // a reserved name must not reach the lookup
       await recoverPassword(feed, license_key.trim(), new_password ?? "", clientIp(h));
-      return ok(await feedJson(feed, h));
+      return ok({ ...(await feedJson(feed, h)), guidance: next.afterRecover(!new_password) });
     }),
   );
 
@@ -509,7 +546,7 @@ function server(h: Headers): McpServer {
       if (body.length > config.maxImageBytes()) throw new ImageTooLargeError();
       if (!body.length) throw new UnsupportedTypeError("data is empty");
       await setFeedImage(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType }), { password });
-      return ok(await feedJson(feed, h));
+      return ok({ ...(await feedJson(feed, h)), guidance: next.afterSetImage() });
     }),
   );
 
@@ -518,12 +555,12 @@ function server(h: Headers): McpServer {
     {
       description: `Permanently delete a feed with all its notes, settings, password and read link. There is no undo. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({ feed, password }),
-      outputSchema: z.object({ deleted: z.literal(true) }),
+      outputSchema: Deleted,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, password }) => {
       await deleteFeed(feed, clientIp(h), { password });
-      return ok({ deleted: true as const });
+      return ok({ deleted: true as const, guidance: next.afterDeleteFeed() });
     }),
   );
 
@@ -547,12 +584,13 @@ function server(h: Headers): McpServer {
         draft: DRAFT_POST,
         password,
       }),
-      outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string(), draft: DRAFT_OUT }),
+      outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string(), draft: DRAFT_OUT, guidance: GUIDANCE }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, type, data, title, alt, name, draft, password }) => {
       const { note, readId } = await postBytes(feed, { type, data, title, alt, name, draft }, password);
-      return ok({ id: note.id, file: note.file, url: fileUrl(readId, note.file), ...(note.draft && { draft: true as const }) });
+      const url = fileUrl(readId, note.file);
+      return ok({ id: note.id, file: note.file, url, ...(note.draft && { draft: true as const }), guidance: next.afterPostFile({ ...state(note), url }) });
     }),
   );
   return s;

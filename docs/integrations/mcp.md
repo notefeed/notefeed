@@ -16,6 +16,8 @@ notefeed has an [MCP](https://modelcontextprotocol.io) endpoint at `/mcp`, so AI
 | `get_licenses` | On notefeed.me: what a license costs, the license page to buy one (`buy_url`), and where buyers manage their purchases (`manage_url`): cancelling, the payment method, invoices and keys are at the payment provider, signed in with the e-mail address bought with. No license key opens it. |
 | `post_file` | Posts a file as a note, as base64: `feed`, `type` (markdown or a picture type) and `data`, optionally `title`, `alt` and `name`. |
 
+Every tool's answer carries `guidance`, a sentence or two on what to tell you or do next, worked out from what the call did: that a post is a draft and how to publish it, that a renamed feed's old name must change in scripts, that an old read link stops working. The assistant sees it even when its client leaves out the tool descriptions.
+
 The tools follow the same rules as the [API](../using/posting.md): size limit, rate limit, caps, and the first post creates the feed (or `create_feed`, without a note). Anyone who can post to a feed can use every tool on it, and a deleted note cannot be brought back, so think before giving an assistant a feed it should only add to. The endpoint speaks MCP 2026-07-28 and nothing older.
 
 ## Claude Code
