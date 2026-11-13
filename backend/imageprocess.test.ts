@@ -7,7 +7,14 @@ import { GIF, JPG, PNG, WEBP } from "./testimages";
 const sharp = loadSharp();
 const meta = (b: Uint8Array) => sharp(Buffer.from(b), { animated: true }).metadata();
 const solid = (width: number, height: number, alpha = 1) => sharp({ create: { width, height, channels: 4, background: { r: 40, g: 90, b: 160, alpha } } });
-const frames = () => Promise.all(["#f00", "#0f0", "#00f"].map((c) => sharp({ create: { width: 40, height: 30, channels: 4, background: c } }).png().toBuffer()));
+const frames = () =>
+  Promise.all(
+    ["#f00", "#0f0", "#00f"].map((c) =>
+      sharp({ create: { width: 40, height: 30, channels: 4, background: c } })
+        .png()
+        .toBuffer(),
+    ),
+  );
 
 test("sharp runs as WebAssembly, the build production ships, not native libvips", () => {
   expect(sharpBuild()).toBe("wasm");
@@ -15,7 +22,11 @@ test("sharp runs as WebAssembly, the build production ships, not native libvips"
 
 describe("processImage", () => {
   test("a phone photo comes out upright, at most 2560 px, without EXIF or GPS", async () => {
-    const photo = await solid(3000, 2000).withMetadata({ orientation: 6 }).withExif({ IFD0: { Make: "Phone" }, IFD3: { GPSLatitudeRef: "N", GPSLatitude: "48/1 8/1 0/1" } }).jpeg().toBuffer();
+    const photo = await solid(3000, 2000)
+      .withMetadata({ orientation: 6 })
+      .withExif({ IFD0: { Make: "Phone" }, IFD3: { GPSLatitudeRef: "N", GPSLatitude: "48/1 8/1 0/1" } })
+      .jpeg()
+      .toBuffer();
     expect((await meta(photo)).exif).toBeDefined();
     const m = await meta(await processImage(new Uint8Array(photo), "jpg"));
     expect([m.format, m.width, m.height]).toEqual(["jpeg", 1707, MAX_EDGE]); // turned: 2000 × 3000, scaled to fit 2560
@@ -33,12 +44,19 @@ describe("processImage", () => {
   });
 
   test.each(["gif", "webp"] as const)("an animated %s keeps its frames, delays and loop", async (ext) => {
-    const anim = await sharp(await frames(), { join: { animated: true } })[ext]({ delay: [100, 200, 300], loop: 0 }).toBuffer();
+    const anim = await sharp(await frames(), { join: { animated: true } })
+      [ext]({ delay: [100, 200, 300], loop: 0 })
+      .toBuffer();
     const m = await meta(await processImage(new Uint8Array(anim), ext));
     expect([m.format, m.pages, m.delay, m.loop, m.pageHeight]).toEqual([ext, 3, [100, 200, 300], 0, 30]);
   });
 
-  test.each([["png", PNG], ["jpg", JPG], ["gif", GIF], ["webp", WEBP]] as const)("the %s fixture is processed in its own format", async (ext, bytes) => {
+  test.each([
+    ["png", PNG],
+    ["jpg", JPG],
+    ["gif", GIF],
+    ["webp", WEBP],
+  ] as const)("the %s fixture is processed in its own format", async (ext, bytes) => {
     expect((await meta(await processImage(bytes, ext))).format).toBe(ext === "jpg" ? "jpeg" : ext);
   });
 
@@ -73,13 +91,20 @@ describe("processImage", () => {
     ihdr.writeUInt32BE(20000, 0);
     ihdr.writeUInt32BE(20000, 4);
     ihdr.set([8, 2, 0, 0, 0], 8); // 8 bits, RGB
-    const huge = new Uint8Array(Buffer.concat([PNG.slice(0, 8), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.alloc(100))), chunk("IEND", Buffer.alloc(0))]));
+    const huge = new Uint8Array(
+      Buffer.concat([PNG.slice(0, 8), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.alloc(100))), chunk("IEND", Buffer.alloc(0))]),
+    );
     await expect(processImage(huge, "png")).rejects.toThrow(new ImageTooLargeError("image exceeds 100 megapixels"));
   });
 
   test("two run at a time, eight wait, and the next is refused as busy", async () => {
     const big = new Uint8Array(await solid(4000, 3000).jpeg().toBuffer());
-    const all = Array.from({ length: 11 }, () => processImage(big, "jpg").then(() => "done", (e: unknown) => e));
+    const all = Array.from({ length: 11 }, () =>
+      processImage(big, "jpg").then(
+        () => "done",
+        (e: unknown) => e,
+      ),
+    );
     const results = await Promise.all(all);
     expect(results.filter((r) => r === "done")).toHaveLength(10);
     expect(results.filter((r) => r instanceof BusyError)).toHaveLength(1);

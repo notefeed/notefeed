@@ -2,7 +2,10 @@ import { expect, test } from "vitest";
 import { applyImages, placeImages, planImages } from "./imagePlan.mjs";
 
 test("placeImages swaps a referenced name and appends an unreferenced one", () => {
-  const sent = new Map([["a.png", "F1.png"], ["b.png", "F2.png"]]);
+  const sent = new Map([
+    ["a.png", "F1.png"],
+    ["b.png", "F2.png"],
+  ]);
   expect(placeImages("see ![x](a.png) and ![x](a.png)", sent)).toBe("see ![x](F1.png) and ![x](F1.png)\n\n![](F2.png)");
 });
 
@@ -11,7 +14,15 @@ test("placeImages keeps a leading BOM and still finds the references after it", 
 });
 
 test("placeImages with empty markdown is only the references, in order", () => {
-  expect(placeImages("", new Map([["a.png", "F1.png"], ["b.png", "F2.png"]]))).toBe("![](F1.png)\n\n![](F2.png)");
+  expect(
+    placeImages(
+      "",
+      new Map([
+        ["a.png", "F1.png"],
+        ["b.png", "F2.png"],
+      ]),
+    ),
+  ).toBe("![](F1.png)\n\n![](F2.png)");
 });
 
 test("placeImages leaves other destinations and a map-less call alone", () => {
@@ -36,7 +47,10 @@ test("placeImages matches angle-bracketed and percent-encoded destinations", () 
 });
 
 test("placeImages prefers an exact match over a decoded one", () => {
-  const sent = new Map([["a b.png", "F1.png"], ["a%20b.png", "F2.png"]]);
+  const sent = new Map([
+    ["a b.png", "F1.png"],
+    ["a%20b.png", "F2.png"],
+  ]);
   expect(placeImages("![](a%20b.png)", sent)).toBe("![](F2.png)\n\n![](F1.png)");
 });
 
@@ -76,13 +90,20 @@ test("placeImages leaves a malformed percent destination as written and appends 
 });
 
 test("placeImages swaps only the first definition of a label: a later one is dead, left as written, and its picture is appended", () => {
-  const sent = new Map([["a.png", "F1.png"], ["b.png", "F2.png"]]);
+  const sent = new Map([
+    ["a.png", "F1.png"],
+    ["b.png", "F2.png"],
+  ]);
   expect(placeImages("![chart][l]\n\n[l]: a.png\n[l]: b.png", sent)).toBe("![chart][l]\n\n[l]: F1.png\n[l]: b.png\n\n![](F2.png)");
   // a label is matched as markdown does: case and inner whitespace do not tell two apart
   expect(placeImages("![chart][l]\n\n[L]: a.png\n[l]: b.png", sent)).toBe("![chart][l]\n\n[L]: F1.png\n[l]: b.png\n\n![](F2.png)");
-  expect(placeImages("![chart][my  pic]\n\n[My Pic]: a.png\n[my pic]: b.png", sent)).toBe("![chart][my  pic]\n\n[My Pic]: F1.png\n[my pic]: b.png\n\n![](F2.png)");
+  expect(placeImages("![chart][my  pic]\n\n[My Pic]: a.png\n[my pic]: b.png", sent)).toBe(
+    "![chart][my  pic]\n\n[My Pic]: F1.png\n[my pic]: b.png\n\n![](F2.png)",
+  );
   // the first definition wins even when it names no attachment
-  expect(placeImages("![chart][l]\n\n[l]: https://x.test/c.png\n[l]: b.png", new Map([["b.png", "F2.png"]]))).toBe("![chart][l]\n\n[l]: https://x.test/c.png\n[l]: b.png\n\n![](F2.png)");
+  expect(placeImages("![chart][l]\n\n[l]: https://x.test/c.png\n[l]: b.png", new Map([["b.png", "F2.png"]]))).toBe(
+    "![chart][l]\n\n[l]: https://x.test/c.png\n[l]: b.png\n\n![](F2.png)",
+  );
   // two labels, one definition each: both swapped
   expect(placeImages("![x][l] ![y][m]\n\n[l]: a.png\n[m]: b.png", sent)).toBe("![x][l] ![y][m]\n\n[l]: F1.png\n[m]: F2.png");
 });
@@ -90,8 +111,26 @@ test("placeImages swaps only the first definition of a label: a later one is dea
 test("planImages parses once and applyImages can be applied for each set of file names", () => {
   const plan = planImages("\uFEFF![a](a.png) ![b](b.png)\n\n[x]: a.png", new Set(["a.png", "b.png", "c.png"]));
   expect(plan.unused).toEqual(["c.png"]);
-  expect(applyImages(plan, new Map([["a.png", "1.png"], ["b.png", "2.png"], ["c.png", "3.png"]]))).toBe("\uFEFF![a](1.png) ![b](2.png)\n\n[x]: 1.png\n\n![](3.png)");
-  expect(applyImages(plan, new Map([["a.png", "9.png"], ["b.png", "8.png"], ["c.png", "7.png"]]))).toBe("\uFEFF![a](9.png) ![b](8.png)\n\n[x]: 9.png\n\n![](7.png)");
+  expect(
+    applyImages(
+      plan,
+      new Map([
+        ["a.png", "1.png"],
+        ["b.png", "2.png"],
+        ["c.png", "3.png"],
+      ]),
+    ),
+  ).toBe("\uFEFF![a](1.png) ![b](2.png)\n\n[x]: 1.png\n\n![](3.png)");
+  expect(
+    applyImages(
+      plan,
+      new Map([
+        ["a.png", "9.png"],
+        ["b.png", "8.png"],
+        ["c.png", "7.png"],
+      ]),
+    ),
+  ).toBe("\uFEFF![a](9.png) ![b](8.png)\n\n[x]: 9.png\n\n![](7.png)");
 });
 
 test("placeImages finds the destination after an alt text with a ] inside a code span", () => {

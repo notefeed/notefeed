@@ -1,7 +1,4 @@
 // Drafts over REST (#265): X-Note-Draft on a post, `draft` in the PATCH body, `draft: true` on an owner's note; the read API never has one.
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
@@ -12,7 +9,6 @@ import { fileRoute, ownerFileRoute } from "./files";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-drafts-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();
@@ -83,7 +79,11 @@ test("getFile serves a draft's picture to its owner; the read link does not", as
   const res = await send("GET", `/feeds/f/files/${file}`, null, null);
   expect(res.status).toBe(200);
   expect(res.headers.get("content-type")).toBe("image/png");
-  expect(Buffer.from(await res.arrayBuffer()).subarray(1, 4).toString()).toBe("PNG");
+  expect(
+    Buffer.from(await res.arrayBuffer())
+      .subarray(1, 4)
+      .toString(),
+  ).toBe("PNG");
   const again = await send("GET", `/feeds/f/files/${file}`, null, null, { "if-none-match": res.headers.get("etag")! });
   expect(again.status).toBe(304);
   const readId = await readIdOf();

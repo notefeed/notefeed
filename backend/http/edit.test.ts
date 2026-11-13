@@ -1,5 +1,4 @@
-import { mkdtemp, readFile, readdir } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { encodeHeaderValue } from "../../shared/headers";
@@ -12,8 +11,7 @@ import { JPG, png } from "../testimages";
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-edit-"));
-  process.env.DATA_DIR = dir;
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();
@@ -31,7 +29,8 @@ function send(method: string, path: string, body: BodyInit | null, type: string 
 }
 const post = async (body: BodyInit, type: string, headers: Record<string, string> = {}) => (await send("POST", "/feeds/f/notes", body, type, headers)).json();
 const put = (id: string, body: BodyInit | null, type: string | null) => send("PUT", `/feeds/f/notes/${id}`, body, type);
-const patch = (id: string, body: unknown, type: string | null = "application/json") => send("PATCH", `/feeds/f/notes/${id}`, typeof body === "string" ? body : JSON.stringify(body), type);
+const patch = (id: string, body: unknown, type: string | null = "application/json") =>
+  send("PATCH", `/feeds/f/notes/${id}`, typeof body === "string" ? body : JSON.stringify(body), type);
 const get = async (id: string) => (await send("GET", `/feeds/f/notes/${id}`, null, null)).json();
 // The metadata in a note's sidecar; the note's date beside it and when it was last edited (`updated`, #324) are left out (toEqual
 // ignores an undefined field).
@@ -98,7 +97,10 @@ describe("PATCH changes metadata", () => {
   test("an empty title removes it, the title follows the text again, and the sidecar keeps only the date and when it changed", async () => {
     const made = await post("# Old", "text/markdown", { "x-note-title": "Set" });
     expect((await (await patch(made.id, { title: "" })).json()).title).toBe("Old");
-    expect(JSON.parse(await readFile(join(dir, "f", `.${made.file}.json`), "utf8"))).toEqual({ date: expect.any(Number), updated: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) });
+    expect(JSON.parse(await readFile(join(dir, "f", `.${made.file}.json`), "utf8"))).toEqual({
+      date: expect.any(Number),
+      updated: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+    });
   });
   test("title and alt on a picture", async () => {
     const made = await post(PNG as BodyInit, "image/png");
@@ -143,7 +145,7 @@ describe("PATCH changes the tags (#244)", () => {
     expect((await (await patch(md.id, { tags: [] })).json()).tags).toEqual([]);
     expect(await sidecar(md.file)).toEqual({});
     const png = await post(PNG as BodyInit, "image/png");
-    expect((await (await patch(png.id, { tags: ["pets"], alt: "a cat" })).json())).toMatchObject({ tags: ["pets"], alt: "a cat" });
+    expect(await (await patch(png.id, { tags: ["pets"], alt: "a cat" })).json()).toMatchObject({ tags: ["pets"], alt: "a cat" });
   });
   test("a bad tag, too many, or not a list of strings is 400 and changes nothing", async () => {
     const made = await post("# x", "text/markdown", { "x-note-tags": "keep" });
@@ -200,7 +202,15 @@ describe("multipart PUT: a markdown note's new text with its pictures", () => {
 
   test("200: the note with its new text and the pictures; the tags go on the pictures, the note keeps its own", async () => {
     const made = await post("# Old", "text/markdown", { "x-note-title": "Kept", "x-note-tags": "a" });
-    const res = await putForm(made.id, [["text", "# New ![](c.png)"], ["file", png("c.png")], ["alt.c.png", "C"]], { "x-note-tags": "pics" });
+    const res = await putForm(
+      made.id,
+      [
+        ["text", "# New ![](c.png)"],
+        ["file", png("c.png")],
+        ["alt.c.png", "C"],
+      ],
+      { "x-note-tags": "pics" },
+    );
     expect(res.status).toBe(200);
     const note = await res.json();
     expect(note.attachments).toHaveLength(1);
@@ -212,12 +222,20 @@ describe("multipart PUT: a markdown note's new text with its pictures", () => {
   });
   test("new pictures with the same file name are each stored and appended; a text that names it is 400", async () => {
     const made = await post("# Old", "text/markdown");
-    const res = await putForm(made.id, [["text", "# New"], ["file", png("image.png")], ["file", png("image.png")]]);
+    const res = await putForm(made.id, [
+      ["text", "# New"],
+      ["file", png("image.png")],
+      ["file", png("image.png")],
+    ]);
     expect(res.status).toBe(200);
     const note = await res.json();
     expect(note.attachments).toHaveLength(2);
     expect(note.content).toBe(`# New\n\n![](${note.attachments[0].file})\n\n![](${note.attachments[1].file})`);
-    const named = await putForm(made.id, [["text", "![](image.png)"], ["file", png("image.png")], ["file", png("image.png")]]);
+    const named = await putForm(made.id, [
+      ["text", "![](image.png)"],
+      ["file", png("image.png")],
+      ["file", png("image.png")],
+    ]);
     expect([named.status, (await named.json()).code]).toEqual([400, "invalid_body"]);
   });
   test("the text as a file part works the same, byte for byte", async () => {
@@ -234,12 +252,52 @@ describe("multipart PUT: a markdown note's new text with its pictures", () => {
   test("a missing note is 404, an image note 415, no text part 400, a bad picture 415: nothing is stored or changed", async () => {
     const md = await post("# Text", "text/markdown");
     const img = await post(PNG as BodyInit, "image/png");
-    expect((await putForm("nope", [["text", "# x"], ["file", png("a.png")]])).status).toBe(404);
-    expect((await putForm(img.id, [["text", "# x"], ["file", png("a.png")]])).status).toBe(415);
+    expect(
+      (
+        await putForm("nope", [
+          ["text", "# x"],
+          ["file", png("a.png")],
+        ])
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await putForm(img.id, [
+          ["text", "# x"],
+          ["file", png("a.png")],
+        ])
+      ).status,
+    ).toBe(415);
     expect((await putForm(md.id, [["file", png("a.png")]])).status).toBe(400);
-    expect((await putForm(md.id, [["text", "# x"], ["other", "y"]])).status).toBe(400);
-    expect((await putForm(md.id, [["text", "# x"], ["file", png("a.png")]], { "x-note-alt": "y" })).status).toBe(400);
-    expect((await putForm(md.id, [["text", "# x"], ["file", png("a.png")], ["file", png("b.png", JPG)]])).status).toBe(415);
+    expect(
+      (
+        await putForm(md.id, [
+          ["text", "# x"],
+          ["other", "y"],
+        ])
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await putForm(
+          md.id,
+          [
+            ["text", "# x"],
+            ["file", png("a.png")],
+          ],
+          { "x-note-alt": "y" },
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await putForm(md.id, [
+          ["text", "# x"],
+          ["file", png("a.png")],
+          ["file", png("b.png", JPG)],
+        ])
+      ).status,
+    ).toBe(415);
     expect(await pictures()).toEqual([img.file]);
     expect((await content(md.file)).toString()).toBe("# Text");
   });

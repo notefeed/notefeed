@@ -8,12 +8,14 @@ test("only a link with no scheme and no leading slash is relative", () => {
 
 test("isAttachmentName takes one path segment of 1 to 200 characters", () => {
   for (const n of ["a.png", "Screenshot 2026-10-03 at 14.02.png", ".hidden", "100%.png"]) expect(isAttachmentName(n), n).toBe(true);
-  for (const n of ["", ".", "..", "...", "a/b.png", "a\\b.png", " a.png", "a.png ", "a\n.png", "a".repeat(201)]) expect(isAttachmentName(n), JSON.stringify(n)).toBe(false);
+  for (const n of ["", ".", "..", "...", "a/b.png", "a\\b.png", " a.png", "a.png ", "a\n.png", "a".repeat(201)])
+    expect(isAttachmentName(n), JSON.stringify(n)).toBe(false);
   expect(isAttachmentName("a".repeat(200))).toBe(true);
 });
 
 test("isAttachmentName refuses C1 controls and text-direction overrides, and takes any other script", () => {
-  for (const c of ["\u0085", "\u009b", "\u202e", "\u2066", "\u202a", "\u2069", "\u0080", "\u009f", "\u2028", "\u2029"]) expect(isAttachmentName(`a${c}b.png`), JSON.stringify(c)).toBe(false);
+  for (const c of ["\u0085", "\u009b", "\u202e", "\u2066", "\u202a", "\u2069", "\u0080", "\u009f", "\u2028", "\u2029"])
+    expect(isAttachmentName(`a${c}b.png`), JSON.stringify(c)).toBe(false);
   for (const n of ["a\u200eb.png", "a\u200fb.png", "صورة.png", "תמונה.png", "图片.png", "😀.png", "é\u00a0à.png"]) expect(isAttachmentName(n), n).toBe(true);
 });
 

@@ -2,7 +2,14 @@ import { afterEach, expect, test } from "vitest";
 import { config, encryptionOn } from "./config";
 import { encryptionKeys } from "./storage/wrapper";
 
-const BAO_VARS = ["NOTEFEED_KMS", "NOTEFEED_OPENBAO_ADDR", "NOTEFEED_OPENBAO_MOUNT", "NOTEFEED_OPENBAO_KEY", "NOTEFEED_OPENBAO_ROLE_ID", "NOTEFEED_OPENBAO_SECRET_ID"];
+const BAO_VARS = [
+  "NOTEFEED_KMS",
+  "NOTEFEED_OPENBAO_ADDR",
+  "NOTEFEED_OPENBAO_MOUNT",
+  "NOTEFEED_OPENBAO_KEY",
+  "NOTEFEED_OPENBAO_ROLE_ID",
+  "NOTEFEED_OPENBAO_SECRET_ID",
+];
 const S3_VARS = ["NOTEFEED_S3_ENDPOINT", "NOTEFEED_S3_BUCKET", "NOTEFEED_S3_REGION", "NOTEFEED_S3_ACCESS_KEY", "NOTEFEED_S3_SECRET_KEY"];
 
 afterEach(() => {
@@ -15,7 +22,25 @@ afterEach(() => {
   delete process.env.NOTEFEED_METRICS_TOKEN;
   delete process.env.NOTEFEED_SHRINK_IMAGE_BYTES;
   delete process.env.NOTEFEED_MAX_IMAGE_BYTES;
-  for (const k of ["NOTEFEED_PAYMENT_PROVIDER", "NOTEFEED_CREEM_API_KEY", "NOTEFEED_CREEM_PRODUCT_ID", "NOTEFEED_CREEM_PRODUCT_ID_YEARLY", "NOTEFEED_CREEM_WEBHOOK_SECRET", "PUBLIC_URL", "NOTEFEED_STORAGE", "NOTEFEED_DATABASE_URL", "NOTEFEED_SECRET", "DATA_DIR", "NOTEFEED_IMAGES", "NOTEFEED_IMAGES_DIR", "NOTEFEED_ENCRYPTION_KEY", "NOTEFEED_ENCRYPTION_OLD_KEYS", ...S3_VARS, ...BAO_VARS]) delete process.env[k];
+  for (const k of [
+    "NOTEFEED_PAYMENT_PROVIDER",
+    "NOTEFEED_CREEM_API_KEY",
+    "NOTEFEED_CREEM_PRODUCT_ID",
+    "NOTEFEED_CREEM_PRODUCT_ID_YEARLY",
+    "NOTEFEED_CREEM_WEBHOOK_SECRET",
+    "PUBLIC_URL",
+    "NOTEFEED_STORAGE",
+    "NOTEFEED_DATABASE_URL",
+    "NOTEFEED_SECRET",
+    "DATA_DIR",
+    "NOTEFEED_IMAGES",
+    "NOTEFEED_IMAGES_DIR",
+    "NOTEFEED_ENCRYPTION_KEY",
+    "NOTEFEED_ENCRYPTION_OLD_KEYS",
+    ...S3_VARS,
+    ...BAO_VARS,
+  ])
+    delete process.env[k];
 });
 
 test("the report URL template is empty unless set, and trimmed; with an endpoint and no template, the link opens the built-in page", () => {
@@ -154,7 +179,9 @@ test("validateStorage: the key service replaces the local key, which may only st
   expect(() => config.validateStorage()).toThrow("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes");
   delete process.env.NOTEFEED_ENCRYPTION_OLD_KEYS;
   process.env.NOTEFEED_ENCRYPTION_KEY = "k".repeat(64);
-  expect(() => config.validateStorage()).toThrow("NOTEFEED_KMS=openbao replaces NOTEFEED_ENCRYPTION_KEY: to move to the key service, put the local key in NOTEFEED_ENCRYPTION_OLD_KEYS");
+  expect(() => config.validateStorage()).toThrow(
+    "NOTEFEED_KMS=openbao replaces NOTEFEED_ENCRYPTION_KEY: to move to the key service, put the local key in NOTEFEED_ENCRYPTION_OLD_KEYS",
+  );
 });
 
 test("validateStorage: the key service needs its address and credential", () => {

@@ -1,8 +1,5 @@
 // Atom beside RSS on the read link (#324): the same notes, ids that are the notes' URLs on the read link, `published` the note's date
 // and `updated` its last change; never the feed name (V10).
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { readIdOf, resetFeedsForTests } from "../feeds";
 import { changeDate, changeDraft, changeMeta, createImageNote, createNote, createNoteOf, MARKDOWN, replaceContent } from "../notes";
@@ -11,7 +8,6 @@ import { atomRoute, rssRoute } from "./rss";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-atom-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_TITLE", "PUBLIC_URL"]) delete process.env[k];

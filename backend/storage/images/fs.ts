@@ -45,7 +45,9 @@ export function createFsImageStore(dir: string): ImageStore {
       const folders = await readdir(/*turbopackIgnore: true*/ dir).catch((e) => (isMissing(e) ? [] : Promise.reject(e)));
       for (const folder of folders) {
         if (!/^[0-9a-f]{2}$/.test(folder)) continue;
-        const names = await readdir(join(/*turbopackIgnore: true*/ dir, folder)).catch((e) => (isMissing(e) || (e as NodeJS.ErrnoException)?.code === "ENOTDIR" ? [] : Promise.reject(e)));
+        const names = await readdir(join(/*turbopackIgnore: true*/ dir, folder)).catch((e) =>
+          isMissing(e) || (e as NodeJS.ErrnoException)?.code === "ENOTDIR" ? [] : Promise.reject(e),
+        );
         for (const key of names) {
           if (!isKey(key) || !key.startsWith(folder)) continue;
           const info = await stat(join(/*turbopackIgnore: true*/ dir, folder, key)).catch((e) => (isMissing(e) ? null : Promise.reject(e))); // deleted since the listing

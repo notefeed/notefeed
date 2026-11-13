@@ -32,4 +32,19 @@ curl -F "text=@note.md;type=text/markdown" -F "file=@chart.png;type=image/png" \
 
 The pictures are stored first, each as a note of its own; then the text, with `![](chart.png)` swapped for the stored file; a picture the text never mentions is appended as `![](file)`. Pictures may share a file name (a phone calls every photo `image.jpg`): each is stored and appended, but a text that refers to a name given twice is refused. It is all or nothing: if anything is refused, nothing of the request is stored. The answer is that of the text note plus `attachments`, the pictures in order. The parts, the file-name rules and every error are in the [REST API](../integrations/api.md).
 
+One request, stored in this order, top to bottom; if any step is refused, nothing of it is kept:
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant N as notefeed
+  C->>N: POST /#lt;feed#gt;: text + file parts + alt fields
+  N->>N: check every part (type, size, names)
+  N->>N: shrink every image, strip its metadata
+  N->>N: store each image as a note of its own
+  N->>N: swap ![](name) for the stored file, append unmentioned images
+  N->>N: store the text note
+  N-->>C: the text note + attachments
+```
+
 The feed, the read-only view and RSS show such a picture once, inside the note that shows it, not again as a note of its own. Clicking it in the feed opens that note, and clicking it on the note's page opens the picture's own page. A picture is only left out of a list that also holds the note showing it, so a tag filter that lists the picture alone still shows it. The API lists every note.

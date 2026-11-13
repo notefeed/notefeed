@@ -4,7 +4,21 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { ReservedFeedError } from "./errors";
 import { logTo } from "./log";
-import { FEED_RE, deleteFeed, READ_ID_RE, RESERVED_FEEDS, checkFeed, derivedReadId, ensureFeed, feedCount, feedForReadId, hasFeed, listFeeds, readIdOf, resetFeedsForTests } from "./feeds";
+import {
+  FEED_RE,
+  deleteFeed,
+  READ_ID_RE,
+  RESERVED_FEEDS,
+  checkFeed,
+  derivedReadId,
+  ensureFeed,
+  feedCount,
+  feedForReadId,
+  hasFeed,
+  listFeeds,
+  readIdOf,
+  resetFeedsForTests,
+} from "./feeds";
 import { createProtected, protectedFeed } from "./feedlock";
 import { createNote, listNotes } from "./notes";
 
@@ -19,17 +33,14 @@ afterEach(() => restoreLog());
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-feeds-"));
-  process.env.DATA_DIR = dir;
+  dir = process.env.DATA_DIR!;
   delete process.env.NOTEFEED_SECRET;
   resetFeedsForTests();
 });
 
 describe("checkFeed", () => {
   test.each(["backups-7f3k2", "a", "x".repeat(64), "a_b"])("accepts %j", (n) => expect(checkFeed(n)).toBeNull());
-  test.each(["", "x".repeat(65), "Backups", "a b", "..", "a/b", "a.b"])("invalid %j", (n) =>
-    expect(checkFeed(n)).toBe("invalid"),
-  );
+  test.each(["", "x".repeat(65), "Backups", "a b", "..", "a/b", "a.b"])("invalid %j", (n) => expect(checkFeed(n)).toBe("invalid"));
   test("oauth is reserved", () => expect(checkFeed("oauth")).toBe("reserved"));
   test("metrics is reserved: /metrics is the scrape route", () => expect(checkFeed("metrics")).toBe("reserved"));
   test("reserved names", () => {
@@ -290,10 +301,15 @@ describe("deleteFeed", () => {
     }
   });
 
-
   test("a protected creation in flight while the feed is deleted wins cleanly", async () => {
     await createProtected("prot", "correct horse battery");
-    const [, created] = await Promise.all([deleteFeed("prot"), createProtected("prot", "another password").then(() => true, () => false)]);
+    const [, created] = await Promise.all([
+      deleteFeed("prot"),
+      createProtected("prot", "another password").then(
+        () => true,
+        () => false,
+      ),
+    ]);
     expect(created).toBe(true);
     expect(await hasFeed("prot")).toBe(true);
   });
@@ -332,7 +348,9 @@ describe("leftovers of a crash", () => {
 });
 
 describe("held-back names", () => {
-  afterEach(() => { delete process.env.NOTEFEED_RESERVED_FEEDS; });
+  afterEach(() => {
+    delete process.env.NOTEFEED_RESERVED_FEEDS;
+  });
   test("a configured name can't be created, a normal one can", async () => {
     process.env.NOTEFEED_RESERVED_FEEDS = "jobs, extra";
     for (const n of ["jobs", "extra"]) await expect(ensureFeed(n)).rejects.toBeInstanceOf(ReservedFeedError);
@@ -341,7 +359,10 @@ describe("held-back names", () => {
 });
 
 describe("reserved feeds with a password", () => {
-  afterEach(() => { delete process.env.NOTEFEED_RESERVED_PASSWORD; delete process.env.NOTEFEED_RESERVED_FEEDS; });
+  afterEach(() => {
+    delete process.env.NOTEFEED_RESERVED_PASSWORD;
+    delete process.env.NOTEFEED_RESERVED_FEEDS;
+  });
   test("exist protected with their name as read id, also after a delete and a restart", async () => {
     process.env.NOTEFEED_RESERVED_PASSWORD = "operator-pass-1";
     process.env.NOTEFEED_RESERVED_FEEDS = "news";
@@ -359,7 +380,7 @@ describe("reserved feeds with a password", () => {
 
 test("a reserved feed is found by its name as read id", async () => {
   process.env.NOTEFEED_RESERVED_PASSWORD = "operator-pass-1";
-    process.env.NOTEFEED_RESERVED_FEEDS = "news";
+  process.env.NOTEFEED_RESERVED_FEEDS = "news";
   expect(await feedForReadId("news")).toBe("news");
   delete process.env.NOTEFEED_RESERVED_PASSWORD;
   delete process.env.NOTEFEED_RESERVED_FEEDS;

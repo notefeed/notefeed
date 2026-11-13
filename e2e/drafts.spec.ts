@@ -71,7 +71,10 @@ test("a draft's pictures show on its own page and the feed page, and still reach
   const made = await (
     await request.post(`/api/v1/feeds/${name}/notes`, {
       headers: { "X-Note-Draft": "true" },
-      multipart: { text: "# Unfinished thought\n\n![A pixel](draft-pic.png)", file: { name: "draft-pic.png", mimeType: "image/png", buffer: Buffer.from(PNG) } },
+      multipart: {
+        text: "# Unfinished thought\n\n![A pixel](draft-pic.png)",
+        file: { name: "draft-pic.png", mimeType: "image/png", buffer: Buffer.from(PNG) },
+      },
     })
   ).json();
   const readId = /\/r\/([^/]+)\//.exec(made.read_url)![1];

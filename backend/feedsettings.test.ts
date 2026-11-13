@@ -1,17 +1,12 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { beforeEach, expect, test } from "vitest";
+import { expect, test } from "vitest";
 import { storage } from "./storage";
 
 const readSettings = (feed: string) => storage().readSettings(feed);
 const writeSettings = (feed: string, s: Parameters<ReturnType<typeof storage>["writeSettings"]>[1]) => storage().writeSettings(feed, s);
 import { checkSettings, forReaders, getSettings } from "./feedsettings";
 import { mdNote } from "./note/testing";
-
-beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-fs-"));
-});
 
 test("a settings file from before showSender reads as true", async () => {
   await mkdir(join(process.env.DATA_DIR!, "old"));

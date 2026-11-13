@@ -1,6 +1,5 @@
 // Renaming a feed (#350, ADR 0054): PUT /feeds/{feed} with `name`. Everything goes with the feed; the old name is freed.
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { derivedReadId, hasFeed, readIdOf, resetFeedsForTests } from "../feeds";
@@ -10,7 +9,7 @@ import { API_PREFIX, dispatch } from "./api";
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-rename-"));
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_RESERVED_FEEDS", "NOTEFEED_RESERVED_PASSWORD"]) delete process.env[k];
   resetFeedsForTests();
@@ -21,7 +20,8 @@ async function call(method: string, path: string, body?: BodyInit, headers: Reco
   const url = new URL(API_PREFIX + path, BASE);
   return dispatch(new Request(url, { method, body, headers: { host: "localhost:3000", ...headers } }), url.pathname.slice(API_PREFIX.length + 1).split("/"));
 }
-const post = (feed: string, md: string, headers: Record<string, string> = {}) => call("POST", `/feeds/${feed}/notes`, md, { "content-type": "text/markdown", ...headers });
+const post = (feed: string, md: string, headers: Record<string, string> = {}) =>
+  call("POST", `/feeds/${feed}/notes`, md, { "content-type": "text/markdown", ...headers });
 const rename = (feed: string, name: string, headers: Record<string, string> = {}) =>
   call("PUT", `/feeds/${feed}`, JSON.stringify({ title: "T", description: "D", name }), { "content-type": "application/json", ...headers });
 
@@ -44,7 +44,12 @@ test("a rename keeps the notes, the settings and the read link; the old name is 
 test("a taken, reserved or badly formed name is refused, and nothing is saved", async () => {
   await post("mine", "# Mine");
   await post("theirs", "# Theirs");
-  for (const [name, status] of [["theirs", 409], ["api", 409], ["Bad Name", 400], ["x".repeat(65), 400]] as const) {
+  for (const [name, status] of [
+    ["theirs", 409],
+    ["api", 409],
+    ["Bad Name", 400],
+    ["x".repeat(65), 400],
+  ] as const) {
     const res = await rename("mine", name);
     expect(res.status).toBe(status);
     if (status === 409) expect((await res.json()).code).toBe("taken");
@@ -76,7 +81,12 @@ test("a feed whose read id is derived from its name keeps that read id", async (
   await rename("legacy", "renamed-legacy");
   expect(await readIdOf("renamed-legacy")).toBe(derived);
   expect(await readFile(join(dir, "renamed-legacy", ".readid"), "utf8")).toBe(derived);
-  expect(await stat(join(dir, "legacy")).then(() => true, () => false)).toBe(false);
+  expect(
+    await stat(join(dir, "legacy")).then(
+      () => true,
+      () => false,
+    ),
+  ).toBe(false);
 });
 
 test("a reserved feed keeps its name, and no feed takes a reserved one", async () => {

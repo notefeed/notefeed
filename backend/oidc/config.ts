@@ -30,7 +30,11 @@ function provider(id: string, name: string): Provider | undefined {
 
 // The ones that are on: default first, then the named ones by id (a stable button order).
 export function providers(): Provider[] {
-  const named = config.oidcNames().filter((n) => n !== "DEFAULT").map((n) => [n.toLowerCase(), n]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const named = config
+    .oidcNames()
+    .filter((n) => n !== "DEFAULT")
+    .map((n) => [n.toLowerCase(), n])
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return [["default", ""], ...named].flatMap(([id, name]) => provider(id, name) ?? []);
 }
 

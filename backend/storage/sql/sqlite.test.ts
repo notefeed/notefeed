@@ -67,7 +67,13 @@ const ALL = ["md", "png"];
 async function rawRows(url: string) {
   const Database = (await import("better-sqlite3")).default;
   const raw = new Database(url.slice("file:".length), { readonly: true });
-  const rows = raw.prepare("select id, ext, length(content) as inline, blob_key, size from notes order by id").all() as { id: string; ext: string; inline: number; blob_key: string | null; size: number }[];
+  const rows = raw.prepare("select id, ext, length(content) as inline, blob_key, size from notes order by id").all() as {
+    id: string;
+    ext: string;
+    inline: number;
+    blob_key: string | null;
+    size: number;
+  }[];
   raw.close();
   return rows;
 }
@@ -116,8 +122,12 @@ describe.skipIf(!supported)("sqlite", () => {
     raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");
     raw.exec("create index notes_by_date on notes (feed, date, id)");
     raw.exec("drop index notes_by_date; alter table notes drop column date; delete from kysely_migration where name = '005_note_date'");
-    raw.exec("drop index notes_by_sealed; alter table notes drop column sealed; drop table keyring; alter table feeds drop column key_id; alter table feeds drop column data_key; alter table feeds drop column name_sealed; alter table feeds drop column read_id_sealed; delete from kysely_migration where name = '004_encryption'");
-    raw.exec("alter table notes drop column blob_key; alter table notes drop column size; drop table tombstones; drop table blocked_images; delete from kysely_migration where name in ('002_image_store', '003_takedown')");
+    raw.exec(
+      "drop index notes_by_sealed; alter table notes drop column sealed; drop table keyring; alter table feeds drop column key_id; alter table feeds drop column data_key; alter table feeds drop column name_sealed; alter table feeds drop column read_id_sealed; delete from kysely_migration where name = '004_encryption'",
+    );
+    raw.exec(
+      "alter table notes drop column blob_key; alter table notes drop column size; drop table tombstones; drop table blocked_images; delete from kysely_migration where name in ('002_image_store', '003_takedown')",
+    );
     raw.close();
     const again = createSqlStorage(() => connect("sqlite", a.url));
     open.push({ storage: again, root: a.root });
@@ -178,7 +188,11 @@ describe.skipIf(!supported)("sqlite", () => {
     await a.storage.createFeed("f", "rid-f");
     await a.storage.writeNote("f", "20260401T120000Z-0196e8f0-1c2d-7abc-8def-0123456789ab", "md", "x", {}, 5);
     await a.storage.close();
-    const down: KeyWrapper = { ...createLocalWrapper(key), wrap: () => Promise.reject(new KeyServiceUnavailableError()), unwrap: () => Promise.reject(new KeyServiceUnavailableError()) };
+    const down: KeyWrapper = {
+      ...createLocalWrapper(key),
+      wrap: () => Promise.reject(new KeyServiceUnavailableError()),
+      unwrap: () => Promise.reject(new KeyServiceUnavailableError()),
+    };
     const again = createSqlStorage(() => connect("sqlite", a.url), "sqlite", undefined, down);
     open.push({ storage: again, root: a.root });
     await expect(again.listNoteRefs("f")).rejects.toBeInstanceOf(KeyServiceUnavailableError);
@@ -384,7 +398,13 @@ describe.skipIf(!supported)("sqlite", () => {
         for (const key of t.objects.keys()) t.age(key, 2 * HOUR);
         orphan(t, "12345", 2 * HOUR);
         orphan(t, "123", 3 * HOUR);
-        expect(await t.s.sweepImages({ remove: false, olderThanMs: HOUR })).toEqual({ unreferenced: { count: 2, bytes: 8 }, deleted: { count: 0, bytes: 0 }, failed: 0, tooRecent: 0, missing: 0 });
+        expect(await t.s.sweepImages({ remove: false, olderThanMs: HOUR })).toEqual({
+          unreferenced: { count: 2, bytes: 8 },
+          deleted: { count: 0, bytes: 0 },
+          failed: 0,
+          tooRecent: 0,
+          missing: 0,
+        });
         expect(t.objects.size).toBe(3);
         expect(t.calls).not.toContain("delete");
       });
@@ -396,19 +416,34 @@ describe.skipIf(!supported)("sqlite", () => {
         await t.s.writeNote("g", "q", "png", Buffer.from("g's"), {}, 0);
         for (const key of t.objects.keys()) t.age(key, 2 * HOUR);
         const gone = [orphan(t, "12345", 2 * HOUR), orphan(t, "123", 30 * 24 * HOUR)];
-        expect(await t.s.sweepImages({ remove: true, olderThanMs: HOUR })).toEqual({ unreferenced: { count: 2, bytes: 8 }, deleted: { count: 2, bytes: 8 }, failed: 0, tooRecent: 0, missing: 0 });
+        expect(await t.s.sweepImages({ remove: true, olderThanMs: HOUR })).toEqual({
+          unreferenced: { count: 2, bytes: 8 },
+          deleted: { count: 2, bytes: 8 },
+          failed: 0,
+          tooRecent: 0,
+          missing: 0,
+        });
         for (const key of gone) expect(t.objects.has(key)).toBe(false);
         expect(t.objects.size).toBe(2);
         expect(await t.s.readFile("f", "p.png")).toEqual(PNG);
         expect((await t.s.readFile("g", "q.png"))?.toString()).toBe("g's");
-        expect(await t.s.sweepImages({ remove: true, olderThanMs: HOUR })).toMatchObject({ unreferenced: { count: 0, bytes: 0 }, deleted: { count: 0, bytes: 0 } });
+        expect(await t.s.sweepImages({ remove: true, olderThanMs: HOUR })).toMatchObject({
+          unreferenced: { count: 0, bytes: 0 },
+          deleted: { count: 0, bytes: 0 },
+        });
       });
 
       test("an object written a moment ago is left alone and counted: its note may not be there yet", async () => {
         const t = await setup();
         const young = orphan(t, "being posted", 5 * 60_000);
         const oldOne = orphan(t, "left behind", 2 * HOUR);
-        expect(await t.s.sweepImages({ remove: true, olderThanMs: HOUR })).toEqual({ unreferenced: { count: 1, bytes: 11 }, deleted: { count: 1, bytes: 11 }, failed: 0, tooRecent: 1, missing: 0 });
+        expect(await t.s.sweepImages({ remove: true, olderThanMs: HOUR })).toEqual({
+          unreferenced: { count: 1, bytes: 11 },
+          deleted: { count: 1, bytes: 11 },
+          failed: 0,
+          tooRecent: 1,
+          missing: 0,
+        });
         expect(t.objects.has(young)).toBe(true);
         expect(t.objects.has(oldOne)).toBe(false);
       });
@@ -432,14 +467,22 @@ describe.skipIf(!supported)("sqlite", () => {
         const rec = recording();
         const s = createSqlStorage(() => connect("sqlite", plain.url), "sqlite", rec.images);
         open.push({ storage: s, root: plain.root });
-        expect(await s.sweepImages({ remove: true, olderThanMs: HOUR })).toEqual({ unreferenced: { count: 0, bytes: 0 }, deleted: { count: 0, bytes: 0 }, failed: 0, tooRecent: 0, missing: 0 });
+        expect(await s.sweepImages({ remove: true, olderThanMs: HOUR })).toEqual({
+          unreferenced: { count: 0, bytes: 0 },
+          deleted: { count: 0, bytes: 0 },
+          failed: 0,
+          tooRecent: 0,
+          missing: 0,
+        });
       });
 
       test("an object the store will not delete is counted as failed and logged without its key; the others still go", async () => {
         const t = await setup();
         const keys = [orphan(t, "a", 2 * HOUR), orphan(t, "b", 2 * HOUR)];
         t.failing.add("delete");
-        const logs = await logsOf(async () => expect(await t.s.sweepImages({ remove: true, olderThanMs: HOUR })).toMatchObject({ unreferenced: { count: 2 }, deleted: { count: 0 }, failed: 2 }));
+        const logs = await logsOf(async () =>
+          expect(await t.s.sweepImages({ remove: true, olderThanMs: HOUR })).toMatchObject({ unreferenced: { count: 2 }, deleted: { count: 0 }, failed: 2 }),
+        );
         expect(logs.filter((l) => l.level === "warn")).toHaveLength(2);
         for (const key of keys) expect(JSON.stringify(logs)).not.toContain(key);
       });
@@ -510,7 +553,14 @@ describe.skipIf(!supported)("sqlite", () => {
       const b = recording();
       const toB = createSqlStorage(() => connect("sqlite", url), "sqlite", b.images);
       open.push({ storage: toB, root: "" });
-      expect(await toB.moveImages({ from: a.images.store, limit: 10 })).toEqual({ moved: { count: 1, bytes: 8 }, skipped: 0, missing: 1, failed: 0, left: 0, next: null });
+      expect(await toB.moveImages({ from: a.images.store, limit: 10 })).toEqual({
+        moved: { count: 1, bytes: 8 },
+        skipped: 0,
+        missing: 1,
+        failed: 0,
+        left: 0,
+        next: null,
+      });
       expect([...b.objects.keys()]).toEqual([k0]);
       // Run again: the moved one is already in the target (skipped), the lost one is still missing, nothing is deleted.
       expect(await toB.moveImages({ from: a.images.store, limit: 10 })).toMatchObject({ moved: { count: 0, bytes: 0 }, skipped: 1, missing: 1 });
@@ -522,7 +572,14 @@ describe.skipIf(!supported)("sqlite", () => {
       // Back into the rows.
       const toDb = createSqlStorage(() => connect("sqlite", url), "sqlite");
       open.push({ storage: toDb, root: "" });
-      expect(await toDb.moveImages({ from: b.images.store, limit: 10 })).toEqual({ moved: { count: 1, bytes: 8 }, skipped: 0, missing: 1, failed: 0, left: 0, next: null });
+      expect(await toDb.moveImages({ from: b.images.store, limit: 10 })).toEqual({
+        moved: { count: 1, bytes: 8 },
+        skipped: 0,
+        missing: 1,
+        failed: 0,
+        left: 0,
+        next: null,
+      });
       expect(b.objects.size).toBe(0);
       expect((await rawRows(url)).find((r) => r.id === p0)).toMatchObject({ blob_key: null, inline: 8 });
       expect(await served(toDb, p0)).toBe(PNG.toString("latin1") + "0");
@@ -542,7 +599,14 @@ describe.skipIf(!supported)("sqlite", () => {
       b.failing.add("put");
       const toB = createSqlStorage(() => connect("sqlite", url), "sqlite", b.images);
       open.push({ storage: toB, root: "" });
-      expect(await toB.moveImages({ from: "db", limit: 10 })).toEqual({ moved: { count: 0, bytes: 0 }, skipped: 0, missing: 0, failed: 1, left: 0, next: null });
+      expect(await toB.moveImages({ from: "db", limit: 10 })).toEqual({
+        moved: { count: 0, bytes: 0 },
+        skipped: 0,
+        missing: 0,
+        failed: 1,
+        left: 0,
+        next: null,
+      });
       expect((await rawRows(url)).find((r) => r.ext === "png")).toMatchObject({ blob_key: null, inline: 8 }); // untouched
     });
   });

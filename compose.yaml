@@ -1,24 +1,11 @@
 services:
   notefeed:
-    image: ghcr.io/notefeed/notefeed:latest
-    build: .
+    image: ghcr.io/notefeed/notefeed:latest # or pin a release, e.g. :0.35
     restart: unless-stopped
     ports:
       - "3000:3000"
-    # Everything is optional; set values in .env (see .env.example). Empty means the default.
-    environment:
-      PUBLIC_URL: ${PUBLIC_URL:-}
-      NOTEFEED_PASSWORD: ${NOTEFEED_PASSWORD:-}
-      NOTEFEED_TRUST_PROXY: ${NOTEFEED_TRUST_PROXY:-}
-      NOTEFEED_RATE_LIMIT: ${NOTEFEED_RATE_LIMIT:-}
-      NOTEFEED_MAX_FEEDS: ${NOTEFEED_MAX_FEEDS:-}
-      NOTEFEED_RESERVED_FEEDS: ${NOTEFEED_RESERVED_FEEDS:-}
-      NOTEFEED_RESERVED_PASSWORD: ${NOTEFEED_RESERVED_PASSWORD:-}
-      NOTEFEED_FOOTER_FEEDS: ${NOTEFEED_FOOTER_FEEDS:-}
-      NOTEFEED_MAX_NOTES_PER_FEED: ${NOTEFEED_MAX_NOTES_PER_FEED:-}
-      NOTEFEED_SECRET: ${NOTEFEED_SECRET:-}
-      NOTEFEED_TITLE: ${NOTEFEED_TITLE:-}
-      TZ: ${TZ:-UTC}
+    # Every setting is in .env: copy .env.example to .env and change what you need. An unchanged copy runs the defaults.
+    env_file: .env
     volumes:
       - notefeed-data:/data
 

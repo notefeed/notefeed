@@ -1,6 +1,5 @@
 // What reading costs on disk (#96), and that a stray entry in a feed folder cannot break it.
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { countNotes, createNote, getNote, listNotes } from "../../notes";
@@ -17,8 +16,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 let root: string;
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "notefeed-"));
-  process.env.DATA_DIR = root;
+  root = process.env.DATA_DIR!;
   calls.readdir = 0;
   calls.readFile = [];
 });

@@ -15,10 +15,18 @@ type Result = { data?: unknown; error?: { code?: string; error?: string }; respo
 // it for a form that shows some refusals differently (the compose box's license banner). `initialCode` is the code
 // behind `initialError`, when the page knows it. `setError` is a message of the form's own (or an update of the one
 // shown, as a state setter takes), with no code.
-export function useApiForm(page: string, initialError?: string, message: (code: unknown, retry?: unknown, detail?: string) => string | undefined = errorMessage, initialCode?: string) {
+export function useApiForm(
+  page: string,
+  initialError?: string,
+  message: (code: unknown, retry?: unknown, detail?: string) => string | undefined = errorMessage,
+  initialCode?: string,
+) {
   const router = useRouter();
   const [refusal, setRefusal] = useState<{ error?: string; code?: string }>({ error: initialError, code: initialError ? initialCode : undefined });
-  const setError = useCallback((next?: string | ((shown: string | undefined) => string | undefined)) => setRefusal((r) => ({ error: typeof next === "function" ? next(r.error) : next })), []);
+  const setError = useCallback(
+    (next?: string | ((shown: string | undefined) => string | undefined)) => setRefusal((r) => ({ error: typeof next === "function" ? next(r.error) : next })),
+    [],
+  );
   const [pending, setPending] = useState(false);
 
   async function run<T extends Result>(e: FormEvent | undefined, call: () => Promise<T>, done: (result: T) => void, doneOn?: number) {
@@ -69,10 +77,17 @@ export const multipart = (form: FormData) => ({ body: form as never });
 // The feed's own title image (#310): PUT /api/v1/feeds/<feed>/image, so it is no post. Returns its file name, for the settings form.
 export async function putFeedImage(feed: string, file: File): Promise<{ file: string } | { error: string }> {
   try {
-    const { data, error, response } = await setFeedImage({ baseUrl: window.location.origin, path: { feed }, body: file, headers: { "Content-Type": await typeOfBytes(file) } });
+    const { data, error, response } = await setFeedImage({
+      baseUrl: window.location.origin,
+      path: { feed },
+      body: file,
+      headers: { "Content-Type": await typeOfBytes(file) },
+    });
     if (!response) throw new Error("no response");
     if (response.ok && data?.image_url) return { file: data.image_url.split("/").at(-1)! };
-    return { error: imageErrorMessage((error as { code?: string } | undefined)?.code ?? "unknown", response.headers.get("retry-after")) ?? "Something went wrong." };
+    return {
+      error: imageErrorMessage((error as { code?: string } | undefined)?.code ?? "unknown", response.headers.get("retry-after")) ?? "Something went wrong.",
+    };
   } catch {
     return { error: "Could not reach notefeed. Check your connection and try again." };
   }

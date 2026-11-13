@@ -39,6 +39,17 @@ export function markdownToHtml(markdown: string, base: string): { html: string; 
       n.properties.src = src;
       image ??= src;
     });
-  const html = String(unified().use(remarkParse).use(remarkGfm).use(htmlAsText).use(remarkRehype).use(imageSizes).use(rehypeHighlight).use(pictures).use(rehypeStringify).processSync(markdown));
+  const html = String(
+    unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .use(htmlAsText)
+      .use(remarkRehype)
+      .use(imageSizes)
+      .use(rehypeHighlight)
+      .use(pictures)
+      .use(rehypeStringify)
+      .processSync(markdown),
+  );
   return { html, image };
 }

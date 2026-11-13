@@ -51,7 +51,15 @@ test.each([
   expect(routeOf(path)).toBe(route);
 });
 
-const line = (over: Partial<Parameters<typeof requestLine>[1]> = {}) => ({ method: "GET", path: "/secret-feed?tag=secret-tag", status: 200, ms: 12.4, bytes: 4312, finished: true, ...over });
+const line = (over: Partial<Parameters<typeof requestLine>[1]> = {}) => ({
+  method: "GET",
+  path: "/secret-feed?tag=secret-tag",
+  status: 200,
+  ms: 12.4,
+  bytes: 4312,
+  finished: true,
+  ...over,
+});
 
 test("the request line: method, route pattern, status, ms, bytes and the request's id, and nothing of the path", async () => {
   const logs = await logsOf(() => requestLine({ id: "r1" }, line()));
@@ -60,7 +68,9 @@ test("the request line: method, route pattern, status, ms, bytes and the request
 });
 
 test("a handler's route and outcome win over the path's shape", async () => {
-  const logs = await logsOf(() => requestLine({ id: "r1", route: "/api/v1/feeds/[feed]/notes", outcome: "rate_limited" }, line({ method: "POST", status: 429 })));
+  const logs = await logsOf(() =>
+    requestLine({ id: "r1", route: "/api/v1/feeds/[feed]/notes", outcome: "rate_limited" }, line({ method: "POST", status: 429 })),
+  );
   expect(logs[0]).toMatchObject({ method: "POST", route: "/api/v1/feeds/[feed]/notes", status: 429, outcome: "rate_limited" });
 });
 
@@ -70,7 +80,17 @@ test("a path that is no route has no route; a bare 404 or 401 has the outcome it
     requestLine({ id: "b" }, line({ finished: false }));
     requestLine({ id: "c" }, line({ method: "PROPFIND", status: 401 }));
   });
-  expect(logs[0]).toEqual({ level: "info", component: "http", msg: "request", req: "a", method: "GET", status: 404, ms: 12, bytes: 4312, outcome: "not_found" });
+  expect(logs[0]).toEqual({
+    level: "info",
+    component: "http",
+    msg: "request",
+    req: "a",
+    method: "GET",
+    status: 404,
+    ms: 12,
+    bytes: 4312,
+    outcome: "not_found",
+  });
   expect(logs[1].outcome).toBe("aborted");
   expect(logs[2]).toMatchObject({ method: "OTHER", status: 401, outcome: "auth" });
 });
@@ -78,7 +98,13 @@ test("a path that is no route has no route; a bare 404 or 401 has the outcome it
 test("static files, the metrics scrape and the health probe are logged at debug only", async () => {
   const all = () => ["/_next/static/a.js", "/icon.svg", "/metrics", "/health", "/myfeed"].forEach((path) => requestLine({ id: "r" }, line({ path })));
   expect((await logsOf(all, "info")).map((l) => l.route)).toEqual(["/[feed]"]);
-  expect((await logsOf(all, "debug")).map((l) => [l.level, l.route])).toEqual([["debug", "/_next/*"], ["debug", "/[file]"], ["debug", "/metrics"], ["debug", "/health"], ["info", "/[feed]"]]);
+  expect((await logsOf(all, "debug")).map((l) => [l.level, l.route])).toEqual([
+    ["debug", "/_next/*"],
+    ["debug", "/[file]"],
+    ["debug", "/metrics"],
+    ["debug", "/health"],
+    ["info", "/[feed]"],
+  ]);
 });
 
 test("every line logged inside a request carries its id; outside there is none", async () => {
@@ -86,7 +112,10 @@ test("every line logged inside a request carries its id; outside there is none",
     inRequest({ id: "r7" }, () => logger("oidc").info("inside"));
     logger("oidc").info("outside");
   });
-  expect(logs).toEqual([{ level: "info", component: "oidc", msg: "inside", req: "r7" }, { level: "info", component: "oidc", msg: "outside" }]);
+  expect(logs).toEqual([
+    { level: "info", component: "oidc", msg: "inside", req: "r7" },
+    { level: "info", component: "oidc", msg: "outside" },
+  ]);
 });
 
 test("a refusal's code is the outcome; an unexpected failure is `error`", async () => {
@@ -101,7 +130,9 @@ test("a refusal's code is the outcome; an unexpected failure is `error`", async 
 // A real server: the log listens to Node's HTTP server, whoever handles the request.
 const call = (server: Server, method: string, path: string) =>
   new Promise<number>((resolve, reject) => {
-    const req = httpRequest({ port: (server.address() as AddressInfo).port, method, path, agent: false }, (res) => res.resume().on("end", () => resolve(res.statusCode!)));
+    const req = httpRequest({ port: (server.address() as AddressInfo).port, method, path, agent: false }, (res) =>
+      res.resume().on("end", () => resolve(res.statusCode!)),
+    );
     req.on("error", reject).end();
   });
 
@@ -132,8 +163,29 @@ test("a served request gets one line, tied by `req` to what its handler logged",
   });
   const requests = logs.filter((l) => l.msg === "request");
   expect(requests).toEqual([
-    { level: "info", component: "http", msg: "request", req: expect.any(String), method: "GET", route: "/[feed]", status: 200, ms: expect.any(Number), bytes: expect.any(Number) },
-    { level: "info", component: "http", msg: "request", req: expect.any(String), method: "POST", route: "/api/v1/feeds/[feed]/notes", status: 401, ms: expect.any(Number), bytes: expect.any(Number), outcome: "auth" },
+    {
+      level: "info",
+      component: "http",
+      msg: "request",
+      req: expect.any(String),
+      method: "GET",
+      route: "/[feed]",
+      status: 200,
+      ms: expect.any(Number),
+      bytes: expect.any(Number),
+    },
+    {
+      level: "info",
+      component: "http",
+      msg: "request",
+      req: expect.any(String),
+      method: "POST",
+      route: "/api/v1/feeds/[feed]/notes",
+      status: 401,
+      ms: expect.any(Number),
+      bytes: expect.any(Number),
+      outcome: "auth",
+    },
   ]);
   expect(requests[0].bytes as number).toBeGreaterThan(5);
   expect(requests[0].req).not.toBe(requests[1].req);

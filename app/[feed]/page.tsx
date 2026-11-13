@@ -14,7 +14,27 @@ import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
 import { createErrorMessage, errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
-import { checkFeed, feedCookieName, hasLegalPage, feedPath, feedUnlocked, freeTier, getFeed, IDENTITY_COOKIE, identitySender, imageUploadsOn, isRemovedFeed, licensePageOn, licensingOn, measured, publicUrl, readPath, reportTemplate, rssPath, settingsPath } from "@/backend";
+import {
+  checkFeed,
+  feedCookieName,
+  hasLegalPage,
+  feedPath,
+  feedUnlocked,
+  freeTier,
+  getFeed,
+  IDENTITY_COOKIE,
+  identitySender,
+  imageUploadsOn,
+  isRemovedFeed,
+  licensePageOn,
+  licensingOn,
+  measured,
+  publicUrl,
+  readPath,
+  reportTemplate,
+  rssPath,
+  settingsPath,
+} from "@/backend";
 import { sortTags } from "@/shared/tags";
 import { shareQuery } from "@/shared/share";
 
@@ -23,7 +43,12 @@ export const dynamic = "force-dynamic";
 // The metadata and the page share one read per request (the metadata reads it unfiltered). The read is what is measured (kind
 // feed_page, feed_page_tag with a tag filter). Without a tag, whichever of the two runs first carries the time and the disk work; with
 // one, the metadata's unfiltered read is a feed_page sample of its own and the filtered read a feed_page_tag one.
-const loaded = (feed: string, tag?: string) => measured(tag ? "feed_page_tag" : "feed_page", () => getFeed(feed, tag), (data) => (data ? 200 : 404));
+const loaded = (feed: string, tag?: string) =>
+  measured(
+    tag ? "feed_page_tag" : "feed_page",
+    () => getFeed(feed, tag),
+    (data) => (data ? 200 : 404),
+  );
 const feedData = cache((feed: string) => loaded(feed));
 // The "Report" link needs the template and the feed's read id (a feed without a read link has no link; it has no notes either).
 const report = (readId: string | null) => (readId && reportTemplate() ? { template: reportTemplate(), readId } : undefined);
@@ -33,7 +58,7 @@ export async function generateMetadata({ params }: PageProps<"/[feed]">): Promis
   if (checkFeed(feed)) return {};
   // A locked feed shows nothing of itself, not even its title.
   const access = await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value);
-  return { title: access === "locked" ? feed : ((await feedData(feed))?.title || feed) };
+  return { title: access === "locked" ? feed : (await feedData(feed))?.title || feed };
 }
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
@@ -94,7 +119,14 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           tag={tag}
           base={feedPath(feed)}
         >
-          {isNew && <ProtectFeed feed={feed} licensing={licensingOn()} licensePage={licensePage} error={form === "create" ? createErrorMessage(error, retry) : undefined} />}
+          {isNew && (
+            <ProtectFeed
+              feed={feed}
+              licensing={licensingOn()}
+              licensePage={licensePage}
+              error={form === "create" ? createErrorMessage(error, retry) : undefined}
+            />
+          )}
         </FeedAbout>
       }
     >
@@ -105,10 +137,21 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           Note deleted.
         </p>
       )}
-      <Compose key={String(posted)} feed={feed} action={feedPath(feed)} error={form === "create" ? undefined : errorMessage(error, retry)} errorCode={one(error)}
-        isNew={isNew} settingsHref={exists ? settingsPath(feed) : undefined} licensePage={licensePage}
-        sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined} images={imageUploadsOn()} imageBase={`${feedPath(feed)}/files/`}
-        initialTitle={one(share_title)} initialText={shared} shared={one(sharedPictures) === "1"}
+      <Compose
+        key={String(posted)}
+        feed={feed}
+        action={feedPath(feed)}
+        error={form === "create" ? undefined : errorMessage(error, retry)}
+        errorCode={one(error)}
+        isNew={isNew}
+        settingsHref={exists ? settingsPath(feed) : undefined}
+        licensePage={licensePage}
+        sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined}
+        images={imageUploadsOn()}
+        imageBase={`${feedPath(feed)}/files/`}
+        initialTitle={one(share_title)}
+        initialText={shared}
+        shared={one(sharedPictures) === "1"}
       />
       {tag && notes.length === 0 ? (
         <p className="text-muted">No notes with this tag.</p>
@@ -118,7 +161,14 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[fe
           <pre className="mt-3 overflow-x-auto rounded-xl bg-surface-2 p-3 text-left font-mono text-sm text-ink">{curlExample}</pre>
         </section>
       ) : (
-        <NoteList notes={notes} base={feedPath(feed)} imageBase={`${feedPath(feed)}/files/`} posted={typeof posted === "string" ? posted : undefined} report={report(readId)} terms={await hasLegalPage("terms")} />
+        <NoteList
+          notes={notes}
+          base={feedPath(feed)}
+          imageBase={`${feedPath(feed)}/files/`}
+          posted={typeof posted === "string" ? posted : undefined}
+          report={report(readId)}
+          terms={await hasLegalPage("terms")}
+        />
       )}
     </AppShell>
   );

@@ -53,7 +53,14 @@ export function isValidId(id: string): boolean {
 type NewNote = { ext: string; content: string | Uint8Array; meta: Meta };
 
 // `readId`: the read id of the feed the note went into (null: that feed has no read link).
-async function store(feed: string, base: string, { ext, content, meta }: NewNote, date: Date, wantedReadId?: string, draft = false): Promise<{ id: string; readId: string | null }> {
+async function store(
+  feed: string,
+  base: string,
+  { ext, content, meta }: NewNote,
+  date: Date,
+  wantedReadId?: string,
+  draft = false,
+): Promise<{ id: string; readId: string | null }> {
   // ponytail: checked, not locked. A post that is past ensureFeed when its feed is deleted and the name
   // re-created lands in the new feed (as do settings written after hasFeed); a per-feed lock would close it.
   for (let retried = false; ; retried = true) {
@@ -71,14 +78,31 @@ async function store(feed: string, base: string, { ext, content, meta }: NewNote
 
 /** `id`: the id to store it under (a post that must know its text's id first), else a new one. `of`: on an attachment, its text note's id.
  *  `draft`: stored as a draft, which readers do not see (#265). */
-export type NewNoteOptions = { sender?: string; tags?: string[]; title?: string; alt?: string; name?: string; wantedReadId?: string; id?: string; of?: string; draft?: boolean };
+export type NewNoteOptions = {
+  sender?: string;
+  tags?: string[];
+  title?: string;
+  alt?: string;
+  name?: string;
+  wantedReadId?: string;
+  id?: string;
+  of?: string;
+  draft?: boolean;
+};
 
 /**
  * A new note of any type: `body` is its file, `ext` the extension its type stores it under. The type's own rules (`checkBody`) apply; a
  * title or alt text must be one short line. The feed is created if it does not exist. Whether the body is what the poster declared is
  * posting.ts's business (`verify`). `date` places it in the feed; a time to come makes it scheduled.
  */
-export async function createNoteOf(feed: string, type: NoteType, ext: string, body: Uint8Array, opts: NewNoteOptions = {}, date = new Date()): Promise<{ note: Note; readId: string | null }> {
+export async function createNoteOf(
+  feed: string,
+  type: NoteType,
+  ext: string,
+  body: Uint8Array,
+  opts: NewNoteOptions = {},
+  date = new Date(),
+): Promise<{ note: Note; readId: string | null }> {
   assertFeed(feed);
   type.checkBody(body);
   const title = checkLine("title", opts.title, MAX_NOTE_TITLE);
@@ -86,7 +110,14 @@ export async function createNoteOf(feed: string, type: NoteType, ext: string, bo
   if (alt && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
   const { sender, tags = [], of } = opts;
   const name = cleanName(opts.name);
-  const meta: Meta = { ...(sender !== undefined && { sender }), ...(tags.length && { tags }), ...(title && { title }), ...(alt && { alt }), ...(name && { name }), ...(of !== undefined && { of }) };
+  const meta: Meta = {
+    ...(sender !== undefined && { sender }),
+    ...(tags.length && { tags }),
+    ...(title && { title }),
+    ...(alt && { alt }),
+    ...(name && { name }),
+    ...(of !== undefined && { of }),
+  };
   const draft = opts.draft === true;
   const { id, readId } = await store(feed, opts.id ?? newNoteId(), { ext, content: body, meta }, date, opts.wantedReadId, draft);
   logger("notes").info({ kind: type.name, bytes: body.length }, "note posted"); // never the feed, the id or the title
@@ -98,13 +129,26 @@ export const MARKDOWN = typeForExt("md")!;
 export const encoder = new TextEncoder();
 
 /** A markdown note from its text. */
-export async function createNote(feed: string, markdown: string, now = new Date(), sender?: string, tags: string[] = [], wantedReadId?: string, title?: string): Promise<{ note: MarkdownNote; readId: string | null }> {
+export async function createNote(
+  feed: string,
+  markdown: string,
+  now = new Date(),
+  sender?: string,
+  tags: string[] = [],
+  wantedReadId?: string,
+  title?: string,
+): Promise<{ note: MarkdownNote; readId: string | null }> {
   const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(markdown), { sender, tags, title, wantedReadId }, now);
   return { note: made.note as MarkdownNote, readId: made.readId };
 }
 
 /** An image as a note of its own. The format is decided by the bytes (UnsupportedTypeError for anything else, SVG included). */
-export async function createImageNote(feed: string, bytes: Uint8Array, opts: NewNoteOptions, now = new Date()): Promise<{ note: ImageNote; readId: string | null }> {
+export async function createImageNote(
+  feed: string,
+  bytes: Uint8Array,
+  opts: NewNoteOptions,
+  now = new Date(),
+): Promise<{ note: ImageNote; readId: string | null }> {
   const ext = sniffImage(bytes);
   if (!ext) throw new UnsupportedTypeError();
   const made = await createNoteOf(feed, typeForExt(ext)!, ext, bytes, opts, now);
@@ -121,12 +165,16 @@ async function noteRefs(feed: string, typeName?: string, q: RefQuery = {}): Prom
   // The feed's own title image (uploaded as one, not posted) is in no list: not the timeline, RSS, the APIs, counts or the free cap.
   const settings = await storage().readSettings(feed);
   const own = settings.ownImage ? settings.image : null;
-  const isNote = (e: NoteRef) => { const type = typeForExt(e.ext); return !!type && (typeName === undefined || type.name === typeName) && isValidId(e.id) && `${e.id}.${e.ext}` !== own; };
+  const isNote = (e: NoteRef) => {
+    const type = typeForExt(e.ext);
+    return !!type && (typeName === undefined || type.name === typeName) && isValidId(e.id) && `${e.id}.${e.ext}` !== own;
+  };
   const limit = typeName === undefined ? q.limit : undefined;
   const drafts = q.upTo === undefined;
   const refs = await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, limit, drafts, removed: q.removed });
   const notes = refs.filter(isNote);
-  if (limit !== undefined && notes.length < refs.length) return (await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, drafts, removed: q.removed })).filter(isNote).slice(0, q.limit);
+  if (limit !== undefined && notes.length < refs.length)
+    return (await storage().listNoteRefs(feed, { upTo: q.upTo, before: q.before, drafts, removed: q.removed })).filter(isNote).slice(0, q.limit);
   return q.limit === undefined ? notes : notes.slice(0, q.limit);
 }
 
@@ -148,7 +196,15 @@ export function unreadableNote(id: string, e: unknown): UnreadableNoteError {
 // `tag`: only notes carrying it; newest first, the metadata of a chunk is read to choose and the notes themselves only for the
 // matches, until `limit` match. A note whose stored copy can't be decrypted is left out, or with `placeholders` listed in its place as
 // an UnreadableNote (the pages, the API and MCP show it; RSS can't); its tags can't be read, so a tag never matches it.
-export async function listNotes(feed: string, limit = 50, before?: string, tag?: string, typeName?: string, placeholders = false, asOf?: Date): Promise<Note[]> {
+export async function listNotes(
+  feed: string,
+  limit = 50,
+  before?: string,
+  tag?: string,
+  typeName?: string,
+  placeholders = false,
+  asOf?: Date,
+): Promise<Note[]> {
   const refs = await noteRefs(feed, typeName, { upTo: asOf?.getTime(), before, ...(tag === undefined && { limit }) });
   const one = (ref: NoteRef): Promise<Note | null> =>
     readOf(feed, ref).catch((e) => {
@@ -161,7 +217,13 @@ export async function listNotes(feed: string, limit = 50, before?: string, tag?:
   const found: Note[] = [];
   for (let i = 0; i < refs.length && found.length < limit; i += limit) {
     const chunk = refs.slice(i, i + limit);
-    const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null))));
+    const metas = await Promise.all(
+      chunk.map((ref) =>
+        storage()
+          .readMeta(feed, ref)
+          .catch((e) => (unreadableNote(ref.id, e), null)),
+      ),
+    );
     found.push(...(await read(chunk.filter((_, j) => metas[j]?.tags?.includes(tag)))));
   }
   return found.slice(0, limit);
@@ -201,7 +263,13 @@ export async function namedFile(feed: string, name: string, asOf?: Date): Promis
   // ponytail: reads sidecars newest first until one matches, as a rare tag does; a name index would fix it if feeds get large.
   for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
     const chunk = refs.slice(i, i + READS_AT_ONCE);
-    const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null))));
+    const metas = await Promise.all(
+      chunk.map((ref) =>
+        storage()
+          .readMeta(feed, ref)
+          .catch((e) => (unreadableNote(ref.id, e), null)),
+      ),
+    );
     const j = metas.findIndex((m) => m?.name === name);
     if (j >= 0) return `${chunk[j].id}.${chunk[j].ext}`;
   }
@@ -221,9 +289,13 @@ export async function fileVisible(feed: string, file: string, to: Date | "owner"
 // The note, found by trying `exts` (a lookup by id alone) or the one extension a listing already knows.
 async function readNoteAs(feed: string, id: string, exts: readonly string[]): Promise<Note | null> {
   if (checkFeed(feed) || !isValidId(id)) return null;
-  const stored = await storage().readNote(feed, id, exts, withContent).catch((e) => Promise.reject(unreadableNote(id, e)));
+  const stored = await storage()
+    .readNote(feed, id, exts, withContent)
+    .catch((e) => Promise.reject(unreadableNote(id, e)));
   const type = stored && typeForExt(stored.ext);
-  return stored && type ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size, draft: stored.draft }, stored.content) : null;
+  return stored && type
+    ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size, draft: stored.draft }, stored.content)
+    : null;
 }
 
 const readOf = (feed: string, ref: NoteRef) => readNoteAs(feed, ref.id, [ref.ext]);
@@ -277,7 +349,12 @@ export async function changeMeta(feed: string, id: string, edit: { title?: strin
   if (!note) return null;
   if (alt !== undefined && !typeForExt(note.ext)?.hasAlt) throw new InvalidBodyError("alt is for image notes");
   // Tags are replaced as a whole list, an empty one removes them (#244).
-  const patch = { ...(title !== undefined && { title }), ...(alt !== undefined && { alt }), ...(tags !== undefined && { tags: tags.length ? tags : null }), updated: new Date().toISOString() };
+  const patch = {
+    ...(title !== undefined && { title }),
+    ...(alt !== undefined && { alt }),
+    ...(tags !== undefined && { tags: tags.length ? tags : null }),
+    updated: new Date().toISOString(),
+  };
   if (!(await storage().updateMeta(feed, id, EDIT_EXTS, patch))) return null;
   noteEdited(typeForExt(note.ext)?.name ?? "unknown", "meta");
   return getNote(feed, id);
@@ -307,7 +384,13 @@ export async function attachmentsOf(feed: string, id: string, removed = false): 
   const found: NoteRef[] = [];
   for (let i = 0; i < refs.length; i += READS_AT_ONCE) {
     const chunk = refs.slice(i, i + READS_AT_ONCE);
-    const metas = await Promise.all(chunk.map((ref) => storage().readMeta(feed, ref).catch((e) => (unreadableNote(ref.id, e), null))));
+    const metas = await Promise.all(
+      chunk.map((ref) =>
+        storage()
+          .readMeta(feed, ref)
+          .catch((e) => (unreadableNote(ref.id, e), null)),
+      ),
+    );
     found.push(...chunk.filter((_, j) => metas[j]?.of === id));
   }
   return found;

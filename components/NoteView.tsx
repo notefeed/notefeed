@@ -34,7 +34,23 @@ const markPicturesInLinks = () => (tree: Hast) => {
 // `anchors` (a note's own page, #243): each heading gets an id and a link to itself. A picture's size comes from its link (shared/markdown.ts).
 // `plugins`: more rehype plugins, from a server component, so what they need stays out of the browser's bundle (code highlighting).
 // `diagrams` (a note's own page and the timeline, #301): a ```mermaid block is drawn in the browser, its source the fallback (MermaidBlock).
-export function NoteView({ markdown, imageBase, resolve, link, anchors = false, plugins = [], diagrams = false }: { markdown: string; imageBase?: string; resolve?: (src: string) => string | undefined; link?: (src: string) => string | undefined; anchors?: boolean; plugins?: PluggableList; diagrams?: boolean }) {
+export function NoteView({
+  markdown,
+  imageBase,
+  resolve,
+  link,
+  anchors = false,
+  plugins = [],
+  diagrams = false,
+}: {
+  markdown: string;
+  imageBase?: string;
+  resolve?: (src: string) => string | undefined;
+  link?: (src: string) => string | undefined;
+  anchors?: boolean;
+  plugins?: PluggableList;
+  diagrams?: boolean;
+}) {
   return (
     <div className="md break-words">
       <ReactMarkdown
@@ -45,7 +61,13 @@ export function NoteView({ markdown, imageBase, resolve, link, anchors = false, 
           ...(diagrams && {
             pre: ({ node, children }) => {
               const source = mermaidSource(node as Hast | undefined);
-              return source === undefined ? <pre>{children}</pre> : <MermaidBlock source={source}><pre>{children}</pre></MermaidBlock>;
+              return source === undefined ? (
+                <pre>{children}</pre>
+              ) : (
+                <MermaidBlock source={source}>
+                  <pre>{children}</pre>
+                </MermaidBlock>
+              );
             },
           }),
           // User-uploaded images from our own route: next/image's optimizer has nothing to add (max-width is in globals.css).
@@ -64,7 +86,9 @@ export function NoteView({ markdown, imageBase, resolve, link, anchors = false, 
             );
           },
         }}
-      >{markdown}</ReactMarkdown>
+      >
+        {markdown}
+      </ReactMarkdown>
     </div>
   );
 }

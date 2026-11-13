@@ -17,12 +17,8 @@ export async function fakeServer() {
       const recorded = { method: req.method!, path: req.url!, headers: req.headers, body: Buffer.concat(chunks) };
       requests.push(recorded);
       const routed = route?.(recorded);
-      const [status, body, type, headers] = (routed && ([routed[0], JSON.stringify(routed[1]), "application/json", routed[2] ?? {}] as Reply)) ?? replies.shift() ?? [
-        201,
-        JSON.stringify({ id: "i", url: "u", feed_url: "f", read_url: "r" }),
-        "application/json",
-        {},
-      ];
+      const [status, body, type, headers] = (routed && ([routed[0], JSON.stringify(routed[1]), "application/json", routed[2] ?? {}] as Reply)) ??
+        replies.shift() ?? [201, JSON.stringify({ id: "i", url: "u", feed_url: "f", read_url: "r" }), "application/json", {}];
       res.writeHead(status, { "Content-Type": type, ...headers }).end(body);
     });
   });

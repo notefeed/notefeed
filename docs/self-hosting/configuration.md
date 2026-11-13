@@ -1,6 +1,6 @@
 # Configuration
 
-notefeed is configured with environment variables, under `environment:` in `compose.yaml` or in a `.env` file next to it. None is required: with none set, notefeed runs as an open instance. An empty value counts as unset.
+notefeed is configured with environment variables, kept in a `.env` file next to `compose.yaml` (`env_file: .env`). [`.env.example`](https://github.com/notefeed/notefeed/blob/main/.env.example) lists every one of them with its default; copy it to `.env` and change what you need. None is required: with none set, notefeed runs as an open instance. An empty value counts as unset.
 
 ## The instance
 

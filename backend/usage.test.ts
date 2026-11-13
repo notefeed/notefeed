@@ -1,6 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
@@ -17,8 +15,7 @@ const supported = Number(process.versions.node.split(".")[0]) >= 22;
 
 let dir = "";
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-usage-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_METRICS", "1");
   vi.stubEnv("NOTEFEED_SECRET", "s".repeat(32));
   vi.stubEnv("NOTEFEED_RATE_LIMIT", "0");
@@ -40,7 +37,9 @@ afterEach(async () => {
 // The value of the sample `metric` with exactly these labels (none: the unlabelled one); undefined when there is none.
 async function sample(metric: string, labels: Record<string, string> = {}): Promise<number | undefined> {
   const { body } = await renderMetrics();
-  const want = Object.entries(labels).map(([k, v]) => `${k}="${v}"`).join(",");
+  const want = Object.entries(labels)
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(",");
   const line = body.split("\n").find((l) => l.startsWith(want ? `${metric}{${want}} ` : `${metric} `));
   return line === undefined ? undefined : Number(line.slice(line.lastIndexOf(" ") + 1));
 }
@@ -53,7 +52,11 @@ const md = (count: number) => ({ md: { count, bytes: count * 10 } });
 test("countUsage: kinds by extension, the windows of activity, and files that are no notes left out", () => {
   const c = countUsage(
     [
-      feed({ protected: true, lastWrite: NOW - DAY / 2, notes: { md: { count: 2, bytes: 20 }, png: { count: 1, bytes: 1000 }, jpg: { count: 2, bytes: 500 }, txt: { count: 9, bytes: 9 } } }),
+      feed({
+        protected: true,
+        lastWrite: NOW - DAY / 2,
+        notes: { md: { count: 2, bytes: 20 }, png: { count: 1, bytes: 1000 }, jpg: { count: 2, bytes: 500 }, txt: { count: 9, bytes: 9 } },
+      }),
       feed({ readLink: false, lastWrite: NOW - 3 * DAY, notes: md(1) }),
       feed({ lastWrite: NOW - 20 * DAY, notes: md(1) }),
       feed({ lastWrite: NOW - 40 * DAY, notes: md(1) }),
@@ -73,7 +76,18 @@ test("countUsage: kinds by extension, the windows of activity, and files that ar
 });
 
 test("countUsage: near the cap is 80% of it or more, at it is the cap exactly, over it more (a license); every note counts, images and marks too", () => {
-  const c = countUsage([feed({ notes: md(7) }), feed({ notes: md(8) }), feed({ notes: { ...md(6), png: { count: 2, bytes: 1 } } }), feed({ notes: { ...md(9), removed: { count: 1, bytes: 0 } } }), feed({ notes: { png: { count: 50, bytes: 1 } } }), feed({ notes: { txt: { count: 50, bytes: 1 } } })], 10, NOW);
+  const c = countUsage(
+    [
+      feed({ notes: md(7) }),
+      feed({ notes: md(8) }),
+      feed({ notes: { ...md(6), png: { count: 2, bytes: 1 } } }),
+      feed({ notes: { ...md(9), removed: { count: 1, bytes: 0 } } }),
+      feed({ notes: { png: { count: 50, bytes: 1 } } }),
+      feed({ notes: { txt: { count: 50, bytes: 1 } } }),
+    ],
+    10,
+    NOW,
+  );
   expect(c.freeCap).toEqual({ near: 2, at: 1, over: 1 });
 });
 
@@ -112,6 +126,8 @@ test("a count runs at most once per USAGE_MAX_AGE_MS; a scrape after that answer
   expect(usage).toHaveBeenCalledTimes(2);
   expect(await sample("notefeed_feeds")).toBe(1); // the last count, while the next one runs
   release();
+  // Let the count finish here: left running, it lands in the next test's metrics.
+  await vi.waitFor(async () => expect(await sample("notefeed_feeds")).toBe(2));
 });
 
 test("a failed count keeps the last values", async () => {

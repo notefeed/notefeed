@@ -23,7 +23,10 @@ export function checkNewPassword(p: string): void {
   if (!PASSWORD_RE.test(p)) throw new InvalidBodyError(`password must be ${PASSWORD_RULE}`);
 }
 
-const N = 16384, R = 8, P = 1, KEYLEN = 64;
+const N = 16384,
+  R = 8,
+  P = 1,
+  KEYLEN = 64;
 // The async scrypt runs on the thread pool: a password check (some 40 ms) must not stall every other request.
 const scryptAsync = promisify<string, Buffer, number, ScryptOptions, Buffer>(scrypt);
 const derive = (p: string, salt: Buffer, n: number, r: number, pp: number, len: number) =>
@@ -51,7 +54,10 @@ export async function protectedFeed(feed: string): Promise<boolean> {
   return (await storage().readHash(feed)) !== null;
 }
 
-const cookieOf = (feed: string, hash: string) => createHmac("sha256", secret()).update(feed + hash).digest("hex");
+const cookieOf = (feed: string, hash: string) =>
+  createHmac("sha256", secret())
+    .update(feed + hash)
+    .digest("hex");
 
 export async function cookieValue(feed: string): Promise<string | null> {
   const hash = await storage().readHash(feed);

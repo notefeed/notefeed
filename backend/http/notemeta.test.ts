@@ -1,5 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { encodeHeaderValue } from "../../shared/headers";
@@ -12,8 +11,7 @@ import { png } from "../testimages";
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-meta-"));
-  process.env.DATA_DIR = dir;
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();
@@ -24,14 +22,21 @@ const PNG = png(1);
 
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
-  const segments = url.pathname.slice(API_PREFIX.length + 1).split("/").map(decodeURIComponent);
+  const segments = url.pathname
+    .slice(API_PREFIX.length + 1)
+    .split("/")
+    .map(decodeURIComponent);
   return dispatch(new Request(url, { method, body: init.body, headers: { host: "localhost:3000", ...init.headers } }), segments);
 }
 // A markdown note: the text is the body, its title and tags are headers.
 const postJson = ({ markdown, title, tags }: { markdown: string; title?: string; tags?: string[] }) =>
   call("POST", "/feeds/f/notes", {
     body: markdown,
-    headers: { "content-type": "text/markdown", ...(title !== undefined && { "x-note-title": encodeHeaderValue(title) }), ...(tags && { "x-note-tags": tags.join(",") }) },
+    headers: {
+      "content-type": "text/markdown",
+      ...(title !== undefined && { "x-note-title": encodeHeaderValue(title) }),
+      ...(tags && { "x-note-tags": tags.join(",") }),
+    },
   });
 const getNote = async (id: string) => (await call("GET", `/feeds/f/notes/${id}`)).json();
 // The metadata in a note's sidecar; the note's date beside it is left out (toEqual ignores an undefined field).

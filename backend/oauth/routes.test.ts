@@ -1,13 +1,20 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logsOf } from "../log";
 import { mcpRoute } from "../mcp";
-import { authServerRoute, authorizeRoute, checkAuthorize, issueCode, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./routes";
+import {
+  authServerRoute,
+  authorizeRoute,
+  checkAuthorize,
+  issueCode,
+  metadataPreflight,
+  protectedResourceRoute,
+  registerPreflight,
+  registerRoute,
+  tokenRoute,
+} from "./routes";
 import { TTL, cid, resetTokensForTests, verify } from "./tokens";
 
 const BASE = "http://localhost:3000";
@@ -16,7 +23,6 @@ const CB = "https://claude.ai/api/mcp/auth_callback";
 const H = { host: "localhost:3000" };
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-oauth-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   process.env.NOTEFEED_PASSWORD = "pw";
   resetFeedsForTests();
@@ -34,8 +40,7 @@ const pkce = () => {
   return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
 };
 
-const post = (path: string, body: BodyInit, type: string) =>
-  new Request(BASE + path, { method: "POST", headers: { ...H, "content-type": type }, body });
+const post = (path: string, body: BodyInit, type: string) => new Request(BASE + path, { method: "POST", headers: { ...H, "content-type": type }, body });
 const register = (body: unknown) => registerRoute(post("/oauth/register", JSON.stringify(body), "application/json"));
 const form = (path: string, fields: Record<string, string>) => post(path, new URLSearchParams(fields), "application/x-www-form-urlencoded");
 const token = (fields: Record<string, string>) => tokenRoute(form("/oauth/token", fields));
@@ -47,7 +52,16 @@ async function clientId(redirect_uris = [CB]) {
 }
 
 function authParams(client_id: string, challenge: string, extra: Record<string, string> = {}) {
-  return new URLSearchParams({ response_type: "code", client_id, redirect_uri: CB, code_challenge: challenge, code_challenge_method: "S256", state: "a b&c", resource: RESOURCE, ...extra });
+  return new URLSearchParams({
+    response_type: "code",
+    client_id,
+    redirect_uri: CB,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    state: "a b&c",
+    resource: RESOURCE,
+    ...extra,
+  });
 }
 
 // Registers, logs in and returns the code with what the token request needs.
@@ -66,7 +80,15 @@ const callMcp = (bearer: string) =>
   mcpRoute(
     new Request(RESOURCE, {
       method: "POST",
-      headers: { ...H, authorization: `Bearer ${bearer}`, "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": "post_note" },
+      headers: {
+        ...H,
+        authorization: `Bearer ${bearer}`,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2026-07-28",
+        "mcp-method": "tools/call",
+        "mcp-name": "post_note",
+      },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
@@ -74,7 +96,11 @@ const callMcp = (bearer: string) =>
         params: {
           name: "post_note",
           arguments: { feed: "a", markdown: "# Hi" },
-          _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" }, "io.modelcontextprotocol/clientCapabilities": {} },
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" },
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
         },
       }),
     }),
@@ -150,7 +176,9 @@ describe("flow", () => {
     const { refresh_token } = await (await exchange(c)).json();
     vi.unstubAllEnvs();
     let res = new Response();
-    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([{ level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in switched off" }]);
+    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([
+      { level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in switched off" },
+    ]);
     expect((await res.json()).error).toBe("invalid_grant");
   });
 
@@ -160,7 +188,9 @@ describe("flow", () => {
     const { refresh_token } = await (await exchange(c)).json();
     vi.spyOn(Date, "now").mockReturnValue(Date.now() + (TTL.identity + 2) * 1000);
     let res = new Response();
-    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([{ level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in past its lifetime" }]);
+    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([
+      { level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in past its lifetime" },
+    ]);
     expect((await res.json()).error).toBe("invalid_grant");
   });
 
@@ -229,7 +259,14 @@ describe("token refusals", () => {
 
 describe("checkAuthorize", () => {
   test.each([
-    ["a tampered client_id", (p: URLSearchParams) => p.set("client_id", p.get("client_id")!.replace(/.$/, (c) => (c === "A" ? "B" : "A")))],
+    [
+      "a tampered client_id",
+      (p: URLSearchParams) =>
+        p.set(
+          "client_id",
+          p.get("client_id")!.replace(/.$/, (c) => (c === "A" ? "B" : "A")),
+        ),
+    ],
     ["a redirect_uri with a trailing slash", (p: URLSearchParams) => p.set("redirect_uri", `${CB}/`)],
     ["a duplicated redirect_uri", (p: URLSearchParams) => p.append("redirect_uri", CB)],
   ])("%s: an error, never a redirect", async (_, change) => {
@@ -261,7 +298,15 @@ describe("checkAuthorize", () => {
 
   test("fields carry only the OAuth parameters", async () => {
     const r = checkAuthorize(authParams(await clientId(), pkce().challenge, { password: "x", scope: "all" }), new Headers(H));
-    expect(Object.keys((r as { fields: Record<string, string> }).fields).sort()).toEqual(["client_id", "code_challenge", "code_challenge_method", "redirect_uri", "resource", "response_type", "state"]);
+    expect(Object.keys((r as { fields: Record<string, string> }).fields).sort()).toEqual([
+      "client_id",
+      "code_challenge",
+      "code_challenge_method",
+      "redirect_uri",
+      "resource",
+      "response_type",
+      "state",
+    ]);
   });
 });
 
@@ -306,16 +351,18 @@ describe("login", () => {
   test("a granted authorization logs how, never the client's name", async () => {
     const id = (await (await register({ client_name: "Secret Client", redirect_uris: [CB] })).json()).client_id;
     const p = authParams(id, pkce().challenge);
-    expect(await logsOf(() => authorizeRoute(form("/api/oauth/authorize", { ...Object.fromEntries(p), password: "pw" })))).toEqual([{ level: "info", component: "oauth", msg: "authorization granted", via: "password" }]);
+    expect(await logsOf(() => authorizeRoute(form("/api/oauth/authorize", { ...Object.fromEntries(p), password: "pw" })))).toEqual([
+      { level: "info", component: "oauth", msg: "authorization granted", via: "password" },
+    ]);
   });
 
   test("a wrong password goes back to the page and counts as a failed attempt", async () => {
     process.env.NOTEFEED_RATE_LIMIT = "1";
     const p = authParams(await clientId(), pkce().challenge);
     let res = new Response();
-    expect(await logsOf(async () => (res = await authorizeRoute(form("/api/oauth/authorize", { ...Object.fromEntries(p), password: "nope" }))), "info")).toEqual([
-      { level: "warn", component: "auth", msg: "password login failed", page: "authorize" },
-    ]);
+    expect(
+      await logsOf(async () => (res = await authorizeRoute(form("/api/oauth/authorize", { ...Object.fromEntries(p), password: "nope" }))), "info"),
+    ).toEqual([{ level: "warn", component: "auth", msg: "password login failed", page: "authorize" }]);
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe(`/oauth/authorize?${p}&error=auth`);
     const next = await authorizeRoute(form("/api/oauth/authorize", { ...Object.fromEntries(p), password: "pw" }));

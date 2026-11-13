@@ -1,8 +1,7 @@
 // The operator's takedown (#155) on the file system backend, end to end through the HTTP handlers: what a removed feed answers
 // under both identifiers, and that its images are refused everywhere afterwards. The SQL backends run the same storage contract
 // (backend/storage/contract.ts) and the route test in http/operator.test.ts.
-import { appendFile, mkdtemp, readdir, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { appendFile, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi, afterEach } from "vitest";
 import { changeDate, changeDraft, changeMeta, createNote, replaceContent } from "./notes";
@@ -27,8 +26,7 @@ const PNG = png(1);
 const PNG2 = png(2);
 let root: string;
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "notefeed-takedown-"));
-  vi.stubEnv("DATA_DIR", root);
+  root = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   vi.stubEnv("NOTEFEED_OPERATOR_TOKEN", TOKEN);
   vi.stubEnv("NOTEFEED_RATE_LIMIT", "0");
@@ -39,12 +37,22 @@ afterEach(() => vi.unstubAllEnvs());
 
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
-  const segments = url.pathname.slice(API_PREFIX.length + 1).split("/").map(decodeURIComponent);
+  const segments = url.pathname
+    .slice(API_PREFIX.length + 1)
+    .split("/")
+    .map(decodeURIComponent);
   return dispatch(new Request(url, { method, body: init.body, headers: { host: "localhost:3000", ...init.headers } }), segments);
 }
-const upload = (feed: string, body: Uint8Array, headers: Record<string, string> = {}) => call("POST", `/feeds/${feed}/notes`, { body: body as BodyInit, headers: { "content-type": "image/png", ...headers } });
+const upload = (feed: string, body: Uint8Array, headers: Record<string, string> = {}) =>
+  call("POST", `/feeds/${feed}/notes`, { body: body as BodyInit, headers: { "content-type": "image/png", ...headers } });
 const takedown = (target: unknown, authorization = `Bearer ${TOKEN}`, extra: Record<string, unknown> = {}) =>
-  takedownRoute(new Request(`${BASE}/api/operator/takedown`, { method: "POST", body: JSON.stringify({ target, ...extra }), headers: { "content-type": "application/json", authorization } }));
+  takedownRoute(
+    new Request(`${BASE}/api/operator/takedown`, {
+      method: "POST",
+      body: JSON.stringify({ target, ...extra }),
+      headers: { "content-type": "application/json", authorization },
+    }),
+  );
 const takedownNote = (target: string) => takedown(target, `Bearer ${TOKEN}`, { scope: "note" });
 
 test("readIdOfTarget: a read link, a note's read URL, an image URL, a bare id; anything else is null", () => {
@@ -53,12 +61,15 @@ test("readIdOfTarget: a read link, a note's read URL, an image URL, a bare id; a
   expect(readIdOfTarget("https://notes.example.com/r/abc-123")).toBe("abc-123");
   expect(readIdOfTarget("/r/abc-123/")).toBe("abc-123");
   expect(readIdOfTarget(" abc-123 ")).toBe("abc-123");
-  for (const bad of ["", "https://notes.example.com/myfeed", "https://notes.example.com/r/", "not a url", "/r/a b"]) expect(readIdOfTarget(bad), bad).toBeNull();
+  for (const bad of ["", "https://notes.example.com/myfeed", "https://notes.example.com/r/", "not a url", "/r/a b"])
+    expect(readIdOfTarget(bad), bad).toBeNull();
 });
 
 describe("a feed taken down by its image URL", () => {
   test("answers removed under its read id and its name, its content is gone, and its image is refused everywhere", async () => {
-    expect((await call("POST", "/feeds/bad/notes", { body: "# text", headers: { "content-type": "text/markdown", "x-read-id": "removed-feed-id" } })).status).toBe(201);
+    expect(
+      (await call("POST", "/feeds/bad/notes", { body: "# text", headers: { "content-type": "text/markdown", "x-read-id": "removed-feed-id" } })).status,
+    ).toBe(201);
     const pic = await (await upload("bad", PNG)).json();
     const rid = (await readIdOf("bad"))!;
     expect(rid).toBe("removed-feed-id");
@@ -169,7 +180,8 @@ describe("a post taken down", () => {
     const kept = notes.find((n) => n.title === "stays")!;
     return { rid: (await readIdOf(feed))!, text, images, kept };
   }
-  const readList = async (rid: string) => (await (await call("GET", `/read/${rid}/notes`)).json()).notes as { id: string; date: string; removed?: true; type: string; file_url: string | null }[];
+  const readList = async (rid: string) =>
+    (await (await call("GET", `/read/${rid}/notes`)).json()).notes as { id: string; date: string; removed?: true; type: string; file_url: string | null }[];
 
   test("by the text's read URL: the post goes, its images are blocklisted, a mark is in its place", async () => {
     const { rid, text, images, kept } = await postWithTwo();
@@ -335,7 +347,8 @@ test("noteOfTarget: a note's read URL, an image URL, <read id>/<note>; a feed's 
   expect(noteOfTarget(" abc-123/n0te-id ")).toEqual({ readId: "abc-123", note: "n0te-id" });
   expect(noteOfTarget("https://notes.example.com/r/abc-123/my%20logo.png")).toEqual({ readId: "abc-123", note: "my logo.png" });
   expect(noteOfTarget("https://notes.example.com/r/abc-123/n0te-id/")).toEqual({ readId: "abc-123", note: "n0te-id" });
-  for (const bad of ["", "abc-123", "https://notes.example.com/r/abc-123", "/r/abc-123/", "/r/abc-123/feed.xml", "/r/abc-123/a/b", "not a url"]) expect(noteOfTarget(bad), bad).toBeNull();
+  for (const bad of ["", "abc-123", "https://notes.example.com/r/abc-123", "/r/abc-123/", "/r/abc-123/feed.xml", "/r/abc-123/a/b", "not a url"])
+    expect(noteOfTarget(bad), bad).toBeNull();
 });
 
 test("a removed note answers 410 everywhere, with its mark and after the mark is deleted (#159)", async () => {
@@ -360,15 +373,27 @@ test("a removed note answers 410 everywhere, with its mark and after the mark is
   };
   await everywhere();
   await gone(call("PUT", `/feeds/good/notes/${text.id}`, { body: "# back", headers: { "content-type": "text/markdown" } }), "PUT content");
-  for (const patch of [{ title: "x" }, { date: "2020-01-01" }, { draft: false }, { tags: ["t"] }]) await gone(call("PATCH", `/feeds/good/notes/${text.id}`, { body: JSON.stringify(patch), headers: { "content-type": "application/json" } }), JSON.stringify(patch));
+  for (const patch of [{ title: "x" }, { date: "2020-01-01" }, { draft: false }, { tags: ["t"] }])
+    await gone(
+      call("PATCH", `/feeds/good/notes/${text.id}`, { body: JSON.stringify(patch), headers: { "content-type": "application/json" } }),
+      JSON.stringify(patch),
+    );
   const form = new FormData();
   form.append("text", "# back ![](a.png)");
   form.append("file", new File([PNG2 as BlobPart], "a.png", { type: "image/png" }));
   await gone(call("PUT", `/feeds/good/notes/${text.id}`, { body: form }), "PUT with pictures");
   const marks = (await (await call("GET", "/feeds/good/notes")).json()).notes.filter((n: { removed?: true }) => n.removed);
-  expect(marks.map((n: { id: string; title: string }) => [n.id, n.title]).sort()).toEqual([[pic.id, ""], [text.id, ""]].sort());
+  expect(marks.map((n: { id: string; title: string }) => [n.id, n.title]).sort()).toEqual(
+    [
+      [pic.id, ""],
+      [text.id, ""],
+    ].sort(),
+  );
   expect((await call("DELETE", `/feeds/good/notes/${text.id}`)).status).toBe(204);
   expect((await call("DELETE", `/feeds/good/notes/${pic.id}`)).status).toBe(204);
   await everywhere();
-  await gone(call("PATCH", `/feeds/good/notes/${text.id}`, { body: JSON.stringify({ title: "x" }), headers: { "content-type": "application/json" } }), "PATCH after the mark");
+  await gone(
+    call("PATCH", `/feeds/good/notes/${text.id}`, { body: JSON.stringify({ title: "x" }), headers: { "content-type": "application/json" } }),
+    "PATCH after the mark",
+  );
 });

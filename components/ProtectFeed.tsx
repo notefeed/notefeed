@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LockKeyhole } from "lucide-react";
+import { FeedPasswordIcon } from "@/components/icons";
 import { PASSWORD_HINT } from "@/app/_lib/messages";
 import { CreateFeedButton } from "@/components/CreateFeedButton";
 import { card, field, sectionLabel } from "@/components/styles";
@@ -17,7 +17,7 @@ export function ProtectFeed({ feed, licensing, licensePage, error }: { feed: str
   return (
     <section aria-labelledby="protect-feed" className={`${card} p-4 text-sm xl:p-5`}>
       <h2 id="protect-feed" className={`${sectionLabel} flex items-center gap-1.5`}>
-        <LockKeyhole aria-hidden className="h-3.5 w-3.5" />
+        <FeedPasswordIcon aria-hidden className="h-3.5 w-3.5" />
         Protect this feed
       </h2>
       <p className="mt-1 text-[13px] text-muted">The first note creates the feed with this password, or create it now without a note.</p>

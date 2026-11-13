@@ -65,8 +65,7 @@ export function login(password: string, ip: string): string {
 }
 
 // Who a signed identity cookie names; undefined when identity mode is off or the cookie doesn't verify (forged, expired).
-export const identitySender = (cookie: string | undefined): string | undefined =>
-  identityOn() && cookie ? verify("identity", cookie)?.sender : undefined;
+export const identitySender = (cookie: string | undefined): string | undefined => (identityOn() && cookie ? verify("identity", cookie)?.sender : undefined);
 
 // A password session (only when a password is set) or a signed-in identity.
 export function sessionOk(cookie: string | undefined, identity?: string): boolean {

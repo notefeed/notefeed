@@ -24,7 +24,11 @@ export function ReportForm({ endpoint, values, errors: initialErrors }: { endpoi
     setSending(true);
     const data = Object.fromEntries(new FormData(e.currentTarget).entries());
     try {
-      const res = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(data) });
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(data),
+      });
       if (res.status === 201) return setSent(true);
       if (res.status === 400) return setErrors(((await res.json()) as { errors?: string[] }).errors ?? ["The report was not accepted."]);
       if (res.status === 429) return setErrors(["Too many reports from your connection just now. Try again in a few minutes."]);

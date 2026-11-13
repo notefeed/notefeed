@@ -27,7 +27,7 @@ DATA_DIR=./data npm run dev          # http://localhost:3000
 npm test && npm run lint && npm run typecheck
 ```
 
-Built from source in Docker, upgrade with `git pull && docker compose up -d --build`.
+Built from source in Docker, build the image yourself and point `compose.yaml`'s `image:` at it: `git pull && docker build -t notefeed:local . && docker compose up -d`.
 
 ## Security fixes and SBOM
 

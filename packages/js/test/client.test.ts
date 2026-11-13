@@ -86,13 +86,24 @@ describe("post", () => {
     await c.post("x", { title: "T", tags: ["ci", "deploy"], date: "2025-03-01", readId: "my-feed", licenseKey: "k".repeat(22) });
     await c.post("x", { tags: [] });
     await c.post("x", { date: new Date("2025-03-01T08:00:00+02:00") });
-    expect(server.requests[0].headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "ci,deploy", "x-note-date": "2025-03-01", "x-read-id": "my-feed", "x-license-key": "k".repeat(22) });
+    expect(server.requests[0].headers).toMatchObject({
+      "x-note-title": "T",
+      "x-note-tags": "ci,deploy",
+      "x-note-date": "2025-03-01",
+      "x-read-id": "my-feed",
+      "x-license-key": "k".repeat(22),
+    });
     expect(server.requests[2].headers["x-note-date"]).toBe("2025-03-01T06:00:00.000Z");
-    for (const h of ["x-note-title", "x-note-tags", "x-note-alt", "x-note-name", "x-note-date", "x-read-id", "x-license-key"]) expect(server.requests[1].headers[h]).toBeUndefined();
+    for (const h of ["x-note-title", "x-note-tags", "x-note-alt", "x-note-name", "x-note-date", "x-read-id", "x-license-key"])
+      expect(server.requests[1].headers[h]).toBeUndefined();
   });
   test("a title, alt text or name that is not ASCII goes as its UTF-8 bytes, which fetch can send", async () => {
     server.reply(201, CREATED);
-    await new Client({ url: server.url, feed: "inbox" }).post(new Blob([new Uint8Array([1])], { type: "image/png" }), { title: "Café 日本語", alt: "Größe", name: "Größe.png" });
+    await new Client({ url: server.url, feed: "inbox" }).post(new Blob([new Uint8Array([1])], { type: "image/png" }), {
+      title: "Café 日本語",
+      alt: "Größe",
+      name: "Größe.png",
+    });
     const h = server.requests[0].headers;
     const utf8 = (v: string | string[] | undefined) => Buffer.from(String(v), "latin1").toString("utf8"); // how a server reads the header bytes
     expect([utf8(h["x-note-title"]), utf8(h["x-note-alt"]), utf8(h["x-note-name"])]).toEqual(["Café 日本語", "Größe", "Größe.png"]);
@@ -166,7 +177,11 @@ describe("edit and delete", () => {
     await c.post("x", { draft: true });
     await c.post("x ![](a.png)", { draft: true, attachments: [{ name: "a.png", content: new Uint8Array([0x89, 0x50, 0x4e, 0x47]), type: "image/png" }] });
     await c.post("x", { draft: false });
-    expect([server.requests[0].headers["x-note-draft"], server.requests[1].headers["x-note-draft"], server.requests[2].headers["x-note-draft"]]).toEqual(["true", "true", undefined]);
+    expect([server.requests[0].headers["x-note-draft"], server.requests[1].headers["x-note-draft"], server.requests[2].headers["x-note-draft"]]).toEqual([
+      "true",
+      "true",
+      undefined,
+    ]);
     server.reply(200, note(10));
     await c.update(ID, { draft: false });
     expect(JSON.parse(server.requests[3].body.toString())).toEqual({ draft: false });
@@ -252,7 +267,12 @@ describe("feed settings and deletion", () => {
     expect(await c.attachLicense("k".repeat(22))).toEqual(FEED);
     expect(await c.detachLicense({ feed: "other" })).toEqual(FEED);
     const [put, del] = server.requests;
-    expect([put.method, put.path, JSON.parse(put.body.toString()), put.headers["x-feed-password"]]).toEqual(["PUT", "/api/v1/feeds/inbox/license", { key: "k".repeat(22) }, "fp"]);
+    expect([put.method, put.path, JSON.parse(put.body.toString()), put.headers["x-feed-password"]]).toEqual([
+      "PUT",
+      "/api/v1/feeds/inbox/license",
+      { key: "k".repeat(22) },
+      "fp",
+    ]);
     expect([del.method, del.path]).toEqual(["DELETE", "/api/v1/feeds/other/license"]);
   });
   test("setFeedPassword PUTs the new password, with the current one for a protected feed", async () => {
@@ -273,12 +293,21 @@ describe("feed settings and deletion", () => {
     expect(await c.createFeed({ password: "N3wPassw0rd!", licenseKey: "k".repeat(22), readId: "my-read" })).toEqual(FEED);
     await c.createFeed({ feed: "other" });
     const [made, bare] = server.requests;
-    expect([made.method, made.path, JSON.parse(made.body.toString())]).toEqual(["POST", "/api/v1/feeds/inbox", { password: "N3wPassw0rd!", license_key: "k".repeat(22), read_id: "my-read" }]);
+    expect([made.method, made.path, JSON.parse(made.body.toString())]).toEqual([
+      "POST",
+      "/api/v1/feeds/inbox",
+      { password: "N3wPassw0rd!", license_key: "k".repeat(22), read_id: "my-read" },
+    ]);
     expect(made.headers["x-feed-password"]).toBeUndefined();
     expect([bare.path, JSON.parse(bare.body.toString())]).toEqual(["/api/v1/feeds/other", {}]);
   });
   test("licenses GETs what is sold, where to buy it and where buyers manage it, without a feed or a feed password", async () => {
-    const LICENSES = { plans: [{ period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", tax_included: true }], buy_url: "https://n.test/license", manage_url: "https://pay.test/login", manage: "Sign in there." };
+    const LICENSES = {
+      plans: [{ period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", tax_included: true }],
+      buy_url: "https://n.test/license",
+      manage_url: "https://pay.test/login",
+      manage: "Sign in there.",
+    };
     server.reply(200, LICENSES);
     const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
     expect(await c.licenses()).toEqual(LICENSES);
@@ -292,7 +321,11 @@ describe("feed settings and deletion", () => {
     expect(await c.recoverFeedPassword("k".repeat(22), "N3wPassw0rd!")).toBeUndefined();
     await c.recoverFeedPassword("k".repeat(22), undefined, { feed: "other" });
     const [set, removed] = server.requests;
-    expect([set.method, set.path, JSON.parse(set.body.toString())]).toEqual(["POST", "/api/v1/feeds/inbox/password/recover", { key: "k".repeat(22), password: "N3wPassw0rd!" }]);
+    expect([set.method, set.path, JSON.parse(set.body.toString())]).toEqual([
+      "POST",
+      "/api/v1/feeds/inbox/password/recover",
+      { key: "k".repeat(22), password: "N3wPassw0rd!" },
+    ]);
     expect(set.headers["x-feed-password"]).toBeUndefined();
     expect([removed.path, JSON.parse(removed.body.toString())]).toEqual(["/api/v1/feeds/other/password/recover", { key: "k".repeat(22), password: "" }]);
   });
@@ -303,7 +336,13 @@ describe("feed settings and deletion", () => {
     expect(await c.setFeedImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), "image/png")).toEqual(FEED);
     expect(await c.removeFeedImage({ feed: "other" })).toEqual(FEED);
     const [put, del] = server.requests;
-    expect([put.method, put.path, put.headers["content-type"], put.headers["x-feed-password"], [...put.body]]).toEqual(["PUT", "/api/v1/feeds/inbox/image", "image/png", "fp", [0x89, 0x50, 0x4e, 0x47]]);
+    expect([put.method, put.path, put.headers["content-type"], put.headers["x-feed-password"], [...put.body]]).toEqual([
+      "PUT",
+      "/api/v1/feeds/inbox/image",
+      "image/png",
+      "fp",
+      [0x89, 0x50, 0x4e, 0x47],
+    ]);
     expect([del.method, del.path]).toEqual(["DELETE", "/api/v1/feeds/other/image"]);
   });
   test("deleteFeed sends DELETE and resolves to nothing on 204", async () => {
@@ -361,7 +400,11 @@ describe("pictures", () => {
     await c.updateFeed({ title: "t", description: "d", image: "" });
     await c.updateFeed({ title: "t", description: "d" });
     const bodies = server.requests.map((r) => JSON.parse(r.body.toString()));
-    expect(bodies).toEqual([{ title: "t", description: "d", image: "a.png" }, { title: "t", description: "d", image: "" }, { title: "t", description: "d" }]);
+    expect(bodies).toEqual([
+      { title: "t", description: "d", image: "a.png" },
+      { title: "t", description: "d", image: "" },
+      { title: "t", description: "d" },
+    ]);
   });
 });
 
@@ -415,9 +458,7 @@ describe("errors map from the response's code", () => {
 
 describe("an answer that isn't the API's is an error, never a success", () => {
   test("a POST redirected (http → https) and turned into a GET loses nothing silently", async () => {
-    server.route((r) =>
-      r.method === "POST" ? [301, {}, { Location: "/api/v1/feeds/inbox/notes" }] : [200, { notes: [], next: null }],
-    );
+    server.route((r) => (r.method === "POST" ? [301, {}, { Location: "/api/v1/feeds/inbox/notes" }] : [200, { notes: [], next: null }]));
     const e = (await new Client({ url: server.url, feed: "inbox" }).post("x").catch((e: unknown) => e)) as NotefeedError;
     expect(e).toBeInstanceOf(NotefeedError);
     expect(e.message).toMatch(/redirect/);
@@ -533,7 +574,14 @@ describe("reading", () => {
 
 describe("post with attachments", () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
-  const created = (n: number) => ({ id: `I${n}`, url: `https://n.example/inbox/I${n}`, feed_url: "https://n.example/inbox", read_url: null, file: `F${n}.png`, file_url: `https://n.example/r/X/F${n}.png` });
+  const created = (n: number) => ({
+    id: `I${n}`,
+    url: `https://n.example/inbox/I${n}`,
+    feed_url: "https://n.example/inbox",
+    read_url: null,
+    file: `F${n}.png`,
+    file_url: `https://n.example/r/X/F${n}.png`,
+  });
   const c = () => new Client({ url: server.url, feed: "inbox" });
   const img = (name: string) => ({ name, content: png, type: "image/png" });
   const parse = (r: Recorded) => new Response(new Uint8Array(r.body), { headers: { "content-type": r.headers["content-type"]! } }).formData();
@@ -552,7 +600,13 @@ describe("post with attachments", () => {
     expect(server.requests).toHaveLength(1);
     const q = server.requests[0];
     expect(q.headers["content-type"]).toMatch(/^multipart\/form-data; boundary=/);
-    expect(q.headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "x", "x-feed-password": "pw", "x-read-id": "my-read", "x-license-key": "k".repeat(22) });
+    expect(q.headers).toMatchObject({
+      "x-note-title": "T",
+      "x-note-tags": "x",
+      "x-feed-password": "pw",
+      "x-read-id": "my-read",
+      "x-license-key": "k".repeat(22),
+    });
     expect(q.headers["x-note-alt"]).toBeUndefined();
     expect(q.headers["x-note-name"]).toBeUndefined();
     const form = await parse(q);
@@ -560,7 +614,10 @@ describe("post with attachments", () => {
     expect(text.type).toBe("text/markdown");
     expect(await text.text()).toBe(md);
     const files = form.getAll("file") as File[];
-    expect(files.map((f) => [f.name, f.type])).toEqual([["a.png", "image/png"], ["b.png", "image/png"]]);
+    expect(files.map((f) => [f.name, f.type])).toEqual([
+      ["a.png", "image/png"],
+      ["b.png", "image/png"],
+    ]);
     expect(new Uint8Array(await files[0].arrayBuffer())).toEqual(png);
     expect(form.get("alt.a.png")).toBe("A");
     expect(form.has("alt.b.png")).toBe(false);
@@ -589,7 +646,9 @@ describe("post with attachments", () => {
     ["non-markdown content", png, [img("a.png")]],
     ["no content and no attachments", null, []],
   ])("%s is refused before anything is sent", async (_, content, attachments) => {
-    await expect(c().post(content as string | Uint8Array, { type: content === "x" || content === null ? undefined : "image/png", attachments })).rejects.toBeInstanceOf(ConfigError);
+    await expect(
+      c().post(content as string | Uint8Array, { type: content === "x" || content === null ? undefined : "image/png", attachments }),
+    ).rejects.toBeInstanceOf(ConfigError);
     expect(server.requests).toHaveLength(0);
   });
 
@@ -600,16 +659,21 @@ describe("post with attachments", () => {
 
   test("a server refusal surfaces with its message, one request", async () => {
     server.reply(400, { error: 'attachment "b.png": bad', code: "invalid_body" });
-    const err = await c().post("x", { attachments: [img("a.png"), img("b.png")] }).catch((e) => e);
+    const err = await c()
+      .post("x", { attachments: [img("a.png"), img("b.png")] })
+      .catch((e) => e);
     expect(err).toBeInstanceOf(InvalidRequestError);
     expect(err).toMatchObject({ status: 400, code: "invalid_body", message: 'attachment "b.png": bad' });
     expect(server.requests).toHaveLength(1);
   });
 
   test("the name rule is the server's: a name it refuses is sent, and surfaces as its InvalidRequestError", async () => {
-    const message = 'attachment "..": not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots';
+    const message =
+      'attachment "..": not a file name: 1 to 200 characters, no / or \\, no control or text-direction override characters, no leading or trailing space, not only dots';
     server.reply(400, { error: message, code: "invalid_body" });
-    const err = await c().post("x", { attachments: [img("..")] }).catch((e) => e);
+    const err = await c()
+      .post("x", { attachments: [img("..")] })
+      .catch((e) => e);
     expect(err).toBeInstanceOf(InvalidRequestError);
     expect(err).toMatchObject({ status: 400, code: "invalid_body", message });
     expect(server.requests).toHaveLength(1);
@@ -617,7 +681,9 @@ describe("post with attachments", () => {
 
   test("a rate limit keeps retryAfter", async () => {
     server.reply(429, { error: "slow down", code: "rate_limited" }, "application/json", { "Retry-After": "7" });
-    const err = await c().post("x", { attachments: [img("a.png")] }).catch((e) => e);
+    const err = await c()
+      .post("x", { attachments: [img("a.png")] })
+      .catch((e) => e);
     expect(err).toBeInstanceOf(RateLimitedError);
     expect(err).toMatchObject({ retryAfter: 7 });
   });

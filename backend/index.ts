@@ -37,7 +37,16 @@ export { fileRoute, ownerFileRoute } from "./http/files";
 export { atomRoute, rssRoute } from "./http/rss";
 export { mcpRoute } from "./mcp";
 export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
-export { authServerRoute, authorizeRoute, checkAuthorize, metadataPreflight, protectedResourceRoute, registerPreflight, registerRoute, tokenRoute } from "./oauth/routes";
+export {
+  authServerRoute,
+  authorizeRoute,
+  checkAuthorize,
+  metadataPreflight,
+  protectedResourceRoute,
+  registerPreflight,
+  registerRoute,
+  tokenRoute,
+} from "./oauth/routes";
 
 export { freeNoteCap, freeTier, isLicensed, licenseAccountUrl, licensePlans, licensingOn } from "./licensing";
 
@@ -81,7 +90,19 @@ const PAGE = 50;
  * legacy feed's id is derived from the name, so showing one would hand out the read link of whatever
  * feed is created there later. None either for a feed whose stored read id can't be read (backend/feeds.ts).
  */
-export async function getFeed(feed: string, tag?: string): Promise<{ notes: Note[]; readId: string | null; exists: boolean; title: string; description: string; image: string; showSender: boolean; imageUrl: string | null } | null> {
+export async function getFeed(
+  feed: string,
+  tag?: string,
+): Promise<{
+  notes: Note[];
+  readId: string | null;
+  exists: boolean;
+  title: string;
+  description: string;
+  image: string;
+  showSender: boolean;
+  imageUrl: string | null;
+} | null> {
   if (checkFeed(feed)) return null;
   const notes = await listNotes(feed, PAGE, undefined, tag, undefined, true);
   // `exists`: a feed that had notes and lost them still exists (it counts toward the feed cap and can't get a password).
@@ -122,7 +143,12 @@ export async function getReadFeed(id: string, tag?: string): Promise<{ notes: No
   const feed = await feedForReadId(id);
   const settings = feed ? await getSettings(feed, asOf) : { title: "", description: "", image: "", showSender: true };
   const { title, description, image } = settings;
-  return { notes: feed ? forReaders(await listNotes(feed, PAGE, undefined, tag, undefined, true, asOf), settings) : [], title, description, imageUrl: image ? imagePath(id, image) : null };
+  return {
+    notes: feed ? forReaders(await listNotes(feed, PAGE, undefined, tag, undefined, true, asOf), settings) : [],
+    title,
+    description,
+    imageUrl: image ? imagePath(id, image) : null,
+  };
 }
 
 /** A feed's title and title image by its read id, without its notes: the card beside one of its notes (#307). */

@@ -86,7 +86,11 @@ export function wrapperFromConfig(): KeyWrapper | null {
   if (shared.keys === keys && shared.wrapper !== undefined) return shared.wrapper;
   const key = config.encryptionKey();
   const wrapper =
-    config.kms() === "openbao" ? createOpenBaoWrapper({ ...config.openbao(), old: createOldKeysWrapper(config.encryptionOldKeys()) }) : key ? createLocalWrapper(key, config.encryptionOldKeys()) : null;
+    config.kms() === "openbao"
+      ? createOpenBaoWrapper({ ...config.openbao(), old: createOldKeysWrapper(config.encryptionOldKeys()) })
+      : key
+        ? createLocalWrapper(key, config.encryptionOldKeys())
+        : null;
   shared.keys = keys;
   shared.wrapper = wrapper;
   return wrapper;
@@ -99,4 +103,7 @@ export function keyServiceCheck(): (() => Promise<void>) | undefined {
 }
 
 /** Which main keys (or key service) are configured, as a hash: for a cache of instances built with them, which must never hold the keys. */
-export const encryptionKeys = (): string => createHash("sha256").update(JSON.stringify([config.encryptionKey(), config.encryptionOldKeys(), config.kms(), config.openbao()])).digest("hex");
+export const encryptionKeys = (): string =>
+  createHash("sha256")
+    .update(JSON.stringify([config.encryptionKey(), config.encryptionOldKeys(), config.kms(), config.openbao()]))
+    .digest("hex");

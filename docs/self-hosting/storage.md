@@ -81,6 +81,18 @@ Put `POSTGRES_PASSWORD` and `NOTEFEED_SECRET` in a `.env` file next to it, then 
 
 With a database backend, `NOTEFEED_IMAGES` says where the bytes of image notes go; everything else stays in the database, and images are still served by notefeed under the read link.
 
+Where each part of a note ends up, by the two settings; readers always go through notefeed:
+
+```mermaid
+flowchart LR
+  reader[Reader] --> nf[notefeed]
+  nf -->|"NOTEFEED_STORAGE=fs"| dir["DATA_DIR: a folder per feed, a file per note"]
+  nf -->|"sqlite or postgres"| db[(Database: feeds, notes, metadata)]
+  db -->|"NOTEFEED_IMAGES=db"| rows[Image bytes in the note's row]
+  db -->|"=fs"| folder["NOTEFEED_IMAGES_DIR"]
+  db -->|"=s3"| bucket[(S3 bucket)]
+```
+
 | `NOTEFEED_IMAGES` | Where the bytes are | Use it when |
 |---|---|---|
 | `db` (default) | in the note's row | the instance is small; one thing to back up |
@@ -91,15 +103,15 @@ With a database backend, `NOTEFEED_IMAGES` says where the bytes of image notes g
 
 Any store that speaks S3 works, hosted (Hetzner, Scaleway, Cloudflare R2, AWS) or your own (MinIO, Garage). Create a private bucket and a key that may read, write and delete in it; objects are named by a random key, so the bucket shows neither feed names nor note ids.
 
-```yaml
-environment:
-  NOTEFEED_STORAGE: postgres
-  NOTEFEED_IMAGES: s3
-  NOTEFEED_S3_ENDPOINT: https://s3.example.com
-  NOTEFEED_S3_BUCKET: notefeed-images
-  NOTEFEED_S3_REGION: us-east-1
-  NOTEFEED_S3_ACCESS_KEY: <access key>
-  NOTEFEED_S3_SECRET_KEY: <secret key>
+```sh
+# .env
+NOTEFEED_STORAGE=postgres
+NOTEFEED_IMAGES=s3
+NOTEFEED_S3_ENDPOINT=https://s3.example.com
+NOTEFEED_S3_BUCKET=notefeed-images
+NOTEFEED_S3_REGION=us-east-1
+NOTEFEED_S3_ACCESS_KEY=<access key>
+NOTEFEED_S3_SECRET_KEY=<secret key>
 ```
 
 If the store is unreachable, pictures fail and text notes keep working. Going from `db` to `fs` or `s3` works at any time: old images stay where they are and are still served. Going between `fs` and `s3` strands the old images until they are [moved](#moving-images-between-stores).
@@ -107,6 +119,17 @@ If the store is unreachable, pictures fail and text notes keep working. Going fr
 ## Encryption at rest
 
 With `NOTEFEED_ENCRYPTION_KEY` set, or the main key in a [key service](#the-main-key-in-openbao), notefeed encrypts what it stores before it reaches the database or the image store, so a copy of either, a dump or a snapshot of the disk can't be read without the key. Each feed has its own data key: its notes, images, metadata, settings and feed password are encrypted with it (AES-256-GCM). The data keys are stored next to their feeds, encrypted with the main key, which is never stored. Feed names and read ids are stored only as fingerprints, so the database doesn't hand anyone a way into a feed. The database's own housekeeping stays readable: ids, sizes and times.
+
+How the keys wrap each other, from the key you keep down to what is stored; nothing below the main key is readable without it:
+
+```mermaid
+flowchart TB
+  main["Main key: NOTEFEED_ENCRYPTION_KEY or OpenBao, never stored"] -->|wraps| dk["A data key per feed, stored with the feed"]
+  main -->|wraps| fk["The fingerprint key, stored in the database"]
+  dk -->|"encrypts (AES-256-GCM)"| notes[Notes, metadata, settings, feed password]
+  dk -->|encrypts| imgs[Image bytes, in the database or the image store]
+  fk -->|"turns feed names and read ids into"| fp[Fingerprints]
+```
 
 It needs a database backend; on the file system backend notefeed refuses to start with a key. While notefeed runs, it holds the key, so encryption at rest doesn't protect against someone on the running server.
 

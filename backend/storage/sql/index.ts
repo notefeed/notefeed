@@ -58,7 +58,13 @@ function parseCursor(c: string): Cursor | null {
 const cursorOf = (r: { created_at: number | string; feed: string; id: string }): Cursor => ({ at: Number(r.created_at), feed: r.feed, id: r.id });
 const cursorText = (c: Cursor) => `${c.at}:${c.feed}:${c.id}`;
 
-export type Sweep = { unreferenced: { count: number; bytes: number }; deleted: { count: number; bytes: number }; failed: number; tooRecent: number; missing: number };
+export type Sweep = {
+  unreferenced: { count: number; bytes: number };
+  deleted: { count: number; bytes: number };
+  failed: number;
+  tooRecent: number;
+  missing: number;
+};
 
 /** Where the bytes of the notes with an `external` extension go, instead of the row. Without it, every note's bytes are in its row. */
 export type Images = { store: ImageStore; external: (ext: string) => boolean };
@@ -88,7 +94,12 @@ type FeedKeys = { name: string; data_key: string | null; key_id: string | null }
 
 // `kind` picks the dialect-specific migration; `connect` is called once, on first use. With a `wrapper` (the main key) the database
 // is encrypted (issue #212): names and read ids are stored as fingerprints, a feed's values sealed with its own data key.
-export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: Kind = "sqlite", images?: Images, wrapper: KeyWrapper | null = null): SqlStorage {
+export function createSqlStorage(
+  connect: () => Promise<Kysely<Schema>>,
+  kind: Kind = "sqlite",
+  images?: Images,
+  wrapper: KeyWrapper | null = null,
+): SqlStorage {
   let connecting: Promise<Kysely<Schema>> | undefined;
   let opened: Promise<Kysely<Schema>> | undefined;
   let ring: Keyring | null = null; // set by open(), before any query
@@ -100,7 +111,8 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
   const openIn = (key: Buffer | null, v: string, aad: string) => (key ? openText(key, v, aad) : v);
   // A feed's values are bound to its fingerprint (`name`): moved onto another feed's row, they do not open.
   const fa = (name: string, what: string) => `feed:${name}:${what}`;
-  const nameOf = async (row: FeedKeys & { name_sealed: string | null }) => openIn(await keyOf(row), row.key_id === null ? row.name : row.name_sealed!, fa(row.name, "name"));
+  const nameOf = async (row: FeedKeys & { name_sealed: string | null }) =>
+    openIn(await keyOf(row), row.key_id === null ? row.name : row.name_sealed!, fa(row.name, "name"));
   // A sealed note's key is its feed's. A sealed note on a feed without a key is refused, never read as plain.
   const sealedKey = async (sealed: number, feedRow: FeedKeys): Promise<Buffer | null> => {
     if (!sealed) return null;
@@ -114,14 +126,17 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     return row ? sealedKey(sealed, row) : undefined;
   };
   // A note's row with its feed's keys, in one query.
-  const withFeed = (db: Kysely<Schema>, feed: string) => db.selectFrom("notes").innerJoin("feeds", "feeds.name", "notes.feed").where("notes.feed", "=", ident("feed", feed));
+  const withFeed = (db: Kysely<Schema>, feed: string) =>
+    db.selectFrom("notes").innerJoin("feeds", "feeds.name", "notes.feed").where("notes.feed", "=", ident("feed", feed));
   // The bytes and the metadata are bound to the note's file name (id and extension), not to where the bytes are: moveImages copies
   // them as they are.
   const na = (id: string, ext: string, what: string) => `note:${id}.${ext}:${what}`;
   const contentIn = (key: Buffer | null, id: string, ext: string, b: Buffer) => (key ? openBytes(key, b, na(id, ext, "content")) : b);
   const metaIn = (key: Buffer | null, id: string, ext: string, raw: string | null): Meta => (raw ? parseMeta(openIn(key, raw, na(id, ext, "meta"))) : {});
-  const metaOut = (key: Buffer | null, id: string, ext: string, meta: Meta): string | null => (hasMeta(meta) ? sealIn(key, JSON.stringify(meta), na(id, ext, "meta")) : null);
-  const feedKeys = async (db: Kysely<Schema>, feed: string) => db.selectFrom("feeds").select(["name", "data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
+  const metaOut = (key: Buffer | null, id: string, ext: string, meta: Meta): string | null =>
+    hasMeta(meta) ? sealIn(key, JSON.stringify(meta), na(id, ext, "meta")) : null;
+  const feedKeys = async (db: Kysely<Schema>, feed: string) =>
+    db.selectFrom("feeds").select(["name", "data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
 
   // After the row is gone (or never came to be), its object is only storage: a failure to remove it is logged, never the caller's error.
   // No feed or key in the line: a feed's name is its secret.
@@ -217,7 +232,20 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
           if (key && (n === 1 || fkey)) await stored(key, out);
           const r = await db
             .insertInto("notes")
-            .values({ feed: f, id, ext, content: key ? EMPTY : out, blob_key: key, size: data.byteLength, metadata: metaOut(fkey, id, ext, meta), created_at: now, updated_at: now, date, sealed: fkey ? 1 : 0, draft: draft ? 1 : 0 })
+            .values({
+              feed: f,
+              id,
+              ext,
+              content: key ? EMPTY : out,
+              blob_key: key,
+              size: data.byteLength,
+              metadata: metaOut(fkey, id, ext, meta),
+              created_at: now,
+              updated_at: now,
+              date,
+              sealed: fkey ? 1 : 0,
+              draft: draft ? 1 : 0,
+            })
             .onConflict((oc) => oc.columns(["feed", "id"]).doNothing())
             .executeTakeFirst();
           if (changed(r.numInsertedOrUpdatedRows)) return id;
@@ -251,7 +279,18 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       if (exts.length === 0) return null;
       const db = await open();
       const row = await withFeed(db, feed)
-        .select(["notes.ext", "notes.metadata", "notes.updated_at", "notes.date", "notes.draft", "notes.size", "notes.sealed", "feeds.name", "feeds.data_key", "feeds.key_id"])
+        .select([
+          "notes.ext",
+          "notes.metadata",
+          "notes.updated_at",
+          "notes.date",
+          "notes.draft",
+          "notes.size",
+          "notes.sealed",
+          "feeds.name",
+          "feeds.data_key",
+          "feeds.key_id",
+        ])
         .where("notes.id", "=", id)
         .where("notes.ext", "in", exts)
         .executeTakeFirst();
@@ -260,19 +299,36 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       let content: Buffer = EMPTY;
       if (withContent(row.ext)) {
         // `sealed` again with the bytes: reseal may have sealed the note since the first read.
-        const full = await db.selectFrom("notes").select(["content", "blob_key", "sealed"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst();
+        const full = await db
+          .selectFrom("notes")
+          .select(["content", "blob_key", "sealed"])
+          .where("feed", "=", ident("feed", feed))
+          .where("id", "=", id)
+          .executeTakeFirst();
         const found = full && (await bytesOf(full));
         if (!found) return null; // deleted since the first read, or its object is gone
         const bytesKey = full.sealed === row.sealed ? key : await noteKey(db, feed, full.sealed);
         if (bytesKey === undefined) return null;
         content = contentIn(bytesKey, id, row.ext, found);
       }
-      return { ext: row.ext, content, size: Number(row.size), meta: metaIn(key, id, row.ext, row.metadata), mtime: new Date(Number(row.updated_at)), date: Number(row.date), draft: Number(row.draft) === 1 };
+      return {
+        ext: row.ext,
+        content,
+        size: Number(row.size),
+        meta: metaIn(key, id, row.ext, row.metadata),
+        mtime: new Date(Number(row.updated_at)),
+        date: Number(row.date),
+        draft: Number(row.draft) === 1,
+      };
     },
 
     async readMeta(feed, ref) {
       const db = await open();
-      const row = await withFeed(db, feed).select(["notes.metadata", "notes.sealed", "feeds.name", "feeds.data_key", "feeds.key_id"]).where("notes.id", "=", ref.id).where("notes.ext", "=", ref.ext).executeTakeFirst();
+      const row = await withFeed(db, feed)
+        .select(["notes.metadata", "notes.sealed", "feeds.name", "feeds.data_key", "feeds.key_id"])
+        .where("notes.id", "=", ref.id)
+        .where("notes.ext", "=", ref.ext)
+        .executeTakeFirst();
       if (!row) return null;
       return metaIn(await sealedKey(row.sealed, row), ref.id, ref.ext, row.metadata);
     },
@@ -287,7 +343,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       let key: string | null = null;
       try {
         for (;;) {
-          const row = await db.selectFrom("notes").select(["ext", "blob_key", "sealed"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
+          const row = await db
+            .selectFrom("notes")
+            .select(["ext", "blob_key", "sealed"])
+            .where("feed", "=", ident("feed", feed))
+            .where("id", "=", id)
+            .where("ext", "in", exts)
+            .executeTakeFirst();
           if (!row) break;
           // The note stays as it is stored, sealed or plain: only reseal turns a plain note into a sealed one.
           const nkey = await noteKey(db, feed, row.sealed);
@@ -322,7 +384,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       // read again rather than write plain metadata onto a sealed note.
       return (await open()).transaction().execute(async (tx) => {
         for (;;) {
-          const row = await tx.selectFrom("notes").select(["ext", "metadata", "sealed"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
+          const row = await tx
+            .selectFrom("notes")
+            .select(["ext", "metadata", "sealed"])
+            .where("feed", "=", ident("feed", feed))
+            .where("id", "=", id)
+            .where("ext", "in", exts)
+            .executeTakeFirst();
           if (!row) return false;
           const key = await noteKey(tx, feed, row.sealed);
           if (key === undefined) return false;
@@ -342,13 +410,29 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
 
     async setDate(feed, id, exts, date) {
       if (exts.length === 0) return false;
-      const r = await (await open()).updateTable("notes").set({ date }).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
+      const r = await (
+        await open()
+      )
+        .updateTable("notes")
+        .set({ date })
+        .where("feed", "=", ident("feed", feed))
+        .where("id", "=", id)
+        .where("ext", "in", exts)
+        .executeTakeFirst();
       return changed(r.numUpdatedRows);
     },
 
     async setDraft(feed, id, exts, draft) {
       if (exts.length === 0) return false;
-      const r = await (await open()).updateTable("notes").set({ draft: draft ? 1 : 0 }).where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).executeTakeFirst();
+      const r = await (
+        await open()
+      )
+        .updateTable("notes")
+        .set({ draft: draft ? 1 : 0 })
+        .where("feed", "=", ident("feed", feed))
+        .where("id", "=", id)
+        .where("ext", "in", exts)
+        .executeTakeFirst();
       return changed(r.numUpdatedRows);
     },
 
@@ -385,7 +469,20 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
             .execute(async (tx) => {
               const r = await tx
                 .insertInto("notes")
-                .values({ feed: f, id: newId, ext, content, blob_key: blobKey, size: Number(row.size), metadata, created_at: Number(row.created_at), updated_at: Number(row.updated_at), date: Number(row.date), sealed: row.sealed, draft: row.draft })
+                .values({
+                  feed: f,
+                  id: newId,
+                  ext,
+                  content,
+                  blob_key: blobKey,
+                  size: Number(row.size),
+                  metadata,
+                  created_at: Number(row.created_at),
+                  updated_at: Number(row.updated_at),
+                  date: Number(row.date),
+                  sealed: row.sealed,
+                  draft: row.draft,
+                })
                 .onConflict((oc) => oc.columns(["feed", "id"]).doNothing())
                 .executeTakeFirst();
               if (!changed(r.numInsertedOrUpdatedRows)) return false;
@@ -425,7 +522,15 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
 
     async deleteNote(feed, id, exts) {
       if (exts.length === 0) return false;
-      const rows = await (await open()).deleteFrom("notes").where("feed", "=", ident("feed", feed)).where("id", "=", id).where("ext", "in", exts).returning("blob_key").execute();
+      const rows = await (
+        await open()
+      )
+        .deleteFrom("notes")
+        .where("feed", "=", ident("feed", feed))
+        .where("id", "=", id)
+        .where("ext", "in", exts)
+        .returning("blob_key")
+        .execute();
       await drop(rows.map((r) => r.blob_key)); // the row first: a crash in between leaves an object, never a note without its image
       return rows.length > 0;
     },
@@ -434,7 +539,11 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       const m = NAME_RE.exec(name);
       if (!m) return null;
       const db = await open();
-      const row = await withFeed(db, feed).select(["notes.content", "notes.blob_key", "notes.sealed", "feeds.name", "feeds.data_key", "feeds.key_id"]).where("notes.id", "=", m[1]).where("notes.ext", "=", m[2]).executeTakeFirst();
+      const row = await withFeed(db, feed)
+        .select(["notes.content", "notes.blob_key", "notes.sealed", "feeds.name", "feeds.data_key", "feeds.key_id"])
+        .where("notes.id", "=", m[1])
+        .where("notes.ext", "=", m[2])
+        .executeTakeFirst();
       if (!row) return null;
       const key = await sealedKey(row.sealed, row);
       const found = await bytesOf(row);
@@ -442,7 +551,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     },
 
     async readSettings(feed) {
-      const row = await (await open()).selectFrom("feeds").select(["name", "settings", "data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
+      const row = await (
+        await open()
+      )
+        .selectFrom("feeds")
+        .select(["name", "settings", "data_key", "key_id"])
+        .where("name", "=", ident("feed", feed))
+        .executeTakeFirst();
       if (!row?.settings) return parseSettings(null);
       return parseSettings(openIn(await keyOf(row), row.settings, fa(row.name, "settings")));
     },
@@ -450,11 +565,22 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       const db = await open();
       const row = await feedKeys(db, feed);
       if (!row) throw new FeedGoneError();
-      const r = await db.updateTable("feeds").set({ settings: sealIn(await keyOf(row), serializeSettings(s), fa(row.name, "settings")) }).where("name", "=", ident("feed", feed)).where("data_key", row.data_key === null ? "is" : "=", row.data_key).executeTakeFirst();
+      const r = await db
+        .updateTable("feeds")
+        .set({ settings: sealIn(await keyOf(row), serializeSettings(s), fa(row.name, "settings")) })
+        .where("name", "=", ident("feed", feed))
+        .where("data_key", row.data_key === null ? "is" : "=", row.data_key)
+        .executeTakeFirst();
       if (!changed(r.numUpdatedRows)) throw new FeedGoneError();
     },
     async readHash(feed) {
-      const row = await (await open()).selectFrom("feeds").select(["name", "password_hash", "data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
+      const row = await (
+        await open()
+      )
+        .selectFrom("feeds")
+        .select(["name", "password_hash", "data_key", "key_id"])
+        .where("name", "=", ident("feed", feed))
+        .executeTakeFirst();
       if (!row?.password_hash) return null;
       return openIn(await keyOf(row), row.password_hash, fa(row.name, "hash"));
     },
@@ -462,7 +588,12 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       const db = await open();
       const row = await feedKeys(db, feed);
       if (!row) throw new FeedGoneError();
-      const r = await db.updateTable("feeds").set({ password_hash: sealIn(await keyOf(row), hash, fa(row.name, "hash")) }).where("name", "=", ident("feed", feed)).where("data_key", row.data_key === null ? "is" : "=", row.data_key).executeTakeFirst();
+      const r = await db
+        .updateTable("feeds")
+        .set({ password_hash: sealIn(await keyOf(row), hash, fa(row.name, "hash")) })
+        .where("name", "=", ident("feed", feed))
+        .where("data_key", row.data_key === null ? "is" : "=", row.data_key)
+        .executeTakeFirst();
       if (!changed(r.numUpdatedRows)) throw new FeedGoneError();
     },
     async removeHash(feed) {
@@ -547,7 +678,12 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       const again = (v: string | null, what: string) => (v === null || !k ? v : sealText(k.key, openText(old!, v, fa(from, what)), fa(name, what)));
       try {
         await db.transaction().execute(async (tx) => {
-          const parked = await tx.updateTable("feeds").set({ read_id: `renaming:${from}` }).where("name", "=", from).where("read_id", "=", row.read_id).executeTakeFirst();
+          const parked = await tx
+            .updateTable("feeds")
+            .set({ read_id: `renaming:${from}` })
+            .where("name", "=", from)
+            .where("read_id", "=", row.read_id)
+            .executeTakeFirst();
           if (!changed(parked.numUpdatedRows)) throw new NotFoundError("no such feed");
           await tx
             .insertInto("feeds")
@@ -573,12 +709,24 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       }
     },
     async feedReadId(feed) {
-      const row = await (await open()).selectFrom("feeds").select(["name", "read_id", "read_id_sealed", "data_key", "key_id"]).where("name", "=", ident("feed", feed)).executeTakeFirst();
+      const row = await (
+        await open()
+      )
+        .selectFrom("feeds")
+        .select(["name", "read_id", "read_id_sealed", "data_key", "key_id"])
+        .where("name", "=", ident("feed", feed))
+        .executeTakeFirst();
       if (!row) return undefined;
       return row.key_id === null ? row.read_id : openIn(await keyOf(row), row.read_id_sealed!, fa(row.name, "read_id"));
     },
     async feedForReadId(readId) {
-      const row = await (await open()).selectFrom("feeds").select(["name", "name_sealed", "data_key", "key_id"]).where("read_id", "=", ident("read_id", readId)).executeTakeFirst();
+      const row = await (
+        await open()
+      )
+        .selectFrom("feeds")
+        .select(["name", "name_sealed", "data_key", "key_id"])
+        .where("read_id", "=", ident("read_id", readId))
+        .executeTakeFirst();
       return row ? nameOf(row) : null;
     },
     // Sorted here, not in SQL: encrypted, the column holds fingerprints.
@@ -597,10 +745,21 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       return !!(await db.selectFrom("notes").select("id").limit(1).executeTakeFirst());
     },
     async markMigrated() {
-      await (await connected()).insertInto("markers").values({ name: NOTE_IDS, at: Date.now() }).onConflict((c) => c.column("name").doNothing()).execute();
+      await (
+        await connected()
+      )
+        .insertInto("markers")
+        .values({ name: NOTE_IDS, at: Date.now() })
+        .onConflict((c) => c.column("name").doNothing())
+        .execute();
     },
     async feedCount() {
-      const r = await (await open()).selectFrom("feeds").select(sql<number | string>`count(*)`.as("n")).executeTakeFirstOrThrow();
+      const r = await (
+        await open()
+      )
+        .selectFrom("feeds")
+        .select(sql<number | string>`count(*)`.as("n"))
+        .executeTakeFirstOrThrow();
       return Number(r.n);
     },
     // Two grouped queries, joined here by the `name` column (a fingerprint when encrypted): no name is opened, no data key used.
@@ -610,10 +769,18 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       const feeds = await db.selectFrom("feeds").select(["name", "password_hash"]).execute();
       const notes = await db
         .selectFrom("notes")
-        .select(["feed", "ext", sql<number | string>`count(*)`.as("n"), sql<number | string>`coalesce(sum(size), 0)`.as("bytes"), sql<number | string>`max(updated_at)`.as("last")])
+        .select([
+          "feed",
+          "ext",
+          sql<number | string>`count(*)`.as("n"),
+          sql<number | string>`coalesce(sum(size), 0)`.as("bytes"),
+          sql<number | string>`max(updated_at)`.as("last"),
+        ])
         .groupBy(["feed", "ext"])
         .execute();
-      const byFeed = new Map<string, FeedUsage>(feeds.map((f) => [f.name, { protected: f.password_hash !== null, readLink: true, lastWrite: null, notes: {} }]));
+      const byFeed = new Map<string, FeedUsage>(
+        feeds.map((f) => [f.name, { protected: f.password_hash !== null, readLink: true, lastWrite: null, notes: {} }]),
+      );
       for (const r of notes) {
         const u = byFeed.get(r.feed);
         if (!u) continue;
@@ -629,8 +796,15 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     async takedownFeed(feed, readId) {
       const db = await open();
       const f = ident("feed", feed);
-      const id = readId !== null ? ident("read_id", readId) : ((await db.selectFrom("feeds").select("read_id").where("name", "=", f).executeTakeFirst())?.read_id ?? null);
-      await db.insertInto("tombstones").values({ name: f, read_id: id, removed_at: Date.now(), sealed: ring ? 1 : 0 }).onConflict((oc) => oc.column("name").doNothing()).execute();
+      const id =
+        readId !== null
+          ? ident("read_id", readId)
+          : ((await db.selectFrom("feeds").select("read_id").where("name", "=", f).executeTakeFirst())?.read_id ?? null);
+      await db
+        .insertInto("tombstones")
+        .values({ name: f, read_id: id, removed_at: Date.now(), sealed: ring ? 1 : 0 })
+        .onConflict((oc) => oc.column("name").doNothing())
+        .execute();
       const keys = (await db.selectFrom("notes").select("blob_key").where("feed", "=", f).where("blob_key", "is not", null).execute()).map((k) => k.blob_key!);
       const r = await db.deleteFrom("feeds").where("name", "=", f).executeTakeFirst();
       if (!changed(r.numDeletedRows)) return { removed: false, keys: [] };
@@ -640,7 +814,8 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
     async isRemoved({ feed, readId }) {
       const db = await open();
       if (feed !== undefined && (await db.selectFrom("tombstones").select("name").where("name", "=", ident("feed", feed)).executeTakeFirst())) return true;
-      if (readId !== undefined && (await db.selectFrom("tombstones").select("name").where("read_id", "=", ident("read_id", readId)).executeTakeFirst())) return true;
+      if (readId !== undefined && (await db.selectFrom("tombstones").select("name").where("read_id", "=", ident("read_id", readId)).executeTakeFirst()))
+        return true;
       return false;
     },
     // One transaction: the tombstones, the rows of the post, and the mark (a row like writeNote's, with no content), so a crash leaves
@@ -656,9 +831,18 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       try {
         await db.transaction().execute(async (tx) => {
           if (notes.length > 0) {
-            await tx.insertInto("note_tombstones").values(notes.map((n) => ({ feed: f, id: n.id, removed_at: Date.now(), date: post.date, draft: post.draft ? 1 : 0 }))).onConflict((oc) => oc.columns(["feed", "id"]).doNothing()).execute();
+            await tx
+              .insertInto("note_tombstones")
+              .values(notes.map((n) => ({ feed: f, id: n.id, removed_at: Date.now(), date: post.date, draft: post.draft ? 1 : 0 })))
+              .onConflict((oc) => oc.columns(["feed", "id"]).doNothing())
+              .execute();
             // By id and extension, as on the file system: the mark has the id of the text it stands for.
-            const rows = await tx.deleteFrom("notes").where("feed", "=", f).where((eb) => eb.or(notes.map((n) => eb.and([eb("id", "=", n.id), eb("ext", "=", n.ext)])))).returning("blob_key").execute();
+            const rows = await tx
+              .deleteFrom("notes")
+              .where("feed", "=", f)
+              .where((eb) => eb.or(notes.map((n) => eb.and([eb("id", "=", n.id), eb("ext", "=", n.ext)]))))
+              .returning("blob_key")
+              .execute();
             keys = rows.flatMap((r) => (r.blob_key ? [r.blob_key] : []));
           }
           if (markId) {
@@ -666,7 +850,20 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
             const content = fkey ? seal(fkey, EMPTY, na(markId, "removed", "content")) : EMPTY;
             await tx
               .insertInto("notes")
-              .values({ feed: f, id: markId, ext: "removed", content, blob_key: null, size: 0, metadata: metaOut(fkey, markId, "removed", {}), created_at: now, updated_at: now, date: post.date, sealed: fkey ? 1 : 0, draft: post.draft ? 1 : 0 })
+              .values({
+                feed: f,
+                id: markId,
+                ext: "removed",
+                content,
+                blob_key: null,
+                size: 0,
+                metadata: metaOut(fkey, markId, "removed", {}),
+                created_at: now,
+                updated_at: now,
+                date: post.date,
+                sealed: fkey ? 1 : 0,
+                draft: post.draft ? 1 : 0,
+              })
               .onConflict((oc) => oc.columns(["feed", "id"]).doNothing())
               .execute();
           }
@@ -679,13 +876,26 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       return { keys };
     },
     async removedNote(feed, id) {
-      const row = await (await open()).selectFrom("note_tombstones").select(["date", "draft"]).where("feed", "=", ident("feed", feed)).where("id", "=", id).executeTakeFirst();
+      const row = await (
+        await open()
+      )
+        .selectFrom("note_tombstones")
+        .select(["date", "draft"])
+        .where("feed", "=", ident("feed", feed))
+        .where("id", "=", id)
+        .executeTakeFirst();
       return row ? { date: Number(row.date), draft: row.draft === 1 } : null;
     },
     async blockImages(hashes) {
       if (hashes.length === 0) return;
       const now = Date.now();
-      await (await open()).insertInto("blocked_images").values(hashes.map((hash) => ({ hash, added_at: now }))).onConflict((oc) => oc.column("hash").doNothing()).execute();
+      await (
+        await open()
+      )
+        .insertInto("blocked_images")
+        .values(hashes.map((hash) => ({ hash, added_at: now })))
+        .onConflict((oc) => oc.column("hash").doNothing())
+        .execute();
     },
     async isBlockedImage(hash) {
       return !!(await (await open()).selectFrom("blocked_images").select("hash").where("hash", "=", hash).executeTakeFirst());
@@ -723,7 +933,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
         // A row written since the listing began names an object the listing may not have seen.
         if (!inStore.has(row.blob_key!) && Number(row.updated_at) < started) missing++;
       }
-      const sweep: Sweep = { unreferenced: { count: old.size, bytes: [...old.values()].reduce((a, b) => a + b, 0) }, deleted: { count: 0, bytes: 0 }, failed: 0, tooRecent, missing };
+      const sweep: Sweep = {
+        unreferenced: { count: old.size, bytes: [...old.values()].reduce((a, b) => a + b, 0) },
+        deleted: { count: 0, bytes: 0 },
+        failed: 0,
+        tooRecent,
+        missing,
+      };
       if (!remove) return sweep;
       for (const [key, size] of old) {
         try {
@@ -759,7 +975,10 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       const move: Move = { moved: { count: 0, bytes: 0 }, skipped: 0, missing: 0, failed: 0, left: 0, next: null };
       const cursor = after ? parseCursor(after) : null;
       const pending = (before: Cursor | null) => {
-        let q = from === "db" ? db.selectFrom("notes").where("blob_key", "is", null).where("ext", "in", EXTERNAL_EXTS()) : db.selectFrom("notes").where("blob_key", "is not", null);
+        let q =
+          from === "db"
+            ? db.selectFrom("notes").where("blob_key", "is", null).where("ext", "in", EXTERNAL_EXTS())
+            : db.selectFrom("notes").where("blob_key", "is not", null);
         if (before)
           q = q.where((eb) =>
             eb.or([
@@ -770,7 +989,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
           );
         return q;
       };
-      const rows = await pending(cursor).select(["feed", "id", "blob_key", "content", "created_at"]).orderBy("created_at", "desc").orderBy("feed", "desc").orderBy("id", "desc").limit(limit).execute();
+      const rows = await pending(cursor)
+        .select(["feed", "id", "blob_key", "content", "created_at"])
+        .orderBy("created_at", "desc")
+        .orderBy("feed", "desc")
+        .orderBy("id", "desc")
+        .limit(limit)
+        .execute();
       for (const row of rows) {
         try {
           if (from === "db") {
@@ -778,7 +1003,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
             const key = newKey();
             const data = Buffer.from(row.content);
             await stored(key, data);
-            const r = await db.updateTable("notes").set({ content: EMPTY, blob_key: key }).where("feed", "=", row.feed).where("id", "=", row.id).where("blob_key", "is", null).executeTakeFirst();
+            const r = await db
+              .updateTable("notes")
+              .set({ content: EMPTY, blob_key: key })
+              .where("feed", "=", row.feed)
+              .where("id", "=", row.id)
+              .where("blob_key", "is", null)
+              .executeTakeFirst();
             if (!changed(r.numUpdatedRows)) {
               await drop([key]);
               move.skipped++;
@@ -800,7 +1031,13 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
               await stored(key, data);
             } else {
               // Store to row: the bytes into the row, then the object goes.
-              const r = await db.updateTable("notes").set({ content: data, blob_key: null }).where("feed", "=", row.feed).where("id", "=", row.id).where("blob_key", "=", key).executeTakeFirst();
+              const r = await db
+                .updateTable("notes")
+                .set({ content: data, blob_key: null })
+                .where("feed", "=", row.feed)
+                .where("id", "=", row.id)
+                .where("blob_key", "=", key)
+                .executeTakeFirst();
               if (!changed(r.numUpdatedRows)) {
                 move.skipped++;
                 continue;
@@ -818,11 +1055,16 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       if (rows.length === limit) {
         const last = rows[rows.length - 1];
         const at = cursorOf(last);
-        const r = await pending(at).select(sql<number | string>`count(*)`.as("n")).executeTakeFirstOrThrow();
+        const r = await pending(at)
+          .select(sql<number | string>`count(*)`.as("n"))
+          .executeTakeFirstOrThrow();
         move.left = Number(r.n);
         move.next = move.left > 0 ? `${cursorText(at)}` : null;
       }
-      log.info({ moved: move.moved.count, bytes: move.moved.bytes, skipped: move.skipped, missing: move.missing, failed: move.failed, left: move.left }, "images moved to the configured store");
+      log.info(
+        { moved: move.moved.count, bytes: move.moved.bytes, skipped: move.skipped, missing: move.missing, failed: move.failed, left: move.left },
+        "images moved to the configured store",
+      );
       return move;
     },
 
@@ -864,7 +1106,12 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
           if (row.blob_key !== null) await stored((copy = newKey()), sealedBytes);
           const r = await db
             .updateTable("notes")
-            .set({ content: copy ? EMPTY : sealedBytes, blob_key: copy, metadata: row.metadata === null ? null : sealText(key, row.metadata, na(row.id, row.ext, "meta")), sealed: 1 })
+            .set({
+              content: copy ? EMPTY : sealedBytes,
+              blob_key: copy,
+              metadata: row.metadata === null ? null : sealText(key, row.metadata, na(row.id, row.ext, "meta")),
+              sealed: 1,
+            })
             .where("feed", "=", row.feed)
             .where("id", "=", row.id)
             .where("sealed", "=", 0)
@@ -890,7 +1137,9 @@ export function createSqlStorage(connect: () => Promise<Kysely<Schema>>, kind: K
       if (rows.length === limit) {
         const last = rows[rows.length - 1];
         const at = cursorOf(last);
-        const r = await pending(at).select(sql<number | string>`count(*)`.as("n")).executeTakeFirstOrThrow();
+        const r = await pending(at)
+          .select(sql<number | string>`count(*)`.as("n"))
+          .executeTakeFirstOrThrow();
         out.left = Number(r.n);
         out.next = out.left > 0 ? `${cursorText(at)}` : null;
       }

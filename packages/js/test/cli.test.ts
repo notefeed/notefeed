@@ -234,7 +234,12 @@ test("notesJson", async () => {
   serveNotes(2);
   const { out, io: x } = io();
   expect(await main(args("--json"), x)).toBe(0);
-  expect(out.stdout.trim().split("\n").map((l) => JSON.parse(l).title)).toEqual(["Note 1", "Note 0"]);
+  expect(
+    out.stdout
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l).title),
+  ).toEqual(["Note 1", "Note 0"]);
   expect(JSON.parse(out.stdout.split("\n")[0]).date).toBe("2026-09-30T10:01:00Z");
 });
 
@@ -259,15 +264,50 @@ test("notesRejectsBadLimit", async () => {
 test("notesJsonPrintsExactlyTheDocumentedFields", async () => {
   server.route(() => [
     200,
-    { notes: [{ id: "20260930T100000Z-a", type: "text/markdown", title: "A", content: "# A", file: "a.md", file_url: null, size: 3, tags: ["x"], date: "2026-09-30T10:00:00.000Z", url: "https://n/a", mood: "new" }], next: null },
+    {
+      notes: [
+        {
+          id: "20260930T100000Z-a",
+          type: "text/markdown",
+          title: "A",
+          content: "# A",
+          file: "a.md",
+          file_url: null,
+          size: 3,
+          tags: ["x"],
+          date: "2026-09-30T10:00:00.000Z",
+          url: "https://n/a",
+          mood: "new",
+        },
+      ],
+      next: null,
+    },
   ]);
   const { out, io: x } = io();
   expect(await main(args("--json"), x)).toBe(0);
   expect(Object.keys(JSON.parse(out.stdout))).toEqual(["id", "type", "title", "content", "file", "file_url", "size", "tags", "date", "url"]);
 });
 
-const NOTE = { id: "i", type: "text/markdown", title: "T", content: "x", file: "i.md", file_url: "https://n.example/r/X/i.md", size: 1, tags: [], date: "2026-09-30T10:00:00.000Z", url: "https://n.example/inbox/i" };
-const CREATED_REPLY = { id: "i", url: "https://n.example/inbox/i", feed_url: "https://n.example/inbox", read_url: "https://n.example/r/x/feed.xml", file: "i.md", file_url: "https://n.example/r/x/i.md" };
+const NOTE = {
+  id: "i",
+  type: "text/markdown",
+  title: "T",
+  content: "x",
+  file: "i.md",
+  file_url: "https://n.example/r/X/i.md",
+  size: 1,
+  tags: [],
+  date: "2026-09-30T10:00:00.000Z",
+  url: "https://n.example/inbox/i",
+};
+const CREATED_REPLY = {
+  id: "i",
+  url: "https://n.example/inbox/i",
+  feed_url: "https://n.example/inbox",
+  read_url: "https://n.example/r/x/feed.xml",
+  file: "i.md",
+  file_url: "https://n.example/r/x/i.md",
+};
 
 test("editTextPrintsUrl", async () => {
   server.reply(200, NOTE);
@@ -417,13 +457,21 @@ test("postAttachSendsOneMultipartRequestAndPrintsTheTextUrlThenTheImageUrls", as
   server.reply(201, { ...created("T", "T.md"), attachments: [created("I1", "F1.png"), created("I2", "F2.webp")] });
   const dir = pics();
   const t = io();
-  expect(await main(["post", "see ![](chart.png)", "--attach", join(dir, "chart.png"), "--attach", join(dir, "t.webp"), "--url", server.url, "--feed", "inbox"], t.io)).toBe(0);
+  expect(
+    await main(
+      ["post", "see ![](chart.png)", "--attach", join(dir, "chart.png"), "--attach", join(dir, "t.webp"), "--url", server.url, "--feed", "inbox"],
+      t.io,
+    ),
+  ).toBe(0);
   expect(t.out.stdout.trim().split("\n")).toEqual(["https://n.example/inbox/T", "https://n.example/inbox/I1", "https://n.example/inbox/I2"]);
   expect(server.requests).toHaveLength(1);
   expect(typeOf(0)).toMatch(/^multipart\/form-data; boundary=/);
   const form = await parse(0);
   expect(await (form.get("text") as File).text()).toBe("see ![](chart.png)");
-  expect((form.getAll("file") as File[]).map((f) => [f.name, f.type])).toEqual([["chart.png", "image/png"], ["t.webp", "image/webp"]]);
+  expect((form.getAll("file") as File[]).map((f) => [f.name, f.type])).toEqual([
+    ["chart.png", "image/png"],
+    ["t.webp", "image/webp"],
+  ]);
 });
 
 test("postAttachWithoutTextSendsNoTextPartAndPrintsEachPictureUrlOnce", async () => {
@@ -440,7 +488,9 @@ test("postAttachWithoutTextSendsNoTextPartAndPrintsEachPictureUrlOnce", async ()
 test("postAttachWithoutTextSendsTheTitleAndTagsAsHeadersAndNoTextPart", async () => {
   server.reply(201, { ...created("I1", "F1.png"), attachments: [created("I1", "F1.png")] });
   const t = io();
-  expect(await main(["post", "--attach", join(pics(), "chart.png"), "--title", "T", "--tag", "a", "--tag", "b", "--url", server.url, "--feed", "inbox"], t.io)).toBe(0);
+  expect(
+    await main(["post", "--attach", join(pics(), "chart.png"), "--title", "T", "--tag", "a", "--tag", "b", "--url", server.url, "--feed", "inbox"], t.io),
+  ).toBe(0);
   expect(server.requests[0].headers).toMatchObject({ "x-note-title": "T", "x-note-tags": "a,b" });
   const form = await parse(0);
   expect(form.has("text")).toBe(false);

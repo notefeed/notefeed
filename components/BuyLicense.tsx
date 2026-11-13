@@ -1,7 +1,7 @@
 "use client";
 
 import { openCheckout } from "@creem_io/embed";
-import { Check, KeyRound, ReceiptText, X } from "lucide-react";
+import { IncludedIcon, LicenseKeyIcon, NotIncludedIcon, PurchasesIcon } from "@/components/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
@@ -11,10 +11,17 @@ import { MANAGE_PURCHASES, formatPrice, freePrice, saving, type LicenseFeature, 
 const KEY = /^[A-Za-z0-9_-]{22,64}$/;
 
 async function urlFrom(path: string, body?: unknown): Promise<string> {
-  const res = await fetch(path, { method: "POST", ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }) });
+  const res = await fetch(path, {
+    method: "POST",
+    ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+  });
   const answer = (await res.json().catch(() => ({}))) as { url?: string; error?: string; code?: string };
   if (res.ok && answer.url) return answer.url;
-  throw new Error(answer.error && answer.code === "invalid_body" ? `${answer.error[0].toUpperCase()}${answer.error.slice(1)}.` : (errorMessage(answer.code) ?? "Something went wrong."));
+  throw new Error(
+    answer.error && answer.code === "invalid_body"
+      ? `${answer.error[0].toUpperCase()}${answer.error.slice(1)}.`
+      : (errorMessage(answer.code) ?? "Something went wrong."),
+  );
 }
 
 // The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile, a tile per plan the provider sells
@@ -22,7 +29,21 @@ async function urlFrom(path: string, body?: unknown): Promise<string> {
 // provider's checkout over the page, and license.md's fine print below them. After: the key the provider issued, asked for by the checkout id
 // the buyer came back with (the provider may still be finishing, so it is asked again for a while); it is also in the provider's
 // receipt and customer portal. Below both: the way to the provider's pages, where buyers sign in by their e-mail (#316).
-export function BuyLicense({ text, intro, fineprint, plans, cap, account }: { text: LicenseText; intro: ReactNode; fineprint?: ReactNode; plans: Sold[]; cap: number; account: string }) {
+export function BuyLicense({
+  text,
+  intro,
+  fineprint,
+  plans,
+  cap,
+  account,
+}: {
+  text: LicenseText;
+  intro: ReactNode;
+  fineprint?: ReactNode;
+  plans: Sold[];
+  cap: number;
+  account: string;
+}) {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,7 +56,11 @@ export function BuyLicense({ text, intro, fineprint, plans, cap, account }: { te
     (async () => {
       setBought("waiting");
       for (let i = 0; i < 10 && !gone; i++) {
-        const res = await fetch("/api/licenses/key", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ checkout }) }).catch(() => null);
+        const res = await fetch("/api/licenses/key", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ checkout }),
+        }).catch(() => null);
         const answer = (await res?.json().catch(() => ({}))) as { key?: string } | undefined;
         if (res?.ok && answer?.key && KEY.test(answer.key)) return void (gone || setKey(answer.key));
         if (res && res.status !== 404) break;
@@ -75,7 +100,7 @@ export function BuyLicense({ text, intro, fineprint, plans, cap, account }: { te
         <section aria-labelledby="your-key" className={`${card} p-5 sm:p-6`}>
           <h2 id="your-key" className="flex items-center gap-2 text-[17px] font-bold">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-              <KeyRound aria-hidden className="h-[18px] w-[18px]" />
+              <LicenseKeyIcon aria-hidden className="h-[18px] w-[18px]" />
             </span>
             Your license key
           </h2>
@@ -90,12 +115,12 @@ export function BuyLicense({ text, intro, fineprint, plans, cap, account }: { te
             </p>
           )}
           <p className="mt-4 text-muted">
-            {key ? "Enter it" : "Enter your key"} under <em>License</em> in a feed&apos;s settings, or under <em>Protect this feed</em> when you create a protected feed.
-            It works for one feed at a time and can be moved to another.
+            {key ? "Enter it" : "Enter your key"} under <em>License</em> in a feed&apos;s settings, or under <em>Protect this feed</em> when you create a
+            protected feed. It works for one feed at a time and can be moved to another.
           </p>
           <p className="mt-2 text-muted">
-            The key is also in the payment provider&apos;s receipt e-mail and in its customer portal, so you can find it again there. The receipt is the record of your
-            purchase.
+            The key is also in the payment provider&apos;s receipt e-mail and in its customer portal, so you can find it again there. The receipt is the record
+            of your purchase.
           </p>
         </section>
       ) : (
@@ -152,14 +177,34 @@ const tile = `${card} row-span-6 grid grid-rows-subgrid gap-0 p-5`;
 // A paid tile: the provider's name and price, what every license adds (license.md), and the button to the checkout. The provider's
 // description is for its checkout and receipt, where it can say more than a tile should.
 // `primary`: the highlighted one (the last, the yearly plan where one is sold); `badge`: what it saves, or license.md's badge.
-function Plan({ plan, text, cap, badge, busy, onBuy, primary: highlighted }: { plan: Sold; text: LicenseText["plans"]; cap: number; badge?: string; busy: boolean; onBuy: () => void; primary: boolean }) {
+function Plan({
+  plan,
+  text,
+  cap,
+  badge,
+  busy,
+  onBuy,
+  primary: highlighted,
+}: {
+  plan: Sold;
+  text: LicenseText["plans"];
+  cap: number;
+  badge?: string;
+  busy: boolean;
+  onBuy: () => void;
+  primary: boolean;
+}) {
   const id = `plan-${plan.period}`;
   return (
     <section aria-labelledby={id} className={`${tile} max-sm:mb-3 ${highlighted ? "border-carbon" : ""}`}>
       <h2 id={id} className="text-[15px] font-bold">
         {plan.name}
       </h2>
-      <div className="mt-1.5">{badge && <span className="inline-block rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">{badge}</span>}</div>
+      <div className="mt-1.5">
+        {badge && (
+          <span className="inline-block rounded-full bg-carbon-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-carbon">{badge}</span>
+        )}
+      </div>
       <p className="mt-1 text-xl font-bold tracking-tight">{formatPrice(plan)}</p>
       <div>
         {plan.taxIncluded && <p className="text-[13px] text-muted">VAT included</p>}
@@ -189,7 +234,11 @@ function Features({ features, cap, className }: { features: LicenseFeature[]; ca
 function Feature({ off = false, children }: { off?: boolean; children: ReactNode }) {
   return (
     <li className={`flex items-start gap-2 ${off ? "text-muted" : ""}`}>
-      {off ? <X aria-label="Not included:" className="mt-0.5 h-4 w-4 shrink-0" /> : <Check aria-label="Included:" className="mt-0.5 h-4 w-4 shrink-0 text-carbon" />}
+      {off ? (
+        <NotIncludedIcon aria-label="Not included:" className="mt-0.5 h-4 w-4 shrink-0" />
+      ) : (
+        <IncludedIcon aria-label="Included:" className="mt-0.5 h-4 w-4 shrink-0 text-carbon" />
+      )}
       {children}
     </li>
   );
@@ -202,7 +251,7 @@ function ManageLicense({ account }: { account: string }) {
     <section aria-labelledby="manage" className={`${card} p-5 sm:p-6`}>
       <h2 id="manage" className="flex items-center gap-2 text-[17px] font-bold">
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-          <ReceiptText aria-hidden className="h-[18px] w-[18px]" />
+          <PurchasesIcon aria-hidden className="h-[18px] w-[18px]" />
         </span>
         Cancel, payment and invoices
       </h2>

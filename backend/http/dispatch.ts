@@ -44,10 +44,10 @@ type Meta<R, Q> = {
   before?: (input: { req: Request; params: Record<string, string> }) => void | Promise<void>;
 };
 export type Handler<R, Q> = (input: { req: Request; params: Record<string, string>; query: QueryOf<Q> }) => Promise<Reply<R>>;
-export type Op<
-  R extends Record<number, ResponseSpec> = Record<number, ResponseSpec>,
-  Q extends z.ZodObject | undefined = z.ZodObject | undefined,
-> = Meta<R, Q> & { handle: Handler<R, Q> };
+export type Op<R extends Record<number, ResponseSpec> = Record<number, ResponseSpec>, Q extends z.ZodObject | undefined = z.ZodObject | undefined> = Meta<
+  R,
+  Q
+> & { handle: Handler<R, Q> };
 
 type AnyReply = { status: number; body?: unknown; headers?: HeadersInit };
 // Any entry, as the dispatcher sees it: the per-entry typing is checked where the entry is declared.
@@ -132,22 +132,26 @@ export function createDispatcher(ops: AnyOp[], prefix: string): (req: Request, s
       noteOutcome("method_not_allowed");
       return Response.json({ error: "method not allowed" }, { status: 405, headers: { Allow: allow } });
     }
-    return measured(kindOf(entry, req), async () => {
-      let reply: AnyReply;
-      try {
-        await entry.before?.({ req, params: m.params });
-        let query: Record<string, unknown> = {};
-        if (entry.query) {
-          const parsed = entry.query.safeParse(queryOf(req));
-          if (!parsed.success) throw new InvalidRequestError(z.prettifyError(parsed.error).replace(/\s+/g, " ").replace(/^✖ /, ""));
-          query = parsed.data;
+    return measured(
+      kindOf(entry, req),
+      async () => {
+        let reply: AnyReply;
+        try {
+          await entry.before?.({ req, params: m.params });
+          let query: Record<string, unknown> = {};
+          if (entry.query) {
+            const parsed = entry.query.safeParse(queryOf(req));
+            if (!parsed.success) throw new InvalidRequestError(z.prettifyError(parsed.error).replace(/\s+/g, " ").replace(/^✖ /, ""));
+            query = parsed.data;
+          }
+          reply = await entry.handle({ req, params: m.params, query } as never);
+        } catch (e) {
+          reply = errorReply(e);
+          if (reply.status === 500) return Response.json(reply.body, { status: 500 }); // never declared, always allowed
         }
-        reply = await entry.handle({ req, params: m.params, query } as never);
-      } catch (e) {
-        reply = errorReply(e);
-        if (reply.status === 500) return Response.json(reply.body, { status: 500 }); // never declared, always allowed
-      }
-      return send(entry, reply);
-    }, (res) => res.status);
+        return send(entry, reply);
+      },
+      (res) => res.status,
+    );
   };
 }

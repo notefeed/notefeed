@@ -1,6 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { config } from "./config";
 import { AuthError, FeedExistsError, InvalidBodyError, LicenseRequiredError, NotFoundError, RateLimitedError, TooManyAttemptsError } from "./errors";
@@ -19,8 +17,7 @@ const supported = Number(process.versions.node.split(".")[0]) >= 22;
 
 let dir = "";
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-licensing-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_STORAGE", "sqlite");
   vi.stubEnv("NOTEFEED_SECRET", "s".repeat(32));
   vi.stubEnv("NOTEFEED_RATE_LIMIT", "0");
@@ -130,7 +127,9 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
     test("an image needs a license, as a single post and with a text", async () => {
       await text("f", "first");
       await expect(image("f")).rejects.toBeInstanceOf(LicenseRequiredError);
-      await expect(postWithPictures("f", "ip", async () => ({ text: "x", pictures: [{ name: "a.png", body: png, mediaType: "image/png" }] }), {})).rejects.toBeInstanceOf(LicenseRequiredError);
+      await expect(
+        postWithPictures("f", "ip", async () => ({ text: "x", pictures: [{ name: "a.png", body: png, mediaType: "image/png" }] }), {}),
+      ).rejects.toBeInstanceOf(LicenseRequiredError);
       await license("f");
       await image("f");
       expect(await countNotes("f", "image")).toBe(1);
@@ -158,7 +157,12 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       expect(await isLicensed("new")).toBe(true);
       expect(await countNotes("new", "markdown")).toBe(1);
       // With pictures too, and the key moves the license, as entering it in the settings does.
-      await postWithPictures("pics", "ip", async () => ({ text: "x", pictures: [{ name: "a.png", body: png, mediaType: "image/png" }], password: "Passw0rd!x", licenseKey: KEY }), {});
+      await postWithPictures(
+        "pics",
+        "ip",
+        async () => ({ text: "x", pictures: [{ name: "a.png", body: png, mediaType: "image/png" }], password: "Passw0rd!x", licenseKey: KEY }),
+        {},
+      );
       expect(await protectedFeed("pics")).toBe(true);
       expect(await isLicensed("pics")).toBe(true);
       expect(await isLicensed("new")).toBe(false);
@@ -200,7 +204,12 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       expect(await isLicensed("pics")).toBe(true);
       expect(await isLicensed("open")).toBe(false);
       expect(await countNotes("pics", "image")).toBe(1);
-      await postWithPictures("both", "ip", async () => ({ text: "x ![](a.png)", pictures: [{ name: "a.png", body: png, mediaType: "image/png" }], licenseKey: KEY }), {});
+      await postWithPictures(
+        "both",
+        "ip",
+        async () => ({ text: "x ![](a.png)", pictures: [{ name: "a.png", body: png, mediaType: "image/png" }], licenseKey: KEY }),
+        {},
+      );
       expect(await isLicensed("both")).toBe(true);
       // On a feed that exists, a key on a post is not used: the license stays where it is.
       await text("both", "again", undefined, KEY);
@@ -250,7 +259,13 @@ describe.skipIf(!supported)("licensing (ADR 0029)", () => {
       await expect(createFeed("p", "ip", { password: " padded ", licenseKey: KEY })).rejects.toBeInstanceOf(InvalidBodyError);
       expect(await hasFeed("p")).toBe(false);
       await createFeed("p", "ip", { password: "Passw0rd!x", licenseKey: ` ${KEY} `, readId: "my-read-id" });
-      expect([await hasFeed("p"), await protectedFeed("p"), await isLicensed("p"), await readIdOf("p"), await countNotes("p")]).toEqual([true, true, true, "my-read-id", 0]);
+      expect([await hasFeed("p"), await protectedFeed("p"), await isLicensed("p"), await readIdOf("p"), await countNotes("p")]).toEqual([
+        true,
+        true,
+        true,
+        "my-read-id",
+        0,
+      ]);
       await expect(createFeed("p", "ip", { licenseKey: KEY })).rejects.toBeInstanceOf(FeedExistsError);
       await licenses().createLicense({ keyHash: hashKey("o".repeat(22)), providerRef: "sub_2", validUntil: null });
       await createFeed("open", "ip", { licenseKey: "o".repeat(22) });

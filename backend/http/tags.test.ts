@@ -1,5 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { resetFeedsForTests, readIdOf } from "../feeds";
@@ -13,8 +12,7 @@ import { rssRoute } from "./rss";
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-tags-"));
-  process.env.DATA_DIR = dir;
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();
@@ -23,7 +21,8 @@ beforeEach(async () => {
 
 const send = (path: string[], init: RequestInit = {}, query = "") =>
   dispatch(new Request(`${BASE}/${path.join("/")}${query}`, { ...init, headers: { host: "localhost:3000", ...init.headers } }), path);
-const post = (body: BodyInit, headers: Record<string, string> = {}) => send(["feeds", "t", "notes"], { method: "POST", body, headers: { "content-type": "text/markdown", ...headers } });
+const post = (body: BodyInit, headers: Record<string, string> = {}) =>
+  send(["feeds", "t", "notes"], { method: "POST", body, headers: { "content-type": "text/markdown", ...headers } });
 const json = (tags: string[], markdown = "# Hi") => post(markdown, { "x-note-tags": tags.join(",") });
 const list = async (query = "") => (await (await send(["feeds", "t", "notes"], {}, query)).json()).notes as { id: string; tags: string[] }[];
 

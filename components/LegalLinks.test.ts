@@ -55,5 +55,9 @@ test("the feeds the operator lists come after the product links; other reserved 
 });
 
 test("the Values link is the values page in the docs, on every instance", async () => {
-  expect((await footerLinks()).product.find((l) => l.label === "Values")).toEqual({ href: "https://docs.notefeed.me/values/", label: "Values", external: true });
+  expect((await footerLinks()).product.find((l) => l.label === "Values")).toEqual({
+    href: "https://docs.notefeed.me/values/",
+    label: "Values",
+    external: true,
+  });
 });

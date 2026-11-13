@@ -33,7 +33,10 @@ test("a creation that lost to a feed deleted meanwhile doesn't list the name", a
   await ensureFeed("race");
   deleteInBetween = () => deleteFeed("race");
   expect(await createProtectedFeed("race", "hash")).toBe(false); // the feed was there when it tried
-  const onDisk = await stat(join(dir, "race")).then(() => true, () => false);
+  const onDisk = await stat(join(dir, "race")).then(
+    () => true,
+    () => false,
+  );
   expect(onDisk).toBe(false);
   expect(await hasFeed("race")).toBe(false);
 });

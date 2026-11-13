@@ -39,7 +39,13 @@ export function createS3ImageStore(o: S3Options): ImageStore {
       service: "s3",
       region: o.region,
     }).sign();
-    return fetch(signed.url.toString(), { method, headers: signed.headers, body: body as BodyInit | undefined, cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    return fetch(signed.url.toString(), {
+      method,
+      headers: signed.headers,
+      body: body as BodyInit | undefined,
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
   }
 
   function send(operation: string, key: string, method: string, body?: Uint8Array): Promise<Response> {
@@ -87,7 +93,7 @@ export function createS3ImageStore(o: S3Options): ImageStore {
     },
     // ListObjectsV2, a page at a time. The one operation beyond put, get and delete, and only the clean-up asks for it.
     async *list() {
-      for (let token: string | undefined; ; ) {
+      for (let token: string | undefined; ;) {
         const query = new URLSearchParams({ "list-type": "2", "max-keys": String(o.pageSize ?? 1000), ...(token && { "continuation-token": token }) });
         const res = await request("list", `?${query}`, "GET");
         if (res.status === 404) {

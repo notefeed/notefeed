@@ -9,7 +9,11 @@ describeStorage("fs", async () => {
   const root = await mkdtemp(join(tmpdir(), "notefeed-"));
   process.env.DATA_DIR = root;
   return {
-    storage: createFsStorage({ derivedReadId: (feed) => `derived-${feed}`, isReadId: (id) => /^[A-Za-z0-9_-]{3,64}$/.test(id), isFeedName: (n) => /^[a-z0-9_-]{1,64}$/.test(n) }),
+    storage: createFsStorage({
+      derivedReadId: (feed) => `derived-${feed}`,
+      isReadId: (id) => /^[A-Za-z0-9_-]{3,64}$/.test(id),
+      isFeedName: (n) => /^[a-z0-9_-]{1,64}$/.test(n),
+    }),
     cleanup: () => rm(root, { recursive: true, force: true }),
   };
 });

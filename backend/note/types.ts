@@ -35,11 +35,37 @@ function validUtf8(bytes: Uint8Array): boolean {
   }
 }
 
-const markdown: NoteType = { name: "markdown", exts: ["md"], verify: validUtf8, checkBody: (bytes) => checkMarkdown(Buffer.from(bytes).toString("utf8")), hasAlt: false, needsContent: true, read: (init, content) => new MarkdownNote(init, content.toString("utf8")) };
-const image: NoteType = { name: "image", exts: IMAGE_EXTS, verify: (bytes, ext) => sniffImage(bytes) === ext, checkBody: () => {}, hasAlt: true, needsContent: false, read: (init) => new ImageNote(init) };
+const markdown: NoteType = {
+  name: "markdown",
+  exts: ["md"],
+  verify: validUtf8,
+  checkBody: (bytes) => checkMarkdown(Buffer.from(bytes).toString("utf8")),
+  hasAlt: false,
+  needsContent: true,
+  read: (init, content) => new MarkdownNote(init, content.toString("utf8")),
+};
+const image: NoteType = {
+  name: "image",
+  exts: IMAGE_EXTS,
+  verify: (bytes, ext) => sniffImage(bytes) === ext,
+  checkBody: () => {},
+  hasAlt: true,
+  needsContent: false,
+  read: (init) => new ImageNote(init),
+};
 
 // The operator's mark (#159): never posted (not in MEDIA_TYPES, and no body is ever one), only written by the takedown.
-const removed: NoteType = { name: "removed", exts: ["removed"], verify: () => false, checkBody: () => { throw new UnsupportedTypeError(); }, hasAlt: false, needsContent: false, read: (init) => new RemovedNote(init) };
+const removed: NoteType = {
+  name: "removed",
+  exts: ["removed"],
+  verify: () => false,
+  checkBody: () => {
+    throw new UnsupportedTypeError();
+  },
+  hasAlt: false,
+  needsContent: false,
+  read: (init) => new RemovedNote(init),
+};
 
 export const NOTE_TYPES: readonly NoteType[] = [markdown, image, removed];
 

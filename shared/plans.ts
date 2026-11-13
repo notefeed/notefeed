@@ -26,7 +26,12 @@ export type LicenseText = {
  *  ("1.99 €", #223); any other currency as English writes it ("$1.99"). A no-break space keeps the sign with its amount. */
 function money(format: Intl.NumberFormat, value: number): string {
   if (format.resolvedOptions().currency !== "EUR") return format.format(value);
-  const amount = format.formatToParts(value).filter((p) => p.type !== "currency").map((p) => p.value).join("").trim();
+  const amount = format
+    .formatToParts(value)
+    .filter((p) => p.type !== "currency")
+    .map((p) => p.value)
+    .join("")
+    .trim();
   return `${amount}\u00a0€`;
 }
 

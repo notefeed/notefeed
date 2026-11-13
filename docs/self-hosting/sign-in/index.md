@@ -5,6 +5,23 @@
 
 With sign-in on, people log in through your own OpenID Connect provider (Authentik, Keycloak, Google and the like, one or several) instead of sharing the instance password, and the notes they post carry their name as a **sender**. Read links, RSS, feed passwords and scripts work as before. You want it when a team shares one instance and wants to see who posted what, or when each person should authorise [MCP](../../integrations/mcp.md) clients with their own account. A single person, or scripts, need nothing from it.
 
+A sign-in, top to bottom; notefeed stores nothing of it, everything in flight rides in signed cookies:
+
+```mermaid
+sequenceDiagram
+  actor P as Person
+  participant N as notefeed
+  participant O as OIDC provider
+  P->>N: Sign in with (provider)
+  N-->>P: signed flight cookie (state, nonce, PKCE), redirect
+  P->>O: log in
+  O-->>P: redirect to /api/oidc/callback with a code
+  P->>N: the code
+  N->>O: exchange it for the id_token
+  N->>N: check it against the flight and NOTEFEED_OIDC_ALLOW
+  N-->>P: signed sign-in cookie, 7 days: notes carry the sender
+```
+
 ## The sender
 
 The sender is one field in the note's metadata (the `.json` file next to the note, or its database row), the first non-empty claim of `NOTEFEED_OIDC_SENDER_CLAIM` (by default the `name`, else the `email`), and nothing else is stored about the person: no user table, no session list. The sign-in itself is a signed cookie in their browser, valid for 7 days.

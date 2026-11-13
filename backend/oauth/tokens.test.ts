@@ -1,12 +1,8 @@
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { resetFeedsForTests } from "../feeds";
 import { TTL, cid, newJti, resetTokensForTests, sign, spendOnce, verify } from "./tokens";
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-tokens-"));
   process.env.NOTEFEED_SECRET = "s".repeat(40);
   process.env.NOTEFEED_PASSWORD = "pw";
   resetFeedsForTests();
@@ -81,9 +77,7 @@ describe("sign/verify", () => {
     expect(verify("access", t, NOW)).toBeNull();
   });
 
-  test.each(["", "a.b.c", ".", "a.", "!!!.???", "e30.e30", "%%%"])("garbage %j", (g) =>
-    expect(verify("access", g, NOW)).toBeNull(),
-  );
+  test.each(["", "a.b.c", ".", "a.", "!!!.???", "e30.e30", "%%%"])("garbage %j", (g) => expect(verify("access", g, NOW)).toBeNull());
 });
 
 describe("helpers", () => {

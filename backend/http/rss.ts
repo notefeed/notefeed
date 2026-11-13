@@ -9,8 +9,18 @@ import { renderAtom, renderFeed } from "../rss";
 import { imagePath, publicUrl } from "../urls";
 import { withoutAttachments } from "../../shared/notekinds";
 
-export const rssRoute = (req: Request, readId: string): Promise<Response> => measured("rss", () => feedXml(req, readId, "rss"), (r) => r.status);
-export const atomRoute = (req: Request, readId: string): Promise<Response> => measured("atom", () => feedXml(req, readId, "atom"), (r) => r.status);
+export const rssRoute = (req: Request, readId: string): Promise<Response> =>
+  measured(
+    "rss",
+    () => feedXml(req, readId, "rss"),
+    (r) => r.status,
+  );
+export const atomRoute = (req: Request, readId: string): Promise<Response> =>
+  measured(
+    "atom",
+    () => feedXml(req, readId, "atom"),
+    (r) => r.status,
+  );
 
 const FORMATS = {
   rss: { render: renderFeed, type: "application/rss+xml; charset=utf-8" },

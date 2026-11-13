@@ -7,12 +7,12 @@ Each client may post, edit or delete `NOTEFEED_RATE_LIMIT` notes per minute (60 
 
 On a public open instance, cap how much space strangers can take:
 
-```yaml
-environment:
-  NOTEFEED_MAX_FEEDS: 100
-  NOTEFEED_MAX_NOTES_PER_FEED: 1000
-  NOTEFEED_MAX_IMAGE_BYTES: 5242880      # 5 MiB per picture as sent; 10 MiB by default and at most
-  NOTEFEED_MAX_IMAGES_PER_FEED: 200
+```sh
+# .env
+NOTEFEED_MAX_FEEDS=100
+NOTEFEED_MAX_NOTES_PER_FEED=1000
+NOTEFEED_MAX_IMAGE_BYTES=5242880      # 5 MiB per picture as sent; 10 MiB by default and at most
+NOTEFEED_MAX_IMAGES_PER_FEED=200
 ```
 
 `NOTEFEED_MAX_NOTES_PER_FEED` counts every note of a feed, texts and images alike (and the mark the operator leaves where a post was [taken down](deleting.md#removing-one-post-as-the-operator)); `NOTEFEED_MAX_IMAGES_PER_FEED` counts the images on their own as well. Over a cap, posting answers `507`; over the image size, `413`. The caps are checked, not locked, so several posts at the same moment can overshoot by a few. Delete notes or feeds to make room, see [Deleting notes and feeds](deleting.md).

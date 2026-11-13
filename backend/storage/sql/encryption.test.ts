@@ -242,7 +242,19 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
         removedNote: await s.removedNote("one", "x"),
       };
     }
-    const expected = { feeds: ["one", "two"], one: "one", rid: "Rid-Two", hash: "hash-one", title: "Title One", note: "note text", meta: { tags: ["t"] }, png: true, gone: true, goneId: true, removedNote: { date: 3, draft: false } };
+    const expected = {
+      feeds: ["one", "two"],
+      one: "one",
+      rid: "Rid-Two",
+      hash: "hash-one",
+      title: "Title One",
+      note: "note text",
+      meta: { tags: ["t"] },
+      png: true,
+      gone: true,
+      goneId: true,
+      removedNote: { date: 3, draft: false },
+    };
 
     test("an existing plain database is converted at start", async () => {
       const url = await database();
@@ -386,7 +398,14 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
     test("reseal is resumable", async () => {
       const url = await database();
       let fail = false;
-      const store = memoryStore({ put: async () => { if (fail) { fail = false; throw new Error("store down"); } } });
+      const store = memoryStore({
+        put: async () => {
+          if (fail) {
+            fail = false;
+            throw new Error("store down");
+          }
+        },
+      });
       await plainNotes(url, store);
       const s = storageOn(url, createLocalWrapper(key()), { store, external });
       fail = true;
@@ -412,7 +431,15 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       const w = createLocalWrapper(key());
       const other = storageOn(url, w);
       await other.listFeeds(); // converts the feeds first
-      const hooked = createSqlStorage(async () => (await connect("sqlite", url)).withPlugin(after(["ext", "metadata", "updated_at", "size", "sealed"], async () => void (await other.reseal({ limit: 10 })))), "sqlite", undefined, w);
+      const hooked = createSqlStorage(
+        async () =>
+          (await connect("sqlite", url)).withPlugin(
+            after(["ext", "metadata", "updated_at", "size", "sealed"], async () => void (await other.reseal({ limit: 10 }))),
+          ),
+        "sqlite",
+        undefined,
+        w,
+      );
       opened.push(hooked);
       const note = await hooked.readNote("f", "n", ALL, () => true);
       expect(note?.content.toString()).toBe("the plain text");
@@ -425,7 +452,22 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       await s.createFeed("foo", "Rid-Foo");
       await s.close();
       // What a notefeed still running without the key may write after the conversion.
-      await (await raw(url)).insertInto("feeds").values({ name: "foo", read_id: "Rid-Foo", password_hash: null, settings: null, created_at: 1, key_id: null, data_key: null, name_sealed: null, read_id_sealed: null }).execute();
+      await (
+        await raw(url)
+      )
+        .insertInto("feeds")
+        .values({
+          name: "foo",
+          read_id: "Rid-Foo",
+          password_hash: null,
+          settings: null,
+          created_at: 1,
+          key_id: null,
+          data_key: null,
+          name_sealed: null,
+          read_id_sealed: null,
+        })
+        .execute();
       await expect(storageOn(url, w).listFeeds()).rejects.toThrow(MIXED);
     });
 
@@ -450,7 +492,13 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       // The two rows trade their keys and values; each keeps its own name and read id.
       const db = await raw(url);
       const [x, y] = await db.selectFrom("feeds").selectAll().execute();
-      const values = (r: typeof x) => ({ key_id: r.key_id, data_key: r.data_key, settings: r.settings, name_sealed: r.name_sealed, read_id_sealed: r.read_id_sealed });
+      const values = (r: typeof x) => ({
+        key_id: r.key_id,
+        data_key: r.data_key,
+        settings: r.settings,
+        name_sealed: r.name_sealed,
+        read_id_sealed: r.read_id_sealed,
+      });
       await db.updateTable("feeds").set(values(y)).where("name", "=", x.name).execute();
       await db.updateTable("feeds").set(values(x)).where("name", "=", y.name).execute();
       await expect(s.readSettings("a")).rejects.toThrow(CipherError);
@@ -486,7 +534,19 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
       const w = createLocalWrapper(key());
       // A replace that leaves updated_at as it was, between reseal's read and its write.
       const hooked = createSqlStorage(
-        async () => (await connect("sqlite", url)).withPlugin(after(["feed", "id", "ext", "content", "blob_key", "metadata", "created_at", "updated_at"], async () => void (await (await raw(url)).updateTable("notes").set({ content: Buffer.from("after") }).execute()))),
+        async () =>
+          (await connect("sqlite", url)).withPlugin(
+            after(
+              ["feed", "id", "ext", "content", "blob_key", "metadata", "created_at", "updated_at"],
+              async () =>
+                void (await (
+                  await raw(url)
+                )
+                  .updateTable("notes")
+                  .set({ content: Buffer.from("after") })
+                  .execute()),
+            ),
+          ),
         "sqlite",
         undefined,
         w,
@@ -503,7 +563,12 @@ describe.skipIf(!supported)("encryption at rest: sqlite", () => {
         await s.createFeed("f", "Rid-F");
         await s.writeNote("f", "n", "md", "text", { title: "T" }, 0);
         let n = 0;
-        const counted = createSqlStorage(async () => (await connect("sqlite", url)).withPlugin({ transformQuery: (a) => (n++, a.node), transformResult: async (a) => a.result }), "sqlite", undefined, wrapper);
+        const counted = createSqlStorage(
+          async () => (await connect("sqlite", url)).withPlugin({ transformQuery: (a) => (n++, a.node), transformResult: async (a) => a.result }),
+          "sqlite",
+          undefined,
+          wrapper,
+        );
         opened.push(counted);
         await counted.readMeta("f", { id: "n", ext: "md" }); // opens it: the start's own queries are not counted
         n = 0;

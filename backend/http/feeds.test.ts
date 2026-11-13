@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { readIdOf, resetFeedsForTests } from "../feeds";
@@ -11,7 +10,7 @@ import { rssRoute } from "./rss";
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-feeds-api-"));
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();
@@ -20,14 +19,21 @@ beforeEach(async () => {
 
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
-  const segments = url.pathname.slice(API_PREFIX.length + 1).split("/").map(decodeURIComponent);
+  const segments = url.pathname
+    .slice(API_PREFIX.length + 1)
+    .split("/")
+    .map(decodeURIComponent);
   return dispatch(new Request(url, { method, body: init.body, headers: { host: "localhost:3000", ...init.headers } }), segments);
 }
 const put = (feed: string, settings: unknown, headers: Record<string, string> = {}) =>
   call("PUT", `/feeds/${feed}`, { body: JSON.stringify(settings), headers: { "content-type": "application/json", ...headers } });
 const post = (feed: string, markdown: string, headers: Record<string, string> = {}) =>
   call("POST", `/feeds/${feed}/notes`, { body: markdown, headers: { "content-type": "text/markdown", ...headers } });
-const exists = (p: string) => stat(join(dir, p)).then(() => true, () => false);
+const exists = (p: string) =>
+  stat(join(dir, p)).then(
+    () => true,
+    () => false,
+  );
 
 describe("settings", () => {
   test("PUT then GET, then the read API and the RSS channel show them", async () => {
@@ -35,7 +41,18 @@ describe("settings", () => {
     const res = await put("mine", { title: "My <feed> & ]]> 🎉", description: "About <b>it</b> & more" });
     expect(res.status).toBe(200);
     const rid = (await readIdOf("mine"))!;
-    const want = { name: "mine", title: "My <feed> & ]]> 🎉", description: "About <b>it</b> & more", protected: false, read_url: `${BASE}/r/${rid}/feed.xml`, atom_url: `${BASE}/r/${rid}/atom.xml`, image_url: null, show_sender: true, shortcut_url: `${BASE}/shortcuts/Send%20to%20notefeed.shortcut`, free_tier: null };
+    const want = {
+      name: "mine",
+      title: "My <feed> & ]]> 🎉",
+      description: "About <b>it</b> & more",
+      protected: false,
+      read_url: `${BASE}/r/${rid}/feed.xml`,
+      atom_url: `${BASE}/r/${rid}/atom.xml`,
+      image_url: null,
+      show_sender: true,
+      shortcut_url: `${BASE}/shortcuts/Send%20to%20notefeed.shortcut`,
+      free_tier: null,
+    };
     expect(await res.json()).toEqual(want);
     expect(await (await call("GET", "/feeds/mine")).json()).toEqual(want);
     expect(await (await call("GET", `/read/${rid}`)).json()).toEqual({ title: want.title, description: want.description, image_url: null });
@@ -65,7 +82,18 @@ describe("settings", () => {
   test("a feed with no notes has no read_url; settings default to empty", async () => {
     await createNote("mine", "x");
     await (await import("../notes")).removeNote("mine", (await (await call("GET", "/feeds/mine/notes")).json()).notes[0].id);
-    expect(await (await call("GET", "/feeds/mine")).json()).toEqual({ name: "mine", title: "", description: "", protected: false, read_url: null, atom_url: null, image_url: null, show_sender: true, shortcut_url: `${BASE}/shortcuts/Send%20to%20notefeed.shortcut`, free_tier: null });
+    expect(await (await call("GET", "/feeds/mine")).json()).toEqual({
+      name: "mine",
+      title: "",
+      description: "",
+      protected: false,
+      read_url: null,
+      atom_url: null,
+      image_url: null,
+      show_sender: true,
+      shortcut_url: `${BASE}/shortcuts/Send%20to%20notefeed.shortcut`,
+      free_tier: null,
+    });
   });
 
   test("whitespace is trimmed", async () => {
@@ -125,7 +153,11 @@ describe("settings", () => {
   test("a protected feed needs its password for GET, PUT and DELETE", async () => {
     await post("locked", "# x", { "x-feed-password": "correct horse" });
     const fp = { "x-feed-password": "correct horse" };
-    for (const [m, p] of [["GET", "/feeds/locked"], ["DELETE", "/feeds/locked"]] as const) expect((await call(m, p)).status).toBe(401);
+    for (const [m, p] of [
+      ["GET", "/feeds/locked"],
+      ["DELETE", "/feeds/locked"],
+    ] as const)
+      expect((await call(m, p)).status).toBe(401);
     expect((await put("locked", { title: "t", description: "" })).status).toBe(401);
     expect((await put("locked", { title: "t", description: "" }, { "x-feed-password": "nope" })).status).toBe(401);
     await expect((await call("GET", "/feeds/locked", { headers: fp })).json()).resolves.toMatchObject({ protected: true, title: "" });
@@ -185,7 +217,7 @@ describe("DELETE /feeds/{feed}", () => {
     expect((await call("DELETE", "/feeds/doomed", { headers: { "x-feed-password": "correct horse" } })).status).toBe(404);
 
     expect((await post("doomed", "# again", { "x-feed-password": "another pass" })).status).toBe(201);
-    expect((await readIdOf("doomed"))).not.toBe(old);
+    expect(await readIdOf("doomed")).not.toBe(old);
     expect(await (await call("GET", "/feeds/doomed", { headers: { "x-feed-password": "another pass" } })).json()).toMatchObject({ title: "", description: "" });
     expect((await call("GET", "/feeds/doomed/notes", { headers: { "x-feed-password": "correct horse" } })).status).toBe(401);
     expect(await (await call("GET", `/read/${old}/notes`)).json()).toEqual({ notes: [], next: null });
@@ -205,7 +237,12 @@ describe("settings body", () => {
     await post("locked", "# x", { "x-feed-password": "correct horse" });
     let pulled = false;
     const body = new ReadableStream({ pull: (c) => ((pulled = true), c.close()) }, { highWaterMark: 0 });
-    const req = new Request(`${BASE}${API_PREFIX}/feeds/locked`, { method: "PUT", body, headers: { host: "localhost:3000", "content-type": "application/json" }, duplex: "half" } as RequestInit);
+    const req = new Request(`${BASE}${API_PREFIX}/feeds/locked`, {
+      method: "PUT",
+      body,
+      headers: { host: "localhost:3000", "content-type": "application/json" },
+      duplex: "half",
+    } as RequestInit);
     expect((await dispatch(req, ["feeds", "locked"])).status).toBe(401);
     expect(pulled).toBe(false);
   });
@@ -268,7 +305,9 @@ describe("a feed whose directory was removed by hand while notefeed runs", () =>
     expect((await put("hand", { title: "T", description: "" })).status).toBe(404);
     expect((await call("PUT", `/feeds/hand/notes/${id}`, { body: "# two", headers: { "content-type": "text/markdown" } })).status).toBe(404);
     expect((await call("DELETE", `/feeds/hand/notes/${id}`)).status).toBe(404);
-    expect((await call("PUT", "/feeds/hand/password", { body: JSON.stringify({ password: "new password" }), headers: { ...json, "x-feed-password": "x" } })).status).toBe(404);
+    expect(
+      (await call("PUT", "/feeds/hand/password", { body: JSON.stringify({ password: "new password" }), headers: { ...json, "x-feed-password": "x" } })).status,
+    ).toBe(404);
     expect(await exists("hand")).toBe(false); // none of them made the directory again
     expect((await call("DELETE", "/feeds/hand")).status).toBe(404);
     expect((await call("GET", "/feeds/hand")).status).toBe(404); // the delete forgot it

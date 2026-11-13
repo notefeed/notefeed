@@ -5,9 +5,27 @@ import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 // A <details> that opens a menu or a sheet: without JavaScript the summary opens and closes it; with it, Escape, a tap
 // outside and following a link inside close it too. `sheet` adds a dimmed backdrop (only once hydrated: without
 // JavaScript the backdrop could not be tapped away).
-export function Disclosure({ summary, label, children, className = "", summaryClassName = "", sheet = false }: { summary: ReactNode; label: string; children: ReactNode; className?: string; summaryClassName?: string; sheet?: boolean }) {
+export function Disclosure({
+  summary,
+  label,
+  children,
+  className = "",
+  summaryClassName = "",
+  sheet = false,
+}: {
+  summary: ReactNode;
+  label: string;
+  children: ReactNode;
+  className?: string;
+  summaryClassName?: string;
+  sheet?: boolean;
+}) {
   const ref = useRef<HTMLDetailsElement>(null);
-  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   useEffect(() => {
     const details = ref.current;

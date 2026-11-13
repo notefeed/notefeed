@@ -27,23 +27,26 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
     email: one(q.email).slice(0, 254),
     good_faith: one(q.good_faith).slice(0, 10),
   };
-  const errors = all(q.error).slice(0, 10).map((e) => e.slice(0, 200));
+  const errors = all(q.error)
+    .slice(0, 10)
+    .map((e) => e.slice(0, 200));
   const sent = one(q.sent) === "1";
   return (
     <main>
-        <h1 className="text-2xl font-bold tracking-tight">{sent ? "Report sent" : "Report a note"}</h1>
-        {sent ? (
-          <div className="mt-4">
-            <Sent />
-          </div>
-        ) : (
-          <>
-            <p className="mt-1 mb-6 max-w-prose text-muted">
-              Tell the operator of this instance what is wrong with the note you came from. The report goes to the operator&apos;s inbox, not into notefeed, and the operator decides what happens to the note.
-            </p>
-            <ReportForm endpoint={endpoint} values={values} errors={errors} />
-          </>
-        )}
+      <h1 className="text-2xl font-bold tracking-tight">{sent ? "Report sent" : "Report a note"}</h1>
+      {sent ? (
+        <div className="mt-4">
+          <Sent />
+        </div>
+      ) : (
+        <>
+          <p className="mt-1 mb-6 max-w-prose text-muted">
+            Tell the operator of this instance what is wrong with the note you came from. The report goes to the operator&apos;s inbox, not into notefeed, and
+            the operator decides what happens to the note.
+          </p>
+          <ReportForm endpoint={endpoint} values={values} errors={errors} />
+        </>
+      )}
     </main>
   );
 }

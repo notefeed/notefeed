@@ -28,92 +28,95 @@ afterEach(async () => {
 });
 
 // The same cases plain and encrypted (issue #212).
-for (const [label, wrapper] of [["license store (ADR 0029)", null], ["license store, encrypted", createLocalWrapper(randomBytes(32).toString("hex"))]] as const) {
-const fresh = (file = join(dir, "licenses.db")) => make(file, wrapper);
-describe.skipIf(!supported)(label, () => {
-  test("a new license is active, on no feed, and found by its key hash and its reference", async () => {
-    const licenses = fresh();
-    const l = await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: 1000 });
-    expect(l).toMatchObject({ feed: null, status: "active", providerRef: "sub_1", validUntil: 1000 });
-    expect(await licenses.byKeyHash("h1")).toEqual(l);
-    expect(await licenses.byProviderRef("sub_1")).toEqual(l);
-    expect(await licenses.byKeyHash("other")).toBeNull();
-  });
+for (const [label, wrapper] of [
+  ["license store (ADR 0029)", null],
+  ["license store, encrypted", createLocalWrapper(randomBytes(32).toString("hex"))],
+] as const) {
+  const fresh = (file = join(dir, "licenses.db")) => make(file, wrapper);
+  describe.skipIf(!supported)(label, () => {
+    test("a new license is active, on no feed, and found by its key hash and its reference", async () => {
+      const licenses = fresh();
+      const l = await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: 1000 });
+      expect(l).toMatchObject({ feed: null, status: "active", providerRef: "sub_1", validUntil: 1000 });
+      expect(await licenses.byKeyHash("h1")).toEqual(l);
+      expect(await licenses.byProviderRef("sub_1")).toEqual(l);
+      expect(await licenses.byKeyHash("other")).toBeNull();
+    });
 
-  test("the same subscription twice (a webhook delivered again) is the first license", async () => {
-    const licenses = fresh();
-    const a = await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-    const b = await licenses.createLicense({ keyHash: "h2", providerRef: "sub_1", validUntil: null });
-    expect(b.id).toBe(a.id);
-    expect(await licenses.byKeyHash("h2")).toBeNull();
-  });
+    test("the same subscription twice (a webhook delivered again) is the first license", async () => {
+      const licenses = fresh();
+      const a = await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+      const b = await licenses.createLicense({ keyHash: "h2", providerRef: "sub_1", validUntil: null });
+      expect(b.id).toBe(a.id);
+      expect(await licenses.byKeyHash("h2")).toBeNull();
+    });
 
-  test("attaching puts it on the feed, one license per feed, and a missing key is said", async () => {
-    const licenses = fresh();
-    await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-    await licenses.createLicense({ keyHash: "h2", providerRef: "sub_2", validUntil: null });
-    expect(await licenses.attach("h1", "f")).toBe("attached");
-    expect((await licenses.byFeed("f"))?.providerRef).toBe("sub_1");
-    expect(await licenses.attach("h2", "f")).toBe("feed-has-license");
-    expect(await licenses.attach("nope", "g")).toBe("unknown-key");
-    expect(await licenses.byFeed("g")).toBeNull();
-  });
+    test("attaching puts it on the feed, one license per feed, and a missing key is said", async () => {
+      const licenses = fresh();
+      await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+      await licenses.createLicense({ keyHash: "h2", providerRef: "sub_2", validUntil: null });
+      expect(await licenses.attach("h1", "f")).toBe("attached");
+      expect((await licenses.byFeed("f"))?.providerRef).toBe("sub_1");
+      expect(await licenses.attach("h2", "f")).toBe("feed-has-license");
+      expect(await licenses.attach("nope", "g")).toBe("unknown-key");
+      expect(await licenses.byFeed("g")).toBeNull();
+    });
 
-  test("a license moves to another feed, and detaching needs only the feed", async () => {
-    const licenses = fresh();
-    await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-    await licenses.attach("h1", "f");
-    expect(await licenses.attach("h1", "g")).toBe("attached");
-    expect(await licenses.byFeed("f")).toBeNull();
-    expect((await licenses.byFeed("g"))?.providerRef).toBe("sub_1");
-    expect(await licenses.detach("g")).toBe(true);
-    expect(await licenses.detach("g")).toBe(false);
-    expect((await licenses.byKeyHash("h1"))?.feed).toBeNull();
-  });
+    test("a license moves to another feed, and detaching needs only the feed", async () => {
+      const licenses = fresh();
+      await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+      await licenses.attach("h1", "f");
+      expect(await licenses.attach("h1", "g")).toBe("attached");
+      expect(await licenses.byFeed("f")).toBeNull();
+      expect((await licenses.byFeed("g"))?.providerRef).toBe("sub_1");
+      expect(await licenses.detach("g")).toBe(true);
+      expect(await licenses.detach("g")).toBe(false);
+      expect((await licenses.byKeyHash("h1"))?.feed).toBeNull();
+    });
 
-  test("a renamed feed takes its license along (#350)", async () => {
-    const licenses = fresh();
-    await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-    await licenses.attach("h1", "old-name");
-    expect(await licenses.moveFeed("old-name", "new-name")).toBe(true);
-    expect(await licenses.byFeed("old-name")).toBeNull();
-    expect((await licenses.byFeed("new-name"))?.feed).toBe("new-name");
-    expect((await licenses.byKeyHash("h1"))?.feed).toBe("new-name");
-    expect(await licenses.moveFeed("no-license", "x")).toBe(false);
-  });
-  test("the webhook's changes apply by reference, and an unknown reference is false", async () => {
-    const licenses = fresh();
-    await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: 1 });
-    expect(await licenses.update("sub_1", { status: "lapsed" })).toBe(true);
-    expect(await licenses.byProviderRef("sub_1")).toMatchObject({ status: "lapsed", validUntil: 1 });
-    expect(await licenses.update("sub_1", { status: "active", validUntil: 99 })).toBe(true);
-    expect(await licenses.byProviderRef("sub_1")).toMatchObject({ status: "active", validUntil: 99 });
-    expect(await licenses.update("sub_x", { status: "lapsed" })).toBe(false);
-  });
+    test("a renamed feed takes its license along (#350)", async () => {
+      const licenses = fresh();
+      await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+      await licenses.attach("h1", "old-name");
+      expect(await licenses.moveFeed("old-name", "new-name")).toBe(true);
+      expect(await licenses.byFeed("old-name")).toBeNull();
+      expect((await licenses.byFeed("new-name"))?.feed).toBe("new-name");
+      expect((await licenses.byKeyHash("h1"))?.feed).toBe("new-name");
+      expect(await licenses.moveFeed("no-license", "x")).toBe(false);
+    });
+    test("the webhook's changes apply by reference, and an unknown reference is false", async () => {
+      const licenses = fresh();
+      await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: 1 });
+      expect(await licenses.update("sub_1", { status: "lapsed" })).toBe(true);
+      expect(await licenses.byProviderRef("sub_1")).toMatchObject({ status: "lapsed", validUntil: 1 });
+      expect(await licenses.update("sub_1", { status: "active", validUntil: 99 })).toBe(true);
+      expect(await licenses.byProviderRef("sub_1")).toMatchObject({ status: "active", validUntil: 99 });
+      expect(await licenses.update("sub_x", { status: "lapsed" })).toBe(false);
+    });
 
-  test("counts: paid on a feed, paid on none, and lapsed by status or by an ended period", async () => {
-    const licenses = fresh();
-    expect(await licenses.counts(100)).toEqual({ active: 0, unattached: 0, lapsed: 0 });
-    await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-    await licenses.createLicense({ keyHash: "h2", providerRef: "sub_2", validUntil: 200 });
-    await licenses.createLicense({ keyHash: "h3", providerRef: "sub_3", validUntil: 50 });
-    await licenses.createLicense({ keyHash: "h4", providerRef: "sub_4", validUntil: null });
-    await licenses.attach("h1", "f");
-    await licenses.attach("h3", "g");
-    await licenses.update("sub_4", { status: "lapsed" });
-    expect(await licenses.counts(100)).toEqual({ active: 1, unattached: 1, lapsed: 2 });
-  });
+    test("counts: paid on a feed, paid on none, and lapsed by status or by an ended period", async () => {
+      const licenses = fresh();
+      expect(await licenses.counts(100)).toEqual({ active: 0, unattached: 0, lapsed: 0 });
+      await licenses.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+      await licenses.createLicense({ keyHash: "h2", providerRef: "sub_2", validUntil: 200 });
+      await licenses.createLicense({ keyHash: "h3", providerRef: "sub_3", validUntil: 50 });
+      await licenses.createLicense({ keyHash: "h4", providerRef: "sub_4", validUntil: null });
+      await licenses.attach("h1", "f");
+      await licenses.attach("h3", "g");
+      await licenses.update("sub_4", { status: "lapsed" });
+      expect(await licenses.counts(100)).toEqual({ active: 1, unattached: 1, lapsed: 2 });
+    });
 
-  test("the licenses are in their own file and are still there when it is opened again", async () => {
-    const file = join(dir, "nested", "licenses.db");
-    const first = fresh(file);
-    await first.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-    await first.attach("h1", "f");
-    await first.close();
-    const again = fresh(file);
-    expect(await again.byFeed("f")).toMatchObject({ providerRef: "sub_1", status: "active" });
+    test("the licenses are in their own file and are still there when it is opened again", async () => {
+      const file = join(dir, "nested", "licenses.db");
+      const first = fresh(file);
+      await first.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
+      await first.attach("h1", "f");
+      await first.close();
+      const again = fresh(file);
+      expect(await again.byFeed("f")).toMatchObject({ providerRef: "sub_1", status: "active" });
+    });
   });
-});
 }
 
 // What a thief with a copy of the file sees.
@@ -186,6 +189,8 @@ describe.skipIf(!supported)("license store: encryption at rest", () => {
     await first.createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
     await first.close();
     await expect(make(file, null).byKeyHash("h1")).rejects.toThrow("the license database is encrypted, but NOTEFEED_ENCRYPTION_KEY is not set");
-    await expect(make(file, createLocalWrapper(key())).byKeyHash("h1")).rejects.toThrow(/^the license database holds keys wrapped by a main key notefeed does not have/);
+    await expect(make(file, createLocalWrapper(key())).byKeyHash("h1")).rejects.toThrow(
+      /^the license database holds keys wrapped by a main key notefeed does not have/,
+    );
   });
 });

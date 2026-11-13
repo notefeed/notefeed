@@ -169,7 +169,8 @@ describe("metrics", () => {
   }).handle(async () => ({ status: 200, body: {} }));
   const measuredDispatch = createDispatcher([getThing, postThing, listThings], "/api/v1");
   const callM = (path: string, method = "GET") => measuredDispatch(new Request(`http://x/api/v1/${path}`, { method }), path.split("?")[0].split("/"));
-  const seenKinds = async () => [...(await renderMetrics()).body.matchAll(/^notefeed_request_duration_seconds_count\{([^}]*)\} (\d+)/gm)].map((m) => `${m[1]} ${m[2]}`);
+  const seenKinds = async () =>
+    [...(await renderMetrics()).body.matchAll(/^notefeed_request_duration_seconds_count\{([^}]*)\} (\d+)/gm)].map((m) => `${m[1]} ${m[2]}`);
   beforeEach(() => vi.stubEnv("NOTEFEED_METRICS", "1"));
   afterEach(() => resetMetricsForTest());
 

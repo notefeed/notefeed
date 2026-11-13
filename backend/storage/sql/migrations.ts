@@ -39,7 +39,10 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
   "002_image_store": {
     async up(db: Kysely<any>) {
       await db.schema.alterTable("notes").addColumn("blob_key", "text").execute();
-      await db.schema.alterTable("notes").addColumn("size", "bigint", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema
+        .alterTable("notes")
+        .addColumn("size", "bigint", (c) => c.notNull().defaultTo(0))
+        .execute();
       await sql`update notes set size = octet_length(content)`.execute(db);
     },
   },
@@ -73,16 +76,25 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
         .addColumn("wrapped", "text", (c) => c.notNull())
         .execute();
       for (const column of ["key_id", "data_key", "name_sealed", "read_id_sealed"]) await db.schema.alterTable("feeds").addColumn(column, "text").execute();
-      await db.schema.alterTable("notes").addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema
+        .alterTable("notes")
+        .addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0))
+        .execute();
       await db.schema.createIndex("notes_by_sealed").on("notes").column("sealed").execute();
-      await db.schema.alterTable("tombstones").addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema
+        .alterTable("tombstones")
+        .addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0))
+        .execute();
     },
   },
   // A note's date (ms), its own and not its id's: the feed is ordered by it, newest first, ties by id. Readable without decrypting.
   // Notes from before read as 0 until the start-up migration fills it from their ids.
   "005_note_date": {
     async up(db: Kysely<any>) {
-      await db.schema.alterTable("notes").addColumn("date", "bigint", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema
+        .alterTable("notes")
+        .addColumn("date", "bigint", (c) => c.notNull().defaultTo(0))
+        .execute();
       await db.schema.createIndex("notes_by_date").on("notes").columns(["feed", "date", "id"]).execute();
     },
   },
@@ -101,7 +113,10 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
   // so a reader's listing (draft = 0) and the owner's (both) are each one range of it.
   "007_note_draft": {
     async up(db: Kysely<any>) {
-      await db.schema.alterTable("notes").addColumn("draft", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema
+        .alterTable("notes")
+        .addColumn("draft", "integer", (c) => c.notNull().defaultTo(0))
+        .execute();
       await db.schema.dropIndex("notes_by_date").ifExists().execute();
       await db.schema.createIndex("notes_by_draft_date").on("notes").columns(["feed", "draft", "date", "id"]).execute();
     },

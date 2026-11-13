@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignLeft, Fingerprint, ImagePlus, PencilLine, RefreshCw, Trash2, Type, UserRound, X } from "lucide-react";
+import { CloseIcon, DeleteIcon, DescriptionIcon, EditIcon, NewReadIdIcon, PictureIcon, ReadIdIcon, SenderIcon, TitleIcon } from "@/components/icons";
 import { useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { deleteFeed, updateFeed } from "@/app/_lib/api";
 import { danger, field, primary, secondary } from "@/components/styles";
@@ -14,7 +14,39 @@ import { putFeedImage, useApiForm } from "@/app/_lib/useApiForm";
 // access groups) sit between it and deleting, so deleting stays last. With
 // JavaScript they go through the generated API client and show refusals inline; without, the browser follows
 // the 303 (the feed page says "Saved." or shows the refusal as `error`, or the home page says "Feed deleted.").
-export function FeedDetails({ feed, title: savedTitle, description: savedDescription, image, imageUrl, images, showSender: savedShowSender, readId, readIdChoice, identity, renamable = true, error: initialError, sharing, posting, children }: { sharing?: ReactNode; posting?: ReactNode; children?: ReactNode; renamable?: boolean; feed: string; title: string; description: string; image: string; imageUrl: string | null; images: { file: string; url: string; title: string }[]; showSender: boolean; readId: string | null; readIdChoice: "custom" | "random" | "fixed"; identity: boolean; error?: string }) {
+export function FeedDetails({
+  feed,
+  title: savedTitle,
+  description: savedDescription,
+  image,
+  imageUrl,
+  images,
+  showSender: savedShowSender,
+  readId,
+  readIdChoice,
+  identity,
+  renamable = true,
+  error: initialError,
+  sharing,
+  posting,
+  children,
+}: {
+  sharing?: ReactNode;
+  posting?: ReactNode;
+  children?: ReactNode;
+  renamable?: boolean;
+  feed: string;
+  title: string;
+  description: string;
+  image: string;
+  imageUrl: string | null;
+  images: { file: string; url: string; title: string }[];
+  showSender: boolean;
+  readId: string | null;
+  readIdChoice: "custom" | "random" | "fixed";
+  identity: boolean;
+  error?: string;
+}) {
   const page = `/${feed}/settings`;
   const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, feedDetailsErrorMessage);
   const [title, setTitle] = useState(savedTitle);
@@ -25,18 +57,34 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
   const [newName, setNewName] = useState("");
   // False while rendering on the server, true once hydrated: without JavaScript the delete button stays enabled
   // and the server checks the name.
-  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const opts = () => ({ baseUrl: window.location.origin, path: { feed } }); // in handlers only: no window while rendering on the server
 
   const picker = useRef<HTMLInputElement>(null);
   // The read id goes along with every save while it can be chosen; an unchanged one is no change to the server.
-  const save = (e: FormEvent | undefined, body: { title: string; description: string; image?: string; show_sender?: boolean; read_id?: string } = { title, description, ...(identity && { show_sender: showSender }), ...(readIdChoice === "custom" && readId && { read_id: readIdValue }) }) =>
-    run(e, () => updateFeed({ ...opts(), body }), () => {
-      setError(undefined);
-      setPending(false);
-      router.replace(`${page}?saved=1`);
-      router.refresh();
-    });
+  const save = (
+    e: FormEvent | undefined,
+    body: { title: string; description: string; image?: string; show_sender?: boolean; read_id?: string } = {
+      title,
+      description,
+      ...(identity && { show_sender: showSender }),
+      ...(readIdChoice === "custom" && readId && { read_id: readIdValue }),
+    },
+  ) =>
+    run(
+      e,
+      () => updateFeed({ ...opts(), body }),
+      () => {
+        setError(undefined);
+        setPending(false);
+        router.replace(`${page}?saved=1`);
+        router.refresh();
+      },
+    );
   // The title image saves on its own, with the title and description as they stand in the form. A refusal shows in the row, not
   // at the foot of the page, where a phone's screen doesn't reach.
   const [uploading, setUploading] = useState(false);
@@ -55,11 +103,21 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
   }
   // A rename (#350) goes to the settings page under the new name; on a protected feed that page asks for the password again.
   const rename = (e: FormEvent) =>
-    run(e, () => updateFeed({ ...opts(), body: { title, description, ...(identity && { show_sender: showSender }), name: newName.trim() } }), () => {
-      router.replace(`/${newName.trim()}/settings?saved=1`);
-      router.refresh();
-    });
-  const remove = (e: FormEvent) => run(e, () => deleteFeed(opts()), () => router.replace("/?deleted=" + feed), 404); // already gone: the goal is met
+    run(
+      e,
+      () => updateFeed({ ...opts(), body: { title, description, ...(identity && { show_sender: showSender }), name: newName.trim() } }),
+      () => {
+        router.replace(`/${newName.trim()}/settings?saved=1`);
+        router.refresh();
+      },
+    );
+  const remove = (e: FormEvent) =>
+    run(
+      e,
+      () => deleteFeed(opts()),
+      () => router.replace("/?deleted=" + feed),
+      404,
+    ); // already gone: the goal is met
 
   const withSender = identity ? { show_sender: showSender } : {};
 
@@ -68,7 +126,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
       <Group id="profile" label="Profile">
         {hydrated && (
           <DisclosureRow
-            icon={<ImagePlus />}
+            icon={<PictureIcon />}
             label="Title image"
             value={
               imageUrl ? (
@@ -93,12 +151,17 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
             />
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={pending} onClick={() => picker.current?.click()} className={secondary}>
-                <ImagePlus aria-hidden className="h-4 w-4" />
+                <PictureIcon aria-hidden className="h-4 w-4" />
                 {uploading ? "Uploading…" : "Choose image"}
               </button>
               {image && (
-                <button type="button" disabled={pending} onClick={() => save(undefined, { title, description, image: "", ...withSender })} className={`${secondary} bg-transparent font-normal text-muted`}>
-                  <X aria-hidden className="h-4 w-4" />
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => save(undefined, { title, description, image: "", ...withSender })}
+                  className={`${secondary} bg-transparent font-normal text-muted`}
+                >
+                  <CloseIcon aria-hidden className="h-4 w-4" />
                   Remove image
                 </button>
               )}
@@ -131,21 +194,40 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
           </DisclosureRow>
         )}
         <form id="feed-details-form" method="post" action={`/${feed}/details`} onSubmit={(e) => save(e)} className="divide-y divide-rule">
-          <FieldRow icon={<Type />} label="Title" htmlFor="feed-title">
-            <input id="feed-title" name="title" maxLength={100} placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
+          <FieldRow icon={<TitleIcon />} label="Title" htmlFor="feed-title">
+            <input
+              id="feed-title"
+              name="title"
+              maxLength={100}
+              placeholder="Title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className={field}
+            />
           </FieldRow>
-          <FieldRow icon={<AlignLeft />} label="Description" htmlFor="feed-description">
-            <input id="feed-description" name="description" maxLength={500} placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
+          <FieldRow icon={<DescriptionIcon />} label="Description" htmlFor="feed-description">
+            <input
+              id="feed-description"
+              name="description"
+              maxLength={500}
+              placeholder="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={field}
+            />
           </FieldRow>
           {identity && (
             <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
               <input type="hidden" name="show_sender_present" value="1" />
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-                <UserRound aria-hidden className="h-[18px] w-[18px]" />
+                <SenderIcon aria-hidden className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0 flex-1 text-[15px]">Show who posted</span>
               <input type="checkbox" name="show_sender" checked={showSender} onChange={(e) => setShowSender(e.target.checked)} className="peer sr-only" />
-              <span aria-hidden className="relative h-6 w-11 shrink-0 rounded-full bg-rule transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-surface after:shadow-card after:transition-transform peer-checked:bg-carbon peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-carbon" />
+              <span
+                aria-hidden
+                className="relative h-6 w-11 shrink-0 rounded-full bg-rule transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-surface after:shadow-card after:transition-transform peer-checked:bg-carbon peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-carbon"
+              />
             </label>
           )}
           <div className="flex justify-end px-4 py-3">
@@ -158,13 +240,24 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
 
       <Group id="sharing" label="Sharing">
         {readIdChoice !== "fixed" && readId && (
-          <DisclosureRow icon={<Fingerprint />} label="Read id" value={<code className="font-mono">{readId}</code>} open={!!initialError}>
+          <DisclosureRow icon={<ReadIdIcon />} label="Read id" value={<code className="font-mono">{readId}</code>} open={!!initialError}>
             {readIdChoice === "custom" && (
               <>
                 <label htmlFor="feed-read-id" className="mb-1 block text-muted">
                   Read id
                 </label>
-                <input id="feed-read-id" name="read_id" form="feed-details-form" minLength={3} maxLength={64} spellCheck={false} autoComplete="off" value={readIdValue} onChange={(e) => setReadIdValue(e.target.value)} className={`${field} mb-2 font-mono`} />
+                <input
+                  id="feed-read-id"
+                  name="read_id"
+                  form="feed-details-form"
+                  minLength={3}
+                  maxLength={64}
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={readIdValue}
+                  onChange={(e) => setReadIdValue(e.target.value)}
+                  className={`${field} mb-2 font-mono`}
+                />
               </>
             )}
             <div className="flex flex-wrap gap-2">
@@ -173,13 +266,29 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
                   Use this read id
                 </button>
               )}
-              <button type="submit" form="feed-details-form" name="generate_read_id" value="1" formNoValidate disabled={pending} onClick={(e) => { if (hydrated) { e.preventDefault(); save(undefined, { title, description, ...withSender, read_id: "" }); } }} className={secondary}>
-                <RefreshCw aria-hidden className="h-4 w-4" />
+              <button
+                type="submit"
+                form="feed-details-form"
+                name="generate_read_id"
+                value="1"
+                formNoValidate
+                disabled={pending}
+                onClick={(e) => {
+                  if (hydrated) {
+                    e.preventDefault();
+                    save(undefined, { title, description, ...withSender, read_id: "" });
+                  }
+                }}
+                className={secondary}
+              >
+                <NewReadIdIcon aria-hidden className="h-4 w-4" />
                 Generate a random one
               </button>
             </div>
             <p className="mt-2 text-muted">
-              The read id is in the read link and the RSS link. {readIdChoice === "custom" && "3 to 64 characters: a–z, 0–9, - and _. "}A short, readable one can be guessed: protect the feed with a password if that matters. The old link stops showing this feed and may later show another one. Image links in your notes that are relative follow the new id; full URLs don&apos;t, and you change those yourself.
+              The read id is in the read link and the RSS link. {readIdChoice === "custom" && "3 to 64 characters: a–z, 0–9, - and _. "}A short, readable one
+              can be guessed: protect the feed with a password if that matters. The old link stops showing this feed and may later show another one. Image links
+              in your notes that are relative follow the new id; full URLs don&apos;t, and you change those yourself.
             </p>
           </DisclosureRow>
         )}
@@ -196,33 +305,56 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
 
       <Group id="danger" label="Danger zone">
         {renamable && (
-          <DisclosureRow icon={<PencilLine />} label="Rename this feed" danger>
+          <DisclosureRow icon={<EditIcon />} label="Rename this feed" danger>
             <form method="post" action={`/${feed}/details`} onSubmit={rename}>
               <input type="hidden" name="title" value={title} />
               <input type="hidden" name="description" value={description} />
               <p className="text-muted">
-                The feed keeps its notes, settings, password, license and read link. The old name stops working at once, and a post to it later creates a new, empty feed without an error: change it in scripts, CI secrets, <code className="font-mono">NOTEFEED_FEED</code>, AI agents and bookmarks before they next run. Browsers that unlocked this feed unlock it again. A short name can be guessed: protect the feed with a password if that matters.
+                The feed keeps its notes, settings, password, license and read link. The old name stops working at once, and a post to it later creates a new,
+                empty feed without an error: change it in scripts, CI secrets, <code className="font-mono">NOTEFEED_FEED</code>, AI agents and bookmarks before
+                they next run. Browsers that unlocked this feed unlock it again. A short name can be guessed: protect the feed with a password if that matters.
               </p>
               <label htmlFor="feed-new-name" className="mb-1 mt-3 block text-muted">
                 New name
               </label>
-              <input id="feed-new-name" name="name" required minLength={1} maxLength={64} pattern="[a-z0-9_\-]{1,64}" spellCheck={false} autoComplete="off" value={newName} onChange={(e) => setNewName(e.target.value)} className={`${field} mb-3 font-mono`} />
+              <input
+                id="feed-new-name"
+                name="name"
+                required
+                minLength={1}
+                maxLength={64}
+                pattern="[a-z0-9_\-]{1,64}"
+                spellCheck={false}
+                autoComplete="off"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className={`${field} mb-3 font-mono`}
+              />
               <button type="submit" disabled={pending || (hydrated && (newName.trim() === "" || newName.trim() === feed))} className={danger}>
-                <PencilLine aria-hidden className="h-4 w-4" />
+                <EditIcon aria-hidden className="h-4 w-4" />
                 Rename feed
               </button>
             </form>
           </DisclosureRow>
         )}
-        <DisclosureRow icon={<Trash2 />} label="Delete this feed" danger>
+        <DisclosureRow icon={<DeleteIcon />} label="Delete this feed" danger>
           <form method="post" action={`/${feed}/delete`} onSubmit={remove}>
             <p className="text-muted">This deletes the feed and all its notes. It can&apos;t be undone. Type the feed&apos;s name to confirm.</p>
             <label htmlFor="feed-confirm" className="mb-1 mt-3 block text-muted">
               Feed name
             </label>
-            <input id="feed-confirm" name="confirm" autoComplete="off" required pattern={feed} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={`${field} mb-3 font-mono`} />
+            <input
+              id="feed-confirm"
+              name="confirm"
+              autoComplete="off"
+              required
+              pattern={feed}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              className={`${field} mb-3 font-mono`}
+            />
             <button type="submit" disabled={pending || (hydrated && confirm !== feed)} className={danger}>
-              <Trash2 aria-hidden className="h-4 w-4" />
+              <DeleteIcon aria-hidden className="h-4 w-4" />
               Delete feed
             </button>
           </form>

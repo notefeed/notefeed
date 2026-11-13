@@ -37,7 +37,14 @@ export function resetPlansForTests(): void {
 }
 
 // Why Creem could not be read, for the log: never the answer itself.
-const why = (e: unknown): string => (e instanceof ResponseValidationError ? "an answer the SDK does not accept" : e instanceof CreemError ? String(e.statusCode) : e instanceof Error ? e.name : "error");
+const why = (e: unknown): string =>
+  e instanceof ResponseValidationError
+    ? "an answer the SDK does not accept"
+    : e instanceof CreemError
+      ? String(e.statusCode)
+      : e instanceof Error
+        ? e.name
+        : "error";
 
 // The key of a checkout: the first of `license_keys`, one per unit bought; notefeed sells one. Creem sends it, in the API and in the
 // delivery, but the delivery's types leave it out.

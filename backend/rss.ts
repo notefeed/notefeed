@@ -8,8 +8,7 @@ import { readPath } from "./urls";
 // Stripped on output only — the .md file keeps the original bytes.
 const xmlSafe = (s: string) => s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\uFFFE\uFFFF]/g, "");
 
-const escapeXml = (s: string) =>
-  xmlSafe(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
+const escapeXml = (s: string) => xmlSafe(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
 
 // "]]>" would end the section early; split it across two CDATA sections.
 const cdata = (s: string) => `<![CDATA[${xmlSafe(s).replaceAll("]]>", "]]]]><![CDATA[>")}]]>`;

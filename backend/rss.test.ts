@@ -60,10 +60,12 @@ test("lists tags as category elements", () => {
 });
 
 test("strips XML-forbidden control characters", () => {
-  const out = renderFeed(
-    [mdNote({ id: "20260929T140512Z-red", title: "\x1b[31mred", markdown: "\x1b[31mred\x1b[0m\ttab\r\nok", date: new Date() })],
-    { title: "t", description: "t", baseUrl: "https://x.test", readId: "AbCdEfGhIjKlMnOpQrSt_-" },
-  );
+  const out = renderFeed([mdNote({ id: "20260929T140512Z-red", title: "\x1b[31mred", markdown: "\x1b[31mred\x1b[0m\ttab\r\nok", date: new Date() })], {
+    title: "t",
+    description: "t",
+    baseUrl: "https://x.test",
+    readId: "AbCdEfGhIjKlMnOpQrSt_-",
+  });
   expect(out).not.toMatch(/[\x00-\x08\x0B\x0C\x0E-\x1F￾￿]/);
   expect(out).toContain("[31mred[0m\ttab\r\nok");
 });

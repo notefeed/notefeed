@@ -28,6 +28,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       # An S3-compatible store for the image store's tests (backend/storage/images/s3.test.ts), which checks the request signatures.
@@ -252,14 +253,13 @@ jobs:
               restart: unless-stopped
               ports:
                 - "3000:3000"
-              environment:
-                # PUBLIC_URL: https://notes.example.com
-                # NOTEFEED_PASSWORD: <openssl rand -hex 32>   # optional: lock posting and the web UI
+              env_file: .env   # every setting, with its default: .env.example
               volumes:
                 - ./data:/data
           ```
 
           ```bash
+          curl -fsSLo .env https://raw.githubusercontent.com/notefeed/notefeed/v__VERSION__/.env.example
           mkdir data   # notes are written as the owner of this folder
           docker compose up -d
           ```

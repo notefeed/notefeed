@@ -17,5 +17,7 @@ test("with the instance password and the feed's password the headers come first"
 test("the Claude Code command adds the instance's MCP endpoint, with the instance password where there is one", () => {
   expect(claudeMcpFor("https://notes.example")).toBe("claude mcp add notefeed --transport http https://notes.example/mcp");
   vi.stubEnv("NOTEFEED_PASSWORD", "pw");
-  expect(claudeMcpFor("https://notes.example")).toBe(`claude mcp add notefeed --transport http https://notes.example/mcp --header "Authorization: Bearer $NOTEFEED_PASSWORD"`);
+  expect(claudeMcpFor("https://notes.example")).toBe(
+    `claude mcp add notefeed --transport http https://notes.example/mcp --header "Authorization: Bearer $NOTEFEED_PASSWORD"`,
+  );
 });

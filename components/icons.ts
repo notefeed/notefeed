@@ -1,0 +1,57 @@
+// Every icon in the UI, named by the thing it stands for (the icons convention): one thing, one icon, wherever it shows.
+// Components import from here, never from lucide-react (an ESLint rule keeps it that way). An icon goes next to a word
+// and is aria-hidden, or it carries an accessible name of its own (aria-label on it or on its button).
+export {
+  // Feeds and their links
+  Plus as NewFeedIcon,
+  Shuffle as RandomNameIcon,
+  Link2 as ReadLinkIcon,
+  Rss as RssIcon,
+  Eye as ReadOnlyIcon,
+  Fingerprint as ReadIdIcon,
+  RefreshCw as NewReadIdIcon,
+  Type as TitleIcon,
+  AlignLeft as DescriptionIcon,
+  UserRound as SenderIcon,
+  Settings as SettingsIcon,
+  // Passwords and licenses
+  LockKeyhole as FeedPasswordIcon,
+  Lock as LockedIcon,
+  LogOut as SignOutIcon,
+  KeyRound as LicenseKeyIcon,
+  BadgeCheck as LicenseIcon,
+  ReceiptText as PurchasesIcon,
+  Check as IncludedIcon,
+  X as NotIncludedIcon,
+  // Writing and notes
+  Plus as MoreIcon,
+  Send as PostIcon,
+  PenLine as WriteIcon,
+  Eye as PreviewIcon,
+  Pencil as EditIcon,
+  PencilLine as DraftIcon,
+  CalendarClock as ScheduledIcon,
+  Hash as TagIcon,
+  ImagePlus as PictureIcon,
+  Camera as CameraIcon,
+  Link2 as NoteLinkIcon,
+  Copy as CopyIcon,
+  Share2 as ShareIcon,
+  Flag as ReportIcon,
+  Trash2 as DeleteIcon,
+  Check as DoneIcon,
+  // Ways to post (the feed's settings)
+  Braces as ApiIcon,
+  Terminal as ScriptIcon,
+  Package as CodeIcon,
+  Smartphone as PhoneIcon,
+  Bot as AgentIcon,
+  // Navigation and notices
+  ChevronLeft as BackIcon,
+  ChevronDown as ExpandIcon,
+  ChevronRight as DisclosureIcon,
+  ArrowUpRight as ExternalIcon,
+  X as CloseIcon,
+  Info as InfoIcon,
+  TriangleAlert as WarningIcon,
+} from "lucide-react";

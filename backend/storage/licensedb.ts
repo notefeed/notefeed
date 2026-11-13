@@ -34,7 +34,8 @@ interface LicenseSchema {
 // Never edit one that has shipped; add the next.
 const migrations: Record<string, Migration> = {
   "001_licenses": {
-    async up(db: Kysely<any>) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async up(db: Kysely<any>) {
       await db.schema
         .createTable("licenses")
         .addColumn("id", "text", (c) => c.primaryKey())
@@ -50,14 +51,18 @@ const migrations: Record<string, Migration> = {
   // Encryption at rest (issue #212, ADR 0033): the keyring holds this file's fingerprint key and its one data key, wrapped by the
   // main key. Licenses are few and small: one data key for all of them.
   "002_encryption": {
-    async up(db: Kysely<any>) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async up(db: Kysely<any>) {
       await db.schema
         .createTable("keyring")
         .addColumn("name", "text", (c) => c.primaryKey())
         .addColumn("key_id", "text", (c) => c.notNull())
         .addColumn("wrapped", "text", (c) => c.notNull())
         .execute();
-      await db.schema.alterTable("licenses").addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0)).execute();
+      await db.schema
+        .alterTable("licenses")
+        .addColumn("sealed", "integer", (c) => c.notNull().defaultTo(0))
+        .execute();
       await db.schema.alterTable("licenses").addColumn("feed_sealed", "text").execute();
       await db.schema.alterTable("licenses").addColumn("provider_ref_sealed", "text").execute();
     },
@@ -81,11 +86,17 @@ async function prepareKeys(db: Kysely<LicenseSchema>, wrapper: KeyWrapper | null
     const ring = await tx.selectFrom("keyring").select("key_id").execute();
     const older = ring.filter((r) => r.key_id !== wrapper.keyId).length;
     for (const { key_id } of ring) if (!wrapper.knows(key_id)) throw new KeyringError(inLicenses(unknownKey(key_id)));
-    if (ring.length === 0 && (await tx.selectFrom("licenses").select("id").where("sealed", "=", 1).executeTakeFirst())) throw new KeyringError(inLicenses(KEYRING_MISSING));
+    if (ring.length === 0 && (await tx.selectFrom("licenses").select("id").where("sealed", "=", 1).executeTakeFirst()))
+      throw new KeyringError(inLicenses(KEYRING_MISSING));
     const keys = { fp: await ringKey(tx, "fingerprint", wrapper), data: await ringKey(tx, "data", wrapper) };
-    if (older > 0) log.info({ keys: older, keyId: wrapper.keyId }, "re-wrapped the license database's keys under the current main key; none left under an older one");
+    if (older > 0)
+      log.info({ keys: older, keyId: wrapper.keyId }, "re-wrapped the license database's keys under the current main key; none left under an older one");
     for (const r of await tx.selectFrom("licenses").select(["id", "feed", "provider_ref"]).where("sealed", "=", 0).execute()) {
-      await tx.updateTable("licenses").set(sealedRefs(keys, r.id, r.feed, r.provider_ref)).where("id", "=", r.id).execute();
+      await tx
+        .updateTable("licenses")
+        .set(sealedRefs(keys, r.id, r.feed, r.provider_ref))
+        .where("id", "=", r.id)
+        .execute();
     }
     return keys;
   });
@@ -148,7 +159,11 @@ export function createLicenseDb(file: string, wrapper: KeyWrapper | null = null)
 
   const find = async (column: "key_hash" | "feed" | "provider_ref", value: string) => {
     const db = await open();
-    const r = await db.selectFrom("licenses").selectAll().where(column, "=", column === "key_hash" ? value : ident(column, value)).executeTakeFirst();
+    const r = await db
+      .selectFrom("licenses")
+      .selectAll()
+      .where(column, "=", column === "key_hash" ? value : ident(column, value))
+      .executeTakeFirst();
     return r ? licenseOf(keys, r) : null;
   };
   return {
@@ -157,7 +172,10 @@ export function createLicenseDb(file: string, wrapper: KeyWrapper | null = null)
       try {
         const id = randomUUID();
         const refs = keys ? sealedRefs(keys, id, null, providerRef) : { provider_ref: providerRef };
-        await db.insertInto("licenses").values({ id, key_hash: keyHash, feed: null, status: "active", valid_until: validUntil, created_at: Date.now(), ...refs }).execute();
+        await db
+          .insertInto("licenses")
+          .values({ id, key_hash: keyHash, feed: null, status: "active", valid_until: validUntil, created_at: Date.now(), ...refs })
+          .execute();
         return { id, feed: null, status: "active", providerRef, validUntil };
       } catch (err) {
         // The same subscription twice: the webhook came again, and the first license stands.

@@ -1,9 +1,6 @@
 // A note whose stored copy can't be decrypted (issue #212): never a broken feed, never a plain error. The pages, the API and MCP list
 // it as a damaged note in its place; RSS leaves it out; reading it alone is the `unreadable` refusal; the operator gets a log line and
 // a counter. The storage is made to fail for one note, so these run on the file system backend.
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { UnreadableNoteError } from "./errors";
 import { readIdOf, resetFeedsForTests } from "./feeds";
@@ -20,7 +17,6 @@ import { resetStorageForTests, storage } from "./storage";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-unreadable-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   process.env.NOTEFEED_METRICS = "1";
   for (const k of ["NOTEFEED_PASSWORD", "PUBLIC_URL"]) delete process.env[k];
@@ -102,11 +98,22 @@ test("the API lists it marked unreadable and refuses it alone with the unreadabl
 test("MCP lists it marked unreadable and refuses it alone", async () => {
   const { bad } = await damaged();
   const call = async (name: string, args: Record<string, unknown>) => {
-    const _meta = { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" }, "io.modelcontextprotocol/clientCapabilities": {} };
+    const _meta = {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" },
+      "io.modelcontextprotocol/clientCapabilities": {},
+    };
     const res = await mcpRoute(
       new Request(`${BASE}/mcp`, {
         method: "POST",
-        headers: { host: "localhost:3000", "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": name },
+        headers: {
+          host: "localhost:3000",
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          "mcp-protocol-version": "2026-07-28",
+          "mcp-method": "tools/call",
+          "mcp-name": name,
+        },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args, _meta } }),
       }),
     );

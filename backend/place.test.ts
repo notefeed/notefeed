@@ -9,7 +9,10 @@ const names = new Set(["a.png", "b.png"]);
 test("the plan is that of planImages: where the references are, and which pictures nothing refers to", async () => {
   const plan = await planInWorker("﻿# Hi ![x](a.png)\n\n[l]: <b.png>", names);
   expect(plan.unused).toEqual([]);
-  expect(plan.edits.map((e) => [plan.markdown.slice(e.from, e.to), e.name])).toEqual([["a.png", "a.png"], ["<b.png>", "b.png"]]);
+  expect(plan.edits.map((e) => [plan.markdown.slice(e.from, e.to), e.name])).toEqual([
+    ["a.png", "a.png"],
+    ["<b.png>", "b.png"],
+  ]);
   expect((await planInWorker("![x](a.png)", names)).unused).toEqual(["b.png"]);
 });
 

@@ -33,7 +33,8 @@ const log = logger("operator");
 // Both sides hashed first, so the comparison takes the same time and works for tokens of any length.
 const digest = (s: string) => createHash("sha256").update(s).digest();
 const sameToken = (given: string, expected: string) => timingSafeEqual(digest(given), digest(expected));
-const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
+const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+  Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
 
 // The gate of every operator endpoint: 404 while there is no token, 429 after too many wrong ones, 401 for a wrong or missing one.
 function gate(req: Request): Response | null {
@@ -81,7 +82,8 @@ export async function takedownRoute(req: Request): Promise<Response> {
   const refused = gate(req);
   if (refused) return refused;
   const body = (await req.json().catch(() => undefined)) as { target?: unknown; scope?: unknown } | undefined;
-  if (typeof body?.target !== "string" || !body.target.trim()) return json({ error: 'the body is JSON with "target": a read link, a read id or an image URL' }, 400);
+  if (typeof body?.target !== "string" || !body.target.trim())
+    return json({ error: 'the body is JSON with "target": a read link, a read id or an image URL' }, 400);
   if (body.scope !== undefined && body.scope !== "feed" && body.scope !== "note") return json({ error: '"scope" is "feed" (the default) or "note"' }, 400);
   try {
     return json(body.scope === "note" ? await takedownNote(body.target) : await takedown(body.target));
@@ -94,19 +96,40 @@ export async function takedownRoute(req: Request): Promise<Response> {
 
 // What the move takes from: the rows (`db`), a folder, or an S3-compatible store with its settings. The source's secrets travel in the
 // body of this one request and are never logged or answered back.
-const MoveBody = z.discriminatedUnion("from", [
-  z.object({ from: z.literal("db") }),
-  z.object({ from: z.literal("fs"), dir: z.string().min(1) }),
-  z.object({ from: z.literal("s3"), endpoint: z.string().url(), bucket: z.string().min(1), region: z.string().min(1).default("us-east-1"), access_key: z.string().min(1), secret_key: z.string().min(1) }),
-]).and(z.object({ limit: z.number().int().min(1).max(10_000).default(100), after: z.string().min(1).optional() }));
+const MoveBody = z
+  .discriminatedUnion("from", [
+    z.object({ from: z.literal("db") }),
+    z.object({ from: z.literal("fs"), dir: z.string().min(1) }),
+    z.object({
+      from: z.literal("s3"),
+      endpoint: z.string().url(),
+      bucket: z.string().min(1),
+      region: z.string().min(1).default("us-east-1"),
+      access_key: z.string().min(1),
+      secret_key: z.string().min(1),
+    }),
+  ])
+  .and(z.object({ limit: z.number().int().min(1).max(10_000).default(100), after: z.string().min(1).optional() }));
 
 export async function moveImagesRoute(req: Request): Promise<Response> {
   const refused = gate(req);
   if (refused) return refused;
   const parsed = MoveBody.safeParse(await req.json().catch(() => undefined));
-  if (!parsed.success) return json({ error: 'the body is JSON with "from": "db", "fs" (with "dir") or "s3" (with "endpoint", "bucket", "access_key", "secret_key", optional "region"), and an optional "limit"' }, 400);
+  if (!parsed.success)
+    return json(
+      {
+        error:
+          'the body is JSON with "from": "db", "fs" (with "dir") or "s3" (with "endpoint", "bucket", "access_key", "secret_key", optional "region"), and an optional "limit"',
+      },
+      400,
+    );
   const body = parsed.data;
-  const from: ImageStore | "db" = body.from === "db" ? "db" : body.from === "fs" ? createFsImageStore(body.dir) : createS3ImageStore({ endpoint: body.endpoint, bucket: body.bucket, region: body.region, accessKey: body.access_key, secretKey: body.secret_key });
+  const from: ImageStore | "db" =
+    body.from === "db"
+      ? "db"
+      : body.from === "fs"
+        ? createFsImageStore(body.dir)
+        : createS3ImageStore({ endpoint: body.endpoint, bucket: body.bucket, region: body.region, accessKey: body.access_key, secretKey: body.secret_key });
   const s = storage() as Partial<SqlStorage>;
   if (!s.moveImages) return json({ error: "this instance has no database: NOTEFEED_STORAGE is fs, and an image is the note's own file" }, 409);
   let move;
@@ -118,7 +141,16 @@ export async function moveImagesRoute(req: Request): Promise<Response> {
     log.error({ err }, "images could not be moved");
     return json({ error: "the images could not be moved; see the log" }, 502);
   }
-  return json({ store: config.images(), from: body.from, moved: move.moved, skipped: move.skipped, missing: move.missing, failed: move.failed, left: move.left, next: move.next });
+  return json({
+    store: config.images(),
+    from: body.from,
+    moved: move.moved,
+    skipped: move.skipped,
+    missing: move.missing,
+    failed: move.failed,
+    left: move.left,
+    next: move.next,
+  });
 }
 
 // POST /api/operator/reseal (issue #212): encrypts, bit by bit, the notes stored before NOTEFEED_ENCRYPTION_KEY was set.
@@ -129,8 +161,15 @@ export async function resealRoute(req: Request): Promise<Response> {
   if (refused) return refused;
   const text = await req.text().catch(() => "");
   // No body: the defaults. A body that is not JSON stays a 400.
-  const parsed = ResealBody.safeParse(text.trim() === "" ? {} : await Promise.resolve().then(() => JSON.parse(text)).catch(() => undefined));
-  if (!parsed.success) return json({ error: 'the body is JSON with an optional "limit" (1 to 10000) and an optional "after" (the previous answer\'s "next")' }, 400);
+  const parsed = ResealBody.safeParse(
+    text.trim() === ""
+      ? {}
+      : await Promise.resolve()
+          .then(() => JSON.parse(text))
+          .catch(() => undefined),
+  );
+  if (!parsed.success)
+    return json({ error: 'the body is JSON with an optional "limit" (1 to 10000) and an optional "after" (the previous answer\'s "next")' }, 400);
   const s = storage() as Partial<SqlStorage>;
   if (!s.reseal) return json({ error: "this instance has no database: NOTEFEED_STORAGE is fs, which is not encrypted" }, 409);
   let r;

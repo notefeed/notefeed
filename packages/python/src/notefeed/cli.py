@@ -25,7 +25,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--type", help="the file's media type, when the extension does not say")
     p.add_argument("--title", help="the note's title (default: taken from the text)")
     p.add_argument("--tag", action="append", help="label the note with this tag (repeat for several)")
-    p.add_argument("--date", metavar="WHEN", help="the note's date, if not now: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note")
+    p.add_argument(
+        "--date", metavar="WHEN", help="the note's date, if not now: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note"
+    )
     p.add_argument("--draft", action="store_true", help="post it as a draft: readers do not see it until it is published (update --publish)")
     p.add_argument("--attach", action="append", metavar="PATH", help="a picture to post with the note and refer to as ![](its file name); repeat for several")
     e = sub.add_parser("edit", help="replace a note's content; prints its URL")
@@ -60,7 +62,16 @@ def main(argv: list[str] | None = None) -> int:
             no_text = bool(attachments) and args.text is None and not args.file
             content, media, name = (None, None, None) if no_text else _read(args)
             # The server refuses a file name next to attachments: the text has none then.
-            note = _client(args).post(content, type=media, title=args.title, tags=args.tag, date=args.date, draft=args.draft, name=None if attachments else name, attachments=attachments)
+            note = _client(args).post(
+                content,
+                type=media,
+                title=args.title,
+                tags=args.tag,
+                date=args.date,
+                draft=args.draft,
+                name=None if attachments else name,
+                attachments=attachments,
+            )
             print("\n".join([*([] if no_text else [note.url]), *(a.url for a in note.attachments)]))
         elif args.command == "edit":
             content, media, _ = _read(args)
@@ -129,7 +140,15 @@ class _UsageError(Exception):
 
 
 # The media type of a file by its extension: the types the server accepts.
-_TYPES = {".md": "text/markdown", ".markdown": "text/markdown", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}
+_TYPES = {
+    ".md": "text/markdown",
+    ".markdown": "text/markdown",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
 
 
 def _attachment(path: str) -> Attachment:

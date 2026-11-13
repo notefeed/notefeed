@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ensureFeed, resetFeedsForTests } from "./feeds";
@@ -20,7 +19,10 @@ function oldId(ms: number, n?: number): string {
   b[6] = (b[6] & 0x0f) | 0x70;
   b[8] = (b[8] & 0x3f) | 0x80;
   const h = b.toString("hex");
-  const stamp = new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+  const stamp = new Date(ms)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d+Z$/, "Z");
   return `${stamp}-${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}${n ? `-${n}` : ""}`;
 }
 
@@ -30,8 +32,7 @@ const OLD_FORM = /^\d{8}T\d{6}Z-/;
 
 let dir = "";
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-migration-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_SECRET", "m".repeat(32));
   resetSecretForTests();
   resetFeedsForTests();
@@ -83,7 +84,10 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
   });
 
   run("references in the text follow", async () => {
-    const img = oldId(AT - 2), other = oldId(AT - 1), late = oldId(AT - 120_000), txt = oldId(AT);
+    const img = oldId(AT - 2),
+      other = oldId(AT - 1),
+      late = oldId(AT - 120_000),
+      txt = oldId(AT);
     await put("one", img, "png", PNG);
     await put("one", other, "jpg", PNG);
     await put("one", late, "png", PNG);
@@ -100,7 +104,8 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
   });
 
   run("a second run changes nothing, and reads nothing: a completed pass is marked", async () => {
-    const img = oldId(AT - 1), txt = oldId(AT);
+    const img = oldId(AT - 1),
+      txt = oldId(AT);
     await put("one", img, "png", PNG);
     await put("one", txt, "md", `![](${img}.png)`);
     expect(await storage().migrationPending()).toBe(true);
@@ -134,7 +139,8 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
   });
 
   run("the feed's title image follows its note", async () => {
-    const img = oldId(AT - 1), other = oldId(AT);
+    const img = oldId(AT - 1),
+      other = oldId(AT);
     await put("one", img, "png", PNG);
     await put("one", other, "md", "x");
     await storage().writeSettings("one", { title: "T", description: "D", image: `${img}.png`, showSender: false });
@@ -171,7 +177,9 @@ describe.each(["fs", "sqlite"] as const)("on %s", (kind) => {
   });
 
   run("a note that cannot move stays; references to the others follow all the same, and the log counts it", async () => {
-    const stuck = oldId(AT - 2), img = oldId(AT - 1), txt = oldId(AT);
+    const stuck = oldId(AT - 2),
+      img = oldId(AT - 1),
+      txt = oldId(AT);
     await put("one", stuck, "png", PNG);
     await put("one", img, "png", PNG);
     await put("one", txt, "md", `![](${stuck}.png) ![](${img}.png)`);
@@ -248,7 +256,8 @@ test("a note placed by hand gets its date stored: a later write does not move it
   try {
     vi.stubEnv("NOTEFEED_STORAGE", "sqlite");
     vi.stubEnv("NOTEFEED_ENCRYPTION_KEY", "k".repeat(64));
-    for (const [k, v] of Object.entries({ IMAGES: "s3", S3_ENDPOINT: s3.endpoint, S3_BUCKET: "images", S3_ACCESS_KEY: "access-a", S3_SECRET_KEY: "secret-a" })) vi.stubEnv(`NOTEFEED_${k}`, v);
+    for (const [k, v] of Object.entries({ IMAGES: "s3", S3_ENDPOINT: s3.endpoint, S3_BUCKET: "images", S3_ACCESS_KEY: "access-a", S3_SECRET_KEY: "secret-a" }))
+      vi.stubEnv(`NOTEFEED_${k}`, v);
     resetStorageForTests();
     const [a, b, title, txt] = [oldId(AT - 2), oldId(AT - 1), oldId(AT - 600_000), oldId(AT)];
     const bytes = (n: number) => Buffer.concat([PNG, Buffer.from([n])]);
@@ -264,7 +273,12 @@ test("a note placed by hand gets its date stored: a later write does not move it
     expect(await migrateNoteIds()).toEqual({ feeds: 1, renamed: 4, rewritten: 1 });
 
     const id = (old: string) => migratedId("one", old);
-    expect((await refs("one")).map((r) => [r.id, r.date])).toEqual([[id(txt), AT], [id(b), AT - 1], [id(a), AT - 2], [id(title), AT - 600_000]]);
+    expect((await refs("one")).map((r) => [r.id, r.date])).toEqual([
+      [id(txt), AT],
+      [id(b), AT - 1],
+      [id(a), AT - 2],
+      [id(title), AT - 600_000],
+    ]);
     expect(await text("one", id(txt))).toBe(`# Two\n\n![A](${id(a)}.png)\n![](${id(b)}.jpg)`);
     expect((await storage().readNote("one", id(txt), ["md"], () => false))?.meta).toEqual({ title: "Two" });
     expect(await storage().readFile("one", `${id(a)}.png`)).toEqual(bytes(1));

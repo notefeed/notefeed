@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { hashPassword } from "./feedlock";
@@ -13,8 +12,7 @@ import { legalFileWarnings, logStartup, requireLicensePage, reservedFeedWarnings
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-startup-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   resetFeedsForTests();
 });
@@ -25,13 +23,36 @@ afterEach(() => {
 const OLD = "20260401T120000Z-0196e8f0-1c2d-7abc-8def-0123456789ab"; // a note's id from before ids were opaque
 const stub = (vars: Record<string, string>) => Object.entries(vars).forEach(([k, v]) => vi.stubEnv(k, v));
 const FULL = { ISSUER: "https://idp.example", CLIENT_ID: "id", CLIENT_SECRET: "the-secret", ALLOW: "ann@x.com" };
-const provider = (name: string, vars: Partial<typeof FULL>) => stub(Object.fromEntries(Object.entries(vars).map(([k, v]) => [`NOTEFEED_OIDC_${name ? `${name}_` : ""}${k}`, v])));
+const provider = (name: string, vars: Partial<typeof FULL>) =>
+  stub(Object.fromEntries(Object.entries(vars).map(([k, v]) => [`NOTEFEED_OIDC_${name ? `${name}_` : ""}${k}`, v])));
 
 test("the startup fields: features and caps, never a secret", () => {
-  stub({ NOTEFEED_PASSWORD: "pw-value", NOTEFEED_TRUST_PROXY: "1", NOTEFEED_MAX_FEEDS: "10", NOTEFEED_MAX_NOTES_PER_FEED: "5", NOTEFEED_MAX_IMAGES_PER_FEED: "3", NOTEFEED_LOG_LEVEL: "debug", PUBLIC_URL: "" });
+  stub({
+    NOTEFEED_PASSWORD: "pw-value",
+    NOTEFEED_TRUST_PROXY: "1",
+    NOTEFEED_MAX_FEEDS: "10",
+    NOTEFEED_MAX_NOTES_PER_FEED: "5",
+    NOTEFEED_MAX_IMAGES_PER_FEED: "3",
+    NOTEFEED_LOG_LEVEL: "debug",
+    PUBLIC_URL: "",
+  });
   provider("", FULL);
   const { fields } = startupReport();
-  expect(fields).toEqual({ node: process.version, storage: "fs", dataDir: dir, passwordSet: true, oidcProviders: 1, publicUrlSet: false, trustProxy: true, maxFeeds: 10, maxNotesPerFeed: 5, maxImagesPerFeed: 3, logLevel: "debug", logRequests: true, metrics: false });
+  expect(fields).toEqual({
+    node: process.version,
+    storage: "fs",
+    dataDir: dir,
+    passwordSet: true,
+    oidcProviders: 1,
+    publicUrlSet: false,
+    trustProxy: true,
+    maxFeeds: 10,
+    maxNotesPerFeed: 5,
+    maxImagesPerFeed: 3,
+    logLevel: "debug",
+    logRequests: true,
+    metrics: false,
+  });
   expect(JSON.stringify(startupReport())).not.toMatch(/pw-value|the-secret|ann@x\.com/);
 });
 
@@ -52,7 +73,10 @@ test("an imprint, privacy or notice file that cannot be read is warned about by 
   vi.stubEnv("NOTEFEED_NOTICE_FILE", join(dir, "no-notice.md"));
   const warnings = await legalFileWarnings();
   const msg = "a page's or the notice's file cannot be read (missing, not a file, or larger than 256 KiB); it is not shown";
-  expect(warnings).toEqual([["startup", msg, { setting: "NOTEFEED_PRIVACY_FILE" }], ["startup", msg, { setting: "NOTEFEED_NOTICE_FILE" }]]);
+  expect(warnings).toEqual([
+    ["startup", msg, { setting: "NOTEFEED_PRIVACY_FILE" }],
+    ["startup", msg, { setting: "NOTEFEED_NOTICE_FILE" }],
+  ]);
   expect(JSON.stringify(warnings)).not.toContain(dir);
 });
 
@@ -85,7 +109,10 @@ test("a provider configured partially is named with its missing variables; empty
 test("sign-in without PUBLIC_URL, and a log level that isn't one, are warned about", () => {
   stub({ PUBLIC_URL: "", NOTEFEED_LOG_LEVEL: "verbose" });
   provider("", FULL);
-  expect(startupReport().warnings.map(([, m]) => m)).toEqual(["sign-in is on without PUBLIC_URL: the redirect URI comes from each request's Host header", "NOTEFEED_LOG_LEVEL is not a level; using info"]);
+  expect(startupReport().warnings.map(([, m]) => m)).toEqual([
+    "sign-in is on without PUBLIC_URL: the redirect URI comes from each request's Host header",
+    "NOTEFEED_LOG_LEVEL is not a level; using info",
+  ]);
   expect(startupReport().fields.logLevel).toBe("info");
   stub({ NOTEFEED_LOG_LEVEL: " WARN " });
   expect(startupReport().warnings.map(([, m]) => m)).not.toContain("NOTEFEED_LOG_LEVEL is not a level; using info");
@@ -115,7 +142,12 @@ test("a report that fails before the migration does not skip it", async () => {
   await storage().writeNote("one", OLD, "md", "x", {}, 0);
   await writeFile(join(dir, "file"), "");
   await writeFile(join(dir, "license.md"), VALID_LICENSE);
-  stub({ NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "s", NOTEFEED_LICENSE_FILE: join(dir, "license.md"), NOTEFEED_LICENSE_DB: join(dir, "file", "licenses.db") });
+  stub({
+    NOTEFEED_PAYMENT_PROVIDER: "fake",
+    NOTEFEED_FAKE_WEBHOOK_SECRET: "s",
+    NOTEFEED_LICENSE_FILE: join(dir, "license.md"),
+    NOTEFEED_LICENSE_DB: join(dir, "file", "licenses.db"),
+  });
   const logs = await logsOf(logStartup); // the license store cannot be opened: a file where its folder should be
   expect(logs).toContainEqual(expect.objectContaining({ level: "error", msg: "startup report failed" }));
   expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", OLD)]);
@@ -171,9 +203,19 @@ test("a folder named like one of notefeed's own routes is warned about, with its
   expect(await reservedFolderWarnings()).toEqual([]);
   for (const n of ["metrics", "health", "ordinary"]) await mkdir(join(dir, n));
   const hint = "rename its folder in DATA_DIR to a name that is not reserved, and restart";
-  expect(await reservedFolderWarnings()).toEqual([["feeds", "a feed folder is named like one of notefeed's routes; it cannot be opened by name", { feeds: ["health", "metrics"], hint }]]);
+  expect(await reservedFolderWarnings()).toEqual([
+    ["feeds", "a feed folder is named like one of notefeed's routes; it cannot be opened by name", { feeds: ["health", "metrics"], hint }],
+  ]);
   const logs = await logsOf(logStartup);
-  expect(logs.filter((l) => l.component === "feeds")).toEqual([{ level: "warn", component: "feeds", msg: "a feed folder is named like one of notefeed's routes; it cannot be opened by name", feeds: ["health", "metrics"], hint }]);
+  expect(logs.filter((l) => l.component === "feeds")).toEqual([
+    {
+      level: "warn",
+      component: "feeds",
+      msg: "a feed folder is named like one of notefeed's routes; it cannot be opened by name",
+      feeds: ["health", "metrics"],
+      hint,
+    },
+  ]);
 });
 
 test("a wrong storage setting keeps logStartup from succeeding, naming the variable and never its value", async () => {
@@ -228,10 +270,20 @@ test("the start after a key change re-wraps the licenses database too", async ()
 });
 
 test("a key service that is down at start is a warning, not a failure: notefeed serves the maintenance page until it answers", async () => {
-  stub({ NOTEFEED_STORAGE: "sqlite", NOTEFEED_KMS: "openbao", NOTEFEED_OPENBAO_ADDR: "http://127.0.0.1:9", NOTEFEED_OPENBAO_ROLE_ID: "role", NOTEFEED_OPENBAO_SECRET_ID: "secret" });
+  stub({
+    NOTEFEED_STORAGE: "sqlite",
+    NOTEFEED_KMS: "openbao",
+    NOTEFEED_OPENBAO_ADDR: "http://127.0.0.1:9",
+    NOTEFEED_OPENBAO_ROLE_ID: "role",
+    NOTEFEED_OPENBAO_SECRET_ID: "secret",
+  });
   resetStorageForTests();
   const logs = await logsOf(logStartup);
-  expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
+  expect(logs.at(-1)).toMatchObject({
+    level: "warn",
+    component: "startup",
+    msg: "the key service is unreachable: serving the maintenance page until it answers",
+  });
 });
 
 test("a key service that is down while notes wait to move to their new ids stops the start", async () => {
@@ -261,7 +313,11 @@ test("a key service that is down after the migration completed gives the mainten
   resetStorageForTests();
   resetFeedsForTests();
   const logs = await logsOf(logStartup);
-  expect(logs.at(-1)).toMatchObject({ level: "warn", component: "startup", msg: "the key service is unreachable: serving the maintenance page until it answers" });
+  expect(logs.at(-1)).toMatchObject({
+    level: "warn",
+    component: "startup",
+    msg: "the key service is unreachable: serving the maintenance page until it answers",
+  });
   resetStorageForTests();
 });
 

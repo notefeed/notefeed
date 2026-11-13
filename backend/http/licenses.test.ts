@@ -1,6 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { isLicensed, resetLicensesForTests } from "../licensing";
 import { resetFeedsForTests } from "../feeds";
@@ -18,8 +16,7 @@ const SECRET = "whsec-test";
 
 let dir = "";
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-licenses-http-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_STORAGE", "sqlite");
   vi.stubEnv("NOTEFEED_SECRET", "s".repeat(32));
   vi.stubEnv("NOTEFEED_RATE_LIMIT", "0");
@@ -82,7 +79,12 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
 
   test("a period the provider does not sell is refused before any checkout: no yearly product, or one that is not active", async () => {
     resetPlansForTests();
-    stubAll({ NOTEFEED_PAYMENT_PROVIDER: "creem", NOTEFEED_CREEM_API_KEY: "creem_test_x", NOTEFEED_CREEM_PRODUCT_ID: "prod_month", NOTEFEED_CREEM_WEBHOOK_SECRET: "whsec" });
+    stubAll({
+      NOTEFEED_PAYMENT_PROVIDER: "creem",
+      NOTEFEED_CREEM_API_KEY: "creem_test_x",
+      NOTEFEED_CREEM_PRODUCT_ID: "prod_month",
+      NOTEFEED_CREEM_WEBHOOK_SECRET: "whsec",
+    });
     // Creem's answers, as the SDK accepts them; it hands the fetcher a Request.
     const fetch = vi.fn(async (req: Request) =>
       req.url.includes("/products")
@@ -126,7 +128,14 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     const { protectedFeed } = await import("../feedlock");
     const key = await buy();
     const create = (feed: string, headers: Record<string, string>, body: BodyInit = "# Hi", type: string | null = "text/markdown") =>
-      dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/notes`, { method: "POST", headers: { host: "notefeed.test", ...(type && { "content-type": type }), ...headers }, body }), ["feeds", feed, "notes"]);
+      dispatch(
+        new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/notes`, {
+          method: "POST",
+          headers: { host: "notefeed.test", ...(type && { "content-type": type }), ...headers },
+          body,
+        }),
+        ["feeds", feed, "notes"],
+      );
     const protect = { "x-feed-password": "Passw0rd!x" };
     expect((await create("p", protect)).status).toBe(402);
     expect((await create("p", { ...protect, "x-license-key": "x".repeat(22) })).status).toBe(400);
@@ -145,12 +154,21 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
   test("X-License-Key licenses the open feed its post creates; a bad key creates nothing (#247)", async () => {
     const key = await buy();
     const create = (feed: string, headers: Record<string, string>) =>
-      dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/notes`, { method: "POST", headers: { host: "notefeed.test", "content-type": "text/markdown", ...headers }, body: "# Hi" }), ["feeds", feed, "notes"]);
+      dispatch(
+        new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/notes`, {
+          method: "POST",
+          headers: { host: "notefeed.test", "content-type": "text/markdown", ...headers },
+          body: "# Hi",
+        }),
+        ["feeds", feed, "notes"],
+      );
     const bad = await create("o", { "x-license-key": "x".repeat(22) });
     expect([bad.status, (await bad.json()).error]).toEqual([400, "that is not a license key"]);
     expect((await create("o", { "x-license-key": key })).status).toBe(201);
     expect(await isLicensed("o")).toBe(true);
-    const feed = await (await dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/o`, { headers: { host: "notefeed.test" } }), ["feeds", "o"])).json();
+    const feed = await (
+      await dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/o`, { headers: { host: "notefeed.test" } }), ["feeds", "o"])
+    ).json();
     expect(feed).toMatchObject({ protected: false, free_tier: null });
   });
 
@@ -158,7 +176,11 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     const key = await buy();
     const api = (feed: string, method: string, body?: unknown, headers: Record<string, string> = {}) =>
       dispatch(
-        new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/license`, { method, headers: { host: "notefeed.test", "content-type": "application/json", ...headers }, ...(body !== undefined && { body: JSON.stringify(body) }) }),
+        new Request(`https://notefeed.test${API_PREFIX}/feeds/${feed}/license`, {
+          method,
+          headers: { host: "notefeed.test", "content-type": "application/json", ...headers },
+          ...(body !== undefined && { body: JSON.stringify(body) }),
+        }),
         ["feeds", feed, "license"],
       );
     expect((await api("f", "PUT", { key })).status).toBe(404); // no such feed yet
@@ -201,7 +223,11 @@ describe.skipIf(!supported)("license endpoints (ADR 0029)", () => {
     await createProtected("p", "Passw0rd!x");
     const key = await buy();
     const page = (method: string, body: unknown, cookie?: string, origin = "https://notefeed.test") =>
-      new Request("https://notefeed.test/p/license", { method, headers: { "content-type": "application/json", origin, ...(cookie ? { cookie: `nf_feed_p=${cookie}` } : {}) }, body: JSON.stringify(body) });
+      new Request("https://notefeed.test/p/license", {
+        method,
+        headers: { "content-type": "application/json", origin, ...(cookie ? { cookie: `nf_feed_p=${cookie}` } : {}) },
+        body: JSON.stringify(body),
+      });
     const unlock = (await cookieValue("p"))!;
     expect((await feedLicenseRoute(page("POST", { key }), "p")).status).toBe(401);
     expect((await feedLicenseRoute(page("POST", { key }, unlock, "https://evil.test"), "p")).status).toBe(401); // another site's request
@@ -287,7 +313,11 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
   const recover = async (fields: Record<string, string>) => {
     const { feedAccessRoute } = await import("./feedsession");
     return feedAccessRoute(
-      new Request("https://notefeed.test/p/access", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://notefeed.test" }, body: new URLSearchParams({ action: "recover", ...fields }) }),
+      new Request("https://notefeed.test/p/access", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://notefeed.test" },
+        body: new URLSearchParams({ action: "recover", ...fields }),
+      }),
       "p",
     );
   };
@@ -361,7 +391,14 @@ describe.skipIf(!supported)("recovering a feed password with the feed's license 
 // The same recovery for scripts and agents: POST /api/v1/feeds/{feed}/password/recover with the key (ADR 0037).
 describe.skipIf(!supported)("recovering a feed password through the API", () => {
   const recover = (body: unknown) =>
-    dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/p/password/recover`, { method: "POST", headers: { host: "notefeed.test", "content-type": "application/json" }, body: JSON.stringify(body) }), ["feeds", "p", "password", "recover"]);
+    dispatch(
+      new Request(`https://notefeed.test${API_PREFIX}/feeds/p/password/recover`, {
+        method: "POST",
+        headers: { host: "notefeed.test", "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      ["feeds", "p", "password", "recover"],
+    );
   const opens = async (password: string) => {
     const { unlock } = await import("../feedlock");
     return unlock("p", password, "1.2.3.4").then(
@@ -411,7 +448,14 @@ describe.skipIf(!supported)("recovering a feed password through the API", () => 
 // claim the feed; where licenses are sold, a password needs a licensed feed, as at creation.
 describe.skipIf(!supported)("giving an open feed a password", () => {
   const putPassword = (body: unknown, headers: Record<string, string> = {}) =>
-    dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/o/password`, { method: "PUT", headers: { host: "notefeed.test", "content-type": "application/json", ...headers }, body: JSON.stringify(body) }), ["feeds", "o", "password"]);
+    dispatch(
+      new Request(`https://notefeed.test${API_PREFIX}/feeds/o/password`, {
+        method: "PUT",
+        headers: { host: "notefeed.test", "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      }),
+      ["feeds", "o", "password"],
+    );
   const opens = async (password: string) => {
     const { unlock } = await import("../feedlock");
     return unlock("o", password, "1.2.3.4").then(
@@ -429,11 +473,20 @@ describe.skipIf(!supported)("giving an open feed a password", () => {
     expect((await putPassword({ password: " padded " })).status).toBe(400);
     expect((await putPassword({ password: "N3wPassw0rd!" })).status).toBe(204);
     expect(await opens("N3wPassw0rd!")).toBe(true);
-    const list = (headers: Record<string, string> = {}) => dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/o/notes`, { headers: { host: "notefeed.test", ...headers } }), ["feeds", "o", "notes"]);
+    const list = (headers: Record<string, string> = {}) =>
+      dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/o/notes`, { headers: { host: "notefeed.test", ...headers } }), ["feeds", "o", "notes"]);
     expect((await list()).status).toBe(401);
     expect((await list({ "x-feed-password": "N3wPassw0rd!" })).status).toBe(200);
     const readId = (await readIdOf("o"))!;
-    expect((await dispatch(new Request(`https://notefeed.test${API_PREFIX}/read/${readId}/notes`, { headers: { host: "notefeed.test" } }), ["read", readId, "notes"])).status).toBe(200);
+    expect(
+      (
+        await dispatch(new Request(`https://notefeed.test${API_PREFIX}/read/${readId}/notes`, { headers: { host: "notefeed.test" } }), [
+          "read",
+          readId,
+          "notes",
+        ])
+      ).status,
+    ).toBe(200);
     // Now it is a change, which needs the current password.
     expect((await putPassword({ password: "Other!pass1" })).status).toBe(401);
     expect((await putPassword({ password: "Other!pass1" }, { "x-feed-password": "N3wPassw0rd!" })).status).toBe(204);
@@ -444,7 +497,14 @@ describe.skipIf(!supported)("giving an open feed a password", () => {
     await createNote("o", "# hi");
     expect((await putPassword({ password: "N3wPassw0rd!" })).status).toBe(204);
     expect(await opens("N3wPassw0rd!")).toBe(true);
-    const missing = await dispatch(new Request(`https://notefeed.test${API_PREFIX}/feeds/missing/password`, { method: "PUT", headers: { host: "notefeed.test", "content-type": "application/json" }, body: JSON.stringify({ password: "N3wPassw0rd!" }) }), ["feeds", "missing", "password"]);
+    const missing = await dispatch(
+      new Request(`https://notefeed.test${API_PREFIX}/feeds/missing/password`, {
+        method: "PUT",
+        headers: { host: "notefeed.test", "content-type": "application/json" },
+        body: JSON.stringify({ password: "N3wPassw0rd!" }),
+      }),
+      ["feeds", "missing", "password"],
+    );
     expect(missing.status).toBe(404);
   });
 
@@ -452,7 +512,14 @@ describe.skipIf(!supported)("giving an open feed a password", () => {
     const { feedAccessRoute } = await import("./feedsession");
     await createNote("o", "# hi");
     const form = (fields: Record<string, string>) =>
-      feedAccessRoute(new Request("https://notefeed.test/o/access", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://notefeed.test" }, body: new URLSearchParams({ action: "protect", ...fields }) }), "o");
+      feedAccessRoute(
+        new Request("https://notefeed.test/o/access", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://notefeed.test" },
+          body: new URLSearchParams({ action: "protect", ...fields }),
+        }),
+        "o",
+      );
     expect((await form({ next: "N3wPassw0rd!" })).headers.get("location")).toBe("/o/settings?form=protect&error=license_required");
     expect((await attachRoute(post("/api/licenses/attach", { feed: "o", key: await buy() }))).status).toBe(200);
     const ok = await form({ next: "N3wPassw0rd!" });

@@ -22,7 +22,15 @@ const USAGE = [
 ].join("\n");
 
 // The media type of a file by its extension: the types the server accepts.
-const TYPES: Record<string, string> = { ".md": "text/markdown", ".markdown": "text/markdown", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
+const TYPES: Record<string, string> = {
+  ".md": "text/markdown",
+  ".markdown": "text/markdown",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
 
 /** Returns the exit code: 0 ok, 1 server/network error, 2 usage/config error. */
 export async function main(argv: string[], io: Io = process): Promise<number> {
@@ -66,7 +74,15 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
       const noText = attachments.length > 0 && text === undefined && !values.file;
       const input = noText ? { content: null, type: undefined, name: undefined } : await read(text, values.file, values.type, io);
       // The server refuses a file name next to attachments: the text has none then.
-      const note = await client(values).post(input.content, { type: input.type, title: values.title, tags: values.tag, date: values.date, draft: values.draft, name: attachments.length ? undefined : input.name, attachments });
+      const note = await client(values).post(input.content, {
+        type: input.type,
+        title: values.title,
+        tags: values.tag,
+        date: values.date,
+        draft: values.draft,
+        name: attachments.length ? undefined : input.name,
+        attachments,
+      });
       io.stdout.write(`${[...(noText ? [] : [note.url]), ...note.attachments.map((a) => a.url)].join("\n")}\n`);
       return 0;
     }
@@ -80,9 +96,13 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
       if (values.draft && values.publish) throw new UsageError("give --draft or --publish, not both");
       // --draft makes the note a draft (#265), --publish publishes it; either alone is an update.
       const draft = values.draft ? true : values.publish ? false : undefined;
-      if (values.title === undefined && values.alt === undefined && values.tags === undefined && values.date === undefined && draft === undefined) throw new UsageError("give --title, --alt, --tags, --date and/or --draft or --publish");
+      if (values.title === undefined && values.alt === undefined && values.tags === undefined && values.date === undefined && draft === undefined)
+        throw new UsageError("give --title, --alt, --tags, --date and/or --draft or --publish");
       // --tags is the whole new list, comma-separated; "" removes them all.
-      const tags = values.tags?.split(",").map((t) => t.trim()).filter(Boolean);
+      const tags = values.tags
+        ?.split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
       const note = await client(values).update(text, { title: values.title, alt: values.alt, tags, date: values.date, draft });
       io.stdout.write(`${note.url}\n`);
       return 0;
@@ -99,7 +119,18 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
         // To the second, UTC: the same form as the Python CLI, so scripts read either the same way.
         const when = new Date(n.date).toISOString().replace(/\.\d+Z$/, "Z");
         // --json: exactly the documented fields, like the Python CLI, even if the server adds more.
-        const fields = { id: n.id, type: n.type, title: n.title, ...(n.content !== undefined && { content: n.content }), file: n.file, file_url: n.file_url, size: n.size, tags: n.tags, date: when, url: n.url };
+        const fields = {
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          ...(n.content !== undefined && { content: n.content }),
+          file: n.file,
+          file_url: n.file_url,
+          size: n.size,
+          tags: n.tags,
+          date: when,
+          url: n.url,
+        };
         io.stdout.write(values.json ? `${JSON.stringify(fields)}\n` : `${when}  ${n.title || n.id}  ${n.url}\n`);
         if (--left === 0) break;
       }
@@ -129,10 +160,20 @@ function client(values: { url?: string; feed?: string; password?: string }): Cli
 }
 
 // What a post or an edit sends: text on the command line or stdin is markdown; a file is sent as it is, as `--type` or its extension says.
-async function read(text: string | undefined, file: string | undefined, type: string | undefined, io: Io): Promise<{ content: string | Uint8Array; type?: string; name?: string }> {
+async function read(
+  text: string | undefined,
+  file: string | undefined,
+  type: string | undefined,
+  io: Io,
+): Promise<{ content: string | Uint8Array; type?: string; name?: string }> {
   if (file) {
     const media = type ?? TYPES[extname(file).toLowerCase()];
-    if (!media) throw new UsageError(`cannot tell the type of ${file}: pass --type (${Object.values(TYPES).filter((t, i, a) => a.indexOf(t) === i).join(", ")})`);
+    if (!media)
+      throw new UsageError(
+        `cannot tell the type of ${file}: pass --type (${Object.values(TYPES)
+          .filter((t, i, a) => a.indexOf(t) === i)
+          .join(", ")})`,
+      );
     let bytes: Buffer;
     try {
       bytes = await readFile(file);
@@ -153,7 +194,12 @@ async function read(text: string | undefined, file: string | undefined, type: st
 // A picture to post with the note: its name is the file's (the client checks it), its type comes from the extension.
 async function attachment(path: string): Promise<{ name: string; content: Uint8Array; type: string }> {
   const type = TYPES[extname(path).toLowerCase()];
-  if (!type || type === "text/markdown") throw new UsageError(`cannot attach ${path}: a picture (${Object.keys(TYPES).filter((e) => TYPES[e] !== "text/markdown").join(", ")}) is expected`);
+  if (!type || type === "text/markdown")
+    throw new UsageError(
+      `cannot attach ${path}: a picture (${Object.keys(TYPES)
+        .filter((e) => TYPES[e] !== "text/markdown")
+        .join(", ")}) is expected`,
+    );
   try {
     return { name: basename(path), content: await readFile(path), type };
   } catch (e) {

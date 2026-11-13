@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { DisclosureIcon } from "@/components/icons";
 import type { ReactNode } from "react";
 import { card, sectionLabel } from "@/components/styles";
 
@@ -17,7 +17,13 @@ export function Group({ id, label, children }: { id: string; label: string; chil
 }
 
 function Tile({ icon, danger }: { icon: ReactNode; danger?: boolean }) {
-  return <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg [&>svg]:h-[18px] [&>svg]:w-[18px] ${danger ? "bg-error/10 text-error" : "bg-carbon-soft text-carbon"}`}>{icon}</span>;
+  return (
+    <span
+      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg [&>svg]:h-[18px] [&>svg]:w-[18px] ${danger ? "bg-error/10 text-error" : "bg-carbon-soft text-carbon"}`}
+    >
+      {icon}
+    </span>
+  );
 }
 
 // A row with its value or control on the right.
@@ -48,14 +54,28 @@ export function FieldRow({ icon, label, htmlFor, children }: { icon: ReactNode; 
 }
 
 // A row that opens to show its form. `value`: the current state, shown on the right while closed.
-export function DisclosureRow({ icon, label, value, danger, open, children }: { icon: ReactNode; label: string; value?: ReactNode; danger?: boolean; open?: boolean; children: ReactNode }) {
+export function DisclosureRow({
+  icon,
+  label,
+  value,
+  danger,
+  open,
+  children,
+}: {
+  icon: ReactNode;
+  label: string;
+  value?: ReactNode;
+  danger?: boolean;
+  open?: boolean;
+  children: ReactNode;
+}) {
   return (
     <details open={open} className="group/row">
       <summary className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-surface-2/60 group-open/row:hover:bg-transparent">
         <Tile icon={icon} danger={danger} />
         <span className={`min-w-0 flex-1 text-[15px] ${danger ? "text-error" : ""}`}>{label}</span>
         {value !== undefined && <span className="min-w-0 truncate text-[13px] text-muted">{value}</span>}
-        <ChevronRight aria-hidden className="chevron h-4 w-4 shrink-0 text-muted transition-transform" />
+        <DisclosureIcon aria-hidden className="chevron h-4 w-4 shrink-0 text-muted transition-transform" />
       </summary>
       <div className="px-4 pb-4 sm:pl-[3.75rem]">{children}</div>
     </details>

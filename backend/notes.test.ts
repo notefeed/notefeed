@@ -1,17 +1,35 @@
-import { mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { EmptyNoteError, InvalidBodyError, InvalidFeedError, NoteTooLargeError, ReservedFeedError } from "./errors";
 import { hasFeed } from "./feeds";
-import { changeDate, changeDraft, cleanName, countNotes, type ImageNote, createImageNote, createNote, createNoteOf, fileVisible, getNote, idsBeyond, isDraft, isScheduled, MARKDOWN, isValidId, listNotes, namedFile, removeNote, replaceContent } from "./notes";
+import {
+  changeDate,
+  changeDraft,
+  cleanName,
+  countNotes,
+  type ImageNote,
+  createImageNote,
+  createNote,
+  createNoteOf,
+  fileVisible,
+  getNote,
+  idsBeyond,
+  isDraft,
+  isScheduled,
+  MARKDOWN,
+  isValidId,
+  listNotes,
+  namedFile,
+  removeNote,
+  replaceContent,
+} from "./notes";
 import { storage } from "./storage";
 
 let root: string;
 let dir: string; // the "test" feed's directory
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "notefeed-"));
-  process.env.DATA_DIR = root;
+  root = process.env.DATA_DIR!;
   dir = join(root, "test");
 });
 
@@ -23,10 +41,7 @@ describe("isValidId", () => {
   test("accepts a real id", () => {
     expect(isValidId("20260929T140512Z-backup-finished")).toBe(true);
   });
-  test.each(["../etc/passwd", "20260929T140512Z-a/../../x", "a.b", "a b", "", "x".repeat(129)])(
-    "rejects %j",
-    (id) => expect(isValidId(id)).toBe(false),
-  );
+  test.each(["../etc/passwd", "20260929T140512Z-a/../../x", "a.b", "a b", "", "x".repeat(129)])("rejects %j", (id) => expect(isValidId(id)).toBe(false));
   test.each(["holiday", "20260929T140512Z-A", "Photo_1-2"])("accepts %j: ids are not enforced", (id) => expect(isValidId(id)).toBe(true));
 });
 

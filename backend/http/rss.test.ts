@@ -1,6 +1,3 @@
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { derivedReadId, readIdOf, resetFeedsForTests } from "../feeds";
 import { createNote, createNoteOf, replaceContent } from "../notes";
@@ -11,7 +8,6 @@ import { rssRoute } from "./rss";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-rss-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   delete process.env.NOTEFEED_PASSWORD;
@@ -19,8 +15,7 @@ beforeEach(async () => {
   delete process.env.PUBLIC_URL;
 });
 
-const get = (id: string) =>
-  rssRoute(new Request(`${BASE}/r/${id}/feed.xml`, { headers: { host: "localhost:3000" } }), id);
+const get = (id: string) => rssRoute(new Request(`${BASE}/r/${id}/feed.xml`, { headers: { host: "localhost:3000" } }), id);
 
 test("serves the feed's notes with read-id links", async () => {
   const { note: a } = await createNote("secretname", "# One", new Date("2026-09-29T10:00:00Z"));

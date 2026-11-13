@@ -51,7 +51,8 @@ export async function discover(provider: Provider, fetchFn: Fetch = fetch, now =
   if (!redirectUriOk(issuer)) fail("issuer is not an https URL", { provider: id, issuer: logUrl(issuer) });
   const doc = await getJson(fetchFn, `${key}/.well-known/openid-configuration`, { headers: { accept: "application/json" } }, "discovery failed", provider);
   // A document naming another issuer is not this provider's.
-  if (!sameIssuer(doc.issuer, issuer)) fail("issuer does not match the discovery document", { provider: id, issuer: logUrl(issuer), document: logUrl(doc.issuer) });
+  if (!sameIssuer(doc.issuer, issuer))
+    fail("issuer does not match the discovery document", { provider: id, issuer: logUrl(issuer), document: logUrl(doc.issuer) });
   const { authorization_endpoint, token_endpoint } = doc;
   if (!redirectUriOk(authorization_endpoint)) fail("discovery endpoint is not https", { provider: id, endpoint: "authorization_endpoint" });
   if (!redirectUriOk(token_endpoint)) fail("discovery endpoint is not https", { provider: id, endpoint: "token_endpoint" });
@@ -62,7 +63,16 @@ export async function discover(provider: Provider, fetchFn: Fetch = fetch, now =
 
 export function authorizeUrl(provider: Provider, meta: Meta, p: { redirectUri: string; state: string; nonce: string; challenge: string }): string {
   const u = new URL(meta.authorization_endpoint);
-  const q = { response_type: "code", client_id: provider.clientId, redirect_uri: p.redirectUri, scope: "openid profile email", state: p.state, nonce: p.nonce, code_challenge: p.challenge, code_challenge_method: "S256" };
+  const q = {
+    response_type: "code",
+    client_id: provider.clientId,
+    redirect_uri: p.redirectUri,
+    scope: "openid profile email",
+    state: p.state,
+    nonce: p.nonce,
+    code_challenge: p.challenge,
+    code_challenge_method: "S256",
+  };
   for (const [k, v] of Object.entries(q)) u.searchParams.set(k, v);
   return u.href;
 }
@@ -93,14 +103,34 @@ function check(provider: Provider, c: Record<string, unknown>, meta: Meta, nonce
   if (c.nonce !== nonce) invalid("nonce");
   const person = { email: str(c.email), email_verified: c.email_verified === true };
   // Which rule refused, never the address.
-  if (!allowed(provider, person)) fail(person.email && person.email_verified ? "person not on the allow-list" : "address needs a verified email", { provider: id });
+  if (!allowed(provider, person))
+    fail(person.email && person.email_verified ? "person not on the allow-list" : "address needs a verified email", { provider: id });
   return senderFrom(c, provider.senderClaim) ?? fail("no sender claim in the id_token", { provider: id, claims: provider.senderClaim.join(",") });
 }
 
-export async function exchange(provider: Provider, meta: Meta, p: { code: string; redirectUri: string; verifier: string; nonce: string }, fetchFn: Fetch = fetch, now = Date.now()): Promise<{ sender: string }> {
+export async function exchange(
+  provider: Provider,
+  meta: Meta,
+  p: { code: string; redirectUri: string; verifier: string; nonce: string },
+  fetchFn: Fetch = fetch,
+  now = Date.now(),
+): Promise<{ sender: string }> {
   const { clientId, clientSecret } = provider;
-  const body = new URLSearchParams({ grant_type: "authorization_code", code: p.code, redirect_uri: p.redirectUri, code_verifier: p.verifier, client_id: clientId, client_secret: clientSecret });
-  const res = await getJson(fetchFn, meta.token_endpoint, { method: "POST", headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body }, "token request rejected", provider);
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: p.code,
+    redirect_uri: p.redirectUri,
+    code_verifier: p.verifier,
+    client_id: clientId,
+    client_secret: clientSecret,
+  });
+  const res = await getJson(
+    fetchFn,
+    meta.token_endpoint,
+    { method: "POST", headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" }, body },
+    "token request rejected",
+    provider,
+  );
   // ponytail: the id_token's signature is not verified. It came straight from the token endpoint over TLS,
   // which OIDC Core 3.1.3.7 lets stand in for it. Verify against the provider's JWKS if tokens ever arrive another way.
   return { sender: check(provider, payload(provider, res.id_token), meta, p.nonce, now) };

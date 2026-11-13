@@ -40,11 +40,29 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/r/[
   const tags = sortTags((all ?? data).notes);
 
   return (
-    <AppShell about={<FeedAbout title={title || instanceTitle()} description={description} imageUrl={data.imageUrl} rssUrl={rssPath(readId)} tags={tags} tag={tag} base={readPath(readId)} />}>
+    <AppShell
+      about={
+        <FeedAbout
+          title={title || instanceTitle()}
+          description={description}
+          imageUrl={data.imageUrl}
+          rssUrl={rssPath(readId)}
+          tags={tags}
+          tag={tag}
+          base={readPath(readId)}
+        />
+      }
+    >
       {notes.length === 0 ? (
         <p className="text-muted">{tag ? "No notes with this tag." : "No notes yet."}</p>
       ) : (
-        <NoteList notes={notes} base={readPath(readId)} imageBase={`${readPath(readId)}/`} report={reportTemplate() ? { template: reportTemplate(), readId } : undefined} terms={await hasLegalPage("terms")} />
+        <NoteList
+          notes={notes}
+          base={readPath(readId)}
+          imageBase={`${readPath(readId)}/`}
+          report={reportTemplate() ? { template: reportTemplate(), readId } : undefined}
+          terms={await hasLegalPage("terms")}
+        />
       )}
     </AppShell>
   );

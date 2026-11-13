@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { ArrowUpRight, ChevronDown, Info, LogOut, Plus } from "lucide-react";
+import { ExpandIcon, ExternalIcon, InfoIcon, NewFeedIcon, SignOutIcon } from "@/components/icons";
 import type { ReactNode } from "react";
 import { IDENTITY_COOKIE, SESSION_COOKIE, locked, sessionOk, type RunningVersion } from "@/backend";
 import { Disclosure } from "@/components/Disclosure";
@@ -37,17 +37,25 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
         )}
         <Link href="/" className="mt-3 flex items-center gap-3 rounded-xl px-2 py-2 text-[15px] font-bold text-carbon hover:bg-surface-2">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-carbon text-on-carbon">
-            <Plus aria-hidden className="h-[18px] w-[18px]" />
+            <NewFeedIcon aria-hidden className="h-[18px] w-[18px]" />
           </span>
           Open or create a feed
         </Link>
         <div className="mt-auto flex items-center gap-1 border-t border-rule pt-3">
           <InfoMenu links={links} loggedIn={false} up />
-          {loggedIn && <LogOutButton className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-ink" />}
+          {loggedIn && (
+            <LogOutButton className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-ink" />
+          )}
         </div>
       </aside>
 
-      {about && <div className={`${docked ? "" : "px-4 pt-4"} [grid-area:about] lg:border-x lg:border-rule/70 lg:px-6 lg:pt-6 xl:sticky xl:border-x-0 xl:px-0 xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:py-6`}>{about}</div>}
+      {about && (
+        <div
+          className={`${docked ? "" : "px-4 pt-4"} [grid-area:about] lg:border-x lg:border-rule/70 lg:px-6 lg:pt-6 xl:sticky xl:border-x-0 xl:px-0 xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:py-6`}
+        >
+          {about}
+        </div>
+      )}
 
       <main className="min-w-0 px-4 pt-4 pb-28 [grid-area:main] lg:border-x lg:border-rule/70 lg:px-6 lg:pt-6 lg:pb-10 xl:row-span-1">{children}</main>
     </div>
@@ -74,7 +82,7 @@ function LogOutButton({ className }: { className: string }) {
   return (
     <form method="post" action="/logout">
       <button type="submit" className={className}>
-        <LogOut aria-hidden className="h-4 w-4" />
+        <SignOutIcon aria-hidden className="h-4 w-4" />
         Log out
       </button>
     </form>
@@ -84,7 +92,15 @@ function LogOutButton({ className }: { className: string }) {
 // The phone's top bar. A <div>, not a <header>: the page's header is the feed's details (`about`). No backdrop blur: it
 // would make the bar the containing block of the sheets inside it, which are fixed to the screen. Above the docked
 // composer bar (z-30), so the switcher's sheet covers it.
-function TopBar({ feed, links, loggedIn }: { feed?: string; links: { product: FooterLink[]; legal: FooterLink[]; version: RunningVersion }; loggedIn: boolean }) {
+function TopBar({
+  feed,
+  links,
+  loggedIn,
+}: {
+  feed?: string;
+  links: { product: FooterLink[]; legal: FooterLink[]; version: RunningVersion };
+  loggedIn: boolean;
+}) {
   return (
     <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-rule/70 bg-paper/95 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] [grid-area:top] lg:hidden">
       <Logo wordmark={feed === undefined} />
@@ -105,7 +121,7 @@ function FeedSwitcher({ feed }: { feed: string }) {
       summary={
         <>
           <span className="truncate text-[15px] font-bold tracking-tight text-carbon">{feed}</span>
-          <ChevronDown aria-hidden className="h-[18px] w-[18px] shrink-0 text-muted" />
+          <ExpandIcon aria-hidden className="h-[18px] w-[18px] shrink-0 text-muted" />
         </>
       }
     >
@@ -120,7 +136,16 @@ function FeedSwitcher({ feed }: { feed: string }) {
           <label htmlFor="switch-feed" className="sr-only">
             Open a feed by name
           </label>
-          <input id="switch-feed" name="feed" required autoCapitalize="none" autoComplete="off" spellCheck={false} placeholder="Open a feed by name" className="min-w-0 flex-1 rounded-full border border-rule bg-surface-2 px-4 py-2 font-mono text-sm focus:border-carbon focus:outline-none" />
+          <input
+            id="switch-feed"
+            name="feed"
+            required
+            autoCapitalize="none"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="Open a feed by name"
+            className="min-w-0 flex-1 rounded-full border border-rule bg-surface-2 px-4 py-2 font-mono text-sm focus:border-carbon focus:outline-none"
+          />
           <button type="submit" className="rounded-full bg-carbon px-4 py-2 font-bold text-on-carbon">
             Open
           </button>
@@ -132,13 +157,21 @@ function FeedSwitcher({ feed }: { feed: string }) {
 
 // ⓘ: the product links and the operator's legal pages, and "Log out" on a locked instance. On the phone's top bar of a
 // feed's pages, and on every plain page (app/(site)/layout.tsx). `up`: at the foot of the left column, labelled, opening upwards.
-export function InfoMenu({ links, loggedIn, up = false }: { links: { product: FooterLink[]; legal: FooterLink[]; version: RunningVersion }; loggedIn: boolean; up?: boolean }) {
+export function InfoMenu({
+  links,
+  loggedIn,
+  up = false,
+}: {
+  links: { product: FooterLink[]; legal: FooterLink[]; version: RunningVersion };
+  loggedIn: boolean;
+  up?: boolean;
+}) {
   const row = "flex items-center gap-3 px-3 py-2.5 text-[15px] text-ink hover:bg-surface-2";
   const item = (l: FooterLink) =>
     l.external ? (
       <a key={l.href} href={l.href} className={row}>
         <span className="flex-1">{l.label}</span>
-        <ArrowUpRight aria-hidden className="h-4 w-4 text-muted" />
+        <ExternalIcon aria-hidden className="h-4 w-4 text-muted" />
       </a>
     ) : (
       <Link key={l.href} href={l.href} className={row}>
@@ -149,15 +182,17 @@ export function InfoMenu({ links, loggedIn, up = false }: { links: { product: Fo
     <Disclosure
       label="About and legal"
       className="relative"
-      summaryClassName={up ? "inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-ink" : `${iconButton} text-muted`}
+      summaryClassName={
+        up ? "inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-ink" : `${iconButton} text-muted`
+      }
       summary={
         up ? (
           <>
-            <Info aria-hidden className="h-5 w-5" />
+            <InfoIcon aria-hidden className="h-5 w-5" />
             About &amp; legal
           </>
         ) : (
-          <Info aria-hidden className="h-5 w-5" />
+          <InfoIcon aria-hidden className="h-5 w-5" />
         )
       }
     >

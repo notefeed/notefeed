@@ -30,11 +30,27 @@ const text: LicenseText = {
 };
 const month: Plan = { period: "month", name: "Monthly", description: "Line one\nLine two", amount: 199, currency: "EUR", taxIncluded: true };
 const year: Plan = { ...month, period: "year", name: "Yearly", description: "", amount: 1990 };
-const render = (plans: Plan[], cap = 1000) => renderToStaticMarkup(<BuyLicense text={text} intro={<p>The intro</p>} fineprint={<p>The fine print</p>} plans={plans} cap={cap} account="https://pay.example/my-orders" />);
+const render = (plans: Plan[], cap = 1000) =>
+  renderToStaticMarkup(
+    <BuyLicense text={text} intro={<p>The intro</p>} fineprint={<p>The fine print</p>} plans={plans} cap={cap} account="https://pay.example/my-orders" />,
+  );
 
 test("a tile per plan with the provider's name and price, the words from license.md; the description is the checkout's", () => {
   const html = render([month, year]);
-  for (const s of ["The intro", "Free", "Every feed starts here.", "Monthly", "Yearly", "1.99\u00a0€ per month", "19.90\u00a0€ per year", "Save 16 %", "Per feed", "VAT included", "For one feed at a time; the key can move.", "A feed password"])
+  for (const s of [
+    "The intro",
+    "Free",
+    "Every feed starts here.",
+    "Monthly",
+    "Yearly",
+    "1.99\u00a0€ per month",
+    "19.90\u00a0€ per year",
+    "Save 16 %",
+    "Per feed",
+    "VAT included",
+    "For one feed at a time; the key can move.",
+    "A feed password",
+  ])
     expect(html).toContain(s);
   expect(html).not.toContain("Line one");
   expect(html.match(/>Subscribe</g)).toHaveLength(2);

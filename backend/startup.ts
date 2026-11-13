@@ -34,17 +34,23 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
   const names = new Set(Object.entries(env).flatMap(([k, v]) => (v ? (PROVIDER_VAR.exec(k)?.slice(1, 2) ?? []) : []).map((n) => n ?? "")));
   for (const name of [...names].filter((n) => n !== "DEFAULT").sort()) {
     const missing = missingVars(name);
-    if (missing.length > 0 && missing.length < 4) warnings.push(["startup", "sign-in provider configured partially; it stays off", { provider: name ? name.toLowerCase() : "default", missing }]);
+    if (missing.length > 0 && missing.length < 4)
+      warnings.push(["startup", "sign-in provider configured partially; it stays off", { provider: name ? name.toLowerCase() : "default", missing }]);
   }
   const oidcProviders = providers().length;
-  if (oidcProviders && !config.publicUrl()) warnings.push(["startup", "sign-in is on without PUBLIC_URL: the redirect URI comes from each request's Host header", {}]);
+  if (oidcProviders && !config.publicUrl())
+    warnings.push(["startup", "sign-in is on without PUBLIC_URL: the redirect URI comes from each request's Host header", {}]);
   const level = (env.NOTEFEED_LOG_LEVEL ?? "").trim().toLowerCase();
   if (level && level !== config.logLevel()) warnings.push(["startup", "NOTEFEED_LOG_LEVEL is not a level; using info", { accepted: [...LOG_LEVELS] }]);
-  if (config.reservedFeeds().length && !config.reservedPassword()) warnings.push(["feeds", "reserved feeds are listed but have no password; they are not created", {}]);
-  if (config.metrics() && !config.metricsToken()) warnings.push(["startup", "metrics are on without NOTEFEED_METRICS_TOKEN: /metrics is open to anyone who can reach the app", {}]);
-  for (const setting of REMOVED) if (env[setting]) warnings.push(["startup", "a setting is no longer read; the price shown is the payment provider's product's", { setting }]);
+  if (config.reservedFeeds().length && !config.reservedPassword())
+    warnings.push(["feeds", "reserved feeds are listed but have no password; they are not created", {}]);
+  if (config.metrics() && !config.metricsToken())
+    warnings.push(["startup", "metrics are on without NOTEFEED_METRICS_TOKEN: /metrics is open to anyone who can reach the app", {}]);
+  for (const setting of REMOVED)
+    if (env[setting]) warnings.push(["startup", "a setting is no longer read; the price shown is the payment provider's product's", { setting }]);
   // The web pages no longer shrink pictures: the server does, for every client (ADR 0049).
-  if (env.NOTEFEED_SHRINK_IMAGE_BYTES) warnings.push(["startup", "a setting is no longer read; the server shrinks every picture itself", { setting: "NOTEFEED_SHRINK_IMAGE_BYTES" }]);
+  if (env.NOTEFEED_SHRINK_IMAGE_BYTES)
+    warnings.push(["startup", "a setting is no longer read; the server shrinks every picture itself", { setting: "NOTEFEED_SHRINK_IMAGE_BYTES" }]);
   if (config.supportEmailInvalid()) warnings.push(["startup", "NOTEFEED_SUPPORT_EMAIL is not an email address; there is no Support link", {}]);
   if (config.operatorTokenTooShort()) warnings.push(["startup", "NOTEFEED_OPERATOR_TOKEN is shorter than 32 bytes; the operator endpoints stay off", {}]);
   const fields = {
@@ -79,14 +85,24 @@ export async function reservedFeedWarnings(): Promise<Warning[]> {
 export async function reservedFolderWarnings(): Promise<Warning[]> {
   const feeds = (await storage().listFeedNames()).filter((n) => RESERVED_FEEDS.has(n)).sort();
   return feeds.length
-    ? [["feeds", "a feed folder is named like one of notefeed's routes; it cannot be opened by name", { feeds, hint: "rename its folder in DATA_DIR to a name that is not reserved, and restart" }]]
+    ? [
+        [
+          "feeds",
+          "a feed folder is named like one of notefeed's routes; it cannot be opened by name",
+          { feeds, hint: "rename its folder in DATA_DIR to a name that is not reserved, and restart" },
+        ],
+      ]
     : [];
 }
 
 // Throws only for a wrong storage setting; any other failure here must not keep the server from starting.
 // An imprint, privacy page or notice that was asked for and cannot be shown: the visitor would only see that it is missing.
 export async function legalFileWarnings(): Promise<Warning[]> {
-  return (await unreadableLegalSettings()).map((setting) => ["startup", "a page's or the notice's file cannot be read (missing, not a file, or larger than 256 KiB); it is not shown", { setting }]);
+  return (await unreadableLegalSettings()).map((setting) => [
+    "startup",
+    "a page's or the notice's file cannot be read (missing, not a file, or larger than 256 KiB); it is not shown",
+    { setting },
+  ]);
 }
 
 // Selling licenses needs the license page's words: without them the page, and every way to buy, would be missing.

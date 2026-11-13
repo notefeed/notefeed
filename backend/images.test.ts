@@ -1,5 +1,4 @@
-import { mkdtemp, readdir, readFile, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { UnsupportedTypeError } from "./errors";
@@ -9,7 +8,6 @@ import { createImageNote, createNote, getNote, hasImageNote, listNotes, removeNo
 import { ImageNote } from "./note/image";
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-img-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   delete process.env.NOTEFEED_MAX_IMAGES_PER_FEED;
   resetFeedsForTests();
@@ -53,7 +51,12 @@ describe("createImageNote", () => {
     expect(note.file).toBe(`${note.id}.png`);
     expect(readId).toBeTruthy();
     expect(Array.from(await readFile(join(feedDir(), note.file)))).toEqual(Array.from(PNG));
-    expect(JSON.parse(await readFile(join(feedDir(), `.${note.file}.json`), "utf8"))).toEqual({ sender: "Ann", tags: ["a"], name: "cat.png", date: expect.any(Number) });
+    expect(JSON.parse(await readFile(join(feedDir(), `.${note.file}.json`), "utf8"))).toEqual({
+      sender: "Ann",
+      tags: ["a"],
+      name: "cat.png",
+      date: expect.any(Number),
+    });
     expect(note.size).toBe(PNG.length);
   });
   test("an unsupported type is refused and creates nothing", async () => {

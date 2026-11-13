@@ -59,7 +59,12 @@ export function describeImageStore(name: string, make: () => Promise<ImageStore>
       // A store that outlives a test (a real bucket) holds other tests' objects too.
       const listed = [];
       for await (const o of s.list()) if (mine.has(o.key)) listed.push(o);
-      expect(listed.map((o) => [o.key, o.size]).sort()).toEqual([[keys[0], 1], [keys[2], 3]].sort());
+      expect(listed.map((o) => [o.key, o.size]).sort()).toEqual(
+        [
+          [keys[0], 1],
+          [keys[2], 3],
+        ].sort(),
+      );
       for (const o of listed) {
         expect(o.modified.getTime()).toBeGreaterThanOrEqual(before);
         expect(o.modified.getTime()).toBeLessThanOrEqual(Date.now() + 2000);

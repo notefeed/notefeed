@@ -24,7 +24,10 @@ const oauthError = (error: string, status = 400) => Response.json({ error }, { s
 // OPTIONS for the metadata documents and /oauth/register. /oauth/token takes a plain form POST, which needs no preflight.
 const preflight = (method: string) => (): Response =>
   locked()
-    ? new Response(null, { status: 204, headers: { ...cors, "Access-Control-Allow-Methods": method, "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" } })
+    ? new Response(null, {
+        status: 204,
+        headers: { ...cors, "Access-Control-Allow-Methods": method, "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" },
+      })
     : notFound();
 export const metadataPreflight = preflight("GET");
 export const registerPreflight = preflight("POST");
@@ -123,7 +126,13 @@ export function checkAuthorize(params: URLSearchParams, h: Headers): Checked {
   if (params.has("resource") && resource !== mcpResource(h)) return fail("invalid_target"); // RFC 8707
 
   // Exactly the parameters the POST needs back, never whatever else the URL carried.
-  const fields: Record<string, string> = { response_type: "code", client_id: clientId, redirect_uri: redirectUri, code_challenge: challenge, code_challenge_method: "S256" };
+  const fields: Record<string, string> = {
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  };
   if (state !== undefined) fields.state = state;
   if (resource !== undefined) fields.resource = resource;
   return { kind: "page", clientName: client.client_name || new URL(redirectUri).host, redirectHost: new URL(redirectUri).host, fields };
@@ -178,7 +187,12 @@ function issue(clientHash: string, aud: string, sender: string | undefined, unti
   const s = sender === undefined ? {} : { sender };
   const u = until === undefined ? {} : { until };
   return Response.json(
-    { access_token: sign("access", { aud, ...s }), token_type: "Bearer", expires_in: TTL.access, refresh_token: sign("refresh", { cid: clientHash, aud, jti: newJti(), ...s, ...u }) },
+    {
+      access_token: sign("access", { aud, ...s }),
+      token_type: "Bearer",
+      expires_in: TTL.access,
+      refresh_token: sign("refresh", { cid: clientHash, aud, jti: newJti(), ...s, ...u }),
+    },
     { headers: noStore },
   );
 }

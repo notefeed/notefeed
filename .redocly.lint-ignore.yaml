@@ -2,4 +2,4 @@
 # See https://redocly.com/docs/cli/ for more information.
 openapi.json:
   operation-4xx-response:
-    - '#/paths/~1api~1v1~1openapi.json/get/responses'
+    - "#/paths/~1api~1v1~1openapi.json/get/responses"

@@ -17,10 +17,20 @@ describe("parseMediaType", () => {
     expect(parseMediaType("image/gif")?.ext).toBe("gif");
     expect(parseMediaType("image/webp")?.ext).toBe("webp");
   });
-  test.each([null, "", "text/plain", "application/x-www-form-urlencoded", "application/octet-stream", "application/json", "image/svg+xml", "image/jpg", "text/markdown; charset=iso-8859-1", "text/markdown; charset=utf-8; q=1", "image/png; q=1", "multipart/form-data; boundary=x"])(
-    "%j is not accepted",
-    (h) => expect(parseMediaType(h)).toBeNull(),
-  );
+  test.each([
+    null,
+    "",
+    "text/plain",
+    "application/x-www-form-urlencoded",
+    "application/octet-stream",
+    "application/json",
+    "image/svg+xml",
+    "image/jpg",
+    "text/markdown; charset=iso-8859-1",
+    "text/markdown; charset=utf-8; q=1",
+    "image/png; q=1",
+    "multipart/form-data; boundary=x",
+  ])("%j is not accepted", (h) => expect(parseMediaType(h)).toBeNull());
 });
 
 describe("verify: the body is what was declared", () => {

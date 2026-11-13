@@ -1,5 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { config } from "../config";
@@ -19,11 +18,19 @@ import { png } from "../testimages";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-imgapi-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();
-  for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_TITLE", "NOTEFEED_MAX_IMAGE_BYTES", "NOTEFEED_MAX_IMAGES_PER_FEED", "NOTEFEED_IMAGE_UPLOADS"]) delete process.env[k];
+  for (const k of [
+    "NOTEFEED_PASSWORD",
+    "NOTEFEED_RATE_LIMIT",
+    "PUBLIC_URL",
+    "NOTEFEED_TITLE",
+    "NOTEFEED_MAX_IMAGE_BYTES",
+    "NOTEFEED_MAX_IMAGES_PER_FEED",
+    "NOTEFEED_IMAGE_UPLOADS",
+  ])
+    delete process.env[k];
 });
 
 const PNG = png(1);
@@ -31,7 +38,10 @@ const HTML_IN_PNG = new Uint8Array([...PNG, ...new TextEncoder().encode("<html><
 
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
-  const segments = url.pathname.slice(API_PREFIX.length + 1).split("/").map(decodeURIComponent);
+  const segments = url.pathname
+    .slice(API_PREFIX.length + 1)
+    .split("/")
+    .map(decodeURIComponent);
   return dispatch(new Request(url, { method, body: init.body, headers: { host: "localhost:3000", ...init.headers } }), segments);
 }
 // An image is posted like any note: the body is the picture.
@@ -59,7 +69,10 @@ describe("POST /feeds/{feed}/notes with an image body", () => {
   test("X-Note-Name is kept as the picture's name, cleaned of path characters", async () => {
     const res = await upload("pics", PNG, "image/png", { "x-note-name": "../my cat.png" });
     const { file } = await res.json();
-    expect(JSON.parse(await readFile(join(process.env.DATA_DIR!, "pics", `.${file}.json`), "utf8"))).toEqual({ name: "..my cat.png", date: expect.any(Number) });
+    expect(JSON.parse(await readFile(join(process.env.DATA_DIR!, "pics", `.${file}.json`), "utf8"))).toEqual({
+      name: "..my cat.png",
+      date: expect.any(Number),
+    });
   });
   test("X-Note-Name is stored without C1 controls and text-direction overrides", async () => {
     const res = await upload("pics", PNG, "image/png", { "x-note-name": Buffer.from("evil\u202egnp\u009b.exe").toString("latin1") });
@@ -85,7 +98,7 @@ describe("POST /feeds/{feed}/notes with an image body", () => {
     const res = await upload("pics", new Uint8Array([...PNG, ...new Uint8Array(20)]));
     expect(res.status).toBe(413);
     expect((await res.json()).code).toBe("too_large");
-    expect((await imageFiles("pics"))).toEqual([]);
+    expect(await imageFiles("pics")).toEqual([]);
   });
   test("a chunked body over the cap stops being read at the cap", async () => {
     process.env.NOTEFEED_MAX_IMAGE_BYTES = "20";
@@ -99,7 +112,10 @@ describe("POST /feeds/{feed}/notes with an image body", () => {
       },
     });
     const url = new URL(API_PREFIX + "/feeds/pics/notes", BASE);
-    const res = await dispatch(new Request(url, { method: "POST", body, headers: { host: "localhost:3000", "content-type": "image/png" }, duplex: "half" } as RequestInit), ["feeds", "pics", "notes"]);
+    const res = await dispatch(
+      new Request(url, { method: "POST", body, headers: { host: "localhost:3000", "content-type": "image/png" }, duplex: "half" } as RequestInit),
+      ["feeds", "pics", "notes"],
+    );
     expect(res.status).toBe(413);
     expect(pulled).toBeLessThan(10);
   });
@@ -139,7 +155,7 @@ describe("upload: body edge cases", () => {
     await createNote("pics", "# x");
     const res = await upload("pics", PNG, "image/png", { "content-length": String(PNG.length + 100) });
     expect(res.status).toBe(413);
-    expect((await imageFiles("pics"))).toEqual([]);
+    expect(await imageFiles("pics")).toEqual([]);
   });
   test("a configured cap above 10 MiB behaves as 10 MiB (the proxy buffers no more)", async () => {
     process.env.NOTEFEED_MAX_IMAGE_BYTES = "20971520";
@@ -178,7 +194,10 @@ describe("NOTEFEED_IMAGE_UPLOADS=0 refuses every upload with 403 images_off (#15
   });
   test("a multipart post with pictures is refused whole; one with only a text goes through", async () => {
     process.env.NOTEFEED_IMAGE_UPLOADS = "0";
-    const res = await multipart([["text", "# Hi ![](a.png)"], ["file", png("a.png")]]);
+    const res = await multipart([
+      ["text", "# Hi ![](a.png)"],
+      ["file", png("a.png")],
+    ]);
     expect(res.status).toBe(403);
     expect((await res.json()).code).toBe("images_off");
     expect(await listNotes("pics", 10)).toEqual([]);
@@ -190,7 +209,9 @@ describe("NOTEFEED_IMAGE_UPLOADS=0 refuses every upload with 403 images_off (#15
     const put = await call("PUT", `/feeds/pics/notes/${id}`, { body: PNG as BodyInit, headers: { "content-type": "image/png" } });
     expect(put.status).toBe(403);
     expect((await put.json()).code).toBe("images_off");
-    expect((await call("PATCH", `/feeds/pics/notes/${id}`, { body: JSON.stringify({ title: "Cat" }), headers: { "content-type": "application/json" } })).status).toBe(200);
+    expect(
+      (await call("PATCH", `/feeds/pics/notes/${id}`, { body: JSON.stringify({ title: "Cat" }), headers: { "content-type": "application/json" } })).status,
+    ).toBe(200);
     expect((await get((await readIdOf("pics"))!, file)).status).toBe(200);
     expect((await call("DELETE", `/feeds/pics/notes/${id}`)).status).toBe(204);
   });
@@ -367,7 +388,11 @@ describe("feed settings: image", () => {
     const xml = await (await rssRoute(new Request(`${BASE}/r/${rid}/feed.xml`, { headers: { host: "localhost:3000" } }), rid)).text();
     expect(xml).not.toContain("<image>");
     const form = await feedSettingsRoute(
-      new Request(`${BASE}/pics/settings`, { method: "POST", headers: { host: "localhost:3000", origin: BASE, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ title: "T3", description: "D" }) }),
+      new Request(`${BASE}/pics/settings`, {
+        method: "POST",
+        headers: { host: "localhost:3000", origin: BASE, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ title: "T3", description: "D" }),
+      }),
       "pics",
     );
     expect(form.headers.get("location")).toBe("/pics/settings?saved=1");
@@ -382,7 +407,10 @@ describe("feed settings: image", () => {
 test("a settings image can't name a real file that is not an image", async () => {
   await createNote("pics", "# x");
   await writeFile(join(process.env.DATA_DIR!, "pics", "secret.txt"), "x");
-  const res = await call("PUT", "/feeds/pics", { body: JSON.stringify({ title: "", description: "", image: "../secret.txt" }), headers: { "content-type": "application/json" } });
+  const res = await call("PUT", "/feeds/pics", {
+    body: JSON.stringify({ title: "", description: "", image: "../secret.txt" }),
+    headers: { "content-type": "application/json" },
+  });
   expect(res.status).toBe(400);
 });
 

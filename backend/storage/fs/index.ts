@@ -5,21 +5,56 @@ import { config } from "../../config";
 import type { Storage } from "../types";
 import { isErrno } from "./fs";
 import { createFeedMethods, type FeedDeps } from "./feedindex";
-import { deleteNote, hasNotes, removedNote, listNoteRefs, noteUsage, readFeedFile, readMeta, readNote, renameNote, replaceNote, setDate, setDraft, takedownNotes, updateMeta, writeNote } from "./notes";
+import {
+  deleteNote,
+  hasNotes,
+  removedNote,
+  listNoteRefs,
+  noteUsage,
+  readFeedFile,
+  readMeta,
+  readNote,
+  renameNote,
+  replaceNote,
+  setDate,
+  setDraft,
+  takedownNotes,
+  updateMeta,
+  writeNote,
+} from "./notes";
 import { readHash, removeHash, writeHash } from "./password";
 import { readSettings, writeSettings } from "./settings";
 
 // Written once a pass of the migration to opaque ids completed (backend/notemigration.ts).
 const marker = () => join(config.dataDir(), ".note-ids-migrated");
-const exists = (path: string) => access(/*turbopackIgnore: true*/ path).then(() => true, () => false);
+const exists = (path: string) =>
+  access(/*turbopackIgnore: true*/ path).then(
+    () => true,
+    () => false,
+  );
 
 export function createFsStorage(deps: FeedDeps): Storage {
   const feeds = createFeedMethods(deps, config.dataDir);
   return {
     ...feeds,
-    writeNote, listNoteRefs, readNote, readMeta, replaceNote, updateMeta, setDate, setDraft, renameNote, deleteNote, readFile: readFeedFile,
-    takedownNotes, removedNote,
-    readSettings, writeSettings, readHash, writeHash, removeHash,
+    writeNote,
+    listNoteRefs,
+    readNote,
+    readMeta,
+    replaceNote,
+    updateMeta,
+    setDate,
+    setDraft,
+    renameNote,
+    deleteNote,
+    readFile: readFeedFile,
+    takedownNotes,
+    removedNote,
+    readSettings,
+    writeSettings,
+    readHash,
+    writeHash,
+    removeHash,
     // Nothing here is bound to a key: the answer is for the database backends' start while the key service is down. The marker is a
     // dot file in DATA_DIR (never a feed's name); without it, a listing per feed until one has a note.
     async migrationPending() {

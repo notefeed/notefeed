@@ -83,7 +83,12 @@ function validatePayments(): void {
     return;
   }
   if (provider !== "creem") throw new Error(`NOTEFEED_PAYMENT_PROVIDER=${provider} is not a payment provider; use creem`);
-  const missing = Object.entries({ NOTEFEED_CREEM_API_KEY: env("NOTEFEED_CREEM_API_KEY"), NOTEFEED_CREEM_PRODUCT_ID: env("NOTEFEED_CREEM_PRODUCT_ID"), NOTEFEED_CREEM_WEBHOOK_SECRET: env("NOTEFEED_CREEM_WEBHOOK_SECRET"), PUBLIC_URL: env("PUBLIC_URL") }).flatMap(([k, v]) => (v === "" ? [k] : []));
+  const missing = Object.entries({
+    NOTEFEED_CREEM_API_KEY: env("NOTEFEED_CREEM_API_KEY"),
+    NOTEFEED_CREEM_PRODUCT_ID: env("NOTEFEED_CREEM_PRODUCT_ID"),
+    NOTEFEED_CREEM_WEBHOOK_SECRET: env("NOTEFEED_CREEM_WEBHOOK_SECRET"),
+    PUBLIC_URL: env("PUBLIC_URL"),
+  }).flatMap(([k, v]) => (v === "" ? [k] : []));
   if (missing.length) throw new Error(`NOTEFEED_PAYMENT_PROVIDER=creem needs ${missing.join(", ")}`);
 }
 
@@ -91,10 +96,16 @@ function validateStorage(): void {
   validatePayments();
   const kind = storageKind();
   const images = imageStoreKind();
-  if (kind === "fs" && images !== "db") throw new Error(`NOTEFEED_IMAGES=${images} needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend keeps images in the feed's folder`);
+  if (kind === "fs" && images !== "db")
+    throw new Error(`NOTEFEED_IMAGES=${images} needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend keeps images in the feed's folder`);
   if (images === "s3") {
     const { endpoint, bucket, accessKey, secretKey } = s3();
-    const missing = Object.entries({ NOTEFEED_S3_ENDPOINT: endpoint, NOTEFEED_S3_BUCKET: bucket, NOTEFEED_S3_ACCESS_KEY: accessKey, NOTEFEED_S3_SECRET_KEY: secretKey }).flatMap(([k, v]) => (v === "" ? [k] : []));
+    const missing = Object.entries({
+      NOTEFEED_S3_ENDPOINT: endpoint,
+      NOTEFEED_S3_BUCKET: bucket,
+      NOTEFEED_S3_ACCESS_KEY: accessKey,
+      NOTEFEED_S3_SECRET_KEY: secretKey,
+    }).flatMap(([k, v]) => (v === "" ? [k] : []));
     if (missing.length) throw new Error(`NOTEFEED_IMAGES=s3 needs ${missing.join(", ")}`);
     if (!/^https?:\/\//i.test(endpoint) || !URL.canParse(endpoint)) throw new Error("NOTEFEED_S3_ENDPOINT must be an http(s) URL");
   }
@@ -102,21 +113,30 @@ function validateStorage(): void {
   if (key && kind === "fs") throw new Error("NOTEFEED_ENCRYPTION_KEY needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend is not encrypted");
   if (key && key === env("NOTEFEED_SECRET")) throw new Error("NOTEFEED_ENCRYPTION_KEY must not be NOTEFEED_SECRET");
   const short = (k: string) => Buffer.byteLength(k) < 32;
-  if (key.includes(",")) throw new Error("NOTEFEED_ENCRYPTION_KEY must not contain a comma: after a key change it goes into the comma-separated NOTEFEED_ENCRYPTION_OLD_KEYS (openssl rand -hex 32 makes none)");
+  if (key.includes(","))
+    throw new Error(
+      "NOTEFEED_ENCRYPTION_KEY must not contain a comma: after a key change it goes into the comma-separated NOTEFEED_ENCRYPTION_OLD_KEYS (openssl rand -hex 32 makes none)",
+    );
   if (key && short(key)) throw new Error("NOTEFEED_ENCRYPTION_KEY must be at least 32 bytes (e.g. openssl rand -hex 32)");
-  if ((key || kms()) && config.encryptionOldKeys().some(short)) throw new Error("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes (e.g. openssl rand -hex 32)");
+  if ((key || kms()) && config.encryptionOldKeys().some(short))
+    throw new Error("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes (e.g. openssl rand -hex 32)");
   if (kms() === "openbao") {
     if (kind === "fs") throw new Error("NOTEFEED_KMS needs NOTEFEED_STORAGE=sqlite or postgres: the file system backend is not encrypted");
-    if (key) throw new Error("NOTEFEED_KMS=openbao replaces NOTEFEED_ENCRYPTION_KEY: to move to the key service, put the local key in NOTEFEED_ENCRYPTION_OLD_KEYS");
+    if (key)
+      throw new Error("NOTEFEED_KMS=openbao replaces NOTEFEED_ENCRYPTION_KEY: to move to the key service, put the local key in NOTEFEED_ENCRYPTION_OLD_KEYS");
     const { addr, roleId, secretId } = openbao();
-    const missing = Object.entries({ NOTEFEED_OPENBAO_ADDR: addr, NOTEFEED_OPENBAO_ROLE_ID: roleId, NOTEFEED_OPENBAO_SECRET_ID: secretId }).flatMap(([k, v]) => (v === "" ? [k] : []));
+    const missing = Object.entries({ NOTEFEED_OPENBAO_ADDR: addr, NOTEFEED_OPENBAO_ROLE_ID: roleId, NOTEFEED_OPENBAO_SECRET_ID: secretId }).flatMap(([k, v]) =>
+      v === "" ? [k] : [],
+    );
     if (missing.length) throw new Error(`NOTEFEED_KMS=openbao needs ${missing.join(", ")}`);
     if (!/^https?:\/\//i.test(addr) || !URL.canParse(addr)) throw new Error("NOTEFEED_OPENBAO_ADDR must be an http(s) URL");
   }
   if (kind === "fs") return;
   if (kind === "postgres" && databaseUrl() === "") throw new Error("NOTEFEED_STORAGE=postgres needs NOTEFEED_DATABASE_URL");
   if (Buffer.byteLength(env("NOTEFEED_SECRET")) < 32) {
-    throw new Error(`NOTEFEED_STORAGE=${kind} needs NOTEFEED_SECRET of at least 32 bytes (e.g. openssl rand -hex 32): there is no data folder to keep a generated one in`);
+    throw new Error(
+      `NOTEFEED_STORAGE=${kind} needs NOTEFEED_SECRET of at least 32 bytes (e.g. openssl rand -hex 32): there is no data folder to keep a generated one in`,
+    );
   }
 }
 
@@ -140,7 +160,11 @@ export const config = {
   encryptionKey: () => env("NOTEFEED_ENCRYPTION_KEY"),
   kms,
   openbao,
-  encryptionOldKeys: () => env("NOTEFEED_ENCRYPTION_OLD_KEYS").split(",").map((k) => k.trim()).filter(Boolean),
+  encryptionOldKeys: () =>
+    env("NOTEFEED_ENCRYPTION_OLD_KEYS")
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean),
   publicUrl: () => env("PUBLIC_URL").replace(/\/+$/, ""),
   title: () => env("NOTEFEED_TITLE") || "notefeed",
   // The address of the "Support" link in every footer (mailto:). Only an address: anything that would add to the link (a space,
@@ -169,7 +193,12 @@ export const config = {
   // Notes a free feed keeps while a payment provider is set: the oldest is dropped past it.
   // Creem (NOTEFEED_PAYMENT_PROVIDER=creem): the API key (`creem_test_…` for the sandbox), the product of the monthly license, that of
   // the yearly one if sold, and the webhook secret.
-  creem: () => ({ apiKey: env("NOTEFEED_CREEM_API_KEY"), productId: env("NOTEFEED_CREEM_PRODUCT_ID"), yearlyProductId: env("NOTEFEED_CREEM_PRODUCT_ID_YEARLY"), webhookSecret: env("NOTEFEED_CREEM_WEBHOOK_SECRET") }),
+  creem: () => ({
+    apiKey: env("NOTEFEED_CREEM_API_KEY"),
+    productId: env("NOTEFEED_CREEM_PRODUCT_ID"),
+    yearlyProductId: env("NOTEFEED_CREEM_PRODUCT_ID_YEARLY"),
+    webhookSecret: env("NOTEFEED_CREEM_WEBHOOK_SECRET"),
+  }),
   // The fake provider's webhook secret (tests, development).
   fakeWebhookSecret: () => env("NOTEFEED_FAKE_WEBHOOK_SECRET"),
   freeNoteCap: () => Math.max(1, int("NOTEFEED_FREE_NOTE_CAP", 1000)),
@@ -179,9 +208,20 @@ export const config = {
   // 0 or below: no cap.
   maxFeeds: () => Math.max(0, int("NOTEFEED_MAX_FEEDS", 0)),
   // Comma-separated feed names nobody may create, on top of the built-in list (see feeds.ts).
-  reservedFeeds: () => env("NOTEFEED_RESERVED_FEEDS").split(",").map((n) => n.trim()).filter(Boolean),
+  reservedFeeds: () =>
+    env("NOTEFEED_RESERVED_FEEDS")
+      .split(",")
+      .map((n) => n.trim())
+      .filter(Boolean),
   // Comma-separated feeds linked in the footer and the ⓘ menu, in this order (releases, a blog); none when unset.
-  footerFeeds: () => [...new Set(env("NOTEFEED_FOOTER_FEEDS").split(",").map((n) => n.trim()).filter(Boolean))],
+  footerFeeds: () => [
+    ...new Set(
+      env("NOTEFEED_FOOTER_FEEDS")
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean),
+    ),
+  ],
   // Password of the reserved feeds, which exist only while this is set (see feeds.ts).
   reservedPassword: () => env("NOTEFEED_RESERVED_PASSWORD"),
   // "0" leaves only random read ids: nothing chosen is accepted (empty, a random one, still is).
@@ -205,7 +245,7 @@ export const config = {
   // `images_off`; stored images keep being served. Anything else is on.
   imageUploads: () => env("NOTEFEED_IMAGE_UPLOADS").trim() !== "0",
   // Unset, empty or not a level → info (the startup line warns about the last).
-  logLevel: (): LogLevel => ((l) => (LOG_LEVELS as readonly string[]).includes(l) ? (l as LogLevel) : "info")(env("NOTEFEED_LOG_LEVEL").trim().toLowerCase()),
+  logLevel: (): LogLevel => ((l) => ((LOG_LEVELS as readonly string[]).includes(l) ? (l as LogLevel) : "info"))(env("NOTEFEED_LOG_LEVEL").trim().toLowerCase()),
   // Optional OIDC sign-in (see oidc/config.ts): one provider per set of variables. `name` "" is the unprefixed
   // set (NOTEFEED_OIDC_ISSUER, ...); any other is NOTEFEED_OIDC_<name>_ISSUER, ... Issuer, client credentials, who may
   // sign in (comma-separated addresses, @domain entries or *; lowercased), and the button's label.
@@ -215,9 +255,17 @@ export const config = {
       issuer: v("ISSUER"),
       clientId: v("CLIENT_ID"),
       clientSecret: v("CLIENT_SECRET"),
-      allow: v("ALLOW").split(",").map((n) => n.trim().toLowerCase()).filter(Boolean),
+      allow: v("ALLOW")
+        .split(",")
+        .map((n) => n.trim().toLowerCase())
+        .filter(Boolean),
       // id_token claims tried in order for the sender (case-sensitive); not part of "the provider is on".
-      senderClaim: ((l) => (l.length ? l : ["name", "email"]))(v("SENDER_CLAIM").split(",").map((n) => n.trim()).filter(Boolean)),
+      senderClaim: ((l) => (l.length ? l : ["name", "email"]))(
+        v("SENDER_CLAIM")
+          .split(",")
+          .map((n) => n.trim())
+          .filter(Boolean),
+      ),
       label: v("LABEL").trim(),
     };
   },

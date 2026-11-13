@@ -20,7 +20,8 @@ import { statusOf } from "./errors";
 import { feedAccess, readCapped } from "./request";
 
 const log = logger("licenses");
-const json = (body: unknown, status = 200, headers: Record<string, string> = {}) => Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
+const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+  Response.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
 const off = () => json({ error: "licenses are not sold on this instance" }, 404);
 
 async function body(req: Request, max: number): Promise<Record<string, unknown>> {
@@ -34,7 +35,8 @@ async function body(req: Request, max: number): Promise<Record<string, unknown>>
 }
 
 function failed(e: unknown): Response {
-  if (e instanceof NotefeedError) return json({ error: e.message, code: e.code }, statusOf(e), e instanceof RateLimitedError ? { "Retry-After": String(e.retryAfter) } : {});
+  if (e instanceof NotefeedError)
+    return json({ error: e.message, code: e.code }, statusOf(e), e instanceof RateLimitedError ? { "Retry-After": String(e.retryAfter) } : {});
   log.error({ err: e }, "a license request failed");
   return json({ error: "internal error" }, 500);
 }

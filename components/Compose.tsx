@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Camera, Hash, PencilLine, Plus, Send, X } from "lucide-react";
+import { CameraIcon, CloseIcon, DraftIcon, MoreIcon, PostIcon, ScheduledIcon, TagIcon } from "@/components/icons";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, primary } from "@/components/styles";
@@ -75,7 +75,10 @@ export function Compose({
   const [date, setDate] = useState(""); // a datetime-local value, the browser's time: empty is now, a later time schedules the note
   const [draft, setDraft] = useState(false); // a draft (#265): on the feed page only, readers see it once it is published
 
-  const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
+  const tagList = tags
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
   // The page remounts this box empty. With pictures only, the answer is the first picture's.
   const submit = (e: FormEvent<HTMLFormElement>) => {
     const fields = new FormData(e.currentTarget); // with the feed's protection, outside the box
@@ -117,8 +120,16 @@ export function Compose({
   // corners and the home indicator (issue #202).
   // Without JavaScript, and from lg, the box is a card at the top of the feed. The bar is only rendered on a narrow
   // screen, so the page never holds two note fields where both could show.
-  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
-  const narrow = useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW).matches, () => false);
+  const hydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+  const narrow = useSyncExternalStore(
+    subscribeNarrow,
+    () => window.matchMedia(NARROW).matches,
+    () => false,
+  );
   const [open, setOpen] = useState(!!initialError || !!initialText);
   const form = useRef<HTMLFormElement>(null);
   const quick = useRef<HTMLTextAreaElement>(null);
@@ -189,8 +200,13 @@ export function Compose({
                 <li key={p.key} className="relative shrink-0" title={p.token}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={p.preview} alt="" className="h-14 w-14 rounded-xl border border-rule object-cover" />
-                  <button type="button" onClick={() => removePhoto(p)} aria-label={`Remove ${p.token}`} className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper">
-                    <X aria-hidden className="h-3.5 w-3.5" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(p)}
+                    aria-label={`Remove ${p.token}`}
+                    className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper"
+                  >
+                    <CloseIcon aria-hidden className="h-3.5 w-3.5" />
                   </button>
                 </li>
               ))}
@@ -213,8 +229,14 @@ export function Compose({
             />
           )}
           <div className="flex items-end gap-1.5">
-            <button type="button" onClick={openSheet} aria-label="Title, tags and pictures" title="Title, tags and pictures" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
-              <Plus aria-hidden className="h-[22px] w-[22px]" />
+            <button
+              type="button"
+              onClick={openSheet}
+              aria-label="Title, tags and pictures"
+              title="Title, tags and pictures"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2"
+            >
+              <MoreIcon aria-hidden className="h-[22px] w-[22px]" />
             </button>
             <textarea
               ref={quick}
@@ -229,20 +251,26 @@ export function Compose({
               className="block max-h-[8.25rem] min-h-10 min-w-0 flex-1 resize-none rounded-[1.25rem] border border-rule bg-surface-2 px-4 py-2 text-[15px] leading-normal placeholder:text-muted focus:border-carbon/60 focus-visible:outline-none"
             />
             {imagesOn && (
-              <button type="button" onClick={() => camera.current?.click()} aria-label="Take a photo" title="Take a photo" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
-                <Camera aria-hidden className="h-[22px] w-[22px]" />
+              <button
+                type="button"
+                onClick={() => camera.current?.click()}
+                aria-label="Take a photo"
+                title="Take a photo"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2"
+              >
+                <CameraIcon aria-hidden className="h-[22px] w-[22px]" />
               </button>
             )}
             <button
-                type="button"
-                disabled={pending || empty}
-                onClick={() => form.current?.requestSubmit()}
-                aria-label="Send note"
-                title="Send note"
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
-              >
-                <Send aria-hidden className="h-[22px] w-[22px]" />
-              </button>
+              type="button"
+              disabled={pending || empty}
+              onClick={() => form.current?.requestSubmit()}
+              aria-label="Send note"
+              title="Send note"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <PostIcon aria-hidden className="h-[22px] w-[22px]" />
+            </button>
           </div>
         </div>
       )}
@@ -256,8 +284,14 @@ export function Compose({
       >
         {sheet && (
           <div className="-mx-4 mb-2 flex items-center justify-between border-b border-rule px-2 pb-2 lg:hidden">
-            <button type="button" onClick={close} aria-label="Close" title="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-2">
-              <X aria-hidden className="h-5 w-5" />
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Close"
+              title="Close"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-2"
+            >
+              <CloseIcon aria-hidden className="h-5 w-5" />
             </button>
             <span className="truncate rounded-full border border-rule bg-surface-2 px-3 py-1 text-[13px] font-bold text-carbon">{feed}</span>
             <span className="w-9" />
@@ -283,27 +317,61 @@ export function Compose({
               <label htmlFor="note-title" className="sr-only">
                 Title (optional, otherwise taken from the text)
               </label>
-              <input id="note-title" name="title" type="text" autoComplete="off" maxLength={100} placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} className={`${bare} text-[17px] font-bold tracking-tight placeholder:font-normal`} />
+              <input
+                id="note-title"
+                name="title"
+                type="text"
+                autoComplete="off"
+                maxLength={100}
+                placeholder="Title (optional)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className={`${bare} text-[17px] font-bold tracking-tight placeholder:font-normal`}
+              />
             </>
           }
           below={
             <div className="mt-2 flex flex-wrap gap-2">
               <div className="flex min-w-0 flex-1 basis-48 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 sm:max-w-sm">
-                <Hash aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <TagIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <label htmlFor="note-tags" className="sr-only">
                   Tags (optional, separated by commas)
                 </label>
-                <input id="note-tags" name="tags" type="text" autoComplete="off" placeholder="Tags, e.g. ci, deploy" pattern={TAGS_PATTERN} title={TAGS_HINT} value={tags} onChange={(e) => setTags(e.target.value)} className={`${bare} text-[13px]`} />
+                <input
+                  id="note-tags"
+                  name="tags"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="Tags, e.g. ci, deploy"
+                  pattern={TAGS_PATTERN}
+                  title={TAGS_HINT}
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  className={`${bare} text-[13px]`}
+                />
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1" title="The note's date: an earlier time backdates it, a later one schedules it; empty is now">
-                <CalendarClock aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+              <div
+                className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1"
+                title="The note's date: an earlier time backdates it, a later one schedules it; empty is now"
+              >
+                <ScheduledIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <label htmlFor="note-date" className="sr-only">
                   Date (optional; empty is now, a later time schedules the note)
                 </label>
-                <input id="note-date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={`${bare} text-[13px] ${date ? "" : "text-muted"}`} />
+                <input
+                  id="note-date"
+                  name="date"
+                  type="datetime-local"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={`${bare} text-[13px] ${date ? "" : "text-muted"}`}
+                />
               </div>
-              <label className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 text-[13px]" title="A draft stays on this page: readers see it once it is published">
-                <PencilLine aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+              <label
+                className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 text-[13px]"
+                title="A draft stays on this page: readers see it once it is published"
+              >
+                <DraftIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <input id="note-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
                 Draft
               </label>
@@ -314,7 +382,7 @@ export function Compose({
             Markdown · Ctrl+Enter to post
           </span>
           <button type="submit" disabled={pending} aria-label="Post note" className={`${primary} max-sm:ml-auto`}>
-            <Send aria-hidden className="h-4 w-4" />
+            <PostIcon aria-hidden className="h-4 w-4" />
             {pending ? "Posting…" : "Post"}
           </button>
         </MarkdownInput>
@@ -332,7 +400,19 @@ export function Compose({
 // do and where (issue #193). `password`: the post sent a password, so that is what was refused (else it was the pictures);
 // `keyGiven`: a key was sent with it, so the key's license is not active. `licensePage`: /license exists (ADR 0035), so the banner
 // says to buy one there; without it, only where a key goes.
-export function LicenseNeeded({ isNew, password, keyGiven, settingsHref, licensePage }: { isNew: boolean; password: boolean; keyGiven: boolean; settingsHref?: string; licensePage: boolean }) {
+export function LicenseNeeded({
+  isNew,
+  password,
+  keyGiven,
+  settingsHref,
+  licensePage,
+}: {
+  isNew: boolean;
+  password: boolean;
+  keyGiven: boolean;
+  settingsHref?: string;
+  licensePage: boolean;
+}) {
   const what = password ? "A feed password needs a license." : "Pictures need a license.";
   const next =
     isNew && password

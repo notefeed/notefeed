@@ -27,7 +27,8 @@ function Picture({ note, imageBase, className }: { note: Note; imageBase?: strin
 
 // A markdown note shows its text as written (ADR 0040); only a title of its own (set when posted or edited) is a heading above it.
 // A stored title that is the text's first line already shows in the text.
-const ownTitle = (note: Note) => (note.meta.title !== undefined && note.title !== "" && note.title !== cleanLine(extractTitle(note.content ?? "")) ? note.title : undefined);
+const ownTitle = (note: Note) =>
+  note.meta.title !== undefined && note.title !== "" && note.title !== cleanLine(extractTitle(note.content ?? "")) ? note.title : undefined;
 
 // Rendered here, on the server: a code block with a language is highlighted (#243), with the colours in globals.css.
 const SERVER_PLUGINS: PluggableList = [rehypeHighlight];

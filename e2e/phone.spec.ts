@@ -95,9 +95,13 @@ test("the text fields are at least 16px, so focusing one does not zoom the page"
   const quick = await bar(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   expect(quick).toBeGreaterThanOrEqual(16);
   await page.getByRole("button", { name: "Title, tags and pictures" }).click();
-  const sizes = await page.locator("form[aria-label='New note']").evaluate((form) =>
-    Array.from(form.querySelectorAll<HTMLElement>("input:not([type=file]):not([type=checkbox]), textarea")).map((el) => [el.id, parseFloat(getComputedStyle(el).fontSize)] as const),
-  );
+  const sizes = await page
+    .locator("form[aria-label='New note']")
+    .evaluate((form) =>
+      Array.from(form.querySelectorAll<HTMLElement>("input:not([type=file]):not([type=checkbox]), textarea")).map(
+        (el) => [el.id, parseFloat(getComputedStyle(el).fontSize)] as const,
+      ),
+    );
   for (const [id, size] of sizes) expect(size, id).toBeGreaterThanOrEqual(16);
 });
 

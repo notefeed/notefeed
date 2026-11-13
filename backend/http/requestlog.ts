@@ -125,7 +125,14 @@ export function installRequestLog(): void {
         response.once("close", () => {
           try {
             // The bytes sent for this response, its headers included: the body's own length is not known for a streamed page.
-            requestLine(scope, { method, path, status: response.statusCode, ms: performance.now() - start, bytes: socket.bytesWritten - before, finished: response.writableFinished });
+            requestLine(scope, {
+              method,
+              path,
+              status: response.statusCode,
+              ms: performance.now() - start,
+              bytes: socket.bytesWritten - before,
+              finished: response.writableFinished,
+            });
           } catch {}
         });
       } catch {} // nothing the log does ever reaches the request

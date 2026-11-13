@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Link2, Rss, Send, TriangleAlert } from "lucide-react";
+import { PostIcon, ReadLinkIcon, RssIcon, WarningIcon } from "@/components/icons";
 import { HomeFeeds } from "@/components/HomeFeeds";
 import { card } from "@/components/styles";
 import { OpenFeed } from "@/components/OpenFeed";
@@ -46,8 +46,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {shared.length > 0 && <HomeFeeds query={shareQ} label="Post what you shared to" />}
       <h1 className="text-3xl font-bold tracking-tight">Notes in, RSS out.</h1>
       <p className="mt-2 text-muted">
-        A feed is a list of markdown notes with a name. Post to it from this page, your phone, one curl command or an AI
-        assistant over MCP, and follow it in any RSS reader through its read link, which shows the notes but not the name.
+        A feed is a list of markdown notes with a name. Post to it from this page, your phone, one curl command or an AI assistant over MCP, and follow it in
+        any RSS reader through its read link, which shows the notes but not the name.
       </p>
       <p className="mb-6 mt-2 text-muted">
         No accounts, no personal data, readers stay invisible:{" "}
@@ -61,10 +61,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           Open or create a feed
         </h2>
         <div role="note" className="mb-4 mt-3 flex gap-3 rounded-xl border border-error/40 bg-error/5 p-3 text-sm">
-          <TriangleAlert aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-error" />
+          <WarningIcon aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-error" />
           <p className="text-ink">
-            <strong className="font-bold">The name is the key.</strong> Anyone who knows a feed&apos;s name can read and post to it — pick one that&apos;s hard to guess,
-            like the one suggested below.
+            <strong className="font-bold">The name is the key.</strong> Anyone who knows a feed&apos;s name can read and post to it — pick one that&apos;s hard
+            to guess, like the one suggested below.
           </p>
         </div>
         <OpenFeed value={typeof feed === "string" ? feed : suggestFeedName()} error={error} carry={shared} />
@@ -72,12 +72,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {shared.length === 0 && <HomeFeeds />}
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { icon: <Send />, title: "Post from anywhere", text: "This page, the share sheet of your phone, one curl command, or an AI assistant over MCP." },
-          { icon: <Rss />, title: "Follow with RSS", text: "Any reader works. No account, no app." },
-          { icon: <Link2 />, title: "Share without the name", text: "The read link shows the notes and can't post." },
+          { icon: <PostIcon />, title: "Post from anywhere", text: "This page, the share sheet of your phone, one curl command, or an AI assistant over MCP." },
+          { icon: <RssIcon />, title: "Follow with RSS", text: "Any reader works. No account, no app." },
+          { icon: <ReadLinkIcon />, title: "Share without the name", text: "The read link shows the notes and can't post." },
         ].map((f) => (
           <div key={f.title} className={`${card} p-4`}>
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-carbon-soft text-carbon [&>svg]:h-[18px] [&>svg]:w-[18px]">{f.icon}</span>
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-carbon-soft text-carbon [&>svg]:h-[18px] [&>svg]:w-[18px]">
+              {f.icon}
+            </span>
             <h2 className="mt-3 text-[15px] font-bold">{f.title}</h2>
             <p className="mt-0.5 text-[13px] text-muted">{f.text}</p>
           </div>

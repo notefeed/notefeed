@@ -1,9 +1,6 @@
 // The Shortcut against the server (#334): its actions, played by a small stand-in for Shortcuts, post to the real API handler.
 // Shortcuts itself can't run here; what it does with each action is what source.ts assumes (as cherri lists the actions). The
 // interpreter covers only the actions the Shortcut uses.
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { resetFeedsForTests } from "../backend/feeds";
 import { API_PREFIX, dispatch } from "../backend/http/api";
@@ -12,7 +9,6 @@ import { JPG } from "../backend/testimages";
 import { shortcutPlist } from "./source";
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-shortcut-"));
   process.env.NOTEFEED_SECRET = "s".repeat(32);
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL"]) delete process.env[k];
   resetFeedsForTests();
@@ -47,7 +43,13 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
   let repeatItem: Value;
 
   const resolve = (r: Ref): Value =>
-    r.Type === "ExtensionInput" ? items : r.Type === "ActionOutput" ? out[r.OutputUUID!] : r.VariableName === "Repeat Item" ? repeatItem : vars[r.VariableName!];
+    r.Type === "ExtensionInput"
+      ? items
+      : r.Type === "ActionOutput"
+        ? out[r.OutputUUID!]
+        : r.VariableName === "Repeat Item"
+          ? repeatItem
+          : vars[r.VariableName!];
   const arg = (p: unknown): Value => {
     const v = p as { Value: unknown; WFSerializationType: string } | undefined;
     if (v === undefined) return undefined;
@@ -101,12 +103,15 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
           if ((await run(i + 1, end)) === "exit") return "exit";
         }
         i = end;
-      } else if (id === "gettext") out[uuid] = i < answers.length ? answers[i] : asText(arg(p.WFTextActionText)); // the first four: the answers
+      } else if (id === "gettext")
+        out[uuid] = i < answers.length ? answers[i] : asText(arg(p.WFTextActionText)); // the first four: the answers
       else if (id === "text.trimwhitespace") out[uuid] = asText(arg(p.WFInput)).trim();
       else if (id === "text.changecase") out[uuid] = asText(arg(p.text)).toLowerCase();
       else if (id === "text.replace") {
         const flags = p.WFReplaceTextCaseSensitive === false ? "gi" : "g";
-        const find = p.WFReplaceTextRegularExpression ? (p.WFReplaceTextFind as string) : (p.WFReplaceTextFind as string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const find = p.WFReplaceTextRegularExpression
+          ? (p.WFReplaceTextFind as string)
+          : (p.WFReplaceTextFind as string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         out[uuid] = asText(arg(p.WFInput)).replace(new RegExp(find, flags), p.WFReplaceTextReplace as string);
       } else if (id === "text.combine") out[uuid] = asText(arg(p.text));
       else if (id === "setvariable") vars[p.WFVariableName as string] = arg(p.WFInput);
@@ -123,14 +128,14 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       } else if (id === "getitemtype") {
         const v = arg(p.WFInput);
         out[uuid] = isPicture(v) ? "Bild" : isPage(v) ? "Safari-Webseite" : "Text"; // in the phone's language
-      } else if (id === "getmarkdownfromrichtext") out[uuid] = asText(arg(p.WFInput)); // the stand-in's rich text has no formatting
+      } else if (id === "getmarkdownfromrichtext")
+        out[uuid] = asText(arg(p.WFInput)); // the stand-in's rich text has no formatting
       else if (id === "properties.safariwebpage") {
         // As on iOS: a page gives its address; anything else stops the whole Shortcut.
         const v = arg(p.WFInput);
         if (!isPage(v)) throw new Error("Get Details of Safari Web Page stopped the Shortcut: not a page");
         out[uuid] = v.url;
-      }
-      else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
+      } else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
       else if (id === "image.convert") {
         const v = arg(p.WFInput);
         out[uuid] = Array.isArray(v) ? v[0] : v;
@@ -222,7 +227,10 @@ test("a wrong feed password: nothing is posted, and the server's reason is shown
   await share(["first"], [host, "locked", "", ""]);
   const url = new URL(`${API_PREFIX}/feeds/locked/password`, host);
   // Protect the feed, then share with the wrong password.
-  const set = await dispatch(new Request(url, { method: "PUT", headers: { host: url.host, "content-type": "application/json" }, body: JSON.stringify({ password: "right-password" }) }), ["feeds", "locked", "password"]);
+  const set = await dispatch(
+    new Request(url, { method: "PUT", headers: { host: url.host, "content-type": "application/json" }, body: JSON.stringify({ password: "right-password" }) }),
+    ["feeds", "locked", "password"],
+  );
   expect(set.status).toBeLessThan(300);
   const { opened, shown } = await share([photo("IMG_0001"), "Hello"], [host, "locked", "wrong", ""]);
   expect(opened).toEqual([]);

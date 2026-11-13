@@ -1,7 +1,4 @@
 // A note's name (X-Note-Name) is a stable raw address: /r/<read id>/<name> serves the newest note posted with it (#250).
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { readIdOf, resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
@@ -13,7 +10,6 @@ import { png } from "../testimages";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-named-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();
@@ -23,10 +19,14 @@ beforeEach(async () => {
 const PNG = png(1);
 async function call(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
   const url = new URL(API_PREFIX + path, BASE);
-  const segments = url.pathname.slice(API_PREFIX.length + 1).split("/").map(decodeURIComponent);
+  const segments = url.pathname
+    .slice(API_PREFIX.length + 1)
+    .split("/")
+    .map(decodeURIComponent);
   return dispatch(new Request(url, { method, body: init.body, headers: { host: "localhost:3000", ...init.headers } }), segments);
 }
-const post = async (body: BodyInit, headers: Record<string, string>, type = "text/markdown") => (await call("POST", "/feeds/f/notes", { body, headers: { "content-type": type, ...headers } })).json();
+const post = async (body: BodyInit, headers: Record<string, string>, type = "text/markdown") =>
+  (await call("POST", "/feeds/f/notes", { body, headers: { "content-type": type, ...headers } })).json();
 const raw = async (name: string) => {
   const res = await fileRoute((await readIdOf("f"))!, name);
   return { status: res.status, type: res.headers.get("content-type"), text: res.status === 200 ? await res.text() : "" };
