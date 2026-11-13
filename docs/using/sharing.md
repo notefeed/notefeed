@@ -19,15 +19,21 @@ What to know:
 
 ## iPhone
 
-iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut. notefeed has a ready-made one:
+iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut. notefeed has a ready-made one, **Send to notefeed**. Installing it takes a minute, all on the iPhone:
 
-1. On the iPhone, open the feed's **Settings**, then **Share from an iPhone**, and tap **the notefeed Shortcut** (or open `https://<your instance>/shortcuts/Send%20to%20notefeed.shortcut`). Add it: it shows as **Send to notefeed** in the share sheet; rename it in the Shortcuts app if you add it for several feeds.
-2. It asks four things: the instance's address (`https://notefeed.me`), the feed's name, its [password](feed-passwords.md) (empty for an open feed), and, **optional**, a server password: leave it empty unless your own self-hosted server asks for a password when you sign in (`NOTEFEED_PASSWORD`). notefeed.me has none. The settings page shows the address and the name, and says whether the server has a password.
-3. Share pictures, text or a link from any app and pick **notefeed**. It sits at the very bottom of the share sheet, below the actions; **Edit Actions** there can move it up.
+1. **Download it.** Open the feed's **Settings** in Safari, then **Share from an iPhone**, and tap **Download the Shortcut** (or open `https://<your instance>/shortcuts/Send%20to%20notefeed.shortcut`). Confirm with **Download**.
+2. **Open the download.** Tap the download arrow in Safari's address bar, then **Downloads**, then **Send to notefeed**. Or open the **Files** app, go to **Downloads** and tap the file.
+3. **Set it up.** The Shortcuts app opens. Tap **Set Up Shortcut** and answer four questions, then tap **Add Shortcut**:
+    - the instance's address, such as `https://notefeed.me`;
+    - the feed's name;
+    - its [password](feed-passwords.md), empty for an open feed;
+    - a server password, which is **optional**: leave it empty unless your own self-hosted server asks for a password when you sign in (`NOTEFEED_PASSWORD`). notefeed.me has none.
+
+    The settings page shows the address and the name, and says whether the server has a password.
+4. **Use it.** Share pictures, text or a link from any app (Photos, Notes, Safari …) and tap **Send to notefeed**. It sits at the very bottom of the share sheet, below the actions; **Edit Actions** there can move it up. The first time, iOS asks whether the Shortcut may send to your notefeed address and open it: tap **Always Allow**. A **Don't Allow** stays until you change it in the Shortcut's details (**ⓘ** → **Privacy**).
+5. **More than one feed?** Add the Shortcut once per feed, and give each a name of its own: in the Shortcuts app, touch and hold it, then **Rename** (say, "Send to family"). The share sheet shows that name.
 
 Everything shared in one go arrives as one note: the text, if any, with every picture below it. The Shortcut posts each picture on its own first, then the note that shows them, so the feed and RSS show the pictures inside the note only (iOS Shortcuts sends just one file per request). Photos are converted to JPEG on the phone, as notefeed does not take HEIC; the server shrinks them and removes their metadata. The note opens in the browser when it has arrived. A page shared from a browser arrives as its address, not as the page's text. A note shared from Notes arrives as its text, in markdown, with its pictures below it; Notes' checklists keep their ✓ and ◦, but not their indentation. A picture that is refused (too large, say) doesn't stop the others: the note is posted without it, and the Shortcut says which failed and why. A note that is refused (a wrong password) is shown with notefeed's reason.
-
-The first time, iOS asks whether the Shortcut may send the pictures to your notefeed address and open it: answer **Always Allow**. A **No** stays until you change it in the Shortcut's details (**ⓘ** → **Privacy**).
 
 The Shortcut posts to `POST /api/v1/feeds/<feed>/notes` with `X-Feed-Password` and `Authorization: Bearer <server password>`; a server without a password ignores the second. It is built from source (`shortcut/source.ts`) and signed, as iOS imports only signed Shortcuts.
 

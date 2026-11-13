@@ -108,21 +108,60 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
               <DocsLink href={`${DOCS}/integrations/clients/`}>Client libraries</DocsLink>
             </DisclosureRow>
             <DisclosureRow icon={<Smartphone />} label="Share from an iPhone">
-              <p className="mb-2 text-muted">A ready-made Shortcut puts notefeed in the share sheet: pictures, text and links you share arrive as one note in this feed.</p>
-              <ol className="mb-2 list-decimal space-y-1 pl-5 text-muted">
+              <p className="mb-2 text-muted">
+                A ready-made Shortcut puts <strong className="text-ink">Send to notefeed</strong> in the iPhone&apos;s share sheet: pictures, text and links you share arrive as one note in this feed.
+              </p>
+              <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
                 <li>
-                  Open{" "}
+                  On the iPhone, open this page in Safari and tap{" "}
                   <a href="/shortcuts/Send%20to%20notefeed.shortcut" download="Send to notefeed.shortcut" className="text-carbon underline">
-                    the notefeed Shortcut
-                  </a>{" "}
-                  on the iPhone and add it.
+                    Download the Shortcut
+                  </a>
+                  . Confirm with <strong className="text-ink">Download</strong>.
                 </li>
                 <li>
-                  It asks for the address, <code className="break-all font-mono">{base}</code>, the feed name, <code className="break-all font-mono">{feed}</code>, the feed&apos;s password (empty for an open feed) and, optional, a server password: {locked() ? "this server has one, the one you signed in with" : "leave it empty, this server has none"}.
+                  Open the download: tap the <strong className="text-ink">download arrow</strong> in Safari&apos;s address bar, then <strong className="text-ink">Downloads</strong>, then{" "}
+                  <strong className="text-ink">Send to notefeed</strong>. (Or in the Files app: <strong className="text-ink">Downloads</strong>, then the file.)
                 </li>
-                <li>Share from any app and pick notefeed: it is at the very bottom of the share sheet, below the actions.</li>
+                <li>
+                  The Shortcuts app opens. Tap <strong className="text-ink">Set Up Shortcut</strong> and answer its four questions:
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    <li>
+                      the address: <code className="break-all font-mono">{base}</code>
+                    </li>
+                    <li>
+                      the feed name: <code className="break-all font-mono">{feed}</code>
+                    </li>
+                    <li>the feed&apos;s password (leave it empty for an open feed)</li>
+                    <li>the server password, which is optional: {locked() ? "this server has one, the one you signed in with" : "leave it empty, this server has none"}</li>
+                  </ul>
+                  Then tap <strong className="text-ink">Add Shortcut</strong>.
+                </li>
+                <li>
+                  Share from any app (Photos, Notes, Safari …), scroll to the very bottom of the share sheet and tap <strong className="text-ink">Send to notefeed</strong>. The first time, iOS asks
+                  whether it may send to your notefeed address: tap <strong className="text-ink">Always Allow</strong>.
+                </li>
+                <li>
+                  For several feeds, add it once per feed and rename each: in the Shortcuts app, touch and hold it, then <strong className="text-ink">Rename</strong> (say,
+                  &ldquo;Send to {feed}&rdquo;).
+                </li>
               </ol>
               <DocsLink href={`${DOCS}/using/sharing/#iphone`}>Sharing</DocsLink>
+            </DisclosureRow>
+            <DisclosureRow icon={<Smartphone />} label="Share from Android">
+              <p className="mb-2 text-muted">Installed as an app, notefeed is in Android&apos;s share sheet: pictures, text and links go into this feed&apos;s compose box, ready to post.</p>
+              <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
+                <li>
+                  On the phone, open this feed in <strong className="text-ink">Chrome</strong>, open Chrome&apos;s menu (<strong className="text-ink">⋮</strong>) and tap{" "}
+                  <strong className="text-ink">Add to Home screen</strong> or <strong className="text-ink">Install app</strong>.
+                </li>
+                <li>Open notefeed once from the home screen, so the share sheet can hand pictures to it.</li>
+                <li>
+                  Share from any app (Photos, a browser …) and tap <strong className="text-ink">notefeed</strong>. Pick this feed, <code className="break-all font-mono">{feed}</code>, check
+                  what is in the compose box, then <strong className="text-ink">Post</strong>.
+                </li>
+              </ol>
+              <DocsLink href={`${DOCS}/using/sharing/#android`}>Sharing</DocsLink>
             </DisclosureRow>
             <DisclosureRow icon={<Bot />} label="Post from an AI agent">
               <p className="mb-2 text-muted">Add notefeed to Claude Code as an MCP server; the agent then posts to this feed by its name.</p>
