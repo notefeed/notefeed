@@ -28,6 +28,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       # An S3-compatible store for the image store's tests (backend/storage/images/s3.test.ts), which checks the request signatures.

@@ -25,6 +25,11 @@ test = ["pytest>=9"]
 [project.scripts]
 notefeed = "notefeed.cli:main"
 
+[tool.ruff]
+# 160 columns, as Prettier for the TypeScript (.editorconfig). The generated client (_generated) is formatted with this
+# too: openapi-python-client runs Ruff in its output folder, which finds this file.
+line-length = 160
+
 [project.urls]
 Homepage = "https://docs.notefeed.me/"
 Documentation = "https://docs.notefeed.me/integrations/clients/"

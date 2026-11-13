@@ -25,6 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
+      # 160 columns (pyproject.toml); the same Ruff as scripts/generate.sh, so the generated client passes too.
+      - run: uvx ruff@0.16.9 format --check .
       - run: uv run --locked -p ${{ matrix.python }} --extra test pytest -q
 
   js:

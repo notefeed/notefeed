@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import prettier from "eslint-config-prettier/flat";
 
 // The frontend/backend boundary (see docs/adr/0003-backend-boundary.md).
 const FRONTEND_IMPORTS = {
@@ -28,6 +29,8 @@ const SHARED_IMPORTS = {
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // Formatting is Prettier's (.prettierrc.json): turn off the style rules that would fight it.
+  prettier,
   {
     files: ["app/**", "components/**", "proxy.ts"],
     ignores: ["**/*.test.ts", "components/icons.ts"],
