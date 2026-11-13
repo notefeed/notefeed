@@ -2,8 +2,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import GlobalError from "@/app/global-error";
-import ErrorBoundary from "@/app/error";
-import NotFound from "@/app/not-found";
+import ErrorBoundary from "@/app/[lang]/error";
+import NotFound from "@/app/[lang]/not-found";
 import { MAINTENANCE } from "@/app/_lib/messages";
 import { UNAVAILABLE_DIGEST } from "@/shared/errors";
 import { DamagedNote } from "./DamagedNote";

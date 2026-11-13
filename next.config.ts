@@ -9,7 +9,8 @@ const nextConfig: NextConfig = {
   // sharp the same: it loads its WebAssembly build at run time (backend/imageprocess.ts).
   serverExternalPackages: ["pino", "prom-client", "better-sqlite3", "pg", "sharp"],
   // proxy.ts sees every POST, so Next buffers its body, by default only up to 10 MB: several full-size photos, or one as base64 over MCP, need more.
-  experimental: { proxyClientMaxBodySize: MAX_REQUEST_BYTES },
+  // globalNotFound: the root layout is in app/[lang] (#352), so an address no route matches gets app/global-not-found.tsx.
+  experimental: { proxyClientMaxBodySize: MAX_REQUEST_BYTES, globalNotFound: true },
   // proxy.ts handles trailing slashes itself: POST /<feed>/ stores the note, everything else gets a 308.
   skipTrailingSlashRedirect: true,
   // /r/<readId>/<name>.<ext> is a file of the feed; a note id has no dot, so notes stay on their page; feed.xml and atom.xml are the

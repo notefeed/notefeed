@@ -1,0 +1,103 @@
+import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
+import { AppShell } from "@/components/AppShell";
+import { NoteArticle } from "@/components/NoteArticle";
+import { NoteActions, NoteActionsBar, NoteActionsPanel } from "@/components/NoteActions";
+import { DamagedNote } from "@/components/DamagedNote";
+import { Removed } from "@/components/Removed";
+import { RemovedNote } from "@/components/RemovedNote";
+import { UnlockForm } from "@/components/UnlockForm";
+import { orDamaged } from "@/app/_lib/damaged";
+import { noteErrorMessage } from "@/app/_lib/messages";
+import { reportUrl } from "@/shared/report";
+import {
+  feedCookieName,
+  feedPath,
+  feedUnlocked,
+  getFeedNote,
+  getFeedPictures,
+  hasLegalPage,
+  imageUploadsOn,
+  isRemovedFeed,
+  isRemovedNote,
+  licensingOn,
+  readIdOf,
+  reportTemplate,
+} from "@/backend";
+import { attachmentLinks, kindOf } from "@/shared/notekinds";
+
+export const dynamic = "force-dynamic";
+
+export default async function NotePage({ params, searchParams }: PageProps<"/[lang]/[feed]/[id]">) {
+  const { feed, id } = await params;
+  const { edited, error, retry } = await searchParams;
+  if (await isRemovedFeed(feed)) {
+    return (
+      <AppShell feed={feed}>
+        <Removed />
+      </AppShell>
+    );
+  }
+  if ((await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value)) === "locked") {
+    return (
+      <AppShell feed={feed}>
+        <UnlockForm feed={feed} recover={licensingOn() ? { open: false } : undefined} />
+      </AppShell>
+    );
+  }
+  const note = await orDamaged(getFeedNote(feed, id));
+  if (note === "damaged") {
+    return (
+      <AppShell feed={feed}>
+        <DamagedNote feed={feed} id={id} back={feedPath(feed)} />
+      </AppShell>
+    );
+  }
+  // A note the operator removed (#159): its mark, which its owner can delete here, or after that the same words without the button.
+  if (note?.removed || (!note && (await isRemovedNote(feed, id)))) {
+    return (
+      <AppShell feed={feed}>
+        <RemovedNote feed={feed} id={id} back={feedPath(feed)} mark={!!note} terms={await hasLegalPage("terms")} />
+      </AppShell>
+    );
+  }
+  if (!note) notFound();
+  const readId = await readIdOf(feed);
+  // Pictures come from the feed's own file route, not the read link, so a draft's and a scheduled note's show too (#349).
+  const imageBase = `${feedPath(feed)}/files/`;
+  // The Report link goes in the note's action bar, not on the note. The bar sits in the shell's right column, the forms under
+  // the note; NoteActions holds what both share.
+  const reportHref = readId && reportTemplate() ? reportUrl(reportTemplate(), { readId, noteId: note.id, file: note.file }) : undefined;
+  // A note's attachments link to their own notes' pages.
+  const kind = kindOf(note.type);
+  const link = kind.attachments(note.content).length ? attachmentLinks(await getFeedPictures(feed), feedPath(feed)) : undefined;
+
+  return (
+    <NoteActions
+      key={`${note.content}\n${note.meta.title}\n${note.alt}\n${note.tags.join(",")}\n${note.date.toISOString()}\n${note.draft}`}
+      feed={feed}
+      id={id}
+      kind={kind.name}
+      markdown={note.content ?? ""}
+      title={note.meta.title ?? ""}
+      alt={note.alt ?? ""}
+      tags={note.tags}
+      date={note.date.toISOString()}
+      draft={note.draft}
+      error={noteErrorMessage(error, retry)}
+      images={imageUploadsOn()}
+      imageBase={imageBase}
+      reportHref={reportHref}
+    >
+      <AppShell feed={feed} about={<NoteActionsBar />} docked>
+        {edited === "1" && (
+          <p role="status" className="mb-4 text-sm text-carbon">
+            Saved.
+          </p>
+        )}
+        <NoteArticle note={note} back={feedPath(feed)} imageBase={imageBase} backInBar link={link} />
+        <NoteActionsPanel />
+      </AppShell>
+    </NoteActions>
+  );
+}
