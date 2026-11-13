@@ -63,3 +63,6 @@ __pycache__/
 
 # superdesign scratch
 /.superdesign/tmp/
+
+# The unsigned iPhone Shortcut (npm run shortcut:build)
+.shortcut-build/

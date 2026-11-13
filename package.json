@@ -14,6 +14,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "next build && playwright test",
+    "shortcut:build": "sh scripts/shortcut.sh build",
+    "shortcut:sign": "sh scripts/shortcut.sh sign",
     "generate": "sh scripts/generate.sh"
   },
   "dependencies": {
@@ -52,10 +54,12 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22",
     "@types/pg": "^8.23.1",
+    "@types/plist": "^3.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^10",
     "eslint-config-next": "16.4.3",
+    "plist": "^5.1.0",
     "tailwindcss": "^4",
     "typescript": "~6.0.3",
     "vitest": "^5.0.5"

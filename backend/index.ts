@@ -19,7 +19,7 @@ export { isDraft, isScheduled };
 export { IDENTITY_COOKIE, SESSION_COOKIE, identitySender, locked, sessionOk } from "./auth";
 export { checkFeed, isHeldBack as isReservedFeed, isRemovedFeed, isRemovedReadId, readIdOf } from "./feeds";
 export { identityOn };
-export { atomPath, feedPath, publicUrl, readPath, rssPath, safeNext, settingsPath } from "./urls";
+export { atomPath, feedPath, publicUrl, readPath, rssPath, safeNext, settingsPath, SHORTCUT_PATH } from "./urls";
 // Every write is one of these HTTP handlers; the frontend only mounts them and renders.
 export { dispatch } from "./http/api";
 export { measured } from "./metrics";

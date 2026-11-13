@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowUpRight, Bot, Braces, ChevronLeft, Link2, Package, Rss, Terminal } from "lucide-react";
+import { ArrowUpRight, Bot, Braces, ChevronLeft, Link2, Package, Rss, Smartphone, Terminal } from "lucide-react";
 import { claudeMcpFor, curlFor } from "@/app/_lib/curl";
 import { feedDetailsErrorMessage, feedErrorMessage, passwordNotice, protectErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
@@ -15,8 +15,7 @@ import { FeedAbout } from "@/components/FeedAbout";
 import { RememberFeed } from "@/components/RememberedFeeds";
 import { DisclosureRow, Row } from "@/components/SettingsRows";
 import { iconButton } from "@/components/styles";
-import { checkFeed, feedCookieName, feedPath, feedUnlocked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath, atomPath } from "@/backend";
-
+import { checkFeed, feedCookieName, feedPath, feedUnlocked, locked, customIdsOn, getFeed, getFeedImages, freeTier, identityOn, isReservedFeed, licensePageOn, licensingOn, publicUrl, readPath, rssPath, atomPath, SHORTCUT_PATH } from "@/backend";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Feed settings" };
@@ -107,6 +106,62 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
               <p className="mb-2 text-muted">The client libraries for Python and JavaScript take the server and the feed from the environment.</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`pip install notefeed\nnpm install notefeed`}</pre>
               <DocsLink href={`${DOCS}/integrations/clients/`}>Client libraries</DocsLink>
+            </DisclosureRow>
+            <DisclosureRow icon={<Smartphone />} label="Share from an iPhone">
+              <p className="mb-2 text-muted">
+                A ready-made Shortcut puts <strong className="text-ink">Send to notefeed</strong> in the iPhone&apos;s share sheet: pictures, text and links you share arrive as one note in this feed.
+              </p>
+              <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
+                <li>
+                  On the iPhone, open this page in Safari and tap{" "}
+                  <a href={SHORTCUT_PATH} download="Send to notefeed.shortcut" className="text-carbon underline">
+                    Download the Shortcut
+                  </a>
+                  . Confirm with <strong className="text-ink">Download</strong>.
+                </li>
+                <li>
+                  Open the download: tap the <strong className="text-ink">download arrow</strong> in Safari&apos;s address bar, then <strong className="text-ink">Downloads</strong>, then{" "}
+                  <strong className="text-ink">Send to notefeed</strong>. (Or in the Files app: <strong className="text-ink">Downloads</strong>, then the file.)
+                </li>
+                <li>
+                  The Shortcuts app opens. Tap <strong className="text-ink">Set Up Shortcut</strong> and answer its four questions:
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    <li>
+                      the address: <code className="break-all font-mono">{base}</code>
+                    </li>
+                    <li>
+                      the feed name: <code className="break-all font-mono">{feed}</code>
+                    </li>
+                    <li>the feed&apos;s password (leave it empty for an open feed)</li>
+                    <li>the server password, which is optional: {locked() ? "this server has one, the one you signed in with" : "leave it empty, this server has none"}</li>
+                  </ul>
+                  Then tap <strong className="text-ink">Add Shortcut</strong>.
+                </li>
+                <li>
+                  Share from any app (Photos, Notes, Safari …), scroll to the very bottom of the share sheet and tap <strong className="text-ink">Send to notefeed</strong>. The first time, iOS asks
+                  whether it may send to your notefeed address: tap <strong className="text-ink">Always Allow</strong>.
+                </li>
+                <li>
+                  For several feeds, add it once per feed and rename each: in the Shortcuts app, touch and hold it, then <strong className="text-ink">Rename</strong> (say,
+                  &ldquo;Send to {feed}&rdquo;).
+                </li>
+              </ol>
+              <DocsLink href={`${DOCS}/using/sharing/#iphone`}>Sharing</DocsLink>
+            </DisclosureRow>
+            <DisclosureRow icon={<Smartphone />} label="Share from Android">
+              <p className="mb-2 text-muted">Installed as an app, notefeed is in Android&apos;s share sheet: pictures, text and links go into this feed&apos;s compose box, ready to post.</p>
+              <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
+                <li>
+                  On the phone, open this feed in <strong className="text-ink">Chrome</strong>, open Chrome&apos;s menu (<strong className="text-ink">⋮</strong>) and tap{" "}
+                  <strong className="text-ink">Add to Home screen</strong> or <strong className="text-ink">Install app</strong>.
+                </li>
+                <li>Open notefeed once from the home screen, so the share sheet can hand pictures to it.</li>
+                <li>
+                  Share from any app (Photos, a browser …) and tap <strong className="text-ink">notefeed</strong>. Pick this feed, <code className="break-all font-mono">{feed}</code>, check
+                  what is in the compose box, then <strong className="text-ink">Post</strong>.
+                </li>
+              </ol>
+              <DocsLink href={`${DOCS}/using/sharing/#android`}>Sharing</DocsLink>
             </DisclosureRow>
             <DisclosureRow icon={<Bot />} label="Post from an AI agent">
               <p className="mb-2 text-muted">Add notefeed to Claude Code as an MCP server; the agent then posts to this feed by its name.</p>

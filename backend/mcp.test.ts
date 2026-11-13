@@ -638,6 +638,8 @@ describe("feed tools", () => {
     const u = await call("update_feed", { feed: "f", title: "T", description: "D" });
     expect(u.structuredContent).toMatchObject({ name: "f", title: "T", description: "D", protected: false });
     expect((await call("get_feed", { feed: "f" })).structuredContent).toEqual(u.structuredContent);
+    // The iPhone Shortcut, for an agent to hand to a person (#334)
+    expect((await call("get_feed", { feed: "f" })).structuredContent.shortcut_url).toBe("http://localhost:3000/shortcuts/Send%20to%20notefeed.shortcut");
     expect((await call("update_feed", { feed: "f", title: "x".repeat(101), description: "" })).isError).toBe(true);
     expect((await call("delete_feed", { feed: "f" })).structuredContent).toEqual({ deleted: true });
     expect((await call("get_feed", { feed: "f" })).content[0].text).toBe("no such feed");
