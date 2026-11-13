@@ -187,15 +187,6 @@ export function shortcutPlist(): Record<string, unknown> {
       action("gettext", { UUID: BODY, WFTextActionText: text("￼\n\n￼", output(JOINED_TEXTS, "Combined Text"), output(JOINED_PICTURES, "Combined Text")) }),
       action("text.replace", { UUID: NOTE, WFInput: text("￼", output(BODY, "Text")), WFReplaceTextFind: "^\\s+|\\s+$", WFReplaceTextReplace: "", WFReplaceTextRegularExpression: true }),
       ifHasValue(ANYTHING, output(NOTE, "Updated Text")),
-      // TEMPORARY (#334): the note's parts and its text just before it is sent, to see where a part goes missing.
-      action("showresult", {
-        Text: text(
-          "Debug, pictures: [￼] texts: [￼] note: [￼]",
-          output(JOINED_PICTURES, "Combined Text"),
-          output(JOINED_TEXTS, "Combined Text"),
-          output(NOTE, "Updated Text"),
-        ),
-      }),
       postNote(POST_NOTE, output(NOTE, "Updated Text")),
       // The answer: the note's `url` to open (after a hint naming the pictures that didn't make it), or the server's `error` to show.
       valueFor(URL_OF, output(POST_NOTE, "Contents of URL"), "url"),

@@ -118,8 +118,7 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
     }
   };
   await run(0, actions.length);
-  // The temporary debug alert (#334) is no answer.
-  return { opened, shown: shown.filter((m) => !m.startsWith("Debug, ")), debug: shown.filter((m) => m.startsWith("Debug, ")) };
+  return { opened, shown };
 }
 
 async function notes(feed = "phone", password = "") {
@@ -139,12 +138,6 @@ test("two photos and a text become one note with both pictures, which opens", as
   expect(note.content).toMatch(/^From the phone\n\n!\[\]\([\w-]+\.jpg\)\n!\[\]\([\w-]+\.jpg\)$/);
   expect(opened).toEqual([note.url]);
   expect(shown).toEqual([]);
-});
-
-test("the temporary debug alert shows the note's parts and text before it is sent", async () => {
-  const { debug } = await share([photo("IMG_0001"), "Hi"]);
-  expect(debug).toHaveLength(1);
-  expect(debug[0]).toMatch(/^Debug, pictures: \[!\[\]\([\w-]+\.jpg\)\] texts: \[Hi\] note: \[Hi\n\n!\[\]\([\w-]+\.jpg\)\]$/);
 });
 
 test("photos alone: the note is the pictures, without their file names as text", async () => {
