@@ -37,6 +37,8 @@ const ANYTHING = "6E0F3A1C-2B4D-4C5E-8F60-71829304A516";
 const JOINED_PROBLEMS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A517";
 const HAD_PROBLEMS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A518";
 const NOTHING_PROBLEMS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A519";
+const PICTURE_LINE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51A";
+const PROBLEM_LINE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51B";
 // Pictures holds ![](file) for each picture stored, Texts the text items, Problems a line for each picture refused.
 const PICTURES = "Pictures";
 const TEXTS = "Texts";
@@ -75,9 +77,8 @@ const header = (key: string, v: ReturnType<typeof text>) => ({ WFItemType: 0, WF
 const headers = (...items: ReturnType<typeof header>[]) => ({ Value: { WFDictionaryFieldValueItems: items }, WFSerializationType: "WFDictionaryFieldValue" });
 
 // POST /api/v1/feeds/<feed>/notes, with the feed's password (an empty header is no password, so an open feed needs nothing) and the
-// instance's (checked only where the instance has one; elsewhere ignored). A picture goes as the body itself, as image/jpeg; the
-// note as a form with one text field: sent as a raw body, its text arrived empty ("note is empty" on iOS 26), while a form's text
-// field arrived whole.
+// instance's (checked only where the instance has one; elsewhere ignored). Each is the body itself: a picture as image/jpeg, the note
+// as text/markdown. Not a form: one with only text fields goes as application/x-www-form-urlencoded, which notefeed refuses.
 const passwords = [header("X-Feed-Password", text("￼", variable(PASSWORD_VAR))), header("Authorization", text("Bearer ￼", variable(INSTANCE_VAR)))];
 const notesUrl = () => text("￼/api/v1/feeds/￼/notes", variable(ADDRESS_VAR), variable(FEED_VAR));
 const postPicture = (uuid: string, picture: Attachment) =>
@@ -95,10 +96,10 @@ const postNote = (uuid: string, note: Attachment) =>
     UUID: uuid,
     WFURL: notesUrl(),
     WFHTTPMethod: "POST",
-    WFHTTPBodyType: "Form",
-    WFFormValues: headers(header("text", text("￼", note))),
+    WFHTTPBodyType: "File",
+    WFRequestVariable: value(note),
     ShowHeaders: true,
-    WFHTTPHeaders: headers(...passwords),
+    WFHTTPHeaders: headers(header("Content-Type", text("text/markdown")), ...passwords),
   });
 const valueFor = (uuid: string, of: Attachment, key: string) => action("getvalueforkey", { UUID: uuid, WFInput: value(of), WFDictionaryKey: key });
 /** Combine Text, one item per line: its input is `text`, not WFInput (as cherri lists it). */
@@ -166,10 +167,13 @@ export function shortcutPlist(): Record<string, unknown> {
       postPicture(POST_PICTURE, output(JPEG, "Converted Image")),
       valueFor(FILE_OF, output(POST_PICTURE, "Contents of URL"), "file"),
       ifHasValue(STORED, output(FILE_OF, "Dictionary Value")),
-      action("appendvariable", { WFVariableName: PICTURES, WFInput: text("![](￼)", output(FILE_OF, "Dictionary Value")) }),
+      // "Add to Variable" takes a variable, not a text with one in it (given one, it added nothing): the line is a Text action first.
+      action("gettext", { UUID: PICTURE_LINE, WFTextActionText: text("![](￼)", output(FILE_OF, "Dictionary Value")) }),
+      action("appendvariable", { WFVariableName: PICTURES, WFInput: value(output(PICTURE_LINE, "Text")) }),
       otherwise(STORED),
       valueFor(PICTURE_ERROR, output(POST_PICTURE, "Contents of URL"), "error"),
-      action("appendvariable", { WFVariableName: PROBLEMS, WFInput: text("A picture was not posted: ￼", output(PICTURE_ERROR, "Dictionary Value")) }),
+      action("gettext", { UUID: PROBLEM_LINE, WFTextActionText: text("A picture was not posted: ￼", output(PICTURE_ERROR, "Dictionary Value")) }),
+      action("appendvariable", { WFVariableName: PROBLEMS, WFInput: value(output(PROBLEM_LINE, "Text")) }),
       endIf(STORED),
       otherwise(IS_PICTURE),
       action("detect.text", { UUID: TEXT, WFInput: value(variable("Repeat Item")) }),
@@ -183,8 +187,15 @@ export function shortcutPlist(): Record<string, unknown> {
       action("gettext", { UUID: BODY, WFTextActionText: text("￼\n\n￼", output(JOINED_TEXTS, "Combined Text"), output(JOINED_PICTURES, "Combined Text")) }),
       action("text.replace", { UUID: NOTE, WFInput: text("￼", output(BODY, "Text")), WFReplaceTextFind: "^\\s+|\\s+$", WFReplaceTextReplace: "", WFReplaceTextRegularExpression: true }),
       ifHasValue(ANYTHING, output(NOTE, "Updated Text")),
-      // TEMPORARY (#334): what the note's text is just before it is sent, to tell an empty text from a text sent empty.
-      action("showresult", { Text: text("Debug, the note's text: [￼]", output(NOTE, "Updated Text")) }),
+      // TEMPORARY (#334): the note's parts and its text just before it is sent, to see where a part goes missing.
+      action("showresult", {
+        Text: text(
+          "Debug, pictures: [￼] texts: [￼] note: [￼]",
+          output(JOINED_PICTURES, "Combined Text"),
+          output(JOINED_TEXTS, "Combined Text"),
+          output(NOTE, "Updated Text"),
+        ),
+      }),
       postNote(POST_NOTE, output(NOTE, "Updated Text")),
       // The answer: the note's `url` to open (after a hint naming the pictures that didn't make it), or the server's `error` to show.
       valueFor(URL_OF, output(POST_NOTE, "Contents of URL"), "url"),

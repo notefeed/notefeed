@@ -83,20 +83,22 @@ test("pictures become JPEG without their metadata before they are posted", () =>
   expect(ids.indexOf("image.convert")).toBeLessThan(ids.indexOf("downloadurl"));
 });
 
-test("each picture is a raw POST of its JPEG, the note a form with one text field; both with the feed password and the server password", () => {
+test("every request is a raw POST to the feed's notes, with the feed password and the server password", () => {
   const posts = params("downloadurl");
   expect(posts).toHaveLength(2); // each picture, then the note
   for (const p of posts) {
-    expect(p.WFHTTPMethod).toBe("POST");
+    expect(p).toMatchObject({ WFHTTPMethod: "POST", WFHTTPBodyType: "File" });
     expect(JSON.stringify(p.WFURL)).toContain('"string":"￼/api/v1/feeds/￼/notes"');
     expect(JSON.stringify(p.WFHTTPHeaders)).toContain('"string":"X-Feed-Password"');
     expect(JSON.stringify(p.WFHTTPHeaders)).toContain('"string":"Bearer ￼"'); // the server password; ignored where there is none
   }
-  expect(posts[0]).toMatchObject({ WFHTTPBodyType: "File" });
-  expect(JSON.stringify(posts[0].WFHTTPHeaders)).toContain('"string":"image/jpeg"');
-  // The note: a form with a text field only. Not a file field: Shortcuts sends only the first item of a list in one.
-  expect(posts[1]).toMatchObject({ WFHTTPBodyType: "Form" });
-  expect(JSON.stringify(posts[1].WFFormValues).match(/"WFItemType":\d/g)).toEqual(['"WFItemType":0']);
+  expect(posts.map((p) => JSON.stringify(p.WFHTTPHeaders).match(/"string":"(image\/jpeg|text\/markdown)"/)?.[1])).toEqual(["image/jpeg", "text/markdown"]);
+  // No form: a file field sends only the first item of a list, and a form of text fields only is urlencoded, which notefeed refuses.
+  expect(JSON.stringify(sc)).not.toContain("WFFormValues");
+});
+
+test("Add to Variable gets a variable, never a text with a variable in it (iOS adds nothing then)", () => {
+  for (const p of params("appendvariable")) expect(p.WFInput).toMatchObject({ WFSerializationType: "WFTextTokenAttachment" });
 });
 
 test("it builds into a property list that reads back the same", () => {
