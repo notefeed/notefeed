@@ -16,6 +16,8 @@ export const copyFor = (lang: string): Copy => COPIES[isLocale(lang) ? lang : DE
 
 // The cookie that keeps a language a person picked over what their browser asks for.
 export const LANG_COOKIE = "nf_lang";
+// The request header the proxy sets to the page's language, for server components (app/_lib/copy.ts). The proxy always sets it.
+export const LANG_HEADER = "x-notefeed-lang";
 
 // The language for a request: the picked one (the cookie) if the UI speaks it, else the best of Accept-Language
 // (q-values honoured, "de-AT" matches "de"), else the default.

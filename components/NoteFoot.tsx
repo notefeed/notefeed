@@ -3,13 +3,14 @@ import { DraftIcon, ReportIcon, ScheduledIcon, TagIcon } from "@/components/icon
 import { chip } from "@/components/styles";
 import { isDraft, isScheduled, type Note } from "@/backend";
 import { reportUrl } from "@/shared/report";
+import type { Copy } from "@/shared/copy";
 
 // The foot of a note's card, one line: its tags, which link to the list filtered by that tag (`${base}?tag=…`), then who
 // posted it, when, and the Report link. No header row: the title is the first thing in the card. `open`: in a list, the note's page,
 // which its time links to (ADR 0040), named by the note's title for a screen reader.
 // A note dated after now is scheduled, a draft (#265) is hidden until published: only its owner's pages get either, and its card says so first. These are server components,
 // so "now" is the server's alone and nothing differs at hydration.
-export function Foot({ note, base, when, open, report }: { note: Note; base: string; when: string; open?: string; report?: Report }) {
+export function Foot({ t, note, base, when, open, report }: { t: Copy; note: Note; base: string; when: string; open?: string; report?: Report }) {
   const at = (
     <time dateTime={note.date.toISOString()} className="tabular-nums">
       {when}
@@ -21,13 +22,13 @@ export function Foot({ note, base, when, open, report }: { note: Note; base: str
         {isDraft(note) && (
           <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[13px] text-carbon">
             <DraftIcon aria-hidden className="h-3 w-3" />
-            Draft
+            {t.noteFoot.draft}
           </span>
         )}
         {isScheduled(note) && (
           <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[13px] text-carbon">
             <ScheduledIcon aria-hidden className="h-3 w-3" />
-            Scheduled for {fullDate(note.date)}
+            {t.noteFoot.scheduledFor(fullDate(t, note.date))}
           </span>
         )}
         {note.tags.map((t) => (
@@ -45,27 +46,27 @@ export function Foot({ note, base, when, open, report }: { note: Note; base: str
           </>
         )}
         {open ? (
-          <Link href={open} data-open aria-label={`${note.title || "Note"}, ${when}`} className="rounded-full hover:text-carbon hover:underline">
+          <Link href={open} data-open aria-label={`${note.title || t.noteFoot.note}, ${when}`} className="rounded-full hover:text-carbon hover:underline">
             {at}
           </Link>
         ) : (
           at
         )}
-        <ReportLink note={note} report={report} />
+        <ReportLink t={t} note={note} report={report} />
       </div>
     </div>
   );
 }
 
 // A note's date and time, as its own page shows it. Times use the server's TZ (set TZ in compose.yaml).
-export const fullDate = (d: Date) => d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+export const fullDate = (t: Copy, d: Date) => d.toLocaleString(t.noteFoot.dateLocale, { dateStyle: "medium", timeStyle: "short" });
 
 // Where a reader reports a note (issue #154): the operator's URL template with the read id, never the feed name, so the link is the
 // same on the feed page and in the read-only view. `report` is unset while the instance has no template, or the feed no read link.
 export type Report = { template: string; readId: string };
 // None on a draft or a scheduled note (#327): no reader sees it, and the operator's link to it by the read id answers 404; whoever can
 // see it can remove it. It gets the link once readers see it.
-function ReportLink({ note, report }: { note: Note; report?: Report }) {
+function ReportLink({ t, note, report }: { t: Copy; note: Note; report?: Report }) {
   if (!report || isDraft(note) || isScheduled(note)) return null;
   return (
     <a
@@ -74,7 +75,7 @@ function ReportLink({ note, report }: { note: Note; report?: Report }) {
       className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-carbon"
     >
       <ReportIcon aria-hidden className="h-3.5 w-3.5" />
-      Report
+      {t.noteFoot.report}
     </a>
   );
 }

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { IDENTITY_COOKIE, SESSION_COOKIE, locked, noteOutcome, publicUrl, sessionOk } from "@/backend";
-import { LANG_COOKIE, negotiate } from "@/shared/copy";
+import { LANG_COOKIE, LANG_HEADER, negotiate } from "@/shared/copy";
 
 // Exactly one segment, after stripping one trailing slash. Kept percent-encoded: the route's
 // [feed] param is decoded by Next and the handler rejects anything outside FEED_RE ("a%2Fb" → "a/b" → 400).
@@ -27,7 +27,10 @@ function localized(req: NextRequest): NextResponse {
   const { pathname, search } = req.nextUrl;
   if (NOT_A_PAGE.test(pathname)) return NextResponse.next();
   const lang = negotiate(req.cookies.get(LANG_COOKIE)?.value, req.headers.get("accept-language"));
-  return NextResponse.rewrite(new URL(`/${lang}${pathname === "/" ? "" : pathname}${search}`, req.url));
+  // Also as a request header, for server components below a page that have no params of their own (app/_lib/copy.ts).
+  const headers = new Headers(req.headers);
+  headers.set(LANG_HEADER, lang);
+  return NextResponse.rewrite(new URL(`/${lang}${pathname === "/" ? "" : pathname}${search}`, req.url), { request: { headers } });
 }
 
 export function proxy(req: NextRequest) {

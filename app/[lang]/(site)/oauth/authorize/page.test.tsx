@@ -21,7 +21,9 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 const render = async (q: Record<string, string>) =>
-  renderToStaticMarkup(await AuthorizePage({ searchParams: Promise.resolve(q) } as PageProps<"/[lang]/oauth/authorize">));
+  renderToStaticMarkup(
+    await AuthorizePage({ params: Promise.resolve({ lang: "en" }), searchParams: Promise.resolve(q) } as PageProps<"/[lang]/oauth/authorize">),
+  );
 
 test("a failed sign-in shows its message without a password form", async () => {
   const html = await render({ error: "too_many_attempts", retry: "9" });

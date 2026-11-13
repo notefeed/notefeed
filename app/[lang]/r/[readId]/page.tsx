@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { copyFor } from "@/shared/copy";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -23,7 +24,8 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/r/[readId]
 
 // Like the RSS route: a malformed id is a 404, an unknown one an empty feed.
 export default async function ReadPage({ params, searchParams }: PageProps<"/[lang]/r/[readId]">) {
-  const { readId } = await params;
+  const { readId, lang } = await params;
+  const t = copyFor(lang);
   const { tag: tagParam } = await searchParams;
   const tag = typeof tagParam === "string" ? tagParam.toLowerCase() : undefined;
   const data = tag ? await getReadFeed(readId, tag) : await readFeed(readId);
@@ -54,7 +56,7 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/[la
       }
     >
       {notes.length === 0 ? (
-        <p className="text-muted">{tag ? "No notes with this tag." : "No notes yet."}</p>
+        <p className="text-muted">{tag ? t.readPage.noTagged : t.readPage.empty}</p>
       ) : (
         <NoteList
           notes={notes}

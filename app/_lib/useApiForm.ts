@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState, type FormEvent } from "react";
 import { setFeedImage } from "@/app/_lib/api";
 import { contentTypeOf, sniffImage } from "@/shared/images";
-import { errorMessage, imageErrorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { useCopy } from "@/components/CopyProvider";
+import type { Copy } from "@/shared/copy";
 
 type Result = { data?: unknown; error?: { code?: string; error?: string }; response?: Response };
 
@@ -18,10 +20,12 @@ type Result = { data?: unknown; error?: { code?: string; error?: string }; respo
 export function useApiForm(
   page: string,
   initialError?: string,
-  message: (code: unknown, retry?: unknown, detail?: string) => string | undefined = errorMessage,
+  given?: (code: unknown, retry?: unknown, detail?: string) => string | undefined,
   initialCode?: string,
 ) {
   const router = useRouter();
+  const t = useCopy();
+  const message = given ?? messagesFor(t).errorMessage;
   const [refusal, setRefusal] = useState<{ error?: string; code?: string }>({ error: initialError, code: initialError ? initialCode : undefined });
   const setError = useCallback(
     (next?: string | ((shown: string | undefined) => string | undefined)) => setRefusal((r) => ({ error: typeof next === "function" ? next(r.error) : next })),
@@ -41,7 +45,7 @@ export function useApiForm(
       const code = error?.code ?? "unknown";
       setRefusal({ error: message(code, response.headers.get("retry-after"), error?.error), code });
     } catch {
-      setError("Could not reach notefeed. Check your connection and try again.");
+      setError(t.form.unreachable);
     }
     setPending(false);
   }
@@ -75,7 +79,7 @@ export async function multipartBody(text: string | undefined, pictures: { token:
 export const multipart = (form: FormData) => ({ body: form as never });
 
 // The feed's own title image (#310): PUT /api/v1/feeds/<feed>/image, so it is no post. Returns its file name, for the settings form.
-export async function putFeedImage(feed: string, file: File): Promise<{ file: string } | { error: string }> {
+export async function putFeedImage(t: Copy, feed: string, file: File): Promise<{ file: string } | { error: string }> {
   try {
     const { data, error, response } = await setFeedImage({
       baseUrl: window.location.origin,
@@ -86,9 +90,11 @@ export async function putFeedImage(feed: string, file: File): Promise<{ file: st
     if (!response) throw new Error("no response");
     if (response.ok && data?.image_url) return { file: data.image_url.split("/").at(-1)! };
     return {
-      error: imageErrorMessage((error as { code?: string } | undefined)?.code ?? "unknown", response.headers.get("retry-after")) ?? "Something went wrong.",
+      error:
+        messagesFor(t).imageErrorMessage((error as { code?: string } | undefined)?.code ?? "unknown", response.headers.get("retry-after")) ??
+        t.errors.somethingWrong,
     };
   } catch {
-    return { error: "Could not reach notefeed. Check your connection and try again." };
+    return { error: t.form.unreachable };
   }
 }

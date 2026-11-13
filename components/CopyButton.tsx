@@ -3,9 +3,12 @@
 import { CopyIcon, DoneIcon } from "@/components/icons";
 import { useState } from "react";
 import { copyText } from "@/components/copy";
+import { useCopy } from "@/components/CopyProvider";
 
 // `compact`: the icon alone, named by `label` for screen readers.
-export function CopyButton({ text, compact = false, label = "Copy" }: { text: string; compact?: boolean; label?: string }) {
+export function CopyButton({ text, compact = false, label: given }: { text: string; compact?: boolean; label?: string }) {
+  const t = useCopy().copyButton;
+  const label = given ?? t.copy;
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const copy = () =>
     copyText(text).then(
@@ -18,7 +21,7 @@ export function CopyButton({ text, compact = false, label = "Copy" }: { text: st
       <button
         type="button"
         onClick={copy}
-        aria-label={state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : label}
+        aria-label={state === "copied" ? t.copied : state === "failed" ? t.failed : label}
         title={label}
         className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink hover:bg-surface"
       >
@@ -32,7 +35,7 @@ export function CopyButton({ text, compact = false, label = "Copy" }: { text: st
       className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-sm font-bold text-ink hover:bg-rule/60"
     >
       {icon}
-      <span aria-live="polite">{state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy"}</span>
+      <span aria-live="polite">{state === "copied" ? t.copied : state === "failed" ? t.failed : t.copy}</span>
     </button>
   );
 }

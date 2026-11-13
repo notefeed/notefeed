@@ -5,7 +5,8 @@ import { useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode 
 import { deleteFeed, updateFeed } from "@/app/_lib/api";
 import { danger, field, primary, secondary } from "@/components/styles";
 import { DisclosureRow, FieldRow, Group } from "@/components/SettingsRows";
-import { feedDetailsErrorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { useCopy } from "@/components/CopyProvider";
 import { putFeedImage, useApiForm } from "@/app/_lib/useApiForm";
 
 // A feed's title image, title and description, and deleting it: plain forms to POST /<feed>/details and /delete.
@@ -48,7 +49,9 @@ export function FeedDetails({
   error?: string;
 }) {
   const page = `/${feed}/settings`;
-  const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, feedDetailsErrorMessage);
+  const all = useCopy();
+  const t = all.feedDetails;
+  const { run, error, setError, pending, setPending, router } = useApiForm(page, initialError, messagesFor(all).feedDetailsErrorMessage);
   const [title, setTitle] = useState(savedTitle);
   const [description, setDescription] = useState(savedDescription);
   const [showSender, setShowSender] = useState(savedShowSender);
@@ -94,7 +97,7 @@ export function FeedDetails({
     setImageError(undefined);
     setPending(true);
     setUploading(true);
-    const up = await putFeedImage(feed, file); // the feed's own image, not a post (#310)
+    const up = await putFeedImage(all, feed, file); // the feed's own image, not a post (#310)
     setUploading(false);
     if ("error" in up) {
       setImageError(up.error);
@@ -123,17 +126,17 @@ export function FeedDetails({
 
   return (
     <div className="space-y-6 text-sm">
-      <Group id="profile" label="Profile">
+      <Group id="profile" label={t.profile}>
         {hydrated && (
           <DisclosureRow
             icon={<PictureIcon />}
-            label="Title image"
+            label={t.titleImage}
             value={
               imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={imageUrl} alt="Current title image" loading="lazy" className="h-8 w-8 rounded-full object-cover" />
+                <img src={imageUrl} alt={t.currentImage} loading="lazy" className="h-8 w-8 rounded-full object-cover" />
               ) : (
-                "None"
+                t.none
               )
             }
           >
@@ -142,7 +145,7 @@ export function FeedDetails({
               type="file"
               accept="image/png,image/jpeg,image/gif,image/webp"
               hidden
-              aria-label="Image for the feed header"
+              aria-label={t.imageForHeader}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 e.target.value = "";
@@ -152,7 +155,7 @@ export function FeedDetails({
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={pending} onClick={() => picker.current?.click()} className={secondary}>
                 <PictureIcon aria-hidden className="h-4 w-4" />
-                {uploading ? "Uploading…" : "Choose image"}
+                {uploading ? t.uploading : t.chooseImage}
               </button>
               {image && (
                 <button
@@ -162,17 +165,17 @@ export function FeedDetails({
                   className={`${secondary} bg-transparent font-normal text-muted`}
                 >
                   <CloseIcon aria-hidden className="h-4 w-4" />
-                  Remove image
+                  {t.removeImage}
                 </button>
               )}
             </div>
             <p role="alert" className="mt-2 text-error empty:hidden">
               {imageError}
             </p>
-            {images.length === 0 && <p className="mt-2 text-muted">Pictures posted to this feed can be picked here too.</p>}
+            {images.length === 0 && <p className="mt-2 text-muted">{t.pickHint}</p>}
             {images.length > 0 && (
               <>
-                <p className="mb-2 mt-4 text-muted">Or use one of this feed&apos;s images</p>
+                <p className="mb-2 mt-4 text-muted">{t.orUse}</p>
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
                   {images.map((i) => (
                     <button
@@ -180,7 +183,7 @@ export function FeedDetails({
                       type="button"
                       disabled={pending}
                       aria-pressed={image === i.file}
-                      aria-label={`Use ${i.title || i.file} as the title image`}
+                      aria-label={t.useAsTitle(i.title || i.file)}
                       onClick={() => save(undefined, { title, description, image: i.file, ...withSender })}
                       className={`overflow-hidden rounded-xl border-2 disabled:opacity-60 ${image === i.file ? "border-carbon" : "border-transparent hover:border-rule"}`}
                     >
@@ -194,23 +197,23 @@ export function FeedDetails({
           </DisclosureRow>
         )}
         <form id="feed-details-form" method="post" action={`/${feed}/details`} onSubmit={(e) => save(e)} className="divide-y divide-rule">
-          <FieldRow icon={<TitleIcon />} label="Title" htmlFor="feed-title">
+          <FieldRow icon={<TitleIcon />} label={t.title} htmlFor="feed-title">
             <input
               id="feed-title"
               name="title"
               maxLength={100}
-              placeholder="Title"
+              placeholder={t.title}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className={field}
             />
           </FieldRow>
-          <FieldRow icon={<DescriptionIcon />} label="Description" htmlFor="feed-description">
+          <FieldRow icon={<DescriptionIcon />} label={t.description} htmlFor="feed-description">
             <input
               id="feed-description"
               name="description"
               maxLength={500}
-              placeholder="Description"
+              placeholder={t.description}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className={field}
@@ -222,7 +225,7 @@ export function FeedDetails({
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
                 <SenderIcon aria-hidden className="h-[18px] w-[18px]" />
               </span>
-              <span className="min-w-0 flex-1 text-[15px]">Show who posted</span>
+              <span className="min-w-0 flex-1 text-[15px]">{t.showSender}</span>
               <input type="checkbox" name="show_sender" checked={showSender} onChange={(e) => setShowSender(e.target.checked)} className="peer sr-only" />
               <span
                 aria-hidden
@@ -232,19 +235,19 @@ export function FeedDetails({
           )}
           <div className="flex justify-end px-4 py-3">
             <button type="submit" disabled={pending} className={primary}>
-              Save changes
+              {t.save}
             </button>
           </div>
         </form>
       </Group>
 
-      <Group id="sharing" label="Sharing">
+      <Group id="sharing" label={t.sharing}>
         {readIdChoice !== "fixed" && readId && (
-          <DisclosureRow icon={<ReadIdIcon />} label="Read id" value={<code className="font-mono">{readId}</code>} open={!!initialError}>
+          <DisclosureRow icon={<ReadIdIcon />} label={t.readId} value={<code className="font-mono">{readId}</code>} open={!!initialError}>
             {readIdChoice === "custom" && (
               <>
                 <label htmlFor="feed-read-id" className="mb-1 block text-muted">
-                  Read id
+                  {t.readId}
                 </label>
                 <input
                   id="feed-read-id"
@@ -263,7 +266,7 @@ export function FeedDetails({
             <div className="flex flex-wrap gap-2">
               {readIdChoice === "custom" && (
                 <button type="submit" form="feed-details-form" disabled={pending} className={primary}>
-                  Use this read id
+                  {t.useReadId}
                 </button>
               )}
               <button
@@ -282,13 +285,12 @@ export function FeedDetails({
                 className={secondary}
               >
                 <NewReadIdIcon aria-hidden className="h-4 w-4" />
-                Generate a random one
+                {t.randomReadId}
               </button>
             </div>
             <p className="mt-2 text-muted">
-              The read id is in the read link and the RSS link. {readIdChoice === "custom" && "3 to 64 characters: a–z, 0–9, - and _. "}A short, readable one
-              can be guessed: protect the feed with a password if that matters. The old link stops showing this feed and may later show another one. Image links
-              in your notes that are relative follow the new id; full URLs don&apos;t, and you change those yourself.
+              {t.readIdHint} {readIdChoice === "custom" && t.readIdRule}
+              {t.readIdMore}
             </p>
           </DisclosureRow>
         )}
@@ -296,26 +298,25 @@ export function FeedDetails({
       </Group>
 
       {posting && (
-        <Group id="posting" label="Posting">
+        <Group id="posting" label={t.posting}>
           {posting}
         </Group>
       )}
 
       {children}
 
-      <Group id="danger" label="Danger zone">
+      <Group id="danger" label={t.danger}>
         {renamable && (
-          <DisclosureRow icon={<EditIcon />} label="Rename this feed" danger>
+          <DisclosureRow icon={<EditIcon />} label={t.rename} danger>
             <form method="post" action={`/${feed}/details`} onSubmit={rename}>
               <input type="hidden" name="title" value={title} />
               <input type="hidden" name="description" value={description} />
               <p className="text-muted">
-                The feed keeps its notes, settings, password, license and read link. The old name stops working at once, and a post to it later creates a new,
-                empty feed without an error: change it in scripts, CI secrets, <code className="font-mono">NOTEFEED_FEED</code>, AI agents and bookmarks before
-                they next run. Browsers that unlocked this feed unlock it again. A short name can be guessed: protect the feed with a password if that matters.
+                {t.renameIntro} <code className="font-mono">NOTEFEED_FEED</code>
+                {t.renameIntroEnd}
               </p>
               <label htmlFor="feed-new-name" className="mb-1 mt-3 block text-muted">
-                New name
+                {t.newName}
               </label>
               <input
                 id="feed-new-name"
@@ -332,16 +333,16 @@ export function FeedDetails({
               />
               <button type="submit" disabled={pending || (hydrated && (newName.trim() === "" || newName.trim() === feed))} className={danger}>
                 <EditIcon aria-hidden className="h-4 w-4" />
-                Rename feed
+                {t.renameFeed}
               </button>
             </form>
           </DisclosureRow>
         )}
-        <DisclosureRow icon={<DeleteIcon />} label="Delete this feed" danger>
+        <DisclosureRow icon={<DeleteIcon />} label={t.delete} danger>
           <form method="post" action={`/${feed}/delete`} onSubmit={remove}>
-            <p className="text-muted">This deletes the feed and all its notes. It can&apos;t be undone. Type the feed&apos;s name to confirm.</p>
+            <p className="text-muted">{t.deleteIntro}</p>
             <label htmlFor="feed-confirm" className="mb-1 mt-3 block text-muted">
-              Feed name
+              {t.feedName}
             </label>
             <input
               id="feed-confirm"
@@ -355,7 +356,7 @@ export function FeedDetails({
             />
             <button type="submit" disabled={pending || (hydrated && confirm !== feed)} className={danger}>
               <DeleteIcon aria-hidden className="h-4 w-4" />
-              Delete feed
+              {t.deleteFeed}
             </button>
           </form>
         </DisclosureRow>

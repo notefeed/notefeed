@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - The roadmap is `docs/roadmap.yml` (rendered on `docs/roadmap.md`): the pull request that finishes or changes a step updates it.
 - API first and AI-native (V11): everything the web UI can do is also in the REST API, both client packages and the MCP server, and the MCP tools matter most. A feature only the UI has is a gap.
 - Use the words in `GLOSSARY.md`, not its _Avoid_ ones.
+- Every word of the UI is in `shared/copy/` (one module per language, English the reference; lint refuses text in JSX). Pages live under `app/[lang]`, which the proxy adds in a rewrite, so no URL carries the language (Next's i18n guide).
 
 ## Production (notefeed.me)
 

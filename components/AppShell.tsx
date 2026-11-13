@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { serverCopy } from "@/app/_lib/copy";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { ExpandIcon, ExternalIcon, InfoIcon, NewFeedIcon, SignOutIcon } from "@/components/icons";
@@ -18,6 +19,7 @@ import { card, iconButton, sectionLabel } from "@/components/styles";
 // get no switcher.
 // `docked`: `about` is fixed to the bottom of a phone's screen (the note's actions), so its area takes no room there.
 export async function AppShell({ feed, about, docked = false, children }: { feed?: string; about?: ReactNode; docked?: boolean; children: ReactNode }) {
+  const t = await serverCopy();
   await connection(); // the footer looks for the operator's files on every request
   const loggedIn = await hasSession();
   const links = await footerLinks();
@@ -25,11 +27,11 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
     <div className="shell min-h-dvh pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:px-6">
       <TopBar feed={feed} links={links} loggedIn={loggedIn} />
 
-      <aside aria-label="Feeds" className="sticky top-0 hidden h-dvh flex-col self-start py-6 [grid-area:nav] lg:flex">
+      <aside aria-label={t.shell.feeds} className="sticky top-0 hidden h-dvh flex-col self-start py-6 [grid-area:nav] lg:flex">
         <Logo wordmark />
         {feed !== undefined && (
           <>
-            <p className={`${sectionLabel} mt-8 px-2`}>Your feeds</p>
+            <p className={`${sectionLabel} mt-8 px-2`}>{t.shell.yourFeeds}</p>
             <div className="mt-2 min-h-0 overflow-y-auto">
               <RememberedFeedLinks current={feed} />
             </div>
@@ -39,7 +41,7 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-carbon text-on-carbon">
             <NewFeedIcon aria-hidden className="h-[18px] w-[18px]" />
           </span>
-          Open or create a feed
+          {t.shell.openOrCreate}
         </Link>
         <div className="mt-auto flex items-center gap-1 border-t border-rule pt-3">
           <InfoMenu links={links} loggedIn={false} up />
@@ -68,9 +70,10 @@ export async function hasSession() {
   return locked() && sessionOk(jar.get(SESSION_COOKIE)?.value, jar.get(IDENTITY_COOKIE)?.value);
 }
 
-function Logo({ wordmark = false }: { wordmark?: boolean }) {
+async function Logo({ wordmark = false }: { wordmark?: boolean }) {
+  const t = await serverCopy();
   return (
-    <Link href="/" className="inline-flex shrink-0 items-center gap-2.5 px-2" aria-label="notefeed home">
+    <Link href="/" className="inline-flex shrink-0 items-center gap-2.5 px-2" aria-label={t.errorPage.home}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/icon.svg" alt="" className="h-8 w-8" />
       {wordmark && <span className="text-xl font-bold tracking-tight">notefeed</span>}
@@ -78,12 +81,13 @@ function Logo({ wordmark = false }: { wordmark?: boolean }) {
   );
 }
 
-function LogOutButton({ className }: { className: string }) {
+async function LogOutButton({ className }: { className: string }) {
+  const t = await serverCopy();
   return (
     <form method="post" action="/logout">
       <button type="submit" className={className}>
         <SignOutIcon aria-hidden className="h-4 w-4" />
-        Log out
+        {t.shell.logOut}
       </button>
     </form>
   );
@@ -111,11 +115,12 @@ function TopBar({
 }
 
 // The feed switcher: the remembered feeds in a sheet, and a field to open another one (a plain GET form to the start page).
-function FeedSwitcher({ feed }: { feed: string }) {
+async function FeedSwitcher({ feed }: { feed: string }) {
+  const t = (await serverCopy()).shell;
   return (
     <Disclosure
       sheet
-      label="Switch feed"
+      label={t.switchFeed}
       className="min-w-0"
       summaryClassName="flex min-w-0 items-center gap-1.5 rounded-full border border-rule bg-surface-2 py-1.5 pl-3 pr-2"
       summary={
@@ -129,12 +134,12 @@ function FeedSwitcher({ feed }: { feed: string }) {
         <div className="flex justify-center pb-2">
           <span className="h-1 w-10 rounded-full bg-rule" />
         </div>
-        <p className="px-2 text-[17px] font-bold">Your feeds</p>
-        <p className="mb-3 px-2 text-[13px] text-muted">Remembered on this device.</p>
+        <p className="px-2 text-[17px] font-bold">{t.yourFeeds}</p>
+        <p className="mb-3 px-2 text-[13px] text-muted">{t.remembered}</p>
         <RememberedFeedLinks current={feed} />
         <form method="get" action="/" className="mt-4 flex gap-2 px-2">
           <label htmlFor="switch-feed" className="sr-only">
-            Open a feed by name
+            {t.openByName}
           </label>
           <input
             id="switch-feed"
@@ -143,11 +148,11 @@ function FeedSwitcher({ feed }: { feed: string }) {
             autoCapitalize="none"
             autoComplete="off"
             spellCheck={false}
-            placeholder="Open a feed by name"
+            placeholder={t.openByName}
             className="min-w-0 flex-1 rounded-full border border-rule bg-surface-2 px-4 py-2 font-mono text-sm focus:border-carbon focus:outline-none"
           />
           <button type="submit" className="rounded-full bg-carbon px-4 py-2 font-bold text-on-carbon">
-            Open
+            {t.open}
           </button>
         </form>
       </div>
@@ -157,7 +162,7 @@ function FeedSwitcher({ feed }: { feed: string }) {
 
 // ⓘ: the product links and the operator's legal pages, and "Log out" on a locked instance. On the phone's top bar of a
 // feed's pages, and on every plain page (app/(site)/layout.tsx). `up`: at the foot of the left column, labelled, opening upwards.
-export function InfoMenu({
+export async function InfoMenu({
   links,
   loggedIn,
   up = false,
@@ -166,6 +171,7 @@ export function InfoMenu({
   loggedIn: boolean;
   up?: boolean;
 }) {
+  const t = (await serverCopy()).shell;
   const row = "flex items-center gap-3 px-3 py-2.5 text-[15px] text-ink hover:bg-surface-2";
   const item = (l: FooterLink) =>
     l.external ? (
@@ -180,7 +186,7 @@ export function InfoMenu({
     );
   return (
     <Disclosure
-      label="About and legal"
+      label={t.aboutAndLegal}
       className="relative"
       summaryClassName={
         up ? "inline-flex items-center gap-2 rounded-full px-2 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-ink" : `${iconButton} text-muted`
@@ -189,7 +195,7 @@ export function InfoMenu({
         up ? (
           <>
             <InfoIcon aria-hidden className="h-5 w-5" />
-            About &amp; legal
+            {t.aboutShort}
           </>
         ) : (
           <InfoIcon aria-hidden className="h-5 w-5" />

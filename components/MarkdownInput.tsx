@@ -4,7 +4,8 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore, type Clipboard
 import { CloseIcon, PictureIcon, PreviewIcon, WriteIcon } from "@/components/icons";
 import { NoteView } from "@/components/NoteView";
 import { type Pending, addPending, removeReference } from "@/components/pendingFiles";
-import { IMAGES_OFF, TOO_MANY_PICTURES } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { useCopy } from "@/components/CopyProvider";
 
 const ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
 
@@ -58,6 +59,9 @@ export function MarkdownInput({
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const all = useCopy();
+  const t = all.markdownInput;
+  const { IMAGES_OFF, TOO_MANY_PICTURES } = messagesFor(all);
   const hydrated = useSyncExternalStore(
     () => () => {},
     () => true,
@@ -141,11 +145,11 @@ export function MarkdownInput({
         <div
           id={`${id}-preview`}
           role="region"
-          aria-label="Preview"
+          aria-label={t.preview}
           style={{ minHeight: height }}
           className={`box-border ${bare ? "py-1" : "rounded-xl border border-rule p-3"}`}
         >
-          {value.trim() ? <NoteView markdown={value} imageBase={imageBase} resolve={resolve} /> : <p className="text-muted">Nothing to preview.</p>}
+          {value.trim() ? <NoteView markdown={value} imageBase={imageBase} resolve={resolve} /> : <p className="text-muted">{t.nothingToPreview}</p>}
         </div>
       )}
       <textarea
@@ -167,7 +171,7 @@ export function MarkdownInput({
         className={`block w-full resize-y text-[15px] leading-relaxed text-ink placeholder:text-muted focus:outline-none ${plain} ${className}`}
       />
       {hydrated && pending.length > 0 && (
-        <ul aria-label="Images to post" className="mt-2 flex flex-wrap gap-2 text-sm">
+        <ul aria-label={t.imagesToPost} className="mt-2 flex flex-wrap gap-2 text-sm">
           {pending.map((p) => (
             <li key={p.key} className="relative" title={p.token}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -176,7 +180,7 @@ export function MarkdownInput({
               <button
                 type="button"
                 onClick={() => remove(p)}
-                aria-label={`Remove ${p.token}`}
+                aria-label={t.remove(p.token)}
                 className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper"
               >
                 <CloseIcon aria-hidden className="h-3.5 w-3.5" />
@@ -193,8 +197,8 @@ export function MarkdownInput({
             type="button"
             aria-pressed={previewing}
             aria-controls={`${id}-preview`}
-            aria-label="Preview"
-            title={previewing ? "Back to writing" : "Preview"}
+            aria-label={t.preview}
+            title={previewing ? t.backToWriting : t.preview}
             onClick={() => {
               if (!previewing) setHeight(area.current?.offsetHeight);
               setTab(previewing ? "write" : "preview");
@@ -213,7 +217,7 @@ export function MarkdownInput({
               accept={ACCEPT}
               multiple
               hidden
-              aria-label="Image file"
+              aria-label={t.imageFile}
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
                 e.target.value = ""; // the same file can be chosen again
@@ -223,8 +227,8 @@ export function MarkdownInput({
             <button
               type="button"
               onClick={() => picker.current?.click()}
-              aria-label="Add image"
-              title="Add image"
+              aria-label={t.addImage}
+              title={t.addImage}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full text-carbon hover:bg-surface-2"
             >
               <PictureIcon aria-hidden className="h-[18px] w-[18px]" />

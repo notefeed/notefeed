@@ -1,5 +1,8 @@
 import { expect, test } from "vitest";
-import { TOO_MANY_PICTURES, errorMessage, feedDetailsErrorMessage, feedErrorMessage, imageErrorMessage, noteErrorMessage, withPictures } from "./messages";
+import { en } from "@/shared/copy/en";
+import { messagesFor } from "./messages";
+
+const { TOO_MANY_PICTURES, errorMessage, feedDetailsErrorMessage, feedErrorMessage, imageErrorMessage, noteErrorMessage, withPictures } = messagesFor(en);
 
 test("an inherited property name in the URL is an unknown code, not a crash", () => {
   for (const fn of [errorMessage, noteErrorMessage, feedErrorMessage, feedDetailsErrorMessage])

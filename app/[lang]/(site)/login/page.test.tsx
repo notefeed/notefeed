@@ -18,7 +18,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
-const render = async (q: Record<string, string>) => renderToStaticMarkup(await LoginPage({ searchParams: Promise.resolve(q) } as PageProps<"/[lang]/login">));
+const render = async (q: Record<string, string>) =>
+  renderToStaticMarkup(await LoginPage({ params: Promise.resolve({ lang: "en" }), searchParams: Promise.resolve(q) } as PageProps<"/[lang]/login">));
 
 test("a failed sign-in shows its message without a password form", async () => {
   const html = await render({ error: "sign_in_failed" });

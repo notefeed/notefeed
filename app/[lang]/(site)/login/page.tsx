@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
-import { SENDER_NOTICE, errorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { copyFor } from "@/shared/copy";
 import { identityOn, locked, passwordSet, signInProviders, safeNext } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
 // A plain form: POST /login sets the session cookie and redirects to `next`, or back here with ?error=.
-export default async function LoginPage({ searchParams }: PageProps<"/[lang]/login">) {
+export default async function LoginPage({ params, searchParams }: PageProps<"/[lang]/login">) {
+  const t = copyFor((await params).lang);
+  const { SENDER_NOTICE, errorMessage } = messagesFor(t);
   const { next, error, retry } = await searchParams;
   if (!locked()) redirect(safeNext(next)); // an open instance has no password
   return (
@@ -20,7 +23,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/[lang]/log
                 href={`/api/oidc/start?provider=${encodeURIComponent(id)}&next=${encodeURIComponent(safeNext(next))}`}
                 className="inline-block rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon"
               >
-                {label ? `Sign in with ${label}` : "Sign in"}
+                {label ? t.login.signInWith(label) : t.login.signIn}
               </a>
             ))}
           </div>
@@ -31,7 +34,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/[lang]/log
         <form method="post" action="/login" className="max-w-sm">
           <input type="hidden" name="next" value={safeNext(next)} />
           <label htmlFor="password" className="mb-1 block text-sm text-muted">
-            Password
+            {t.login.password}
           </label>
           <div className="flex gap-2">
             <input
@@ -46,7 +49,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/[lang]/log
               className="min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none"
             />
             <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
-              Log in
+              {t.login.logIn}
             </button>
           </div>
           <p id="login-error" role="alert" className="mt-2 text-sm text-error">

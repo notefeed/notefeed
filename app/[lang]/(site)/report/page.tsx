@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { copyFor } from "@/shared/copy";
 import { notFound } from "next/navigation";
 import { reportEndpoint } from "@/backend";
 import { ReportForm, Sent, type ReportValues } from "@/components/ReportForm";
 
-export const metadata: Metadata = { title: "Report a note", robots: { index: false, follow: false } };
+export const generateMetadata = async ({ params }: PageProps<"/[lang]/report">): Promise<Metadata> => ({
+  title: copyFor((await params).lang).pages.report,
+  robots: { index: false, follow: false },
+});
 
 export const dynamic = "force-dynamic"; // the endpoint is read on every request
 
@@ -13,7 +17,8 @@ const all = (v: string | string[] | undefined): string[] => (Array.isArray(v) ? 
 // The built-in report page (issue #156): the "Report" link on a note opens it with the note's ids in the query, and
 // the form posts to the operator's inbox (NOTEFEED_REPORT_ENDPOINT). notefeed stores nothing (ADR 0026). Without an
 // endpoint there is no page.
-export default async function ReportPage({ searchParams }: PageProps<"/[lang]/report">) {
+export default async function ReportPage({ params, searchParams }: PageProps<"/[lang]/report">) {
+  const t = copyFor((await params).lang);
   const endpoint = reportEndpoint();
   if (!endpoint) notFound();
   const q = await searchParams;
@@ -33,17 +38,14 @@ export default async function ReportPage({ searchParams }: PageProps<"/[lang]/re
   const sent = one(q.sent) === "1";
   return (
     <main>
-      <h1 className="text-2xl font-bold tracking-tight">{sent ? "Report sent" : "Report a note"}</h1>
+      <h1 className="text-2xl font-bold tracking-tight">{sent ? t.reportPage.sent : t.pages.report}</h1>
       {sent ? (
         <div className="mt-4">
           <Sent />
         </div>
       ) : (
         <>
-          <p className="mt-1 mb-6 max-w-prose text-muted">
-            Tell the operator of this instance what is wrong with the note you came from. The report goes to the operator&apos;s inbox, not into notefeed, and
-            the operator decides what happens to the note.
-          </p>
+          <p className="mt-1 mb-6 max-w-prose text-muted">{t.reportPage.intro}</p>
           <ReportForm endpoint={endpoint} values={values} errors={errors} />
         </>
       )}

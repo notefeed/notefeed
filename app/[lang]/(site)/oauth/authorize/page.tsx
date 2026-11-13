@@ -1,13 +1,16 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { SENDER_NOTICE, errorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { copyFor } from "@/shared/copy";
 import { checkAuthorize, identityOn, locked, passwordSet, signInProviders } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
 // The OAuth login: the instance password lets an MCP client in. The form posts to /api/oauth/authorize,
 // which redirects back to the client with a code, or back here with ?error=.
-export default async function AuthorizePage({ searchParams }: PageProps<"/[lang]/oauth/authorize">) {
+export default async function AuthorizePage({ params: route, searchParams }: PageProps<"/[lang]/oauth/authorize">) {
+  const t = copyFor((await route).lang);
+  const { SENDER_NOTICE, errorMessage } = messagesFor(t);
   if (!locked()) notFound();
   const { error, retry, ...rest } = await searchParams;
   const params = new URLSearchParams();
@@ -25,8 +28,8 @@ export default async function AuthorizePage({ searchParams }: PageProps<"/[lang]
     );
   return (
     <main className="mt-[6vh]">
-      <h1 className="mb-2 text-xl font-bold tracking-tight">Connect {checked.clientName}</h1>
-      <p className="mb-6 text-muted">After login you&apos;ll be sent to {checked.redirectHost}.</p>
+      <h1 className="mb-2 text-xl font-bold tracking-tight">{t.login.connect(checked.clientName)}</h1>
+      <p className="mb-6 text-muted">{t.login.sentTo(checked.redirectHost)}</p>
       {identityOn() && (
         // A form POST, not a link: a cross-site GET must never start an MCP sign-in.
         <div className="mb-6 max-w-sm">
@@ -38,7 +41,7 @@ export default async function AuthorizePage({ searchParams }: PageProps<"/[lang]
                 ))}
                 <input type="hidden" name="provider" value={id} />
                 <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
-                  {label ? `Sign in with ${label}` : "Sign in"}
+                  {label ? t.login.signInWith(label) : t.login.signIn}
                 </button>
               </form>
             ))}
@@ -52,7 +55,7 @@ export default async function AuthorizePage({ searchParams }: PageProps<"/[lang]
             <input key={name} type="hidden" name={name} value={value} />
           ))}
           <label htmlFor="password" className="mb-1 block text-sm text-muted">
-            Password
+            {t.login.password}
           </label>
           <div className="flex gap-2">
             <input
@@ -67,7 +70,7 @@ export default async function AuthorizePage({ searchParams }: PageProps<"/[lang]
               className="min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none"
             />
             <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
-              Allow
+              {t.login.allow}
             </button>
           </div>
           <p id="login-error" role="alert" className="mt-2 text-sm text-error">

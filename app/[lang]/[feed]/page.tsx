@@ -13,7 +13,8 @@ import { ProtectFeed } from "@/components/ProtectFeed";
 import { Removed } from "@/components/Removed";
 import { UnlockForm } from "@/components/UnlockForm";
 import { curlFor } from "@/app/_lib/curl";
-import { createErrorMessage, errorMessage, feedErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { copyFor } from "@/shared/copy";
 import {
   checkFeed,
   feedCookieName,
@@ -64,7 +65,9 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/[feed]">):
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 
 export default async function FeedPage({ params, searchParams }: PageProps<"/[lang]/[feed]">) {
-  const { feed } = await params;
+  const { feed, lang } = await params;
+  const t = copyFor(lang);
+  const { createErrorMessage, errorMessage, feedErrorMessage, recoverErrorMessage } = messagesFor(t);
   const sp = await searchParams;
   const { posted, deleted, error, retry, form, tag: tagParam, share_title, share_text, share_url, shared: sharedPictures } = sp;
   const tag = typeof tagParam === "string" ? tagParam.toLowerCase() : undefined;
@@ -121,6 +124,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
         >
           {isNew && (
             <ProtectFeed
+              t={t}
               feed={feed}
               licensing={licensingOn()}
               licensePage={licensePage}
@@ -131,10 +135,10 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
       }
     >
       {exists && <RememberFeed feed={{ name: feed, title, image: data.imageUrl }} />}
-      {exists && <FreeTierNotice usage={await freeTier(feed)} licensePage={licensePage} />}
+      {exists && <FreeTierNotice t={t} usage={await freeTier(feed)} licensePage={licensePage} />}
       {deleted && (
         <p role="status" className="mb-4 text-sm text-carbon">
-          Note deleted.
+          {t.feedPage.noteDeleted}
         </p>
       )}
       <Compose
@@ -154,10 +158,10 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
         shared={one(sharedPictures) === "1"}
       />
       {tag && notes.length === 0 ? (
-        <p className="text-muted">No notes with this tag.</p>
+        <p className="text-muted">{t.feedPage.noTagged}</p>
       ) : notes.length === 0 ? (
         <section className={`${card} p-5 text-center text-muted`}>
-          <p>No notes yet. Write one, or post from a script:</p>
+          <p>{t.feedPage.empty}</p>
           <pre className="mt-3 overflow-x-auto rounded-xl bg-surface-2 p-3 text-left font-mono text-sm text-ink">{curlExample}</pre>
         </section>
       ) : (

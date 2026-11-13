@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FeedPasswordIcon } from "@/components/icons";
-import { PASSWORD_HINT } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import type { Copy } from "@/shared/copy";
 import { CreateFeedButton } from "@/components/CreateFeedButton";
 import { card, field, sectionLabel } from "@/components/styles";
 import { PASSWORD_PATTERN } from "@/shared/password";
@@ -13,16 +14,30 @@ export const COMPOSE_FORM = "compose";
 
 // `licensePage`: /license exists (ADR 0035), so the hint links to it. *Create feed without a note* makes the feed with these fields
 // right away (#295); where licenses are sold that needs the key. `error`: why the last try was refused.
-export function ProtectFeed({ feed, licensing, licensePage, error }: { feed: string; licensing: boolean; licensePage: boolean; error?: string }) {
+export function ProtectFeed({
+  t: all,
+  feed,
+  licensing,
+  licensePage,
+  error,
+}: {
+  t: Copy;
+  feed: string;
+  licensing: boolean;
+  licensePage: boolean;
+  error?: string;
+}) {
+  const t = all.protectFeed;
+  const { PASSWORD_HINT } = messagesFor(all);
   return (
     <section aria-labelledby="protect-feed" className={`${card} p-4 text-sm xl:p-5`}>
       <h2 id="protect-feed" className={`${sectionLabel} flex items-center gap-1.5`}>
         <FeedPasswordIcon aria-hidden className="h-3.5 w-3.5" />
-        Protect this feed
+        {t.title}
       </h2>
-      <p className="mt-1 text-[13px] text-muted">The first note creates the feed with this password, or create it now without a note.</p>
+      <p className="mt-1 text-[13px] text-muted">{t.intro}</p>
       <label htmlFor="new-feed-password" className="mb-1 mt-3 block text-muted">
-        Password (optional, protects this feed)
+        {t.password}
       </label>
       <input
         id="new-feed-password"
@@ -42,7 +57,7 @@ export function ProtectFeed({ feed, licensing, licensePage, error }: { feed: str
       {licensing && (
         <>
           <label htmlFor="new-feed-license-key" className="mb-1 mt-3 block text-muted">
-            License key (needed with a password)
+            {t.licenseKey}
           </label>
           <input
             id="new-feed-license-key"
@@ -56,23 +71,23 @@ export function ProtectFeed({ feed, licensing, licensePage, error }: { feed: str
             className={`${field} font-mono`}
           />
           <p id="new-feed-license-key-hint" className="mt-1 text-[13px] text-muted">
-            A feed password is for licensed feeds.{" "}
+            {t.keyHint}{" "}
             {licensePage ? (
               <>
                 <Link href="/license" className="text-carbon underline">
-                  Buy a license
+                  {t.buyLicense}
                 </Link>{" "}
-                and enter its key here
+                {t.andEnterKey}
               </>
             ) : (
-              "Enter a license key here"
+              t.enterKey
             )}
-            : the first note then creates the feed protected and licensed.
+            {t.keyHintEnd}
           </p>
         </>
       )}
       <CreateFeedButton feed={feed} />
-      {licensing && <p className="mt-1 text-[13px] text-muted">Creating a feed without a note needs a license key.</p>}
+      {licensing && <p className="mt-1 text-[13px] text-muted">{t.withoutNoteNeedsKey}</p>}
       <p role="alert" className="mt-2 text-[13px] text-error empty:hidden">
         {error}
       </p>

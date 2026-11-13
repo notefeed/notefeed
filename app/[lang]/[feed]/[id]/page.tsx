@@ -8,7 +8,8 @@ import { Removed } from "@/components/Removed";
 import { RemovedNote } from "@/components/RemovedNote";
 import { UnlockForm } from "@/components/UnlockForm";
 import { orDamaged } from "@/app/_lib/damaged";
-import { noteErrorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { copyFor } from "@/shared/copy";
 import { reportUrl } from "@/shared/report";
 import {
   feedCookieName,
@@ -29,7 +30,9 @@ import { attachmentLinks, kindOf } from "@/shared/notekinds";
 export const dynamic = "force-dynamic";
 
 export default async function NotePage({ params, searchParams }: PageProps<"/[lang]/[feed]/[id]">) {
-  const { feed, id } = await params;
+  const { feed, id, lang } = await params;
+  const t = copyFor(lang);
+  const { noteErrorMessage } = messagesFor(t);
   const { edited, error, retry } = await searchParams;
   if (await isRemovedFeed(feed)) {
     return (
@@ -92,7 +95,7 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[la
       <AppShell feed={feed} about={<NoteActionsBar />} docked>
         {edited === "1" && (
           <p role="status" className="mb-4 text-sm text-carbon">
-            Saved.
+            {t.notePage.saved}
           </p>
         )}
         <NoteArticle note={note} back={feedPath(feed)} imageBase={imageBase} backInBar link={link} />

@@ -3,7 +3,8 @@ import rehypeHighlight from "rehype-highlight";
 import type { PluggableList } from "unified";
 import { NoteView } from "@/components/NoteView";
 import type { Note } from "@/backend";
-import { kindOf, REMOVED_NOTE, type KindName } from "@/shared/notekinds";
+import { kindOf, type KindName } from "@/shared/notekinds";
+import type { Copy } from "@/shared/copy";
 import { extractTitle } from "@/shared/notes";
 import { cleanLine } from "@/shared/links";
 import { headingsOf, type Heading } from "@/shared/markdown";
@@ -11,7 +12,7 @@ import { headingsOf, type Heading } from "@/shared/markdown";
 // How each kind of note (shared/notekinds.ts) shows, in a list's card or on its own page (ADR 0038). A body draws content only;
 // where a click goes is decided by CardContent and PageContent below: `attachmentLink` is where an attachment inside it links.
 export type Place = "card" | "page";
-type ContentProps = { note: Note; place: Place; imageBase?: string; attachmentLink?: (src: string) => string | undefined };
+type ContentProps = { t: Copy; note: Note; place: Place; imageBase?: string; attachmentLink?: (src: string) => string | undefined };
 type Body = {
   /** The heading above the content, or none. */
   heading(note: Note, place: Place): string | undefined;
@@ -35,13 +36,13 @@ const SERVER_PLUGINS: PluggableList = [rehypeHighlight];
 
 const markdown: Body = {
   heading: (note) => ownTitle(note),
-  Content({ note, place, imageBase, attachmentLink }) {
+  Content({ t, note, place, imageBase, attachmentLink }) {
     const text = note.content ?? "";
     if (place === "page") {
       return (
         <>
-          <Contents headings={headingsOf(text)} />
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} anchors diagrams plugins={SERVER_PLUGINS} />
+          <Contents t={t} headings={headingsOf(text)} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} anchors={{ label: t.noteBody.anchor }} diagrams plugins={SERVER_PLUGINS} />
         </>
       );
     }
@@ -56,12 +57,12 @@ const markdown: Body = {
 };
 
 // A long note's table of contents on its own page (#243): its second- and third-level headings, once there are three or more.
-function Contents({ headings }: { headings: Heading[] }) {
+function Contents({ t, headings }: { t: Copy; headings: Heading[] }) {
   const listed = headings.filter((h) => h.depth === 2 || h.depth === 3);
   if (listed.length < 3) return null;
   return (
-    <nav aria-label="Contents" className="mb-5 rounded-xl border border-rule px-4 py-3 text-[14px]">
-      <p className="mb-1 font-bold">Contents</p>
+    <nav aria-label={t.noteBody.contents} className="mb-5 rounded-xl border border-rule px-4 py-3 text-[14px]">
+      <p className="mb-1 font-bold">{t.noteBody.contents}</p>
       <ol className="space-y-0.5">
         {listed.map((h) => (
           <li key={h.id} className={h.depth === 3 ? "pl-4" : ""}>
@@ -86,9 +87,9 @@ const image: Body = {
 // The operator's mark (#159): what happened, nothing of what was there. The terms link is the list's and the page's (NoteList, RemovedNote).
 const removed: Body = {
   heading: () => undefined,
-  Content: () => (
+  Content: ({ t }) => (
     <p role="status" className="text-muted">
-      {REMOVED_NOTE}
+      {t.removed.mark}
     </p>
   ),
 };
@@ -98,24 +99,34 @@ const BODIES: Record<KindName, Body> = { markdown, image, removed };
 // Where a click on a note goes, the same for every kind (ADR 0038, 0040): in a list, a click anywhere on a note's card opens that
 // note (components/NoteCard.tsx), so nothing in the card's content links but what its text links to; on a note's own page, an
 // attachment opens the attachment's own page.
-export function CardContent({ note, imageBase }: { note: Note; imageBase?: string }) {
+export function CardContent({ t, note, imageBase }: { t: Copy; note: Note; imageBase?: string }) {
   const body = BODIES[kindOf(note.type).name];
   const heading = body.heading(note, "card");
   return (
     <>
       {heading && <p className="text-[17px] font-bold tracking-tight">{heading}</p>}
-      <body.Content note={note} place="card" imageBase={imageBase} />
+      <body.Content t={t} note={note} place="card" imageBase={imageBase} />
     </>
   );
 }
 
-export function PageContent({ note, imageBase, attachments }: { note: Note; imageBase?: string; attachments?: (src: string) => string | undefined }) {
+export function PageContent({
+  t,
+  note,
+  imageBase,
+  attachments,
+}: {
+  t: Copy;
+  note: Note;
+  imageBase?: string;
+  attachments?: (src: string) => string | undefined;
+}) {
   const body = BODIES[kindOf(note.type).name];
   const heading = body.heading(note, "page");
   return (
     <>
       {heading && <h1 className="mb-2 text-xl font-bold tracking-tight">{heading}</h1>}
-      <body.Content note={note} place="page" imageBase={imageBase} attachmentLink={attachments} />
+      <body.Content t={t} note={note} place="page" imageBase={imageBase} attachmentLink={attachments} />
     </>
   );
 }

@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { AgentIcon, ApiIcon, BackIcon, CodeIcon, ExternalIcon, PhoneIcon, ReadLinkIcon, RssIcon, ScriptIcon } from "@/components/icons";
 import { claudeMcpFor, curlFor } from "@/app/_lib/curl";
-import { feedDetailsErrorMessage, feedErrorMessage, passwordNotice, protectErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { rich } from "@/components/rich";
+import { copyFor, type Copy } from "@/shared/copy";
 import { CopyButton } from "@/components/CopyButton";
 import { FeedDetails } from "@/components/FeedDetails";
 import { FeedSettings, ProtectFeed } from "@/components/FeedSettings";
@@ -37,10 +38,15 @@ import {
 } from "@/backend";
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Feed settings" };
+export const generateMetadata = async ({ params }: PageProps<"/[lang]/[feed]/settings">): Promise<Metadata> => ({
+  title: copyFor((await params).lang).settings.title,
+});
 
 export default async function SettingsPage({ params, searchParams }: PageProps<"/[lang]/[feed]/settings">) {
-  const { feed } = await params;
+  const { feed, lang } = await params;
+  const all = copyFor(lang);
+  const t = all.settings;
+  const { feedDetailsErrorMessage, feedErrorMessage, passwordNotice, protectErrorMessage, recoverErrorMessage } = messagesFor(all);
   const { saved, error, retry, form } = await searchParams;
   if (checkFeed(feed)) notFound();
   const access = await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value);
@@ -75,14 +81,14 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
     >
       <RememberFeed feed={{ name: feed, title, image: data.imageUrl }} />
       <div className="mb-5 flex items-center gap-2">
-        <Link href={feedPath(feed)} className={iconButton} aria-label="Back to the feed" title="Back to the feed">
+        <Link href={feedPath(feed)} className={iconButton} aria-label={t.back} title={t.back}>
           <BackIcon aria-hidden className="h-5 w-5" />
         </Link>
-        <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
+        <h2 className="text-2xl font-bold tracking-tight">{t.heading}</h2>
       </div>
       {saved === "1" && (
         <p role="status" className="mb-4 text-sm text-carbon">
-          Saved.
+          {t.saved}
         </p>
       )}
       <FeedDetails
@@ -104,109 +110,92 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
             {readUrl ? (
               <>
                 <div>
-                  <Row icon={<ReadLinkIcon />} label="Read link" hint="For sharing: shows the notes, not this feed's name, and can't post.">
-                    <CopyButton text={readUrl} compact label="Copy read link" />
+                  <Row icon={<ReadLinkIcon />} label={t.readLink} hint={t.readLinkHint}>
+                    <CopyButton text={readUrl} compact label={t.copyReadLink} />
                   </Row>
                   <code className="-mt-1 block break-all px-4 pb-3 pl-[3.75rem] font-mono text-[13px] text-carbon">{readUrl}</code>
                 </div>
-                <Row icon={<RssIcon />} label="RSS feed" hint={<code className="break-all font-mono">{rssUrl}</code>}>
-                  <CopyButton text={rssUrl!} compact label="Copy RSS link" />
+                <Row icon={<RssIcon />} label={t.rssFeed} hint={<code className="break-all font-mono">{rssUrl}</code>}>
+                  <CopyButton text={rssUrl!} compact label={t.copyRss} />
                 </Row>
-                <Row icon={<RssIcon />} label="Atom feed" hint={<code className="break-all font-mono">{atomUrl}</code>}>
-                  <CopyButton text={atomUrl!} compact label="Copy Atom link" />
+                <Row icon={<RssIcon />} label={t.atomFeed} hint={<code className="break-all font-mono">{atomUrl}</code>}>
+                  <CopyButton text={atomUrl!} compact label={t.copyAtom} />
                 </Row>
               </>
             ) : (
-              <Row icon={<ReadLinkIcon />} label="Read link" hint="Appears after the first note." />
+              <Row icon={<ReadLinkIcon />} label={t.readLink} hint={t.afterFirstNote} />
             )}
           </>
         }
         posting={
           <>
-            <DisclosureRow icon={<ApiIcon />} label="REST API">
-              <p className="mb-2 text-muted">
-                Everything the web page does, under <code className="font-mono">/api/v1</code>. This server&apos;s own spec:
-              </p>
+            <DisclosureRow icon={<ApiIcon />} label={t.restApi}>
+              <p className="mb-2 text-muted">{rich(t.restApiIntro, { code: "font-mono" })}</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`${base}/api/v1/openapi.json`}</pre>
-              <DocsLink href={`${DOCS}/integrations/api/`}>REST API</DocsLink>
+              <DocsLink t={t} href={`${DOCS}/integrations/api/`}>
+                {t.restApi}
+              </DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<ScriptIcon />} label="Post from a script">
+            <DisclosureRow icon={<ScriptIcon />} label={t.script}>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{curlFor(base, feed, access === "unlocked")}</pre>
-              <DocsLink href={`${DOCS}/using/posting/`}>Posting notes</DocsLink>
+              <DocsLink t={t} href={`${DOCS}/using/posting/`}>
+                {t.postingNotes}
+              </DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<CodeIcon />} label="Post from code">
-              <p className="mb-2 text-muted">The client libraries for Python and JavaScript take the server and the feed from the environment.</p>
+            <DisclosureRow icon={<CodeIcon />} label={t.code}>
+              <p className="mb-2 text-muted">{t.codeIntro}</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`pip install notefeed\nnpm install notefeed`}</pre>
-              <DocsLink href={`${DOCS}/integrations/clients/`}>Client libraries</DocsLink>
+              <DocsLink t={t} href={`${DOCS}/integrations/clients/`}>
+                {t.clientLibraries}
+              </DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<PhoneIcon />} label="Share from an iPhone">
-              <p className="mb-2 text-muted">
-                A ready-made Shortcut puts <strong className="text-ink">Send to notefeed</strong> in the iPhone&apos;s share sheet: pictures, text and links you
-                share arrive as one note in this feed.
-              </p>
+            <DisclosureRow icon={<PhoneIcon />} label={t.iphone}>
+              <p className="mb-2 text-muted">{rich(t.iphoneIntro)}</p>
               <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
                 <li>
-                  On the iPhone, open this page in Safari and tap{" "}
+                  {t.iphoneOpen}{" "}
                   <a href={SHORTCUT_PATH} download="Send to notefeed.shortcut" className="text-carbon underline">
-                    Download the Shortcut
+                    {t.iphoneDownload}
                   </a>
-                  . Confirm with <strong className="text-ink">Download</strong>.
+                  {rich(t.iphoneConfirm)}
                 </li>
+                <li>{rich(t.iphoneOpenDownload)}</li>
                 <li>
-                  Open the download: tap the <strong className="text-ink">download arrow</strong> in Safari&apos;s address bar, then{" "}
-                  <strong className="text-ink">Downloads</strong>, then <strong className="text-ink">Send to notefeed</strong>. (Or in the Files app:{" "}
-                  <strong className="text-ink">Downloads</strong>, then the file.)
-                </li>
-                <li>
-                  The Shortcuts app opens. Tap <strong className="text-ink">Set Up Shortcut</strong> and answer its four questions:
+                  {rich(t.iphoneSetUp)}
                   <ul className="mt-1 list-disc space-y-1 pl-5">
+                    <li>{rich(t.iphoneAddress(base))}</li>
+                    <li>{rich(t.iphoneFeed(feed))}</li>
+                    <li>{t.iphoneFeedPassword}</li>
                     <li>
-                      the address: <code className="break-all font-mono">{base}</code>
-                    </li>
-                    <li>
-                      the feed name: <code className="break-all font-mono">{feed}</code>
-                    </li>
-                    <li>the feed&apos;s password (leave it empty for an open feed)</li>
-                    <li>
-                      the server password, which is optional:{" "}
-                      {locked() ? "this server has one, the one you signed in with" : "leave it empty, this server has none"}
+                      {t.iphoneServerPassword} {locked() ? t.iphoneLocked : t.iphoneOpen2}
                     </li>
                   </ul>
-                  Then tap <strong className="text-ink">Add Shortcut</strong>.
+                  {rich(t.iphoneAdd)}
                 </li>
-                <li>
-                  Share from any app (Photos, Notes, Safari …), scroll to the very bottom of the share sheet and tap{" "}
-                  <strong className="text-ink">Send to notefeed</strong>. The first time, iOS asks whether it may send to your notefeed address: tap{" "}
-                  <strong className="text-ink">Always Allow</strong>.
-                </li>
-                <li>
-                  For several feeds, add it once per feed and rename each: in the Shortcuts app, touch and hold it, then{" "}
-                  <strong className="text-ink">Rename</strong> (say, &ldquo;Send to {feed}&rdquo;).
-                </li>
+                <li>{rich(t.iphoneShare)}</li>
+                <li>{rich(t.iphoneSeveral(feed))}</li>
               </ol>
-              <DocsLink href={`${DOCS}/using/sharing/#iphone`}>Sharing</DocsLink>
+              <DocsLink t={t} href={`${DOCS}/using/sharing/#iphone`}>
+                {t.sharing}
+              </DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<PhoneIcon />} label="Share from Android">
-              <p className="mb-2 text-muted">
-                Installed as an app, notefeed is in Android&apos;s share sheet: pictures, text and links go into this feed&apos;s compose box, ready to post.
-              </p>
+            <DisclosureRow icon={<PhoneIcon />} label={t.android}>
+              <p className="mb-2 text-muted">{t.androidIntro}</p>
               <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
-                <li>
-                  On the phone, open this feed in <strong className="text-ink">Chrome</strong>, open Chrome&apos;s menu (<strong className="text-ink">⋮</strong>
-                  ) and tap <strong className="text-ink">Add to Home screen</strong> or <strong className="text-ink">Install app</strong>.
-                </li>
-                <li>Open notefeed once from the home screen, so the share sheet can hand pictures to it.</li>
-                <li>
-                  Share from any app (Photos, a browser …) and tap <strong className="text-ink">notefeed</strong>. Pick this feed,{" "}
-                  <code className="break-all font-mono">{feed}</code>, check what is in the compose box, then <strong className="text-ink">Post</strong>.
-                </li>
+                <li>{rich(t.androidInstall)}</li>
+                <li>{t.androidOnce}</li>
+                <li>{rich(t.androidShare(feed))}</li>
               </ol>
-              <DocsLink href={`${DOCS}/using/sharing/#android`}>Sharing</DocsLink>
+              <DocsLink t={t} href={`${DOCS}/using/sharing/#android`}>
+                {t.sharing}
+              </DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<AgentIcon />} label="Post from an AI agent">
-              <p className="mb-2 text-muted">Add notefeed to Claude Code as an MCP server; the agent then posts to this feed by its name.</p>
+            <DisclosureRow icon={<AgentIcon />} label={t.agent}>
+              <p className="mb-2 text-muted">{t.agentIntro}</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{claudeMcpFor(base)}</pre>
-              <DocsLink href={`${DOCS}/integrations/mcp/`}>MCP, and other clients</DocsLink>
+              <DocsLink t={t} href={`${DOCS}/integrations/mcp/`}>
+                {t.mcp}
+              </DocsLink>
             </DisclosureRow>
           </>
         }
@@ -228,10 +217,10 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
 
 const DOCS = "https://docs.notefeed.me";
 
-function DocsLink({ href, children }: { href: string; children: ReactNode }) {
+function DocsLink({ t, href, children }: { t: Copy["settings"]; href: string; children: string }) {
   return (
     <a href={href} className="mt-2 inline-flex items-center gap-1 text-carbon underline">
-      {children} in the docs
+      {t.inTheDocs(children)}
       <ExternalIcon aria-hidden className="h-3.5 w-3.5" />
     </a>
   );

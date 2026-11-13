@@ -1,3 +1,4 @@
+import { serverCopy } from "@/app/_lib/copy";
 import Link from "next/link";
 import { RandomNameIcon } from "@/components/icons";
 import { field, primary } from "@/components/styles";
@@ -5,14 +6,15 @@ import { field, primary } from "@/components/styles";
 // A plain GET form: the start page normalizes and checks the name, then redirects to /<name>.
 // Works without JavaScript. The shuffle link loads the start page again, with another suggested name.
 // `carry`: what was shared to notefeed, passed on to the feed (app/(site)/page.tsx).
-export function OpenFeed({ value, error, carry = [] }: { value: string; error?: string; carry?: [string, string][] }) {
+export async function OpenFeed({ value, error, carry = [] }: { value: string; error?: string; carry?: [string, string][] }) {
+  const t = (await serverCopy()).openFeed;
   return (
     <form method="get" action="/">
       {carry.map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
       <label htmlFor="feed" className="mb-1 block text-sm text-muted">
-        Feed name
+        {t.label}
       </label>
       <div className="flex gap-2">
         <input
@@ -31,14 +33,14 @@ export function OpenFeed({ value, error, carry = [] }: { value: string; error?: 
         <Link
           href="/"
           prefetch={false}
-          aria-label="Suggest another name"
-          title="Suggest another name"
+          aria-label={t.suggest}
+          title={t.suggest}
           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink hover:bg-rule/60"
         >
           <RandomNameIcon aria-hidden className="h-[18px] w-[18px]" />
         </Link>
         <button type="submit" className={primary}>
-          Open
+          {t.open}
         </button>
       </div>
       <p id="feed-error" role="alert" className="mt-2 text-sm text-error empty:hidden">

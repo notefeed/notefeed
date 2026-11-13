@@ -9,11 +9,12 @@ import { encodeHeaderValue } from "@/shared/headers";
 import { MarkdownInput } from "@/components/MarkdownInput";
 import { usePendingImages } from "@/components/usePendingImages";
 import { multipart, useApiForm } from "@/app/_lib/useApiForm";
-import { errorMessage, IMAGES_OFF, SENDER_NOTICE, TOO_MANY_PICTURES, withPictures } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { useCopy } from "@/components/CopyProvider";
 import { clearSharedFiles, readSharedFiles } from "@/app/_lib/sharedFiles";
 import { COMPOSE_FORM } from "@/components/ProtectFeed";
 import { addPending, removeReference, type Pending } from "@/components/pendingFiles";
-import { TAGS_HINT, TAGS_PATTERN } from "@/shared/tags";
+import { TAGS_PATTERN } from "@/shared/tags";
 
 // The compose box posts through the API client generated from openapi.json (the session cookie rides along same-origin) and
 // shows refusals inline: the text as a raw markdown post, or, with pictures dropped, pasted or picked (they wait in the box,
@@ -65,6 +66,9 @@ export function Compose({
   licensePage?: boolean;
 }) {
   const images = usePendingImages();
+  const all = useCopy();
+  const t = all.compose;
+  const { errorMessage, IMAGES_OFF, SENDER_NOTICE, TOO_MANY_PICTURES, withPictures } = messagesFor(all);
   const { run, error, code, setError, pending, router } = useApiForm(action, initialError, withPictures(errorMessage, images.pending.length > 0), errorCode);
   const [text, setText] = useState(initialText);
   // What the last post sent of the feed's protection, for the banner of a refusal.
@@ -195,7 +199,7 @@ export function Compose({
       {docked && narrow && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-surface pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] pt-2.5 lg:hidden">
           {images.pending.length > 0 && (
-            <ul aria-label="Photos to send" className="mb-2 flex gap-2 overflow-x-auto pt-1.5 pr-1.5">
+            <ul aria-label={t.photosToSend} className="mb-2 flex gap-2 overflow-x-auto pt-1.5 pr-1.5">
               {images.pending.map((p) => (
                 <li key={p.key} className="relative shrink-0" title={p.token}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -203,7 +207,7 @@ export function Compose({
                   <button
                     type="button"
                     onClick={() => removePhoto(p)}
-                    aria-label={`Remove ${p.token}`}
+                    aria-label={t.remove(p.token)}
                     className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper"
                   >
                     <CloseIcon aria-hidden className="h-3.5 w-3.5" />
@@ -220,7 +224,7 @@ export function Compose({
               capture="environment"
               multiple
               hidden
-              aria-label="Photo from the camera"
+              aria-label={t.cameraPhoto}
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
                 e.target.value = ""; // the same photo can be taken again
@@ -232,8 +236,8 @@ export function Compose({
             <button
               type="button"
               onClick={openSheet}
-              aria-label="Title, tags and pictures"
-              title="Title, tags and pictures"
+              aria-label={t.more}
+              title={t.more}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2"
             >
               <MoreIcon aria-hidden className="h-[22px] w-[22px]" />
@@ -241,8 +245,8 @@ export function Compose({
             <textarea
               ref={quick}
               rows={1}
-              aria-label="Quick note in markdown"
-              placeholder="Write a note…"
+              aria-label={t.quickNote}
+              placeholder={t.writeANote}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -254,8 +258,8 @@ export function Compose({
               <button
                 type="button"
                 onClick={() => camera.current?.click()}
-                aria-label="Take a photo"
-                title="Take a photo"
+                aria-label={t.takePhoto}
+                title={t.takePhoto}
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2"
               >
                 <CameraIcon aria-hidden className="h-[22px] w-[22px]" />
@@ -265,8 +269,8 @@ export function Compose({
               type="button"
               disabled={pending || empty}
               onClick={() => form.current?.requestSubmit()}
-              aria-label="Send note"
-              title="Send note"
+              aria-label={t.send}
+              title={t.send}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
             >
               <PostIcon aria-hidden className="h-[22px] w-[22px]" />
@@ -279,7 +283,7 @@ export function Compose({
         ref={form}
         id={COMPOSE_FORM}
         onSubmit={submit}
-        aria-label="New note"
+        aria-label={t.newNote}
         className={`${card} mb-6 px-4 pt-3 pb-2 focus-within:border-carbon/60 ${docked ? "max-lg:hidden" : ""} ${sheet ? "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-50 max-lg:mb-0 max-lg:max-h-[90dvh] max-lg:overflow-y-auto max-lg:rounded-b-none max-lg:shadow-sheet max-lg:pb-[max(0.5rem,env(safe-area-inset-bottom))]" : ""}`}
       >
         {sheet && (
@@ -287,8 +291,8 @@ export function Compose({
             <button
               type="button"
               onClick={close}
-              aria-label="Close"
-              title="Close"
+              aria-label={t.close}
+              title={t.close}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-2"
             >
               <CloseIcon aria-hidden className="h-5 w-5" />
@@ -300,11 +304,11 @@ export function Compose({
         <MarkdownInput
           id="markdown"
           name="markdown"
-          label="Note in markdown"
+          label={t.noteInMarkdown}
           value={text}
           onChange={setText}
           rows={sheet ? 6 : 3}
-          placeholder="Write a note in markdown…"
+          placeholder={t.writeInMarkdown}
           describedBy="compose-hint compose-error"
           pending={images.pending}
           onPendingChange={images.setPending}
@@ -315,7 +319,7 @@ export function Compose({
           above={
             <>
               <label htmlFor="note-title" className="sr-only">
-                Title (optional, otherwise taken from the text)
+                {t.titleLabel}
               </label>
               <input
                 id="note-title"
@@ -323,7 +327,7 @@ export function Compose({
                 type="text"
                 autoComplete="off"
                 maxLength={100}
-                placeholder="Title (optional)"
+                placeholder={t.titlePlaceholder}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className={`${bare} text-[17px] font-bold tracking-tight placeholder:font-normal`}
@@ -335,28 +339,25 @@ export function Compose({
               <div className="flex min-w-0 flex-1 basis-48 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 sm:max-w-sm">
                 <TagIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <label htmlFor="note-tags" className="sr-only">
-                  Tags (optional, separated by commas)
+                  {t.tagsLabel}
                 </label>
                 <input
                   id="note-tags"
                   name="tags"
                   type="text"
                   autoComplete="off"
-                  placeholder="Tags, e.g. ci, deploy"
+                  placeholder={t.tagsPlaceholder}
                   pattern={TAGS_PATTERN}
-                  title={TAGS_HINT}
+                  title={t.tagsHint}
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   className={`${bare} text-[13px]`}
                 />
               </div>
-              <div
-                className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1"
-                title="The note's date: an earlier time backdates it, a later one schedules it; empty is now"
-              >
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1" title={t.dateHint}>
                 <ScheduledIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <label htmlFor="note-date" className="sr-only">
-                  Date (optional; empty is now, a later time schedules the note)
+                  {t.dateLabel}
                 </label>
                 <input
                   id="note-date"
@@ -367,23 +368,20 @@ export function Compose({
                   className={`${bare} text-[13px] ${date ? "" : "text-muted"}`}
                 />
               </div>
-              <label
-                className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 text-[13px]"
-                title="A draft stays on this page: readers see it once it is published"
-              >
+              <label className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 text-[13px]" title={t.draftHint}>
                 <DraftIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <input id="note-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
-                Draft
+                {t.draft}
               </label>
             </div>
           }
         >
           <span id="compose-hint" className="ml-auto mr-2 hidden min-w-0 break-all text-[12px] text-muted sm:inline">
-            Markdown · Ctrl+Enter to post
+            {t.hint}
           </span>
-          <button type="submit" disabled={pending} aria-label="Post note" className={`${primary} max-sm:ml-auto`}>
+          <button type="submit" disabled={pending} aria-label={t.postNote} className={`${primary} max-sm:ml-auto`}>
             <PostIcon aria-hidden className="h-4 w-4" />
-            {pending ? "Posting…" : "Post"}
+            {pending ? t.posting : t.post}
           </button>
         </MarkdownInput>
         {sender && <p className="mt-2 text-sm text-muted">{SENDER_NOTICE}</p>}
@@ -413,13 +411,11 @@ export function LicenseNeeded({
   settingsHref?: string;
   licensePage: boolean;
 }) {
-  const what = password ? "A feed password needs a license." : "Pictures need a license.";
+  const t = useCopy().licenseNeeded;
+  const what = password ? t.password : t.pictures;
+  const enter = licensePage ? t.buyAndEnter : t.enterKey;
   const next =
-    isNew && password
-      ? keyGiven
-        ? `The license of the key you entered is not active any more: it has lapsed or was refunded.${licensePage ? " Buy a license and enter its key under Protect this feed." : ""}`
-        : `${licensePage ? "Buy a license and enter its key" : "Enter a license key"} under Protect this feed: the first note then creates the feed protected and licensed. A feed can only get a password when it is created.`
-      : `This feed is on the free tier. ${licensePage ? "Buy a license and enter its key" : "Enter a license key"} under License in the feed's settings.`;
+    isNew && password ? (keyGiven ? `${t.lapsed}${licensePage ? t.lapsedBuy : ""}` : `${enter}${t.underProtect}`) : `${t.freeTier} ${enter}${t.underLicense}`;
   return (
     <section role="alert" aria-labelledby="license-needed" className="mt-3 rounded-xl border border-error/40 bg-error/5 p-4 text-sm">
       <p id="license-needed" className="font-bold text-ink">
@@ -429,12 +425,12 @@ export function LicenseNeeded({
       <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-bold">
         {licensePage && (
           <Link href="/license" className="text-carbon underline">
-            Buy a license
+            {t.buy}
           </Link>
         )}
         {settingsHref && (
           <Link href={`${settingsHref}#license`} className="text-carbon underline">
-            Feed settings
+            {t.settings}
           </Link>
         )}
       </p>

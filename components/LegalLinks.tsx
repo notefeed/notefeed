@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { serverCopy } from "@/app/_lib/copy";
 import { hasLegalPage, licensePageOn, footerFeedLinks, runningVersion, supportEmail, type RunningVersion } from "@/backend";
 
 export type FooterLink = { href: string; label: string; external?: boolean };
@@ -7,7 +8,8 @@ export type FooterLink = { href: string; label: string; external?: boolean };
 // (backend/legal.ts), looked for on every request: a link only where there is a page; the license page only while
 // the instance sells licenses and has its license.md (ADR 0035); a Support link where the operator gave an address.
 export async function footerLinks(): Promise<{ product: FooterLink[]; legal: FooterLink[]; version: RunningVersion }> {
-  const [imprint, privacy, terms, license, feeds] = await Promise.all([
+  const [t, imprint, privacy, terms, license, feeds] = await Promise.all([
+    serverCopy(),
     hasLegalPage("imprint"),
     hasLegalPage("privacy"),
     hasLegalPage("terms"),
@@ -16,17 +18,17 @@ export async function footerLinks(): Promise<{ product: FooterLink[]; legal: Foo
   ]);
   return {
     product: [
-      { href: "https://docs.notefeed.me/", label: "Docs", external: true },
-      { href: "https://docs.notefeed.me/values/", label: "Values", external: true }, // what notefeed stands for (docs/values.md)
-      { href: "https://github.com/notefeed/notefeed", label: "GitHub", external: true },
-      ...(license ? [{ href: "/license", label: "License" }] : []),
+      { href: "https://docs.notefeed.me/", label: t.footer.docs, external: true },
+      { href: "https://docs.notefeed.me/values/", label: t.footer.values, external: true }, // what notefeed stands for (docs/values.md)
+      { href: "https://github.com/notefeed/notefeed", label: t.footer.github, external: true },
+      ...(license ? [{ href: "/license", label: t.pages.license }] : []),
       ...feeds,
     ],
     legal: [
-      ...(imprint ? [{ href: "/imprint", label: "Imprint" }] : []),
-      ...(privacy ? [{ href: "/privacy", label: "Data privacy" }] : []),
-      ...(terms ? [{ href: "/terms", label: "Terms" }] : []),
-      ...(supportEmail() ? [{ href: `mailto:${supportEmail()}`, label: "Support", external: true }] : []),
+      ...(imprint ? [{ href: "/imprint", label: t.pages.imprint }] : []),
+      ...(privacy ? [{ href: "/privacy", label: t.pages.privacy }] : []),
+      ...(terms ? [{ href: "/terms", label: t.pages.terms }] : []),
+      ...(supportEmail() ? [{ href: `mailto:${supportEmail()}`, label: t.footer.support, external: true }] : []),
     ],
     version: runningVersion(), // the version it runs (#306), under the links
   };

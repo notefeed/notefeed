@@ -1,17 +1,31 @@
 import { FeedPasswordIcon, LockedIcon } from "@/components/icons";
 import { DisclosureRow, Group, Row } from "@/components/SettingsRows";
 import { field, primary, secondary } from "@/components/styles";
-import { PASSWORD_HINT } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { serverCopy } from "@/app/_lib/copy";
 import { PASSWORD_PATTERN } from "@/shared/password";
 
 // Shown on a protected feed once unlocked: plain forms to POST /<feed>/access. `error`, `notice` (what a change just did, #296) and an
 // open `recover` open the password row. `recover` is set where licenses are sold: a browser that is still unlocked but whose owner
 // lost the password resets it with the feed's license key (ADR 0037, #297).
-export function FeedSettings({ feed, error, notice, recover }: { feed: string; error?: string; notice?: string; recover?: { open: boolean; error?: string } }) {
+export async function FeedSettings({
+  feed,
+  error,
+  notice,
+  recover,
+}: {
+  feed: string;
+  error?: string;
+  notice?: string;
+  recover?: { open: boolean; error?: string };
+}) {
   const action = `/${feed}/access`;
+  const all = await serverCopy();
+  const t = all.access;
+  const { PASSWORD_HINT } = messagesFor(all);
   return (
-    <Group id="access" label="Privacy & access">
-      <DisclosureRow icon={<FeedPasswordIcon />} label="Feed password" value="On" open={!!error || !!notice || !!recover?.open}>
+    <Group id="access" label={t.title}>
+      <DisclosureRow icon={<FeedPasswordIcon />} label={t.feedPassword} value={t.on} open={!!error || !!notice || !!recover?.open}>
         {notice && (
           <p role="status" className="mb-3 max-w-sm rounded-xl bg-carbon-soft px-3 py-2 text-carbon">
             {notice}
@@ -19,11 +33,11 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
         )}
         <form method="post" action={action} className="max-w-sm">
           <label htmlFor="current-password" className="mb-1 block text-muted">
-            Current password
+            {t.current}
           </label>
           <input id="current-password" name="current" type="password" autoComplete="current-password" required maxLength={256} className={`${field} mb-3`} />
           <label htmlFor="new-password" className="mb-1 block text-muted">
-            New password
+            {t.newPassword}
           </label>
           <input
             id="new-password"
@@ -45,26 +59,23 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button type="submit" name="action" value="change" className={primary}>
-              Change
+              {t.change}
             </button>
             <button type="submit" name="action" value="remove" formNoValidate className={`${secondary} bg-transparent font-normal text-muted`}>
-              Remove password
+              {t.remove}
             </button>
           </div>
-          <p className="mt-2 text-muted">Removing it needs the current password too.</p>
+          <p className="mt-2 text-muted">{t.removeNeedsCurrent}</p>
         </form>
         {recover && (
           <details className="mt-4 max-w-sm" open={recover.open}>
-            <summary className="cursor-pointer text-muted">Forgot the current password?</summary>
+            <summary className="cursor-pointer text-muted">{t.forgotCurrent}</summary>
             <form method="post" action={action} className="mt-3">
               <input type="hidden" name="action" value="recover" />
               <input type="hidden" name="from" value="settings" />
-              <p className="mb-3 text-muted">
-                Enter this feed&apos;s license key: it is in the payment provider&apos;s receipt e-mail and customer portal. Then choose a new password, or
-                leave it empty to remove the password.
-              </p>
+              <p className="mb-3 text-muted">{t.recoverIntro}</p>
               <label htmlFor="settings-recover-key" className="mb-1 block text-muted">
-                This feed&apos;s license key
+                {t.feedKey}
               </label>
               <input
                 id="settings-recover-key"
@@ -76,7 +87,7 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
                 className={`${field} mb-3 w-full font-mono`}
               />
               <label htmlFor="settings-recover-next" className="mb-1 block text-muted">
-                New password (empty removes it)
+                {t.newPasswordEmpty}
               </label>
               <input
                 id="settings-recover-next"
@@ -91,7 +102,7 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
                 className={`${field} mb-3 w-full`}
               />
               <button type="submit" className={secondary}>
-                Reset with license key
+                {t.resetWithKey}
               </button>
               <p id="settings-recover-error" role="alert" className="mt-2 text-error empty:hidden">
                 {recover.error}
@@ -100,10 +111,10 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
           </details>
         )}
       </DisclosureRow>
-      <Row icon={<LockedIcon />} label="This browser" hint="Asks for the password again here">
+      <Row icon={<LockedIcon />} label={t.thisBrowser} hint={t.asksAgain}>
         <form method="post" action={action}>
           <button type="submit" name="action" value="lock" className={secondary}>
-            Lock this browser
+            {t.lock}
           </button>
         </form>
       </Row>
@@ -113,17 +124,17 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
 
 // Shown on an open feed (ADR 0044): whoever has access to it, which is whoever knows its name, may give it a password, and so claim
 // it. Plain form to POST /<feed>/access. `error` opens the row.
-export function ProtectFeed({ feed, error }: { feed: string; error?: string }) {
+export async function ProtectFeed({ feed, error }: { feed: string; error?: string }) {
+  const all = await serverCopy();
+  const t = all.access;
+  const { PASSWORD_HINT } = messagesFor(all);
   return (
-    <Group id="access" label="Privacy & access">
-      <DisclosureRow icon={<FeedPasswordIcon />} label="Feed password" value="Off" open={!!error}>
+    <Group id="access" label={t.title}>
+      <DisclosureRow icon={<FeedPasswordIcon />} label={t.feedPassword} value={t.off} open={!!error}>
         <form method="post" action={`/${feed}/access`} className="max-w-sm">
-          <p className="mb-3 text-muted">
-            Anyone who knows this feed&apos;s name can read, post to and change it, and set this password too. A password stops that: from then on everyone who
-            posts, scripts included, needs it, and so does this page. The read link and RSS stay open.
-          </p>
+          <p className="mb-3 text-muted">{t.openIntro}</p>
           <label htmlFor="protect-password" className="mb-1 block text-muted">
-            Password
+            {t.password}
           </label>
           <input
             id="protect-password"
@@ -144,7 +155,7 @@ export function ProtectFeed({ feed, error }: { feed: string; error?: string }) {
             {error}
           </p>
           <button type="submit" name="action" value="protect" className={`${primary} mt-3`}>
-            Set password
+            {t.set}
           </button>
         </form>
       </DisclosureRow>

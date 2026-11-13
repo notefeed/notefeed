@@ -3,6 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { footerLinks } from "@/components/LegalLinks";
+import { en } from "@/shared/copy/en";
+
+// The footer's words without a request: English (app/_lib/copy.ts reads the proxy's header).
+vi.mock("@/app/_lib/copy", () => ({ serverCopy: async () => en }));
 
 // The license page's words, as the operator writes them (backend/licensepage.fixture.ts in short).
 const LICENSE = "---\nfree:\n  title: Free\n  price: 0\n  features: []\nplans:\n  features: []\n  button: Buy\n---\n";

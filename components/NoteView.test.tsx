@@ -46,7 +46,7 @@ test("a picture's size comes from its link's fragment, which is taken off; other
 
 test("on a note's page each heading has an id and a link to itself; in a card it has neither (#243)", () => {
   const md = "# Notes on `yaml`\n\n## Setup\n\n## Setup\n\n### Größe & Co.";
-  const page = renderToStaticMarkup(<NoteView markdown={md} anchors />);
+  const page = renderToStaticMarkup(<NoteView markdown={md} anchors={{ label: "Link to this section" }} />);
   expect([...page.matchAll(/<h\d id="([^"]+)"/g)].map((m) => m[1])).toEqual(["notes-on-yaml", "setup", "setup-1", "größe--co"]);
   expect(page).toContain('<a href="#setup-1" aria-label="Link to this section" class="anchor">#</a>');
   expect(renderToStaticMarkup(<NoteView markdown={md} />)).not.toMatch(/ id="|class="anchor"/);

@@ -39,7 +39,7 @@ export function NoteView({
   imageBase,
   resolve,
   link,
-  anchors = false,
+  anchors,
   plugins = [],
   diagrams = false,
 }: {
@@ -47,7 +47,8 @@ export function NoteView({
   imageBase?: string;
   resolve?: (src: string) => string | undefined;
   link?: (src: string) => string | undefined;
-  anchors?: boolean;
+  /** Headings get an id and a # link to themselves; the link's accessible name (#352). */
+  anchors?: { label: string };
   plugins?: PluggableList;
   diagrams?: boolean;
 }) {
@@ -57,7 +58,7 @@ export function NoteView({
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[imageSizes, ...(link ? [markPicturesInLinks] : []), ...(anchors ? [headingIds] : []), ...plugins]}
         components={{
-          ...(anchors && Object.fromEntries(HEADINGS.map((H) => [H, (props: HeadingProps) => <AnchoredHeading as={H} {...props} />]))),
+          ...(anchors && Object.fromEntries(HEADINGS.map((H) => [H, (props: HeadingProps) => <AnchoredHeading as={H} label={anchors.label} {...props} />]))),
           ...(diagrams && {
             pre: ({ node, children }) => {
               const source = mermaidSource(node as Hast | undefined);
@@ -97,12 +98,12 @@ const HEADINGS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
 type HeadingProps = { id?: string; children?: ReactNode };
 
 // A heading with a link to itself after its text, shown on hover or focus: the address to share a part of a long note.
-function AnchoredHeading({ as: H, id, children }: HeadingProps & { as: (typeof HEADINGS)[number] }) {
+function AnchoredHeading({ as: H, id, label, children }: HeadingProps & { as: (typeof HEADINGS)[number]; label: string }) {
   return (
     <H id={id} className="scroll-mt-20">
       {children}
       {id && (
-        <a href={`#${id}`} aria-label="Link to this section" className="anchor">
+        <a href={`#${id}`} aria-label={label} className="anchor">
           #
         </a>
       )}

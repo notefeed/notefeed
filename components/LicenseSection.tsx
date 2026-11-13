@@ -4,7 +4,8 @@ import { LicenseIcon } from "@/components/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { errorMessage } from "@/app/_lib/messages";
+import { messagesFor } from "@/app/_lib/messages";
+import { useCopy } from "@/components/CopyProvider";
 import { FreeTierBar, type FreeTierUsage } from "@/components/FreeTier";
 import { DisclosureRow, Group } from "@/components/SettingsRows";
 import { field, primary, secondary } from "@/components/styles";
@@ -14,6 +15,9 @@ import { field, primary, secondary } from "@/components/styles";
 // (ADR 0035), so the texts link to it.
 export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; freeTier: FreeTierUsage | null; licensePage: boolean }) {
   const licensed = freeTier === null;
+  const all = useCopy();
+  const t = all.licenseSection;
+  const { errorMessage } = messagesFor(all);
   const router = useRouter();
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
@@ -26,7 +30,7 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
     const res = await fetch(`/${encodeURIComponent(feed)}/license`, { method, headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) });
     if (res.ok) {
       setKey("");
-      setDone(method === "POST" ? "The license is on this feed now." : "The license is off this feed. Its key can be entered on another feed.");
+      setDone(method === "POST" ? t.on : t.off);
       router.refresh();
       return;
     }
@@ -34,56 +38,56 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
     setError(
       body.error && body.code === "invalid_body"
         ? `${body.error[0].toUpperCase()}${body.error.slice(1)}.`
-        : (errorMessage(body.code) ?? "Something went wrong."),
+        : (errorMessage(body.code) ?? all.errors.somethingWrong),
     );
   }
 
   return (
-    <Group id="license" label="License">
+    <Group id="license" label={t.title}>
       <DisclosureRow
         icon={<LicenseIcon />}
-        label="License"
+        label={t.title}
         value={
           licensed ? (
-            <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[12px] font-bold text-carbon">Licensed</span>
+            <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[12px] font-bold text-carbon">{t.licensed}</span>
           ) : (
-            `Free tier · ${Math.min(freeTier.notes, freeTier.cap)} of ${freeTier.cap} notes`
+            t.freeTier(Math.min(freeTier.notes, freeTier.cap), freeTier.cap)
           )
         }
       >
         {licensed ? (
           <>
             <p className="text-muted">
-              This feed has a license: no cap on stored notes, a feed password and images.
+              {t.hasLicense}
               {licensePage && (
                 <>
                   {" "}
-                  To cancel the subscription, change how you pay or get an invoice, go to the{" "}
+                  {t.manageBefore}{" "}
                   <Link href="/license" className="text-carbon underline">
-                    license page
+                    {t.managePage}
                   </Link>{" "}
-                  with your key.
+                  {t.manageAfter}
                 </>
               )}
             </p>
             <button type="button" onClick={() => send("DELETE")} className={`${secondary} mt-3`}>
-              Take the license off this feed
+              {t.takeOff}
             </button>
           </>
         ) : (
           <>
-            <FreeTierBar usage={freeTier} />
+            <FreeTierBar t={all} usage={freeTier} />
             <p className="mt-3 text-muted">
-              This feed is on the free tier: it keeps its newest {freeTier.cap} notes, and has no images and no feed password.{" "}
+              {t.freeIntro(freeTier.cap)}{" "}
               {licensePage ? (
                 <>
                   <Link href="/license" className="text-carbon underline">
-                    Buy a license
+                    {t.buy}
                   </Link>
-                  , then enter its key.
+                  {t.thenEnter}
                 </>
               ) : (
-                "Enter a license key to lift these limits."
+                t.enterToLift
               )}
             </p>
             <form
@@ -94,7 +98,7 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
               }}
             >
               <label htmlFor="license-key" className="sr-only">
-                License key
+                {t.key}
               </label>
               <input
                 id="license-key"
@@ -105,11 +109,11 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
                 autoComplete="off"
                 spellCheck={false}
                 aria-describedby="license-error"
-                placeholder="License key"
+                placeholder={t.key}
                 className={`${field} font-mono`}
               />
               <button type="submit" className={primary}>
-                Use key
+                {t.use}
               </button>
             </form>
           </>

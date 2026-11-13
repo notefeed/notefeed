@@ -1,4 +1,5 @@
 "use client";
+import { useCopy } from "@/components/CopyProvider";
 
 import { useState } from "react";
 import { secondary } from "@/components/styles";
@@ -8,6 +9,7 @@ import { secondary } from "@/components/styles";
 // unlocked for it when it has a password, or to the card with the reason it was refused.
 export function CreateFeedButton({ feed }: { feed: string }) {
   const [busy, setBusy] = useState(false);
+  const t = useCopy();
   const create = async () => {
     const value = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value ?? "";
     setBusy(true);
@@ -17,7 +19,7 @@ export function CreateFeedButton({ feed }: { feed: string }) {
   };
   return (
     <button type="button" onClick={create} disabled={busy} className={`${secondary} mt-3`}>
-      Create feed without a note
+      {t.createFeed.withoutNote}
     </button>
   );
 }

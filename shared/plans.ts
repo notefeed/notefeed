@@ -36,9 +36,12 @@ function money(format: Intl.NumberFormat, value: number): string {
 }
 
 /** "1.99 € per month": the amount in major units, by the currency's own number of digits. */
-export function formatPrice({ amount, currency, period }: Pick<Plan, "amount" | "currency" | "period">): string {
+export function formatPrice(
+  { amount, currency, period }: Pick<Plan, "amount" | "currency" | "period">,
+  perPeriod: (price: string, period: LicensePeriod) => string,
+): string {
   const format = new Intl.NumberFormat("en", { style: "currency", currency });
-  return `${money(format, amount / 10 ** (format.resolvedOptions().maximumFractionDigits ?? 2))} per ${period}`;
+  return perPeriod(money(format, amount / 10 ** (format.resolvedOptions().maximumFractionDigits ?? 2)), period);
 }
 
 /** The free tile's price from license.md: a bare number gets the plans' currency the way their prices show it ("0 €", "0.50 €"),
@@ -50,8 +53,8 @@ export function freePrice(price: string, currency: string | undefined): string {
 }
 
 /** "Save 16 %": what the yearly plan saves against twelve months, when both are sold in the same currency; otherwise nothing is claimed. */
-export function saving(monthly: Plan | undefined, yearly: Plan | undefined): string | undefined {
+export function saving(monthly: Plan | undefined, yearly: Plan | undefined, save: (percent: number) => string): string | undefined {
   if (!monthly || !yearly || monthly.currency !== yearly.currency || monthly.amount <= 0) return undefined;
   const percent = Math.floor((1 - yearly.amount / (12 * monthly.amount)) * 100);
-  return percent > 0 ? `Save ${percent} %` : undefined;
+  return percent > 0 ? save(percent) : undefined;
 }
