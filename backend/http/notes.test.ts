@@ -1,5 +1,4 @@
-import { mkdtemp, readdir, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE, SESSION_COOKIE, login } from "../auth";
@@ -18,8 +17,7 @@ const postNoteRoute = (req: Request, feed: string) => dispatch(req, ["feeds", fe
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-post-"));
-  process.env.DATA_DIR = dir;
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();

@@ -1,6 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
@@ -17,8 +15,7 @@ const supported = Number(process.versions.node.split(".")[0]) >= 22;
 
 let dir = "";
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-usage-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_METRICS", "1");
   vi.stubEnv("NOTEFEED_SECRET", "s".repeat(32));
   vi.stubEnv("NOTEFEED_RATE_LIMIT", "0");

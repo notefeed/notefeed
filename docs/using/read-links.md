@@ -18,7 +18,7 @@ flowchart LR
   readid -->|"/r/#lt;read id#gt;/feed.xml"| rss[RSS]
   readid -->|"/r/#lt;read id#gt;/atom.xml"| atom[Atom]
   readid -->|"/r/#lt;read id#gt;"| view[Read-only view]
-  readid -->|"/r/#lt;read id#gt;/#lt;file#gt;"| files[Pictures and files]
+  readid -->|"/r/#lt;read id#gt;/#lt;file#gt;"| files[Images and files]
 ```
 
 A read link that belongs to no feed answers with an empty feed, not an error, so nobody can probe which exist. A [deleted](feeds.md#feed-settings-in-the-api) feed's read link stays empty for good; a feed created later under the same name gets a new one.

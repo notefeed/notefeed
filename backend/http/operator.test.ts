@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { resetFeedsForTests } from "../feeds";
@@ -16,8 +15,7 @@ const node22 = Number(process.versions.node.split(".")[0]) >= 22; // better-sqli
 let root: string;
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "notefeed-operator-"));
-  vi.stubEnv("DATA_DIR", root);
+  root = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   vi.stubEnv("NOTEFEED_OPERATOR_TOKEN", TOKEN);
   vi.stubEnv("NOTEFEED_STORAGE", "sqlite");

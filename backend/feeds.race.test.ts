@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, expect, test, vi } from "vitest";
 
@@ -35,7 +34,7 @@ const { createNote, listNotes } = await import("./notes");
 let dir: string;
 let old: string;
 beforeEach(async () => {
-  dir = process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-race-"));
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   knobs.rename = "";
   knobs.readId = false;

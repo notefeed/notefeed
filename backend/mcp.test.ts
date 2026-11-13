@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { hasFeed, readIdOf, resetFeedsForTests } from "./feeds";
@@ -28,7 +27,7 @@ const V = "2026-07-28";
 const META = { "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" }, "io.modelcontextprotocol/clientCapabilities": {} };
 let dir: string;
 beforeEach(async () => {
-  dir = process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-mcp-"));
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();

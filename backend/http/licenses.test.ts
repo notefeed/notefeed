@@ -1,6 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { isLicensed, resetLicensesForTests } from "../licensing";
 import { resetFeedsForTests } from "../feeds";
@@ -18,8 +16,7 @@ const SECRET = "whsec-test";
 
 let dir = "";
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-licenses-http-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_STORAGE", "sqlite");
   vi.stubEnv("NOTEFEED_SECRET", "s".repeat(32));
   vi.stubEnv("NOTEFEED_RATE_LIMIT", "0");

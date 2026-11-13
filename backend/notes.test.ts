@@ -1,5 +1,4 @@
-import { mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { EmptyNoteError, InvalidBodyError, InvalidFeedError, NoteTooLargeError, ReservedFeedError } from "./errors";
@@ -30,8 +29,7 @@ import { storage } from "./storage";
 let root: string;
 let dir: string; // the "test" feed's directory
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "notefeed-"));
-  process.env.DATA_DIR = root;
+  root = process.env.DATA_DIR!;
   dir = join(root, "test");
 });
 

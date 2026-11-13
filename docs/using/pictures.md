@@ -40,10 +40,9 @@ sequenceDiagram
   participant N as notefeed
   C->>N: POST /#lt;feed#gt;: text + file parts + alt fields
   N->>N: check every part (type, size, names)
-  loop each picture
-    N->>N: shrink, strip metadata, store as a note of its own
-  end
-  N->>N: swap ![](name) for the stored file, append unmentioned pictures
+  N->>N: shrink every image, strip its metadata
+  N->>N: store each image as a note of its own
+  N->>N: swap ![](name) for the stored file, append unmentioned images
   N->>N: store the text note
   N-->>C: the text note + attachments
 ```

@@ -103,15 +103,15 @@ flowchart LR
 
 Any store that speaks S3 works, hosted (Hetzner, Scaleway, Cloudflare R2, AWS) or your own (MinIO, Garage). Create a private bucket and a key that may read, write and delete in it; objects are named by a random key, so the bucket shows neither feed names nor note ids.
 
-```yaml
-environment:
-  NOTEFEED_STORAGE: postgres
-  NOTEFEED_IMAGES: s3
-  NOTEFEED_S3_ENDPOINT: https://s3.example.com
-  NOTEFEED_S3_BUCKET: notefeed-images
-  NOTEFEED_S3_REGION: us-east-1
-  NOTEFEED_S3_ACCESS_KEY: <access key>
-  NOTEFEED_S3_SECRET_KEY: <secret key>
+```sh
+# .env
+NOTEFEED_STORAGE=postgres
+NOTEFEED_IMAGES=s3
+NOTEFEED_S3_ENDPOINT=https://s3.example.com
+NOTEFEED_S3_BUCKET=notefeed-images
+NOTEFEED_S3_REGION=us-east-1
+NOTEFEED_S3_ACCESS_KEY=<access key>
+NOTEFEED_S3_SECRET_KEY=<secret key>
 ```
 
 If the store is unreachable, pictures fail and text notes keep working. Going from `db` to `fs` or `s3` works at any time: old images stay where they are and are still served. Going between `fs` and `s3` strands the old images until they are [moved](#moving-images-between-stores).
@@ -125,9 +125,10 @@ How the keys wrap each other, from the key you keep down to what is stored; noth
 ```mermaid
 flowchart TB
   main["Main key: NOTEFEED_ENCRYPTION_KEY or OpenBao, never stored"] -->|wraps| dk["A data key per feed, stored with the feed"]
+  main -->|wraps| fk["The fingerprint key, stored in the database"]
   dk -->|"encrypts (AES-256-GCM)"| notes[Notes, metadata, settings, feed password]
   dk -->|encrypts| imgs[Image bytes, in the database or the image store]
-  names[Feed names and read ids] -->|stored as| fp[Fingerprints]
+  fk -->|"turns feed names and read ids into"| fp[Fingerprints]
 ```
 
 It needs a database backend; on the file system backend notefeed refuses to start with a key. While notefeed runs, it holds the key, so encryption at rest doesn't protect against someone on the running server.

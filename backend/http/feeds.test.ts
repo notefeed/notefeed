@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { readIdOf, resetFeedsForTests } from "../feeds";
@@ -11,7 +10,7 @@ import { rssRoute } from "./rss";
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-feeds-api-"));
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();

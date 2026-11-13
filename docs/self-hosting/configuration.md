@@ -84,19 +84,6 @@ See [Storage](storage.md).
 | `NOTEFEED_METRICS` | off | `1` turns on `GET /metrics`. See [Metrics](operating.md#metrics). |
 | `NOTEFEED_METRICS_TOKEN` | none | With metrics on, `/metrics` needs `Authorization: Bearer <token>`. Set one unless the proxy keeps `/metrics` private. |
 
-## Selling licenses
-
-What notefeed.me uses to sell [licenses](../hosted/licenses.md). Unset, as on any self-hosted instance: no licensing, every feature on and no free tier.
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `NOTEFEED_PAYMENT_PROVIDER` | none: off | `creem` sells licenses through Creem. Needs the three Creem settings, `PUBLIC_URL` and `NOTEFEED_LICENSE_FILE`. |
-| `NOTEFEED_CREEM_API_KEY`, `NOTEFEED_CREEM_PRODUCT_ID`, `NOTEFEED_CREEM_WEBHOOK_SECRET` | none | Creem's API key (`creem_test_…` for the sandbox), the monthly license's product and the webhook secret. |
-| `NOTEFEED_CREEM_PRODUCT_ID_YEARLY` | none | The yearly license's product, if one is sold. |
-| `NOTEFEED_LICENSE_FILE` | none | The license page's words, a Markdown file. |
-| `NOTEFEED_LICENSE_DB` | `DATA_DIR/licenses.db` | The SQLite file of the licenses, apart from the feeds' storage. |
-| `NOTEFEED_FREE_NOTE_CAP` | `1000` | Notes a feed without a license keeps; past it the oldest is dropped. |
-
 ## `PUBLIC_URL`
 
 When `PUBLIC_URL` is unset, notefeed builds links from the `Host` header over `http`; with `NOTEFEED_TRUST_PROXY=1` it uses the proxy's `X-Forwarded-Proto` and `X-Forwarded-Host` first.

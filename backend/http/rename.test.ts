@@ -1,6 +1,5 @@
 // Renaming a feed (#350, ADR 0054): PUT /feeds/{feed} with `name`. Everything goes with the feed; the old name is freed.
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { derivedReadId, hasFeed, readIdOf, resetFeedsForTests } from "../feeds";
@@ -10,7 +9,7 @@ import { API_PREFIX, dispatch } from "./api";
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-rename-"));
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL", "NOTEFEED_RESERVED_FEEDS", "NOTEFEED_RESERVED_PASSWORD"]) delete process.env[k];
   resetFeedsForTests();

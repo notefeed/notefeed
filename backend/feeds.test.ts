@@ -33,8 +33,7 @@ afterEach(() => restoreLog());
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-feeds-"));
-  process.env.DATA_DIR = dir;
+  dir = process.env.DATA_DIR!;
   delete process.env.NOTEFEED_SECRET;
   resetFeedsForTests();
 });

@@ -1,6 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { config } from "./config";
 import { AuthError, FeedExistsError, InvalidBodyError, LicenseRequiredError, NotFoundError, RateLimitedError, TooManyAttemptsError } from "./errors";
@@ -19,8 +17,7 @@ const supported = Number(process.versions.node.split(".")[0]) >= 22;
 
 let dir = "";
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-licensing-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_STORAGE", "sqlite");
   vi.stubEnv("NOTEFEED_SECRET", "s".repeat(32));
   vi.stubEnv("NOTEFEED_RATE_LIMIT", "0");

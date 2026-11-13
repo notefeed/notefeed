@@ -1,7 +1,4 @@
 import { createHash } from "node:crypto";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { IDENTITY_COOKIE, sessionOk } from "../auth";
 import { resetFeedsForTests } from "../feeds";
@@ -39,7 +36,6 @@ const stubImpl: typeof fetch = async (url) => {
 const fetchStub = vi.fn<typeof fetch>(stubImpl);
 
 beforeEach(async () => {
-  vi.stubEnv("DATA_DIR", await mkdtemp(join(tmpdir(), "notefeed-oidc-")));
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   vi.stubEnv("NOTEFEED_PASSWORD", "");
   vi.stubEnv("NOTEFEED_OIDC_ISSUER", ISS);

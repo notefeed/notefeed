@@ -28,10 +28,12 @@ flowchart TB
   report["Report: read id, note id, file"] --> op[Operator]
   op -->|"POST /api/operator/takedown"| scope{scope}
   scope -->|feed| tf["Tombstone for the name and read id: 410 for good"]
-  scope -->|note| tn["Tombstone for the post's notes"]
-  tf & tn --> gone[Notes and image bytes deleted]
-  gone --> block[Image hashes on the blocklist: 451 everywhere]
-  tn --> mark[A mark takes the post's place]
+  tf --> gonef[Notes and image bytes deleted]
+  gonef --> blockf[Image hashes on the blocklist: 451 everywhere]
+  scope -->|note| blockn[Image hashes on the blocklist: 451 everywhere]
+  blockn --> tn["Tombstone for the post's notes"]
+  tn --> gonen[Notes and image bytes deleted]
+  gonen --> mark[A mark takes the post's place]
 ```
 
 What happens:

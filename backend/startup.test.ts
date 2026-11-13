@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { hashPassword } from "./feedlock";
@@ -13,8 +12,7 @@ import { legalFileWarnings, logStartup, requireLicensePage, reservedFeedWarnings
 
 let dir: string;
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-startup-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   resetFeedsForTests();
 });

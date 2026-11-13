@@ -4,13 +4,13 @@ To put notefeed on the internet, run it behind a reverse proxy that handles HTTP
 
 On a public instance, always set these:
 
-```yaml
-environment:
-  PUBLIC_URL: https://notes.example.com   # links don't follow the client's Host header
-  NOTEFEED_TRUST_PROXY: "1"               # rate limits per client, not one shared bucket
-  # NOTEFEED_PASSWORD: ${NOTEFEED_PASSWORD}
-  # NOTEFEED_RESERVED_FEEDS: news,announcements   # operator-only feeds, see Configuration
-  # NOTEFEED_RESERVED_PASSWORD: ${NOTEFEED_RESERVED_PASSWORD}
+```sh
+# .env
+PUBLIC_URL=https://notes.example.com   # links don't follow the client's Host header
+NOTEFEED_TRUST_PROXY=1               # rate limits per client, not one shared bucket
+# NOTEFEED_PASSWORD=
+# NOTEFEED_RESERVED_FEEDS=news,announcements   # operator-only feeds, see Configuration
+# NOTEFEED_RESERVED_PASSWORD=
 ```
 
 ## Caddy

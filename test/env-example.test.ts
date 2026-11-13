@@ -4,7 +4,7 @@ import { expect, test } from "vitest";
 
 // Every setting the app reads is in .env.example, so an operator who copies it sees them all (the deployment convention).
 // Not settings, and so not listed: variables of tests and the build, the curl examples' and the CLI's own, ones only
-// read to warn that they are gone, and names that are not variables at all.
+// read to warn that they are gone, names that are not variables at all, and notefeed.me's selling.
 const NOT_SETTINGS = new Set([
   "NOTEFEED_COMMIT", // the build
   "NOTEFEED_VERSION", // the build
@@ -15,19 +15,28 @@ const NOT_SETTINGS = new Set([
   "NOTEFEED_LICENSE_PRICE_YEARLY", // removed, read only to warn
   "NOTEFEED_SHRINK_IMAGE_BYTES", // removed, read only to warn
   "NOTEFEED_UNAVAILABLE", // an error digest, not a variable
+  // Selling licenses is notefeed.me's alone and stays out of the public docs (ADR 0029, ADR 0032): not listed here either.
+  "NOTEFEED_PAYMENT_PROVIDER",
+  "NOTEFEED_CREEM_API_KEY",
+  "NOTEFEED_CREEM_PRODUCT_ID",
+  "NOTEFEED_CREEM_PRODUCT_ID_YEARLY",
+  "NOTEFEED_CREEM_WEBHOOK_SECRET",
+  "NOTEFEED_LICENSE_FILE",
+  "NOTEFEED_LICENSE_DB",
+  "NOTEFEED_FREE_NOTE_CAP",
 ]);
 
-// The app's source, without tests, generated code and the docs: where a setting would be read.
+// Where a setting would be read: the app's source, without tests, the docs, the client packages, scripts, tool configs
+// and the generated API client.
+const NOT_APP_CODE = [
+  /(^|\/)(docs|e2e|packages|test|scripts)\//, // not the app
+  /\.test\.tsx?$/, // tests
+  /\.config\.(ts|mts|mjs)$/, // tool configs (Playwright, Vitest, Next)
+  /^app\/_lib\/api\//, // the generated API client
+];
 function sourceFiles(): string[] {
   const all = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8" }).split("\n");
-  return all.filter(
-    (f) =>
-      /\.(ts|tsx|mjs|js)$/.test(f) &&
-      !/(^|\/)(docs|e2e|packages|test|scripts)\//.test(f) &&
-      !/\.test\.tsx?$/.test(f) &&
-      !/(^|\/)(app\/_lib\/api)\//.test(f) &&
-      !/\.config\.(ts|mts|mjs)$/.test(f),
-  );
+  return all.filter((f) => /\.(ts|tsx|mjs|js)$/.test(f) && !NOT_APP_CODE.some((r) => r.test(f)));
 }
 
 test("every NOTEFEED_* setting the app reads is in .env.example", () => {

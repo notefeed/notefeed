@@ -9,7 +9,7 @@ You need Docker with Compose. No checkout, no build: the image is published at `
 ```yaml
 services:
   notefeed:
-    image: ghcr.io/notefeed/notefeed:latest  # or pin a release, e.g. :0.35
+    image: ghcr.io/notefeed/notefeed:latest  # or pin a release, e.g. :0.35.0, and take .env.example from its tag (v0.35.0 in place of main below)
     restart: unless-stopped
     ports:
       - "3000:3000"

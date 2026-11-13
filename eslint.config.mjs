@@ -8,12 +8,10 @@ const FRONTEND_IMPORTS = {
   patterns: [{ group: ["@/backend/*", "**/backend/*"], message: "The frontend imports the backend only through @/backend (backend/index.ts)." }],
 };
 // One icons module (components/icons.ts): every icon is named by the thing it stands for, so one thing gets one icon.
-const ICON_IMPORTS = {
-  ...FRONTEND_IMPORTS,
-  paths: [{ name: "lucide-react", message: "Import icons from @/components/icons, which names each by the thing it stands for." }],
-};
+const LUCIDE = { name: "lucide-react", message: "Import icons from @/components/icons, which names each by the thing it stands for." };
+const ICON_IMPORTS = { ...FRONTEND_IMPORTS, paths: [LUCIDE] };
 const BACKEND_IMPORTS = {
-  paths: ["next", "react", "react-dom"].map((name) => ({ name, message: "backend/ is framework-free." })),
+  paths: [...["next", "react", "react-dom"].map((name) => ({ name, message: "backend/ is framework-free." })), LUCIDE],
   patterns: [
     { group: ["next/*", "react/*", "react-dom/*"], message: "backend/ is framework-free." },
     { group: ["@/app/*", "@/components/*", "@/proxy", "**/app/*", "**/components/*"], message: "backend/ never imports the frontend." },
@@ -21,6 +19,7 @@ const BACKEND_IMPORTS = {
   ],
 };
 const SHARED_IMPORTS = {
+  paths: [LUCIDE],
   patterns: [
     {
       group: ["node:*", "@/backend", "@/backend/*", "@/app/*", "@/components/*", "**/backend/*"],
@@ -40,6 +39,12 @@ const eslintConfig = defineConfig([
     rules: { "no-restricted-imports": ["error", ICON_IMPORTS] },
   },
   { files: ["components/icons.ts"], rules: { "no-restricted-imports": ["error", FRONTEND_IMPORTS] } },
+  // Everything else (tests, e2e, scripts): no icons but through the icons module either.
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx", "e2e/**", "scripts/**", "shortcut/**"],
+    ignores: ["backend/**", "shared/**"],
+    rules: { "no-restricted-imports": ["error", { paths: [LUCIDE] }] },
+  },
   { files: ["backend/**"], rules: { "no-restricted-imports": ["error", BACKEND_IMPORTS] } },
   { files: ["shared/**"], rules: { "no-restricted-imports": ["error", SHARED_IMPORTS] } },
   // Override default ignores of eslint-config-next.

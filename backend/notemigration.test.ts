@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { rm, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { ensureFeed, resetFeedsForTests } from "./feeds";
@@ -33,8 +32,7 @@ const OLD_FORM = /^\d{8}T\d{6}Z-/;
 
 let dir = "";
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "notefeed-migration-"));
-  vi.stubEnv("DATA_DIR", dir);
+  dir = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_SECRET", "m".repeat(32));
   resetSecretForTests();
   resetFeedsForTests();

@@ -1,8 +1,7 @@
 // The operator's takedown (#155) on the file system backend, end to end through the HTTP handlers: what a removed feed answers
 // under both identifiers, and that its images are refused everywhere afterwards. The SQL backends run the same storage contract
 // (backend/storage/contract.ts) and the route test in http/operator.test.ts.
-import { appendFile, mkdtemp, readdir, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { appendFile, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi, afterEach } from "vitest";
 import { changeDate, changeDraft, changeMeta, createNote, replaceContent } from "./notes";
@@ -27,8 +26,7 @@ const PNG = png(1);
 const PNG2 = png(2);
 let root: string;
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "notefeed-takedown-"));
-  vi.stubEnv("DATA_DIR", root);
+  root = process.env.DATA_DIR!;
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   vi.stubEnv("NOTEFEED_OPERATOR_TOKEN", TOKEN);
   vi.stubEnv("NOTEFEED_RATE_LIMIT", "0");

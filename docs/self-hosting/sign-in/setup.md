@@ -14,14 +14,14 @@ Sign-in is on only when all four of these are set:
 
 You also need `PUBLIC_URL`, because the redirect URI is `<PUBLIC_URL>/api/oidc/callback`, and `NOTEFEED_SECRET`. Register that redirect URI with the provider, exactly, with no trailing slash.
 
-```yaml
-environment:
-  PUBLIC_URL: https://notes.example.com
-  NOTEFEED_SECRET: ${NOTEFEED_SECRET}
-  NOTEFEED_OIDC_ISSUER: https://authentik.example.com/application/o/notefeed/
-  NOTEFEED_OIDC_CLIENT_ID: ${NOTEFEED_OIDC_CLIENT_ID}
-  NOTEFEED_OIDC_CLIENT_SECRET: ${NOTEFEED_OIDC_CLIENT_SECRET}
-  NOTEFEED_OIDC_ALLOW: "@example.com,guest@example.org"
+```sh
+# .env
+PUBLIC_URL=https://notes.example.com
+NOTEFEED_SECRET=
+NOTEFEED_OIDC_ISSUER=https://authentik.example.com/application/o/notefeed/
+NOTEFEED_OIDC_CLIENT_ID=
+NOTEFEED_OIDC_CLIENT_SECRET=
+NOTEFEED_OIDC_ALLOW="@example.com,guest@example.org"
 ```
 
 ### Example: Authentik
@@ -40,17 +40,17 @@ Two details trip people up: `NOTEFEED_OIDC_ISSUER` must equal the `issuer` in th
 
 Each further provider is its own set of variables with a name of your choosing, capitals, digits and underscores: `NOTEFEED_OIDC_<NAME>_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET`, `_ALLOW`, and optionally `_SENDER_CLAIM` and `_LABEL`. The unprefixed variables are one more provider, so the name `DEFAULT` is reserved. A provider with one of its four variables missing is left out, and the others still work. Every provider has its own allow-list, and all share the one redirect URI.
 
-```yaml
-environment:
-  NOTEFEED_OIDC_WORK_ISSUER: https://authentik.example.com/application/o/notefeed/
-  NOTEFEED_OIDC_WORK_CLIENT_ID: ${NOTEFEED_OIDC_WORK_CLIENT_ID}
-  NOTEFEED_OIDC_WORK_CLIENT_SECRET: ${NOTEFEED_OIDC_WORK_CLIENT_SECRET}
-  NOTEFEED_OIDC_WORK_ALLOW: "@example.com"
-  NOTEFEED_OIDC_WORK_LABEL: Example Corp
-  NOTEFEED_OIDC_GUESTS_ISSUER: https://accounts.google.com
-  NOTEFEED_OIDC_GUESTS_CLIENT_ID: ${NOTEFEED_OIDC_GUESTS_CLIENT_ID}
-  NOTEFEED_OIDC_GUESTS_CLIENT_SECRET: ${NOTEFEED_OIDC_GUESTS_CLIENT_SECRET}
-  NOTEFEED_OIDC_GUESTS_ALLOW: "guest@example.org"
+```sh
+# .env
+NOTEFEED_OIDC_WORK_ISSUER=https://authentik.example.com/application/o/notefeed/
+NOTEFEED_OIDC_WORK_CLIENT_ID=
+NOTEFEED_OIDC_WORK_CLIENT_SECRET=
+NOTEFEED_OIDC_WORK_ALLOW="@example.com"
+NOTEFEED_OIDC_WORK_LABEL=Example Corp
+NOTEFEED_OIDC_GUESTS_ISSUER=https://accounts.google.com
+NOTEFEED_OIDC_GUESTS_CLIENT_ID=
+NOTEFEED_OIDC_GUESTS_CLIENT_SECRET=
+NOTEFEED_OIDC_GUESTS_ALLOW="guest@example.org"
 ```
 
 Any OpenID Connect provider works; the usual issuer URLs, with the discovery document as the authority:

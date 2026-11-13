@@ -1,6 +1,5 @@
 // A feed's read id: chosen when the post creates the feed, changed later, freed when left (ADR 0016).
-import { mkdtemp, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { InvalidBodyError, ReadIdTakenError } from "./errors";
@@ -14,7 +13,7 @@ import { resetRateLimitsForTests } from "./limits";
 const BASE = "http://localhost:3000";
 let dir: string;
 beforeEach(async () => {
-  dir = process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-readid-"));
+  dir = process.env.DATA_DIR!;
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "NOTEFEED_ALLOW_CUSTOM_IDS", "NOTEFEED_RESERVED_FEEDS", "NOTEFEED_RESERVED_PASSWORD"])
     delete process.env[k];

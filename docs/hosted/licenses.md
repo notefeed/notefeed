@@ -26,11 +26,14 @@ sequenceDiagram
   participant L as License page
   participant C as Creem
   participant N as notefeed.me
-  You->>L: pick a plan
+  You->>L: pick a license
   L->>C: checkout
   You->>C: pay
   C-->>N: webhook: license active (signed)
-  C-->>You: the key, on the success page and in the receipt
+  C-->>You: the key, in the receipt e-mail
+  You->>N: back on the license page
+  N->>C: the checkout's key
+  N-->>You: the key, on the success page
   You->>N: enter the key on a feed
   N->>N: compare its hash, put the license on the feed
 ```
