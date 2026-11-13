@@ -174,7 +174,7 @@ describe("tools", () => {
     const r = await call("post_note", { feed: "a", markdown: "# Hi" });
     const { id } = r.structuredContent;
     expect(r.structuredContent).toEqual({
-      guidance: expect.any(String),
+      guidance: expect.any(Array),
       id,
       url: `http://localhost:3000/a/${id}`,
       feed_url: "http://localhost:3000/a",
@@ -280,7 +280,7 @@ describe("tools", () => {
       expect(r.isError, tool).toBe(true);
       expect(JSON.stringify(r.content), tool).toContain("removed by the operator");
     }
-    expect((await call("delete_note", { feed: "a", id: note.id })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(String) });
+    expect((await call("delete_note", { feed: "a", id: note.id })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(Array) });
     expect((await call("list_notes", { feed: "a" })).structuredContent.notes).toEqual([]);
     expect((await call("get_note", { feed: "a", id: note.id })).isError).toBe(true);
   });
@@ -289,7 +289,7 @@ describe("tools", () => {
     const { id } = (await call("post_note", { feed: "a", markdown: "# Hi\nbody" })).structuredContent;
     const n = (await call("get_note", { feed: "a", id })).structuredContent;
     expect(n).toEqual({
-      guidance: expect.any(String),
+      guidance: expect.any(Array),
       id,
       type: "text/markdown",
       title: "Hi",
@@ -693,7 +693,7 @@ describe("edit_note and delete_note", () => {
     const e = await call("edit_note", { feed: "o", id, markdown: "# New" });
     expect(e.structuredContent).toMatchObject({ id, type: "text/markdown", title: "New", content: "# New" });
     expect((await call("get_note", { feed: "o", id })).structuredContent.content).toBe("# New");
-    expect((await call("delete_note", { feed: "o", id })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(String) });
+    expect((await call("delete_note", { feed: "o", id })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(Array) });
     expect((await call("get_note", { feed: "o", id })).isError).toBe(true);
   });
   test("a protected feed needs the password", async () => {
@@ -731,7 +731,7 @@ describe("feed tools", () => {
     // The iPhone Shortcut, for an agent to hand to a person (#334)
     expect((await call("get_feed", { feed: "f" })).structuredContent.shortcut_url).toBe("http://localhost:3000/shortcuts/Send%20to%20notefeed.shortcut");
     expect((await call("update_feed", { feed: "f", title: "x".repeat(101), description: "" })).isError).toBe(true);
-    expect((await call("delete_feed", { feed: "f" })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(String) });
+    expect((await call("delete_feed", { feed: "f" })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(Array) });
     expect((await call("get_feed", { feed: "f" })).content[0].text).toBe("no such feed");
   });
   test("update_feed keeps what is left out, and needs something to change", async () => {
@@ -750,7 +750,7 @@ describe("feed tools", () => {
     ] as const) {
       expect((await call(tool, { feed: "p", ...args })).content[0].text).toBe("missing or wrong password");
     }
-    expect((await call("delete_feed", { feed: "p", password: "pw" })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(String) });
+    expect((await call("delete_feed", { feed: "p", password: "pw" })).structuredContent).toMatchObject({ deleted: true, guidance: expect.any(Array) });
   });
 });
 
@@ -915,8 +915,10 @@ describe("guidance", () => {
   const g = async (tool: string, args: Record<string, unknown>) => {
     const r = await call(tool, args);
     expect(r.isError).toBeFalsy();
-    expect(typeof r.structuredContent.guidance).toBe("string");
-    return r.structuredContent as { guidance: string; [k: string]: unknown };
+    const { guidance } = r.structuredContent as { guidance: unknown };
+    expect(Array.isArray(guidance) && guidance.length > 0 && guidance.every((g) => typeof g === "string" && g.trim())).toBe(true);
+    // The instructions as one text, for the assertions below.
+    return { ...r.structuredContent, guidance: (guidance as string[]).join(" ") } as { guidance: string; [k: string]: unknown };
   };
   const future = () => new Date(Date.now() + 86400_000).toISOString();
 

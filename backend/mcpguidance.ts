@@ -1,4 +1,5 @@
-// What each MCP tool result tells Claude to say or do next (the MCP-first convention, #357), worked out from what the call did:
+// What each MCP tool result tells Claude to say or do next (the MCP-first convention, #357), worked out from what the call did, as a
+// list of short instructions:
 // a draft, a scheduled note, a renamed feed and a new read link each need different words. Tool descriptions say what a tool
 // does; this says what just happened, where a client that drops the descriptions or the server instructions still sees it.
 
@@ -13,46 +14,47 @@ function visibility(n: NoteState): string {
   return "Readers see it now.";
 }
 
-export function afterPost(r: NoteState & { url: string; readUrl: string | null; created: boolean; attachments: number }): string {
+export function afterPost(r: NoteState & { url: string; readUrl: string | null; created: boolean; attachments: number }): string[] {
   const parts = [`The note is at ${r.url} (the owner's view).`, visibility(r)];
   if (r.attachments) parts.push(`${r.attachments} picture${r.attachments === 1 ? " was" : "s were"} posted with it, each a note of its own.`);
   if (r.created) parts.push(`This post created the feed. Readers follow it at ${r.readUrl}; ${SHARE}.`);
   else if (r.readUrl && !r.draft && !r.scheduled) parts.push(`Readers follow the feed at ${r.readUrl}.`);
-  return parts.join(" ");
+  return parts;
 }
 
-export function afterPostFile(r: NoteState & { url: string }): string {
-  if (r.draft || r.scheduled) return `${visibility(r)} Its URL ${r.url} answers 404 until then; get_note with picture true shows it to the owner.`;
-  return `${visibility(r)} Its URL ${r.url} is public, like the feed's read link: anyone with it can open the file.`;
+export function afterPostFile(r: NoteState & { url: string }): string[] {
+  if (r.draft || r.scheduled) return [visibility(r), `Its URL ${r.url} answers 404 until then; get_note with picture true shows it to the owner.`];
+  return [visibility(r), `Its URL ${r.url} is public, like the feed's read link: anyone with it can open the file.`];
 }
 
-export function afterList(r: { next: string | null; drafts: number; scheduled: number; shown: number }): string {
+export function afterList(r: { next: string | null; drafts: number; scheduled: number; shown: number }): string[] {
   const parts = [r.next ? `There are more notes: call list_notes again with before: "${r.next}".` : "There are no more notes."];
   const hidden = [r.drafts && `${r.drafts} draft${r.drafts === 1 ? "" : "s"}`, r.scheduled && `${r.scheduled} scheduled`].filter(Boolean);
   if (hidden.length) parts.push(`Of the ${r.shown} listed, readers don't see ${hidden.join(" and ")}.`);
-  return parts.join(" ");
+  return parts;
 }
 
-export const afterGetNote = (n: NoteState): string => visibility(n);
+export const afterGetNote = (n: NoteState): string[] => [visibility(n)];
 
-export const afterEdit = (n: NoteState & { url: string }): string => `Saved; the note keeps its id and its link ${n.url}. ${visibility(n)}`;
+export const afterEdit = (n: NoteState & { url: string }): string[] => [`Saved; the note keeps its id and its link ${n.url}.`, visibility(n)];
 
-export const afterDeleteNote = (): string =>
-  "The note is deleted for good. Feed readers that fetched it already keep their copy; tell the user if it must not be seen.";
+export const afterDeleteNote = (): string[] => [
+  "The note is deleted for good. Feed readers that fetched it already keep their copy; tell the user if it must not be seen.",
+];
 
-export function afterFeed(f: { readUrl: string | null; protected: boolean; freeTier?: { notes: number; cap: number } | null }): string {
+export function afterFeed(f: { readUrl: string | null; protected: boolean; freeTier?: { notes: number; cap: number } | null }): string[] {
   const parts = [f.readUrl ? `Readers follow the feed at ${f.readUrl}; ${SHARE}.` : "The feed has no read link yet: it comes with the first note."];
   if (f.protected) parts.push("The feed has a password: every call for it needs it.");
   if (f.freeTier && f.freeTier.notes >= f.freeTier.cap * 0.9)
     parts.push(
       `It is on the free tier with ${f.freeTier.notes} of ${f.freeTier.cap} notes: past the cap each new note drops the oldest. A license keeps them all.`,
     );
-  return parts.join(" ");
+  return parts;
 }
 
 export function afterUpdate(
   r: { name?: string; readIdChanged: boolean; newPassword: boolean; license?: "on" | "off" } & Parameters<typeof afterFeed>[0],
-): string {
+): string[] {
   const parts: string[] = [];
   if (r.name)
     parts.push(
@@ -64,21 +66,26 @@ export function afterUpdate(
   if (r.license === "on") parts.push("The license is on this feed now (and off the feed it was on).");
   if (r.license === "off") parts.push("The license is off this feed: its key can go on another feed.");
   if (!parts.length) parts.push("Saved.");
-  return parts.join(" ");
+  return parts;
 }
 
-export const afterCreate = (f: Parameters<typeof afterFeed>[0]): string => `The feed is created, with no notes. ${afterFeed(f)}`;
+export const afterCreate = (f: Parameters<typeof afterFeed>[0]): string[] => ["The feed is created, with no notes.", ...afterFeed(f)];
 
-export const afterRecover = (removed: boolean): string =>
+export const afterRecover = (removed: boolean): string[] => [
   removed
     ? "The feed's password is removed: the feed is open to anyone who knows its name. Suggest a new password with update_feed's new_password."
-    : "The feed has a new password: every later call needs it; tell the user to update scripts and integrations that post.";
+    : "The feed has a new password: every later call needs it; tell the user to update scripts and integrations that post.",
+];
 
-export const afterSetImage = (): string => 'The title image shows in the feed\'s header and on its read link. update_feed with image "" removes it.';
+export const afterSetImage = (): string[] => ['The title image shows in the feed\'s header and on its read link. update_feed with image "" removes it.'];
 
-export const afterDeleteFeed = (): string =>
-  "The feed is deleted with all its notes; its read link stays empty for good. Feed readers keep what they fetched. The name is free again: a post to it creates a new feed.";
+export const afterDeleteFeed = (): string[] => [
+  "The feed is deleted with all its notes; its read link stays empty for good. Feed readers keep what they fetched. The name is free again: a post to it creates a new feed.",
+];
 
-export function afterLicenses(l: { buy_url: string }): string {
-  return `To buy, send the user to ${l.buy_url}; the key comes after paying. Put it on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.`;
+export function afterLicenses(l: { buy_url: string }): string[] {
+  return [
+    `To buy, send the user to ${l.buy_url}; the key comes after paying.`,
+    "Put it on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.",
+  ];
 }

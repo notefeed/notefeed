@@ -79,7 +79,7 @@ const NoteFull = NoteSummary.extend({ content: z.string().optional() }); // the 
 
 // What to tell the user or do next, worked out from what the call did (#357): in every tool's result, where a client that drops
 // the tool descriptions still sees it.
-const GUIDANCE = z.string().describe("What to tell the user or do next, worked out from what this call did");
+const GUIDANCE = z.array(z.string()).describe("What to tell the user or do next, worked out from what this call did: short instructions, in order");
 const NoteOut = NoteFull.extend({ guidance: GUIDANCE });
 const Deleted = z.object({ deleted: z.literal(true), guidance: GUIDANCE });
 
