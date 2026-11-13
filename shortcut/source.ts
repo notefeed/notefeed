@@ -47,10 +47,10 @@ const A_TEXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A520";
 const TEXT_TYPE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A521";
 const ITEM_TYPE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A522";
 const IS_TEXT = "6E0F3A1C-2B4D-4C5E-8F60-71829304A523";
-const PAGE_URL = "6E0F3A1C-2B4D-4C5E-8F60-71829304A524";
+const ITEM_LINKS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A524";
 const IS_PAGE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A525";
 const MARKDOWN = "6E0F3A1C-2B4D-4C5E-8F60-71829304A526";
-const DEBUG_PAGE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A527";
+const ITEM_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A527";
 // Pictures holds ![](file) for each picture stored, Texts the text items, Problems a line for each picture refused.
 const PICTURES = "Pictures";
 const TEXTS = "Texts";
@@ -208,16 +208,18 @@ export function shortcutPlist(): Record<string, unknown> {
       // The rest is text too (a picture's text would be its file name, so pictures give none).
       action("repeat.each", { UUID: EACH, GroupingIdentifier: EACH, WFControlFlowMode: 0, WFInput: value({ Type: "ExtensionInput" }) }),
       action("getitemtype", { UUID: ITEM_TYPE, WFInput: value(variable("Repeat Item")) }),
-      // TEMPORARY (#334): what a page shared from Safari arrives as.
-      action("properties.safariwebpage", { UUID: DEBUG_PAGE, WFInput: value(variable("Repeat Item")), WFContentItemPropertyName: "Page URL" }),
-      action("showresult", { Text: text("Debug, item: type [￼] page [￼]", output(ITEM_TYPE, "Type"), output(DEBUG_PAGE, "Page URL")) }),
       ifText(4, IS_TEXT, output(ITEM_TYPE, "Type"), output(TEXT_TYPE, "Type")),
       ...textItem(0),
       otherwise(IS_TEXT),
-      // A page shared from Safari: its address is the note's text (its pictures and its text are the page's, not the sharer's).
-      action("properties.safariwebpage", { UUID: PAGE_URL, WFInput: value(variable("Repeat Item")), WFContentItemPropertyName: "Page URL" }),
-      ifHasValue(IS_PAGE, output(PAGE_URL, "Page URL")),
-      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(PAGE_URL, "Page URL")) }),
+      // Not text: a page from Safari or a link is its address (a page's pictures and text are the page's, not the sharer's). Read
+      // with "Get URLs from Input", which gives nothing for a photo: "Get Details of Safari Web Page" stops the whole Shortcut
+      // on anything that isn't a page.
+      action("detect.link", { UUID: ITEM_LINKS, WFInput: value(variable("Repeat Item")) }),
+      action("getitemfromlist", { UUID: ITEM_LINK, WFInput: value(output(ITEM_LINKS, "URLs")), WFItemSpecifier: "First Item" }),
+      // TEMPORARY (#334): what an item that isn't text is, and the address found in it.
+      action("showresult", { Text: text("Debug, item: type [￼] link [￼]", output(ITEM_TYPE, "Type"), output(ITEM_LINK, "Item from List")) }),
+      ifHasValue(IS_PAGE, output(ITEM_LINK, "Item from List")),
+      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(ITEM_LINK, "Item from List")) }),
       otherwise(IS_PAGE),
       action("detect.images", { UUID: IMAGES, WFInput: value(variable("Repeat Item")) }),
       ifHasValue(IS_PICTURE, output(IMAGES, "Images")),

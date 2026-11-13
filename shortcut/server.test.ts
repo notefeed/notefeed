@@ -119,15 +119,13 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       } else if (id === "detect.text") out[uuid] = asText(arg(p.WFInput));
       else if (id === "detect.link") {
         const v = arg(p.WFInput);
-        out[uuid] = isPage(v) ? [v.url] : (asText(v).match(/https?:\/\/\S+/g) ?? []);
+        out[uuid] = isPage(v) ? [v.url] : isPicture(v) ? [] : (asText(v).match(/https?:\/\/\S+/g) ?? []);
       } else if (id === "getitemtype") {
         const v = arg(p.WFInput);
         out[uuid] = isPicture(v) ? "Bild" : isPage(v) ? "Safari-Webseite" : "Text"; // in the phone's language
       } else if (id === "getmarkdownfromrichtext") out[uuid] = asText(arg(p.WFInput)); // the stand-in's rich text has no formatting
-      else if (id === "properties.safariwebpage") {
-        const v = arg(p.WFInput);
-        out[uuid] = isPage(v) ? v.url : "";
-      } else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
+      else if (id === "properties.safariwebpage") throw new Error("Get Details of Safari Web Page stops the Shortcut on anything else");
+      else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
       else if (id === "image.convert") {
         const v = arg(p.WFInput);
         out[uuid] = Array.isArray(v) ? v[0] : v;
