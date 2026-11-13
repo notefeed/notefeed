@@ -4,14 +4,14 @@
 # Run by the release job in ci.yml after the release's note is on /r/releases. What it reads: the annotated tag message and the
 # pull requests merged since the previous tag (title and description); whether the MCP tools or the MCP sign-in changed since
 # then; the last news posts, for the tone. Only what users notice goes in, breaking changes and what a reader has to do always;
-# a release with nothing of the kind gets no post. A release that already has a post (tag vX.Y.Z) gets no second one.
+# a release with nothing of the kind gets no post. A release that already has a post (tag vX.Y.Z) gets no second one (a dry run shows it anyway).
 # Also run by hand from the News workflow (news.yml), for a release whose post failed.
 set -euo pipefail
 TAG=${1:?usage: release-news.sh vX.Y.Z}
 API=https://notefeed.me/api/v1
 REPO=${GITHUB_REPOSITORY:-notefeed/notefeed}
 
-if [ "$(curl -sf "$API/read/news/notes?tag=$TAG" | jq '.notes | length')" != 0 ]; then echo "already in the news"; exit 0; fi
+if [ -z "${DRY_RUN:-}" ] && [ "$(curl -sf "$API/read/news/notes?tag=$TAG" | jq '.notes | length')" != 0 ]; then echo "already in the news"; exit 0; fi
 note=$(curl -sf "$API/read/releases/notes?tag=$TAG" | jq -r '.notes[0].id // empty')
 [ -n "$note" ] || { echo "::error::$TAG has no note on /r/releases yet"; exit 1; }
 
@@ -35,17 +35,17 @@ recent=$(curl -sf "$API/read/news/notes?limit=3" | jq -r '.notes[] | "## \(.titl
 
 system='You write the news of notefeed.me, a small hosted service (and open-source app) for posting markdown notes and pictures to feeds that people read in the browser or by RSS, from scripts, the web, or AI assistants. The news tells the people who use notefeed what changed for them.
 
-For a release, write one short post:
+For a release, write one short post, from the user'"'"'s side: what changes for someone who uses notefeed, and what they can do now that they could not before. The release notes (on GitHub and in notefeed'"'"'s releases feed) already list every change; this post is not a summary of them.
 - Only what a user of notefeed or notefeed.me notices: features, changed behavior, fixes they would have run into, new limits or prices, client package changes they use. Leave out tests, refactors, CI, internal docs, ADR numbers, PR numbers, code names.
-- Plain words, no marketing, no exclamation marks, no emojis. Say what it does for the reader, not how it is built.
-- A sentence saying the version is out, then at most four short bullet points or two short paragraphs. Markdown, no heading (the title is separate).
-- Breaking changes always get a bullet of their own, on top of the four, starting with "Breaking:": what stops working and what to do instead (a renamed header, parameter or command, something now refused). Never leave one out to stay short.
+- Plain words, no marketing, no exclamation marks, no emojis. Talk to the reader ("you can now ..."). Say what it does for them, not how it is built: name an API field, header or endpoint only where a reader types it.
+- Prose, not a list: a sentence saying the version is out, then two or three short paragraphs, the most noticeable change first. Markdown, no heading (the title is separate), no bullet points.
+- Breaking changes always get a short paragraph of their own, starting with "Breaking:": what stops working and what to do instead (a renamed header, parameter or command, something now refused). Never leave one out to stay short.
 - So does anything a reader has to do: for example "If you run notefeed yourself, set X before upgrading" or "back up your data first".
-- MCP: when the facts below say the tools changed, and a change is one a user of an AI assistant notices (a new tool, a new or renamed parameter, a removed one), add a bullet that says what the assistant can do now and that assistants see the changed tools only after reconnecting: in Claude, start a new chat, or remove and add the notefeed connector if they still do not show; in Claude Code, restart it. When the sign-in changed in a way the pull requests say breaks existing connections, say they have to connect notefeed again. Changes to a tool'"'"'s description alone need no bullet.
+- MCP: when the facts below say the tools changed, and a change is one a user of an AI assistant notices (a new tool, a new or renamed parameter, a removed one), add a short paragraph saying what the assistant can do for them now and that assistants see the changed tools only after reconnecting: in Claude, start a new chat, or remove and add the notefeed connector if they still do not show; in Claude Code, restart it. When the sign-in changed in a way the pull requests say breaks existing connections, say they have to connect notefeed again. Changes to a tool'"'"'s description alone need no paragraph.
 - The title: "notefeed X.Y.Z: " and what matters most in a few words, lowercase after the colon.
 - Do not add links to the release notes: they are appended after your text.
 - If nothing in the release is noticeable for users, set post to false and leave title and markdown empty.
-Match the tone of the earlier posts, if there are any.'
+Match the tone of the earlier posts, if there are any, but not their layout: some are bullet lists, and these posts are prose now.'
 
 # As files, not arguments: one argument may not exceed 128 KB, and the pull requests of a large release do (0.29.0).
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
