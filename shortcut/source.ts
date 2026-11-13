@@ -39,6 +39,10 @@ const HAD_PROBLEMS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A518";
 const NOTHING_PROBLEMS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A519";
 const PICTURE_LINE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51A";
 const PROBLEM_LINE = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51B";
+const LINKS = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51C";
+const FIRST_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51D";
+const HAS_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51E";
+const TEXT_HAS_LINK = "6E0F3A1C-2B4D-4C5E-8F60-71829304A51F";
 // Pictures holds ![](file) for each picture stored, Texts the text items, Problems a line for each picture refused.
 const PICTURES = "Pictures";
 const TEXTS = "Texts";
@@ -69,6 +73,9 @@ const action = (id: string, params: Record<string, unknown>) => ({ WFWorkflowAct
 /** "If `a` has any value" (mode 0), "Otherwise" (1) and "End If" (2) of one block. */
 const ifHasValue = (group: string, a: Attachment) =>
   action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 100, WFInput: { Type: "Variable", Variable: value(a) } });
+/** "If `a` contains `b`" (condition 99), as text. */
+const ifContains = (group: string, a: Attachment, b: Attachment) =>
+  action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 0, WFCondition: 99, WFInput: { Type: "Variable", Variable: value(a) }, WFConditionalActionString: text("￼", b) });
 const otherwise = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 1 });
 const endIf = (group: string) => action("conditional", { GroupingIdentifier: group, WFControlFlowMode: 2 });
 
@@ -176,8 +183,20 @@ export function shortcutPlist(): Record<string, unknown> {
       action("appendvariable", { WFVariableName: PROBLEMS, WFInput: value(output(PROBLEM_LINE, "Text")) }),
       endIf(STORED),
       otherwise(IS_PICTURE),
+      // A page shared from Safari is a "Safari web page", whose text is the whole page: then its address is the note's text. Text
+      // that has the address in it (a URL alone, a note with a link) stays as it is.
       action("detect.text", { UUID: TEXT, WFInput: value(variable("Repeat Item")) }),
+      action("detect.link", { UUID: LINKS, WFInput: value(variable("Repeat Item")) }),
+      action("getitemfromlist", { UUID: FIRST_LINK, WFInput: value(output(LINKS, "URLs")), WFItemSpecifier: "First Item" }),
+      ifHasValue(HAS_LINK, output(FIRST_LINK, "Item from List")),
+      ifContains(TEXT_HAS_LINK, output(TEXT, "Text"), output(FIRST_LINK, "Item from List")),
       action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(TEXT, "Text")) }),
+      otherwise(TEXT_HAS_LINK),
+      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(FIRST_LINK, "Item from List")) }),
+      endIf(TEXT_HAS_LINK),
+      otherwise(HAS_LINK),
+      action("appendvariable", { WFVariableName: TEXTS, WFInput: value(output(TEXT, "Text")) }),
+      endIf(HAS_LINK),
       endIf(IS_PICTURE),
       action("repeat.each", { GroupingIdentifier: EACH, WFControlFlowMode: 2 }),
       // The note: the text, then the pictures that arrived, without the blank lines an empty part leaves.

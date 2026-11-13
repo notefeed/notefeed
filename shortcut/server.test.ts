@@ -20,14 +20,18 @@ beforeEach(async () => {
 });
 
 type Picture = { picture: Uint8Array; name: string };
-type Item = string | Picture;
+/** A page shared from Safari: its text is the whole page, its URL the address. */
+type Page = { page: string; url: string };
+type Item = string | Picture | Page;
 type Value = undefined | string | Picture | Item[] | Record<string, unknown>;
 type Action = { WFWorkflowActionIdentifier: string; WFWorkflowActionParameters: Record<string, unknown> };
 type Ref = { Type: string; OutputUUID?: string; VariableName?: string };
 
 const isPicture = (v: unknown): v is Picture => typeof v === "object" && v !== null && "picture" in v;
+const isPage = (v: unknown): v is Page => typeof v === "object" && v !== null && "page" in v;
 const hasValue = (v: Value) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
-const asText = (v: Value): string => (Array.isArray(v) ? v.map((i) => asText(i)).join("\n") : isPicture(v) ? v.name : typeof v === "string" ? v : "");
+const asText = (v: Value): string =>
+  Array.isArray(v) ? v.map((i) => asText(i)).join("\n") : isPicture(v) ? v.name : isPage(v) ? v.page : typeof v === "string" ? v : "";
 
 const host = "http://localhost:3000";
 /** Share `items` with the imported Shortcut (`answers` to its four questions); what it opened and showed. */
@@ -74,7 +78,9 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       const g = p.GroupingIdentifier as string;
       if (id === "conditional") {
         const { 1: otherwise, 2: end } = marks[g];
-        const yes = hasValue(arg((p.WFInput as { Variable: unknown }).Variable));
+        const subject = arg((p.WFInput as { Variable: unknown }).Variable);
+        const yes =
+          p.WFCondition === 100 ? hasValue(subject) : p.WFCondition === 99 ? asText(subject).includes(asText(arg(p.WFConditionalActionString))) : fail(p.WFCondition);
         const result = yes ? await run(i + 1, otherwise ?? end) : otherwise !== undefined ? await run(otherwise + 1, end) : undefined;
         if (result === "exit") return "exit";
         i = end;
@@ -97,8 +103,13 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
       else if (id === "appendvariable") vars[p.WFVariableName as string] = [...((vars[p.WFVariableName as string] as Item[]) ?? []), arg(p.WFInput) as Item];
       else if (id === "detect.images") {
         const v = arg(p.WFInput);
-        out[uuid] = (Array.isArray(v) ? v : [v]).filter(isPicture);
+        const list: unknown[] = Array.isArray(v) ? v : [v];
+        out[uuid] = list.filter(isPicture);
       } else if (id === "detect.text") out[uuid] = asText(arg(p.WFInput));
+      else if (id === "detect.link") {
+        const v = arg(p.WFInput);
+        out[uuid] = isPage(v) ? [v.url] : (asText(v).match(/https?:\/\/\S+/g) ?? []);
+      } else if (id === "getitemfromlist") out[uuid] = (arg(p.WFInput) as Item[])[0];
       else if (id === "image.convert") {
         const v = arg(p.WFInput);
         out[uuid] = Array.isArray(v) ? v[0] : v;
@@ -119,6 +130,10 @@ async function share(items: Item[], answers = [host, "phone", "", ""]) {
   };
   await run(0, actions.length);
   return { opened, shown };
+}
+
+function fail(condition: unknown): never {
+  throw new Error(`the stand-in doesn't know condition ${String(condition)}`);
 }
 
 async function notes(feed = "phone", password = "") {
@@ -160,6 +175,13 @@ test("only refused pictures and no text: nothing is posted, and it says why", as
   expect(await notes()).toEqual([]);
   expect(opened).toEqual([]);
   expect(shown[0]).toMatch(/^Not posted:\nA picture was not posted: \S/);
+});
+
+test("a page shared from Safari is its address, not the page's text; a text with a link stays as written", async () => {
+  await share([{ page: "debug\n\nYour feeds\nRemembered on this device.", url: "https://notefeed.me/debug" }]);
+  expect((await notes())[0].content).toBe("https://notefeed.me/debug");
+  await share(["Read this: https://example.com/a and https://example.com/b"]);
+  expect((await notes())[0].content).toBe("Read this: https://example.com/a and https://example.com/b");
 });
 
 test("a link alone is a note of its own; nothing shared says so", async () => {
