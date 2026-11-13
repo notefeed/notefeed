@@ -6,7 +6,7 @@
 // multipart request: a form's file field sends only the first item of a list (2 photos in Pictures, 1 stored, on iOS 26). A picture
 // refused doesn't stop the rest: the note is posted with the others and a hint names what failed. Photos are converted to JPEG on the
 // phone, since notefeed does not take HEIC. A note that arrived opens in the browser; a refused one shows the server's `error`.
-// iOS imports only signed Shortcuts: `npm run shortcut:sign` on a Mac signs this into public/shortcuts/notefeed.shortcut and records
+// iOS imports only signed Shortcuts: `npm run shortcut:sign` on a Mac signs this into "public/shortcuts/Send to notefeed.shortcut" and records
 // the source's hash next to it (checked by source.test.ts). Apple doesn't document the format; the keys below are the ones Shortcuts
 // itself writes (the identifiers and glyphs as listed by cherri, https://github.com/electrikmilk/cherri).
 import { createHash } from "node:crypto";

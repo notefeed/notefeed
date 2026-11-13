@@ -112,7 +112,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
               <ol className="mb-2 list-decimal space-y-1 pl-5 text-muted">
                 <li>
                   Open{" "}
-                  <a href="/shortcuts/notefeed.shortcut" download className="text-carbon underline">
+                  <a href="/shortcuts/Send%20to%20notefeed.shortcut" download="Send to notefeed.shortcut" className="text-carbon underline">
                     the notefeed Shortcut
                   </a>{" "}
                   on the iPhone and add it.

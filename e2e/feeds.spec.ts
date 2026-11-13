@@ -205,7 +205,7 @@ test("the settings page offers the iPhone Shortcut with what it asks for", async
   await post(page, name);
   await page.getByRole("link", { name: "Settings" }).click();
   await page.locator("summary", { hasText: "Share from an iPhone" }).click();
-  await expect(page.getByRole("link", { name: "the notefeed Shortcut" })).toHaveAttribute("href", "/shortcuts/notefeed.shortcut");
+  await expect(page.getByRole("link", { name: "the notefeed Shortcut" })).toHaveAttribute("href", "/shortcuts/Send%20to%20notefeed.shortcut");
   const row = page.locator("details", { hasText: "Share from an iPhone" });
   await expect(row.locator("code", { hasText: name })).toBeVisible();
   await expect(row.locator("code", { hasText: baseURL! })).toBeVisible();

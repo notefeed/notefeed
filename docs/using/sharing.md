@@ -21,7 +21,7 @@ What to know:
 
 iOS doesn't put web apps in the share sheet, so the way in there is a Shortcut. notefeed has a ready-made one:
 
-1. On the iPhone, open the feed's **Settings**, then **Share from an iPhone**, and tap **the notefeed Shortcut** (or open `https://<your instance>/shortcuts/notefeed.shortcut`). Add it.
+1. On the iPhone, open the feed's **Settings**, then **Share from an iPhone**, and tap **the notefeed Shortcut** (or open `https://<your instance>/shortcuts/Send%20to%20notefeed.shortcut`). Add it: it shows as **Send to notefeed** in the share sheet; rename it in the Shortcuts app if you add it for several feeds.
 2. It asks four things: the instance's address (`https://notefeed.me`), the feed's name, its [password](feed-passwords.md) (empty for an open feed), and, **optional**, a server password: leave it empty unless your own self-hosted server asks for a password when you sign in (`NOTEFEED_PASSWORD`). notefeed.me has none. The settings page shows the address and the name, and says whether the server has a password.
 3. Share pictures, text or a link from any app and pick **notefeed**. It sits at the very bottom of the share sheet, below the actions; **Edit Actions** there can move it up.
 

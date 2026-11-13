@@ -17,7 +17,8 @@ const sc = shortcutPlist() as Shortcut;
 const actions = sc.WFWorkflowActions;
 const ids = actions.map((a) => a.WFWorkflowActionIdentifier.replace("is.workflow.actions.", ""));
 const params = (id: string) => actions.filter((a) => a.WFWorkflowActionIdentifier === `is.workflow.actions.${id}`).map((a) => a.WFWorkflowActionParameters);
-const SIGNED_FILE = join(__dirname, "..", "public", "shortcuts", "notefeed.shortcut");
+// iOS names the Shortcut after its file: "Send to notefeed" in the share sheet.
+const SIGNED_FILE = join(__dirname, "..", "public", "shortcuts", "Send to notefeed.shortcut");
 const HASH_FILE = `${SIGNED_FILE}.sha256`;
 
 // `npm run shortcut:build` runs this with UPDATE_SHORTCUT=1: it writes the unsigned property list to .shortcut-build/. Only

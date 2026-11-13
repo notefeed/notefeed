@@ -1,6 +1,7 @@
 #!/bin/sh
 # The iPhone Shortcut (shortcut/source.ts, #334). `build` writes the unsigned property list to .shortcut-build/; `sign` (macOS only)
-# also converts and signs it into public/shortcuts/notefeed.shortcut (iOS names it after the file), which iOS imports, and only then
+# also converts and signs it into "public/shortcuts/Send to notefeed.shortcut" (iOS names it after the file: "Send to notefeed" in
+# the share sheet), which iOS imports, and only then
 # records the source's hash next to it. Commit public/shortcuts/ after signing.
 set -e
 cd "$(dirname "$0")/.."
@@ -15,8 +16,8 @@ if [ "$(uname)" != "Darwin" ] || ! command -v shortcuts >/dev/null; then
 fi
 mkdir -p public/shortcuts
 plutil -convert binary1 -o .shortcut-build/notefeed.unsigned.shortcut .shortcut-build/notefeed.plist
-shortcuts sign --mode anyone --input .shortcut-build/notefeed.unsigned.shortcut --output public/shortcuts/notefeed.shortcut
+shortcuts sign --mode anyone --input .shortcut-build/notefeed.unsigned.shortcut --output "public/shortcuts/Send to notefeed.shortcut"
 SIGNED_SHORTCUT=1 npx vitest run shortcut/source.test.ts -t "builds into a property list" --silent >/dev/null
 # Now the whole file must pass, the signature check included.
 npx vitest run shortcut/source.test.ts --silent >/dev/null
-echo "Signed: public/shortcuts/notefeed.shortcut. Commit public/shortcuts/."
+echo "Signed: public/shortcuts/Send to notefeed.shortcut. Commit public/shortcuts/."
