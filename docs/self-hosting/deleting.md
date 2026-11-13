@@ -21,6 +21,19 @@ curl -X POST -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -H "Content-Typ
   https://notes.example.com/api/operator/takedown
 ```
 
+A takedown starts from what a report carries, never the feed's name; read it top to bottom:
+
+```mermaid
+flowchart TB
+  report["Report: read id, note id, file"] --> op[Operator]
+  op -->|"POST /api/operator/takedown"| scope{scope}
+  scope -->|feed| tf["Tombstone for the name and read id: 410 for good"]
+  scope -->|note| tn["Tombstone for the post's notes"]
+  tf & tn --> gone[Notes and image bytes deleted]
+  gone --> block[Image hashes on the blocklist: 451 everywhere]
+  tn --> mark[A mark takes the post's place]
+```
+
 What happens:
 
 1. **A tombstone** is written for the feed's name and read id. From then on the feed page, the read-only view, the RSS feed and posting to the name answer *removed by the operator* (`410`), and neither can ever be used again, not even by the operator.

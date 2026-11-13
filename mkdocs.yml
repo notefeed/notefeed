@@ -67,6 +67,12 @@ hooks:
 extra_css:
   - stylesheets/extra.css
 
+# Mermaid diagrams (```mermaid blocks), pinned. Material uses this copy
+# instead of loading its own unpinned mermaid@11; its theme (stylesheets/extra.css) is written for 11, so stay on 11.
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js
+  - javascripts/mermaid-theme.js
+
 markdown_extensions:
   - admonition
   - attr_list
@@ -74,7 +80,11 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.details

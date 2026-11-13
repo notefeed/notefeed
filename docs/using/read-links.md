@@ -9,6 +9,18 @@ Every feed has a **read link**, `https://notes.example.com/r/<read id>/feed.xml`
 
 That makes it the link to give to feed readers, dashboards and other people. Keep the feed name to the scripts that post.
 
+Only the name can change a feed; the read id shows its published notes, read from left to right:
+
+```mermaid
+flowchart LR
+  name["Feed name (secret)"] -->|post, edit, delete| feed[(The feed's notes)]
+  feed -->|published notes only| readid["Read id (shareable)"]
+  readid -->|"/r/#lt;read id#gt;/feed.xml"| rss[RSS]
+  readid -->|"/r/#lt;read id#gt;/atom.xml"| atom[Atom]
+  readid -->|"/r/#lt;read id#gt;"| view[Read-only view]
+  readid -->|"/r/#lt;read id#gt;/#lt;file#gt;"| files[Pictures and files]
+```
+
 A read link that belongs to no feed answers with an empty feed, not an error, so nobody can probe which exist. A [deleted](feeds.md#feed-settings-in-the-api) feed's read link stays empty for good; a feed created later under the same name gets a new one.
 
 ## Atom

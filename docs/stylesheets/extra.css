@@ -228,3 +228,34 @@
     flex-wrap: wrap;
   }
 }
+
+/* Mermaid diagrams in the site's palette, light and dark (Material reads these variables): boxes in a soft tint of the
+   accent, arrows in the accent, text in the page's own colour. Never Mermaid's default purple or grey. */
+:root > * {
+  --md-mermaid-font-family: var(--md-text-font-family), sans-serif;
+  --md-mermaid-node-bg-color: color-mix(in srgb, var(--md-primary-fg-color) 12%, var(--md-default-bg-color));
+  --md-mermaid-node-fg-color: var(--md-default-fg-color);
+  --md-mermaid-edge-color: var(--md-primary-fg-color);
+  --md-mermaid-label-bg-color: var(--md-default-bg-color);
+  --md-mermaid-label-fg-color: var(--md-default-fg-color);
+  --md-mermaid-sequence-actor-bg-color: var(--md-mermaid-node-bg-color);
+  --md-mermaid-sequence-actor-fg-color: var(--md-default-fg-color);
+  --md-mermaid-sequence-actor-border-color: var(--md-primary-fg-color);
+  --md-mermaid-sequence-actor-line-color: var(--md-default-fg-color--lighter);
+  --md-mermaid-sequence-actorman-bg-color: var(--md-mermaid-node-bg-color);
+  --md-mermaid-sequence-actorman-line-color: var(--md-primary-fg-color);
+  --md-mermaid-sequence-box-bg-color: var(--md-mermaid-node-bg-color);
+  --md-mermaid-sequence-box-fg-color: var(--md-default-fg-color);
+  --md-mermaid-sequence-label-bg-color: var(--md-mermaid-node-bg-color);
+  --md-mermaid-sequence-label-fg-color: var(--md-default-fg-color);
+  --md-mermaid-sequence-loop-bg-color: transparent;
+  --md-mermaid-sequence-loop-border-color: var(--md-default-fg-color--lighter);
+  --md-mermaid-sequence-loop-fg-color: var(--md-default-fg-color);
+  --md-mermaid-sequence-message-fg-color: var(--md-default-fg-color);
+  --md-mermaid-sequence-message-line-color: var(--md-primary-fg-color);
+  --md-mermaid-sequence-note-bg-color: var(--md-default-bg-color);
+  --md-mermaid-sequence-note-border-color: var(--md-default-fg-color--lighter);
+  --md-mermaid-sequence-note-fg-color: var(--md-default-fg-color);
+  --md-mermaid-sequence-number-bg-color: var(--md-primary-fg-color);
+  --md-mermaid-sequence-number-fg-color: var(--md-default-bg-color);
+}

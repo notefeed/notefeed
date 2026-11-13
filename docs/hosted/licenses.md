@@ -18,6 +18,23 @@ A license is for one feed, by the month or by the year; the price is on the [lic
 
 There are no accounts. A license is a **key** you keep: notefeed stores only a hash of it and nothing about you; the payment provider holds the purchase. The key is issued by the payment provider: it is shown on the page you land on after paying, and it is in the provider's receipt e-mail and customer portal, where you find it again if you lose it. notefeed itself cannot show it again.
 
+Where the key comes from and where it goes, top to bottom; notefeed never sees who paid:
+
+```mermaid
+sequenceDiagram
+  actor You
+  participant L as License page
+  participant C as Creem
+  participant N as notefeed.me
+  You->>L: pick a plan
+  L->>C: checkout
+  You->>C: pay
+  C-->>N: webhook: license active (signed)
+  C-->>You: the key, on the success page and in the receipt
+  You->>N: enter the key on a feed
+  N->>N: compare its hash, put the license on the feed
+```
+
 ## Entering the key
 
 A key works on one feed at a time, and can be moved:

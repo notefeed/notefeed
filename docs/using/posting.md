@@ -102,6 +102,22 @@ curl -X PATCH -H "Content-Type: application/json" -d '{"draft": false}' "$NOTEFE
 - Its pictures show on the feed page and the note's page, which take them from the feed itself (`/<feed>/files/<file>`), not from the read link. Through the API they are `GET /api/v1/feeds/{feed}/files/{file}` (with the feed password, if any); the clients' `file()` and MCP `get_note` with `picture` get them too. The same goes for a scheduled note's pictures.
 - A draft, like a scheduled note, has no **Report** link: no reader can see it to report it. It gets one once it is published.
 
+Which notes readers see, by state; each arrow is a change you make, except the one marked by time:
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> Draft: post with X-Note-Draft true
+  [*] --> Published: post, date now or past
+  [*] --> Scheduled: post, date in the future
+  Draft --> Published: draft false, date now or past
+  Draft --> Scheduled: draft false, date in the future
+  Published --> Draft: draft true
+  Scheduled --> Draft: draft true
+  Scheduled --> Published: its date comes
+  note right of Published: the only state readers see
+```
+
 In the web UI it is the **Draft** box in the compose box and in a note's edit form. The [clients](../integrations/clients.md) take `draft` when posting and updating, the CLI `post --draft` and `update --draft` / `--publish`, MCP `post_note`, `post_file` and `edit_note` `draft`.
 
 ### Polling
