@@ -1,7 +1,4 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
@@ -16,7 +13,6 @@ const CB = "https://claude.ai/api/mcp/auth_callback";
 const H = { host: "localhost:3000" };
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-oauth-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   process.env.NOTEFEED_PASSWORD = "pw";
   resetFeedsForTests();

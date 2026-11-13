@@ -1,6 +1,3 @@
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { AuthError, EmptyNoteError, FeedExistsError, TitleImageDraftError, ReservedFeedError, ImageLimitError, ImageTooLargeError, InvalidBodyError, NotFoundError, UnsupportedTypeError } from "./errors";
 import { createProtected, protectedFeed } from "./feedlock";
@@ -30,7 +27,6 @@ vi.mock("./place", async (original) => {
 const real = await vi.importActual<typeof import("./notes")>("./notes");
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-posting-"));
   resetFeedsForTests();
   resetRateLimitsForTests();
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "NOTEFEED_MAX_IMAGE_BYTES", "NOTEFEED_MAX_IMAGES_PER_FEED", "NOTEFEED_MAX_FEEDS"]) delete process.env[k];

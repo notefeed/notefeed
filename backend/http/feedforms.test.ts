@@ -1,6 +1,3 @@
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { cookieValue, createProtected, feedCookieName } from "../feedlock";
 import { hasFeed, resetFeedsForTests } from "../feeds";
@@ -10,7 +7,6 @@ import { createNote } from "../notes";
 import { feedDeleteRoute, feedSettingsRoute } from "./feedforms";
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-ff-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   delete process.env.NOTEFEED_RATE_LIMIT;
   resetFeedsForTests();

@@ -1,6 +1,3 @@
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { readIdOf, resetFeedsForTests } from "../feeds";
 import { resetMetricsForTest } from "../metrics";
@@ -10,7 +7,6 @@ import { metricsRoute } from "./metrics";
 import { rssRoute } from "./rss";
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-metrics-"));
   vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
   vi.stubEnv("NOTEFEED_METRICS", "1");
   vi.stubEnv("NOTEFEED_METRICS_TOKEN", "");

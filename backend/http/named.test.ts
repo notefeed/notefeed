@@ -1,7 +1,4 @@
 // A note's name (X-Note-Name) is a stable raw address: /r/<read id>/<name> serves the newest note posted with it (#250).
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { readIdOf, resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
@@ -13,7 +10,6 @@ import { png } from "../testimages";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-named-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();

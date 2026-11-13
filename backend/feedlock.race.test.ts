@@ -1,6 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { expect, test, vi } from "vitest";
 
 // The feed is deleted while a password change is waiting for its hash.
@@ -11,7 +9,6 @@ vi.mock("./storage/fs/password", async (importOriginal) => {
 });
 
 test("changing the password of a feed deleted meanwhile is 404, not a 500", async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-lockrace-"));
   process.env.NOTEFEED_SECRET = "x".repeat(32);
   const { createProtected, changePassword } = await import("./feedlock");
   const { NotFoundError } = await import("./errors");

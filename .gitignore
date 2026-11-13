@@ -66,3 +66,4 @@ __pycache__/
 
 # The unsigned iPhone Shortcut (npm run shortcut:build)
 .shortcut-build/
+/undefined/

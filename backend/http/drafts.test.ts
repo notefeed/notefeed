@@ -1,7 +1,4 @@
 // Drafts over REST (#265): X-Note-Draft on a post, `draft` in the PATCH body, `draft: true` on an owner's note; the read API never has one.
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
@@ -12,7 +9,6 @@ import { fileRoute, ownerFileRoute } from "./files";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-drafts-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();

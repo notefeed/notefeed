@@ -1,9 +1,6 @@
 // A note whose stored copy can't be decrypted (issue #212): never a broken feed, never a plain error. The pages, the API and MCP list
 // it as a damaged note in its place; RSS leaves it out; reading it alone is the `unreadable` refusal; the operator gets a log line and
 // a counter. The storage is made to fail for one note, so these run on the file system backend.
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { UnreadableNoteError } from "./errors";
 import { readIdOf, resetFeedsForTests } from "./feeds";
@@ -20,7 +17,6 @@ import { resetStorageForTests, storage } from "./storage";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-unreadable-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   process.env.NOTEFEED_METRICS = "1";
   for (const k of ["NOTEFEED_PASSWORD", "PUBLIC_URL"]) delete process.env[k];

@@ -112,6 +112,8 @@ test("a count runs at most once per USAGE_MAX_AGE_MS; a scrape after that answer
   expect(usage).toHaveBeenCalledTimes(2);
   expect(await sample("notefeed_feeds")).toBe(1); // the last count, while the next one runs
   release();
+  // Let the count finish here: left running, it lands in the next test's metrics.
+  await vi.waitFor(async () => expect(await sample("notefeed_feeds")).toBe(2));
 });
 
 test("a failed count keeps the last values", async () => {

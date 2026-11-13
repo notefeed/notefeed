@@ -1,6 +1,3 @@
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { cookieValue, createProtected } from "./feedlock";
 import { readIdOf, resetFeedsForTests } from "./feeds";
@@ -10,7 +7,6 @@ import { createImageNote, createNote, removeNote } from "./notes";
 import { saveSettings } from "./feedsettings";
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-index-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
 });

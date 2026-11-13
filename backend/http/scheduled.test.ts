@@ -1,7 +1,4 @@
 // A scheduled note (dated after now) answers readers exactly like a missing one, by every read route; its owner sees it, marked.
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
 import { resetFeedsForTests, readIdOf } from "../feeds";
 import { saveSettings } from "../feedsettings";
@@ -14,7 +11,6 @@ import { rssRoute } from "./rss";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-scheduled-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   resetFeedsForTests();
   resetRateLimitsForTests();

@@ -1,9 +1,6 @@
 // The Shortcut against the server (#334): its actions, played by a small stand-in for Shortcuts, post to the real API handler.
 // Shortcuts itself can't run here; what it does with each action is what source.ts assumes (as cherri lists the actions). The
 // interpreter covers only the actions the Shortcut uses.
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { resetFeedsForTests } from "../backend/feeds";
 import { API_PREFIX, dispatch } from "../backend/http/api";
@@ -12,7 +9,6 @@ import { JPG } from "../backend/testimages";
 import { shortcutPlist } from "./source";
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-shortcut-"));
   process.env.NOTEFEED_SECRET = "s".repeat(32);
   for (const k of ["NOTEFEED_PASSWORD", "NOTEFEED_RATE_LIMIT", "PUBLIC_URL"]) delete process.env[k];
   resetFeedsForTests();

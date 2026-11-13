@@ -1,6 +1,3 @@
-import { mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { createProtected, protectedFeed } from "../feedlock";
 import { resetFeedsForTests } from "../feeds";
@@ -19,7 +16,6 @@ const clearedBoth = (feed: string) => [
 ];
 
 beforeEach(async () => {
-  process.env.DATA_DIR = await mkdtemp(join(tmpdir(), "notefeed-fs-"));
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
   delete process.env.NOTEFEED_RATE_LIMIT;
   resetFeedsForTests();
