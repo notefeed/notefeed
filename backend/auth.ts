@@ -1,13 +1,14 @@
 // Who may use the instance. The optional password (NOTEFEED_PASSWORD) is the bearer for scripts and, as an HMAC
 // cookie (nf_session), the UI's password session. Optional sign-in (backend/oidc) gives a signed nf_identity cookie
 // naming the person. Either one locks the instance; with neither set it is open and every check passes.
-// ponytail: the session is HMAC(password, constant): no expiry, logout only drops the browser's copy;
+// ponytail: the session is HMAC(secret, password): no expiry, logout only drops the browser's copy;
 // a leaked cookie works until the password changes (see docs/self-hosting/access.md). Add an expiry to the signed value if that matters.
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { config } from "./config";
 import { AuthError, TooManyAttemptsError } from "./errors";
 import { authFailed, authWait } from "./limits";
 import { logger } from "./log";
+import { secret } from "./secret";
 import { verify } from "./oauth/tokens";
 import { identityOn } from "./oidc/config";
 
@@ -49,7 +50,10 @@ export function checkBearer(authorization: string | null, ip: string): void {
   }
 }
 
-const sessionValue = () => createHmac("sha256", config.password()).update("notefeed-session").digest("hex");
+// The password session's cookie value: the password under the server secret, so a leaked cookie gives nothing to guess the
+// password from offline without the secret too (#374). Changing either signs every password session out.
+const sessionValue = () =>
+  createHmac("sha256", secret()).update("notefeed-session\0").update(createHash("sha256").update(config.password()).digest()).digest("hex");
 
 // The login form: returns the session cookie's value. An open instance has no password to log in with.
 export function login(password: string, ip: string): string {

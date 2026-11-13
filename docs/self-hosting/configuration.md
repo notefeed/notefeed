@@ -8,7 +8,7 @@ notefeed is configured with environment variables, kept in a `.env` file next to
 |---|---|---|
 | `PUBLIC_URL` | from the request | The base URL used in links, e.g. `https://notes.example.com`. Set it on a public instance, see [below](#public_url). |
 | `NOTEFEED_PASSWORD` | none: open | The instance password: posting needs it as a bearer token, the web UI needs a login. Read links stay open. See [Passwords and access](access.md#the-password). |
-| `NOTEFEED_SECRET` | random, kept in `DATA_DIR/.secret` | The server secret, at least 32 characters (`openssl rand -hex 32`). Required with a database backend. It signs unlock cookies and MCP tokens, and older feeds' read links derive from it, so changing it changes those. |
+| `NOTEFEED_SECRET` | random, kept in `DATA_DIR/.secret` | The server secret, at least 32 characters (`openssl rand -hex 32`). Required with a database backend. It signs login and unlock cookies and MCP tokens, and older feeds' read links derive from it, so changing it changes those. |
 | `NOTEFEED_TRUST_PROXY` | off | `1` behind a reverse proxy: rate limits per client from `X-Forwarded-For`, and links follow `X-Forwarded-Proto` and `X-Forwarded-Host`. See [Reverse proxy](reverse-proxy.md). |
 | `NOTEFEED_TITLE` | `notefeed` | Title of the RSS feed and the read-only view for a feed without a title of its own. |
 | `TZ` | `UTC` | Time zone of the times shown in the web UI, e.g. `Europe/Berlin`. |

@@ -5,12 +5,14 @@ import { resetFeedsForTests } from "./feeds";
 import { sign } from "./oauth/tokens";
 import { AuthError, TooManyAttemptsError } from "./errors";
 import { resetRateLimitsForTests } from "./limits";
+import { resetSecretForTests } from "./secret";
 
 beforeEach(() => {
   process.env.NOTEFEED_PASSWORD = "s3cret";
   vi.stubEnv("NOTEFEED_SECRET", "a".repeat(40));
   resetFeedsForTests();
   resetRateLimitsForTests();
+  resetSecretForTests();
 });
 afterEach(() => {
   delete process.env.NOTEFEED_RATE_LIMIT;
@@ -78,6 +80,20 @@ test("the session value is not the password and verifies only for the current pa
   expect(sessionOk("nope")).toBe(false);
   process.env.NOTEFEED_PASSWORD = "other";
   expect(sessionOk(v)).toBe(false);
+});
+
+// #374: the server secret is in the session value, so a leaked cookie can't be used to guess the password offline.
+test("the session value depends on the server secret too", () => {
+  const v = login("s3cret", "ip");
+  vi.stubEnv("NOTEFEED_SECRET", "b".repeat(40));
+  resetSecretForTests();
+  expect(sessionOk(v)).toBe(false);
+  expect(sessionOk(login("s3cret", "ip"))).toBe(true);
+});
+
+test("a session value made from the password alone, as before #374, is refused", () => {
+  const old = createHmac("sha256", "s3cret").update("notefeed-session").digest("hex");
+  expect(sessionOk(old)).toBe(false);
 });
 
 test("unlocked: bearer and session always pass, login never does and is never counted", () => {

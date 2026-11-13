@@ -11,7 +11,7 @@ openssl rand -hex 32
 There is one password for the whole instance. Changing it logs out every browser and breaks every script until you update them. Wrong passwords are rate-limited like posts.
 
 !!! note "Logins don't expire"
-    The login cookie stays valid for a year, and logging out only removes it from that browser. If you think a cookie leaked, change `NOTEFEED_PASSWORD`.
+    The login cookie stays valid for a year, and logging out only removes it from that browser. If you think a cookie leaked, change `NOTEFEED_PASSWORD`. The cookie is made with the server secret as well as the password, so a leaked one gives away nothing to guess the password from; changing `NOTEFEED_SECRET` logs every browser out too.
 
 A single feed can have a password of its own as well, set by whoever creates it: see [Feed passwords](../using/feed-passwords.md). On a locked instance a protected feed needs both.
 
