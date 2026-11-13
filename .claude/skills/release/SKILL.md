@@ -29,13 +29,13 @@ Write the message to a file and tag with `git tag -a vX.Y.Z -F <file>`.
 
 After the release:
 
-3. The release goes onto notefeed.me's `releases` feed (a reserved feed, read link https://notefeed.me/r/releases) by itself, as a copy of the GitHub release: the `release` job in `ci.yml` posts its text as GitHub shows it (the tag message, "What's Changed" with every pull request merged since the previous release, the install section) and a link to it, as one note (title `notefeed X.Y.Z`, tags `release` and `vX.Y.Z`), with the repository secret `NOTEFEED_RESERVED_PASSWORD`; a re-run posts nothing twice. freundebuch and passageway post theirs the same way. Check https://notefeed.me/r/releases afterwards. When the step was skipped or failed, post it by hand, late rather than not at all, the password read from the server's notefeed settings and never written into a file or commit:
+3. The release goes onto notefeed.me's `releases` feed (a reserved feed, read link https://notefeed.me/r/releases) by itself, as a copy of the GitHub release: the `release` job in `ci.yml` posts its text as GitHub shows it (the tag message, "What's Changed" with every pull request merged since the previous release, the install section) and a link to it, as one note (title `notefeed X.Y.Z`, tags `release`, `notefeed` and `notefeed-vX.Y.Z`, as the engineering conventions ask of every tool), with the repository secret `NOTEFEED_RESERVED_PASSWORD`; a re-run posts nothing twice. freundebuch and passageway post theirs the same way. Check https://notefeed.me/r/releases afterwards. When the step was skipped or failed, post it by hand, late rather than not at all, the password read from the server's notefeed settings and never written into a file or commit:
 
    ```sh
    P=$(cd ../rename/ansible && ansible products-1 -m shell -a "grep '^NOTEFEED_RESERVED_PASSWORD=' {{ stacks_root }}/notefeed/notefeed/.env | cut -d= -f2-" 2>/dev/null | tail -1)
    gh release view vX.Y.Z --json body,url --jq '.body + "\n\n[The release on GitHub](" + .url + ")\n"' \
      | curl -sf -X POST https://notefeed.me/api/v1/feeds/releases/notes -H "Content-Type: text/markdown" \
-         -H "X-Feed-Password: $P" -H "X-Note-Title: notefeed X.Y.Z" -H "X-Note-Tags: release,vX.Y.Z" --data-binary @-
+         -H "X-Feed-Password: $P" -H "X-Note-Title: notefeed X.Y.Z" -H "X-Note-Tags: release,notefeed,notefeed-vX.Y.Z" --data-binary @-
    ```
 
 4. The same job posts each agent skill, `plugin/skills/<name>/SKILL.md`, to notefeed.me's reserved `skills` feed under the name `<name>.md` (title `<name> (notefeed X.Y.Z)`, tags `skill`, `<name>`, `vX.Y.Z`), so https://notefeed.me/r/skills/<name>.md is always the newest; a re-run posts nothing twice, and before the feed exists the step only leaves a notice. Check https://notefeed.me/r/skills/post-to-notefeed.md afterwards; by hand, the same `curl` as for the releases feed with `X-Note-Name: <name>.md` and the file as the body.

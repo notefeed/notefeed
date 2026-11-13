@@ -304,11 +304,13 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           if [ -z "$PASSWORD" ]; then echo "::notice::NOTEFEED_RESERVED_PASSWORD is not set: not posted"; exit 0; fi
-          found=$(curl -sf "https://notefeed.me/api/v1/read/releases/notes?tag=$TAG")
-          if [ "$(jq '.notes | length' <<< "$found")" != 0 ]; then echo "already posted"; exit 0; fi
+          # Tagged release, notefeed and notefeed-vX.Y.Z, as every tool's release note (engineering conventions, Releases);
+          # notes before 0.36 carry vX.Y.Z instead, so both are looked for.
+          found=$(curl -sf "https://notefeed.me/api/v1/read/releases/notes?tag=notefeed-$TAG"; curl -sf "https://notefeed.me/api/v1/read/releases/notes?tag=$TAG")
+          if [ "$(jq -s 'map(.notes | length) | add' <<< "$found")" != 0 ]; then echo "already posted"; exit 0; fi
           gh release view "$TAG" --json body,url --jq '.body + "\n\n[The release on GitHub](" + .url + ")\n"' > post.md
           curl -sf -X POST https://notefeed.me/api/v1/feeds/releases/notes -H "Content-Type: text/markdown" \
-            -H "X-Feed-Password: $PASSWORD" -H "X-Note-Title: notefeed ${TAG#v}" -H "X-Note-Tags: release,$TAG" \
+            -H "X-Feed-Password: $PASSWORD" -H "X-Note-Title: notefeed ${TAG#v}" -H "X-Note-Tags: release,notefeed,notefeed-$TAG" \
             --data-binary @post.md -o /dev/null -w "posted: %{http_code}\n"
       # Each agent skill (plugin/skills/<name>/SKILL.md) on notefeed.me's reserved `skills` feed under the name `<name>.md` (#250, ADR 0045):
       # https://notefeed.me/r/skills/<name>.md is always the newest, earlier releases stay in the feed. Tagged with the release, so a
