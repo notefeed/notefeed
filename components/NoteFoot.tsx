@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, Flag, Hash, PencilLine } from "lucide-react";
+import { DraftIcon, ReportIcon, ScheduledIcon, TagIcon } from "@/components/icons";
 import { chip } from "@/components/styles";
 import { isDraft, isScheduled, type Note } from "@/backend";
 import { reportUrl } from "@/shared/report";
@@ -20,19 +20,19 @@ export function Foot({ note, base, when, open, report }: { note: Note; base: str
       <div className="flex min-w-0 flex-1 flex-wrap gap-2">
         {isDraft(note) && (
           <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[13px] text-carbon">
-            <PencilLine aria-hidden className="h-3 w-3" />
+            <DraftIcon aria-hidden className="h-3 w-3" />
             Draft
           </span>
         )}
         {isScheduled(note) && (
           <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[13px] text-carbon">
-            <CalendarClock aria-hidden className="h-3 w-3" />
+            <ScheduledIcon aria-hidden className="h-3 w-3" />
             Scheduled for {fullDate(note.date)}
           </span>
         )}
         {note.tags.map((t) => (
           <Link key={t} href={`${base}?tag=${encodeURIComponent(t)}`} className={chip}>
-            <Hash aria-hidden className="h-3 w-3" />
+            <TagIcon aria-hidden className="h-3 w-3" />
             {t}
           </Link>
         ))}
@@ -69,7 +69,7 @@ function ReportLink({ note, report }: { note: Note; report?: Report }) {
   if (!report || isDraft(note) || isScheduled(note)) return null;
   return (
     <a href={reportUrl(report.template, { readId: report.readId, noteId: note.id, file: note.file })} rel="nofollow noopener" className="ml-1 inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] text-muted hover:bg-surface-2 hover:text-carbon">
-      <Flag aria-hidden className="h-3.5 w-3.5" />
+      <ReportIcon aria-hidden className="h-3.5 w-3.5" />
       Report
     </a>
   );

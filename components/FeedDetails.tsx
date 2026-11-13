@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignLeft, Fingerprint, ImagePlus, PencilLine, RefreshCw, Trash2, Type, UserRound, X } from "lucide-react";
+import { CloseIcon, DeleteIcon, DescriptionIcon, EditIcon, NewReadIdIcon, PictureIcon, ReadIdIcon, SenderIcon, TitleIcon } from "@/components/icons";
 import { useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { deleteFeed, updateFeed } from "@/app/_lib/api";
 import { danger, field, primary, secondary } from "@/components/styles";
@@ -68,7 +68,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
       <Group id="profile" label="Profile">
         {hydrated && (
           <DisclosureRow
-            icon={<ImagePlus />}
+            icon={<PictureIcon />}
             label="Title image"
             value={
               imageUrl ? (
@@ -93,12 +93,12 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
             />
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={pending} onClick={() => picker.current?.click()} className={secondary}>
-                <ImagePlus aria-hidden className="h-4 w-4" />
+                <PictureIcon aria-hidden className="h-4 w-4" />
                 {uploading ? "Uploading…" : "Choose image"}
               </button>
               {image && (
                 <button type="button" disabled={pending} onClick={() => save(undefined, { title, description, image: "", ...withSender })} className={`${secondary} bg-transparent font-normal text-muted`}>
-                  <X aria-hidden className="h-4 w-4" />
+                  <CloseIcon aria-hidden className="h-4 w-4" />
                   Remove image
                 </button>
               )}
@@ -131,17 +131,17 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
           </DisclosureRow>
         )}
         <form id="feed-details-form" method="post" action={`/${feed}/details`} onSubmit={(e) => save(e)} className="divide-y divide-rule">
-          <FieldRow icon={<Type />} label="Title" htmlFor="feed-title">
+          <FieldRow icon={<TitleIcon />} label="Title" htmlFor="feed-title">
             <input id="feed-title" name="title" maxLength={100} placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
           </FieldRow>
-          <FieldRow icon={<AlignLeft />} label="Description" htmlFor="feed-description">
+          <FieldRow icon={<DescriptionIcon />} label="Description" htmlFor="feed-description">
             <input id="feed-description" name="description" maxLength={500} placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className={field} />
           </FieldRow>
           {identity && (
             <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
               <input type="hidden" name="show_sender_present" value="1" />
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-                <UserRound aria-hidden className="h-[18px] w-[18px]" />
+                <SenderIcon aria-hidden className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0 flex-1 text-[15px]">Show who posted</span>
               <input type="checkbox" name="show_sender" checked={showSender} onChange={(e) => setShowSender(e.target.checked)} className="peer sr-only" />
@@ -158,7 +158,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
 
       <Group id="sharing" label="Sharing">
         {readIdChoice !== "fixed" && readId && (
-          <DisclosureRow icon={<Fingerprint />} label="Read id" value={<code className="font-mono">{readId}</code>} open={!!initialError}>
+          <DisclosureRow icon={<ReadIdIcon />} label="Read id" value={<code className="font-mono">{readId}</code>} open={!!initialError}>
             {readIdChoice === "custom" && (
               <>
                 <label htmlFor="feed-read-id" className="mb-1 block text-muted">
@@ -174,7 +174,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
                 </button>
               )}
               <button type="submit" form="feed-details-form" name="generate_read_id" value="1" formNoValidate disabled={pending} onClick={(e) => { if (hydrated) { e.preventDefault(); save(undefined, { title, description, ...withSender, read_id: "" }); } }} className={secondary}>
-                <RefreshCw aria-hidden className="h-4 w-4" />
+                <NewReadIdIcon aria-hidden className="h-4 w-4" />
                 Generate a random one
               </button>
             </div>
@@ -196,7 +196,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
 
       <Group id="danger" label="Danger zone">
         {renamable && (
-          <DisclosureRow icon={<PencilLine />} label="Rename this feed" danger>
+          <DisclosureRow icon={<EditIcon />} label="Rename this feed" danger>
             <form method="post" action={`/${feed}/details`} onSubmit={rename}>
               <input type="hidden" name="title" value={title} />
               <input type="hidden" name="description" value={description} />
@@ -208,13 +208,13 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
               </label>
               <input id="feed-new-name" name="name" required minLength={1} maxLength={64} pattern="[a-z0-9_\-]{1,64}" spellCheck={false} autoComplete="off" value={newName} onChange={(e) => setNewName(e.target.value)} className={`${field} mb-3 font-mono`} />
               <button type="submit" disabled={pending || (hydrated && (newName.trim() === "" || newName.trim() === feed))} className={danger}>
-                <PencilLine aria-hidden className="h-4 w-4" />
+                <EditIcon aria-hidden className="h-4 w-4" />
                 Rename feed
               </button>
             </form>
           </DisclosureRow>
         )}
-        <DisclosureRow icon={<Trash2 />} label="Delete this feed" danger>
+        <DisclosureRow icon={<DeleteIcon />} label="Delete this feed" danger>
           <form method="post" action={`/${feed}/delete`} onSubmit={remove}>
             <p className="text-muted">This deletes the feed and all its notes. It can&apos;t be undone. Type the feed&apos;s name to confirm.</p>
             <label htmlFor="feed-confirm" className="mb-1 mt-3 block text-muted">
@@ -222,7 +222,7 @@ export function FeedDetails({ feed, title: savedTitle, description: savedDescrip
             </label>
             <input id="feed-confirm" name="confirm" autoComplete="off" required pattern={feed} value={confirm} onChange={(e) => setConfirm(e.target.value)} className={`${field} mb-3 font-mono`} />
             <button type="submit" disabled={pending || (hydrated && confirm !== feed)} className={danger}>
-              <Trash2 aria-hidden className="h-4 w-4" />
+              <DeleteIcon aria-hidden className="h-4 w-4" />
               Delete feed
             </button>
           </form>

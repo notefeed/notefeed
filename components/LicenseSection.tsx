@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck } from "lucide-react";
+import { LicenseIcon } from "@/components/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -37,7 +37,7 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
   return (
     <Group id="license" label="License">
       <DisclosureRow
-        icon={<BadgeCheck />}
+        icon={<LicenseIcon />}
         label="License"
         value={licensed ? <span className="rounded-full bg-carbon-soft px-2 py-0.5 text-[12px] font-bold text-carbon">Licensed</span> : `Free tier · ${Math.min(freeTier.notes, freeTier.cap)} of ${freeTier.cap} notes`}
       >

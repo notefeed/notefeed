@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { BackIcon } from "@/components/icons";
 import { deleteNote } from "@/app/_lib/api";
 import { errorMessage, UNREADABLE } from "@/app/_lib/messages";
 import { card, danger } from "@/components/styles";
@@ -23,7 +23,7 @@ export function DamagedNote({ feed, id, back }: { feed?: string; id: string; bac
   return (
     <article className={`${card} p-4`}>
       <Link href={back} className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-carbon">
-        <ChevronLeft aria-hidden size={16} /> Back to the feed
+        <BackIcon aria-hidden size={16} /> Back to the feed
       </Link>
       <p role="status">{UNREADABLE}</p>
       <p className="mt-1 text-sm text-muted">Its text or picture can&apos;t be recovered here. The operator has been told.</p>

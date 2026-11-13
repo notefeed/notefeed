@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowUpRight, Bot, Braces, ChevronLeft, Link2, Package, Rss, Smartphone, Terminal } from "lucide-react";
+import { AgentIcon, ApiIcon, BackIcon, CodeIcon, ExternalIcon, PhoneIcon, ReadLinkIcon, RssIcon, ScriptIcon } from "@/components/icons";
 import { claudeMcpFor, curlFor } from "@/app/_lib/curl";
 import { feedDetailsErrorMessage, feedErrorMessage, passwordNotice, protectErrorMessage, recoverErrorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
@@ -46,7 +46,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
       <RememberFeed feed={{ name: feed, title, image: data.imageUrl }} />
       <div className="mb-5 flex items-center gap-2">
         <Link href={feedPath(feed)} className={iconButton} aria-label="Back to the feed" title="Back to the feed">
-          <ChevronLeft aria-hidden className="h-5 w-5" />
+          <BackIcon aria-hidden className="h-5 w-5" />
         </Link>
         <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
       </div>
@@ -74,40 +74,40 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
             {readUrl ? (
               <>
                 <div>
-                  <Row icon={<Link2 />} label="Read link" hint="For sharing: shows the notes, not this feed's name, and can't post.">
+                  <Row icon={<ReadLinkIcon />} label="Read link" hint="For sharing: shows the notes, not this feed's name, and can't post.">
                     <CopyButton text={readUrl} compact label="Copy read link" />
                   </Row>
                   <code className="-mt-1 block break-all px-4 pb-3 pl-[3.75rem] font-mono text-[13px] text-carbon">{readUrl}</code>
                 </div>
-                <Row icon={<Rss />} label="RSS feed" hint={<code className="break-all font-mono">{rssUrl}</code>}>
+                <Row icon={<RssIcon />} label="RSS feed" hint={<code className="break-all font-mono">{rssUrl}</code>}>
                   <CopyButton text={rssUrl!} compact label="Copy RSS link" />
                 </Row>
-                <Row icon={<Rss />} label="Atom feed" hint={<code className="break-all font-mono">{atomUrl}</code>}>
+                <Row icon={<RssIcon />} label="Atom feed" hint={<code className="break-all font-mono">{atomUrl}</code>}>
                   <CopyButton text={atomUrl!} compact label="Copy Atom link" />
                 </Row>
               </>
             ) : (
-              <Row icon={<Link2 />} label="Read link" hint="Appears after the first note." />
+              <Row icon={<ReadLinkIcon />} label="Read link" hint="Appears after the first note." />
             )}
           </>
         }
         posting={
           <>
-            <DisclosureRow icon={<Braces />} label="REST API">
+            <DisclosureRow icon={<ApiIcon />} label="REST API">
               <p className="mb-2 text-muted">Everything the web page does, under <code className="font-mono">/api/v1</code>. This server&apos;s own spec:</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`${base}/api/v1/openapi.json`}</pre>
               <DocsLink href={`${DOCS}/integrations/api/`}>REST API</DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<Terminal />} label="Post from a script">
+            <DisclosureRow icon={<ScriptIcon />} label="Post from a script">
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{curlFor(base, feed, access === "unlocked")}</pre>
               <DocsLink href={`${DOCS}/using/posting/`}>Posting notes</DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<Package />} label="Post from code">
+            <DisclosureRow icon={<CodeIcon />} label="Post from code">
               <p className="mb-2 text-muted">The client libraries for Python and JavaScript take the server and the feed from the environment.</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{`pip install notefeed\nnpm install notefeed`}</pre>
               <DocsLink href={`${DOCS}/integrations/clients/`}>Client libraries</DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<Smartphone />} label="Share from an iPhone">
+            <DisclosureRow icon={<PhoneIcon />} label="Share from an iPhone">
               <p className="mb-2 text-muted">
                 A ready-made Shortcut puts <strong className="text-ink">Send to notefeed</strong> in the iPhone&apos;s share sheet: pictures, text and links you share arrive as one note in this feed.
               </p>
@@ -148,7 +148,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
               </ol>
               <DocsLink href={`${DOCS}/using/sharing/#iphone`}>Sharing</DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<Smartphone />} label="Share from Android">
+            <DisclosureRow icon={<PhoneIcon />} label="Share from Android">
               <p className="mb-2 text-muted">Installed as an app, notefeed is in Android&apos;s share sheet: pictures, text and links go into this feed&apos;s compose box, ready to post.</p>
               <ol className="mb-2 list-decimal space-y-2 pl-5 text-muted">
                 <li>
@@ -163,7 +163,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
               </ol>
               <DocsLink href={`${DOCS}/using/sharing/#android`}>Sharing</DocsLink>
             </DisclosureRow>
-            <DisclosureRow icon={<Bot />} label="Post from an AI agent">
+            <DisclosureRow icon={<AgentIcon />} label="Post from an AI agent">
               <p className="mb-2 text-muted">Add notefeed to Claude Code as an MCP server; the agent then posts to this feed by its name.</p>
               <pre className="overflow-x-auto rounded-xl bg-surface-2 p-3 font-mono text-[13px] text-ink">{claudeMcpFor(base)}</pre>
               <DocsLink href={`${DOCS}/integrations/mcp/`}>MCP, and other clients</DocsLink>
@@ -192,7 +192,7 @@ function DocsLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <a href={href} className="mt-2 inline-flex items-center gap-1 text-carbon underline">
       {children} in the docs
-      <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
+      <ExternalIcon aria-hidden className="h-3.5 w-3.5" />
     </a>
   );
 }

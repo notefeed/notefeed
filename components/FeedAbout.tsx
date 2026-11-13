@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye, Hash, Rss, Settings } from "lucide-react";
+import { ReadOnlyIcon, RssIcon, SettingsIcon, TagIcon } from "@/components/icons";
 import type { ReactNode } from "react";
 import { CopyButton } from "@/components/CopyButton";
 import { ShareButton } from "@/components/ShareButton";
@@ -43,23 +43,23 @@ export function FeedAbout({ name, title, description, imageUrl, readUrl, rssUrl,
             {rssUrl && !name && (
               // The read-only view: following the feed is the one thing to do here.
               <a href={rssUrl} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-carbon px-4 py-2 text-[14px] font-bold text-on-carbon">
-                <Rss aria-hidden className="h-4 w-4" />
+                <RssIcon aria-hidden className="h-4 w-4" />
                 Subscribe<span className="sr-only"> via RSS</span>
               </a>
             )}
             {rssUrl && name && (
               <a href={rssUrl} className={round} aria-label="RSS" title="RSS feed">
-                <Rss aria-hidden className="h-[18px] w-[18px]" />
+                <RssIcon aria-hidden className="h-[18px] w-[18px]" />
               </a>
             )}
             {viewHref && (
               <Link href={viewHref} className={round} aria-label="Open read-only view" title="Read-only view">
-                <Eye aria-hidden className="h-[18px] w-[18px]" />
+                <ReadOnlyIcon aria-hidden className="h-[18px] w-[18px]" />
               </Link>
             )}
             {settingsHref && (
               <Link href={settingsHref} className={round} aria-label="Settings" title="Feed settings">
-                <Settings aria-hidden className="h-[18px] w-[18px]" />
+                <SettingsIcon aria-hidden className="h-[18px] w-[18px]" />
               </Link>
             )}
           </div>
@@ -103,7 +103,7 @@ function TagLink({ href, active, label, hash = false }: { href: string; active: 
       aria-current={active ? "page" : undefined}
       className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[14px] xl:rounded-lg xl:px-2.5 ${active ? "bg-carbon-soft font-bold text-carbon" : "bg-surface-2 hover:bg-rule/60 xl:bg-transparent xl:hover:bg-surface-2"}`}
     >
-      {hash && <Hash aria-hidden className="h-3.5 w-3.5 text-muted" />}
+      {hash && <TagIcon aria-hidden className="h-3.5 w-3.5 text-muted" />}
       {hash && <span className="sr-only">Filter by </span>}
       {label}
     </Link>

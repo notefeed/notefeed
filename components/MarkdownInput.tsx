@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent, type DragEvent, type ReactNode } from "react";
-import { Eye, ImagePlus, PenLine, X } from "lucide-react";
+import { CloseIcon, PictureIcon, PreviewIcon, WriteIcon } from "@/components/icons";
 import { NoteView } from "@/components/NoteView";
 import { type Pending, addPending, removeReference } from "@/components/pendingFiles";
 import { IMAGES_OFF, TOO_MANY_PICTURES } from "@/app/_lib/messages";
@@ -145,7 +145,7 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
               <img src={p.preview} alt="" className="h-16 w-16 rounded-xl border border-rule object-cover" />
               <span className="sr-only">{p.token}</span>
               <button type="button" onClick={() => remove(p)} aria-label={`Remove ${p.token}`} className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper">
-                <X aria-hidden className="h-3.5 w-3.5" />
+                <CloseIcon aria-hidden className="h-3.5 w-3.5" />
               </button>
             </li>
           ))}
@@ -167,7 +167,7 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
             }}
             className={`inline-flex h-9 w-9 items-center justify-center rounded-full ${previewing ? "bg-carbon-soft text-carbon" : "text-muted hover:bg-surface-2 hover:text-ink"}`}
           >
-            {previewing ? <PenLine aria-hidden className="h-[18px] w-[18px]" /> : <Eye aria-hidden className="h-[18px] w-[18px]" />}
+            {previewing ? <WriteIcon aria-hidden className="h-[18px] w-[18px]" /> : <PreviewIcon aria-hidden className="h-[18px] w-[18px]" />}
           </button>
         )}
         {!images && <span className="text-muted">{IMAGES_OFF}</span>}
@@ -187,7 +187,7 @@ export function MarkdownInput({ id, name, label, value, onChange, rows, placehol
               }}
             />
             <button type="button" onClick={() => picker.current?.click()} aria-label="Add image" title="Add image" className="inline-flex h-9 w-9 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
-              <ImagePlus aria-hidden className="h-[18px] w-[18px]" />
+              <PictureIcon aria-hidden className="h-[18px] w-[18px]" />
             </button>
           </>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Camera, Hash, PencilLine, Plus, Send, X } from "lucide-react";
+import { CameraIcon, CloseIcon, DraftIcon, MoreIcon, PostIcon, ScheduledIcon, TagIcon } from "@/components/icons";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, primary } from "@/components/styles";
@@ -190,7 +190,7 @@ export function Compose({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={p.preview} alt="" className="h-14 w-14 rounded-xl border border-rule object-cover" />
                   <button type="button" onClick={() => removePhoto(p)} aria-label={`Remove ${p.token}`} className="absolute -right-1.5 -top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink text-paper">
-                    <X aria-hidden className="h-3.5 w-3.5" />
+                    <CloseIcon aria-hidden className="h-3.5 w-3.5" />
                   </button>
                 </li>
               ))}
@@ -214,7 +214,7 @@ export function Compose({
           )}
           <div className="flex items-end gap-1.5">
             <button type="button" onClick={openSheet} aria-label="Title, tags and pictures" title="Title, tags and pictures" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
-              <Plus aria-hidden className="h-[22px] w-[22px]" />
+              <MoreIcon aria-hidden className="h-[22px] w-[22px]" />
             </button>
             <textarea
               ref={quick}
@@ -230,7 +230,7 @@ export function Compose({
             />
             {imagesOn && (
               <button type="button" onClick={() => camera.current?.click()} aria-label="Take a photo" title="Take a photo" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2">
-                <Camera aria-hidden className="h-[22px] w-[22px]" />
+                <CameraIcon aria-hidden className="h-[22px] w-[22px]" />
               </button>
             )}
             <button
@@ -241,7 +241,7 @@ export function Compose({
                 title="Send note"
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-carbon hover:bg-surface-2 disabled:opacity-40 disabled:hover:bg-transparent"
               >
-                <Send aria-hidden className="h-[22px] w-[22px]" />
+                <PostIcon aria-hidden className="h-[22px] w-[22px]" />
               </button>
           </div>
         </div>
@@ -257,7 +257,7 @@ export function Compose({
         {sheet && (
           <div className="-mx-4 mb-2 flex items-center justify-between border-b border-rule px-2 pb-2 lg:hidden">
             <button type="button" onClick={close} aria-label="Close" title="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-2">
-              <X aria-hidden className="h-5 w-5" />
+              <CloseIcon aria-hidden className="h-5 w-5" />
             </button>
             <span className="truncate rounded-full border border-rule bg-surface-2 px-3 py-1 text-[13px] font-bold text-carbon">{feed}</span>
             <span className="w-9" />
@@ -289,21 +289,21 @@ export function Compose({
           below={
             <div className="mt-2 flex flex-wrap gap-2">
               <div className="flex min-w-0 flex-1 basis-48 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 sm:max-w-sm">
-                <Hash aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <TagIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <label htmlFor="note-tags" className="sr-only">
                   Tags (optional, separated by commas)
                 </label>
                 <input id="note-tags" name="tags" type="text" autoComplete="off" placeholder="Tags, e.g. ci, deploy" pattern={TAGS_PATTERN} title={TAGS_HINT} value={tags} onChange={(e) => setTags(e.target.value)} className={`${bare} text-[13px]`} />
               </div>
               <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1" title="The note's date: an earlier time backdates it, a later one schedules it; empty is now">
-                <CalendarClock aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <ScheduledIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <label htmlFor="note-date" className="sr-only">
                   Date (optional; empty is now, a later time schedules the note)
                 </label>
                 <input id="note-date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={`${bare} text-[13px] ${date ? "" : "text-muted"}`} />
               </div>
               <label className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 text-[13px]" title="A draft stays on this page: readers see it once it is published">
-                <PencilLine aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <DraftIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
                 <input id="note-draft" name="draft" type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />
                 Draft
               </label>
@@ -314,7 +314,7 @@ export function Compose({
             Markdown · Ctrl+Enter to post
           </span>
           <button type="submit" disabled={pending} aria-label="Post note" className={`${primary} max-sm:ml-auto`}>
-            <Send aria-hidden className="h-4 w-4" />
+            <PostIcon aria-hidden className="h-4 w-4" />
             {pending ? "Posting…" : "Post"}
           </button>
         </MarkdownInput>

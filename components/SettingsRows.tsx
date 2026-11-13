@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { DisclosureIcon } from "@/components/icons";
 import type { ReactNode } from "react";
 import { card, sectionLabel } from "@/components/styles";
 
@@ -55,7 +55,7 @@ export function DisclosureRow({ icon, label, value, danger, open, children }: { 
         <Tile icon={icon} danger={danger} />
         <span className={`min-w-0 flex-1 text-[15px] ${danger ? "text-error" : ""}`}>{label}</span>
         {value !== undefined && <span className="min-w-0 truncate text-[13px] text-muted">{value}</span>}
-        <ChevronRight aria-hidden className="chevron h-4 w-4 shrink-0 text-muted transition-transform" />
+        <DisclosureIcon aria-hidden className="chevron h-4 w-4 shrink-0 text-muted transition-transform" />
       </summary>
       <div className="px-4 pb-4 sm:pl-[3.75rem]">{children}</div>
     </details>

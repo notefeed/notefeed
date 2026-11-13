@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Link2, Rss, Send, TriangleAlert } from "lucide-react";
+import { PostIcon, ReadLinkIcon, RssIcon, WarningIcon } from "@/components/icons";
 import { HomeFeeds } from "@/components/HomeFeeds";
 import { card } from "@/components/styles";
 import { OpenFeed } from "@/components/OpenFeed";
@@ -61,7 +61,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           Open or create a feed
         </h2>
         <div role="note" className="mb-4 mt-3 flex gap-3 rounded-xl border border-error/40 bg-error/5 p-3 text-sm">
-          <TriangleAlert aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-error" />
+          <WarningIcon aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-error" />
           <p className="text-ink">
             <strong className="font-bold">The name is the key.</strong> Anyone who knows a feed&apos;s name can read and post to it — pick one that&apos;s hard to guess,
             like the one suggested below.
@@ -72,9 +72,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       {shared.length === 0 && <HomeFeeds />}
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { icon: <Send />, title: "Post from anywhere", text: "This page, the share sheet of your phone, one curl command, or an AI assistant over MCP." },
-          { icon: <Rss />, title: "Follow with RSS", text: "Any reader works. No account, no app." },
-          { icon: <Link2 />, title: "Share without the name", text: "The read link shows the notes and can't post." },
+          { icon: <PostIcon />, title: "Post from anywhere", text: "This page, the share sheet of your phone, one curl command, or an AI assistant over MCP." },
+          { icon: <RssIcon />, title: "Follow with RSS", text: "Any reader works. No account, no app." },
+          { icon: <ReadLinkIcon />, title: "Share without the name", text: "The read link shows the notes and can't post." },
         ].map((f) => (
           <div key={f.title} className={`${card} p-4`}>
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-carbon-soft text-carbon [&>svg]:h-[18px] [&>svg]:w-[18px]">{f.icon}</span>

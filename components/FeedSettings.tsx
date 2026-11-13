@@ -1,4 +1,4 @@
-import { KeyRound, Lock, ShieldCheck } from "lucide-react";
+import { FeedPasswordIcon, LockedIcon } from "@/components/icons";
 import { DisclosureRow, Group, Row } from "@/components/SettingsRows";
 import { field, primary, secondary } from "@/components/styles";
 import { PASSWORD_HINT } from "@/app/_lib/messages";
@@ -11,7 +11,7 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
   const action = `/${feed}/access`;
   return (
     <Group id="access" label="Privacy & access">
-      <DisclosureRow icon={<KeyRound />} label="Feed password" value="On" open={!!error || !!notice || !!recover?.open}>
+      <DisclosureRow icon={<FeedPasswordIcon />} label="Feed password" value="On" open={!!error || !!notice || !!recover?.open}>
         {notice && (
           <p role="status" className="mb-3 max-w-sm rounded-xl bg-carbon-soft px-3 py-2 text-carbon">
             {notice}
@@ -92,7 +92,7 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
           </details>
         )}
       </DisclosureRow>
-      <Row icon={<Lock />} label="This browser" hint="Asks for the password again here">
+      <Row icon={<LockedIcon />} label="This browser" hint="Asks for the password again here">
         <form method="post" action={action}>
           <button type="submit" name="action" value="lock" className={secondary}>
             Lock this browser
@@ -108,7 +108,7 @@ export function FeedSettings({ feed, error, notice, recover }: { feed: string; e
 export function ProtectFeed({ feed, error }: { feed: string; error?: string }) {
   return (
     <Group id="access" label="Privacy & access">
-      <DisclosureRow icon={<ShieldCheck />} label="Feed password" value="Off" open={!!error}>
+      <DisclosureRow icon={<FeedPasswordIcon />} label="Feed password" value="Off" open={!!error}>
         <form method="post" action={`/${feed}/access`} className="max-w-sm">
           <p className="mb-3 text-muted">
             Anyone who knows this feed&apos;s name can read, post to and change it, and set this password too. A password stops that: from then on everyone who posts, scripts included, needs it, and so does this page. The read link and RSS stay open.

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Shuffle } from "lucide-react";
+import { RandomNameIcon } from "@/components/icons";
 import { field, primary } from "@/components/styles";
 
 // A plain GET form: the start page normalizes and checks the name, then redirects to /<name>.
@@ -29,7 +29,7 @@ export function OpenFeed({ value, error, carry = [] }: { value: string; error?: 
           className={`${field} flex-1 font-mono`}
         />
         <Link href="/" prefetch={false} aria-label="Suggest another name" title="Suggest another name" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink hover:bg-rule/60">
-          <Shuffle aria-hidden className="h-[18px] w-[18px]" />
+          <RandomNameIcon aria-hidden className="h-[18px] w-[18px]" />
         </Link>
         <button type="submit" className={primary}>
           Open

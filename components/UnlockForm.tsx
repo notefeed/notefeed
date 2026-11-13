@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { LockedIcon } from "@/components/icons";
 import { card, field, primary, secondary } from "@/components/styles";
 import { PASSWORD_PATTERN } from "@/shared/password";
 
@@ -9,7 +9,7 @@ export function UnlockForm({ feed, error, recover, share = "" }: { feed: string;
   return (
     <div className={`${card} mx-auto mt-[8vh] max-w-sm p-6`}>
       <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-carbon-soft text-carbon">
-        <Lock aria-hidden className="h-5 w-5" />
+        <LockedIcon aria-hidden className="h-5 w-5" />
       </span>
       <form method="post" action={`/${feed}/access`}>
         <input type="hidden" name="action" value="unlock" />

@@ -6,6 +6,11 @@ import nextTs from "eslint-config-next/typescript";
 const FRONTEND_IMPORTS = {
   patterns: [{ group: ["@/backend/*", "**/backend/*"], message: "The frontend imports the backend only through @/backend (backend/index.ts)." }],
 };
+// One icons module (components/icons.ts): every icon is named by the thing it stands for, so one thing gets one icon.
+const ICON_IMPORTS = {
+  ...FRONTEND_IMPORTS,
+  paths: [{ name: "lucide-react", message: "Import icons from @/components/icons, which names each by the thing it stands for." }],
+};
 const BACKEND_IMPORTS = {
   paths: ["next", "react", "react-dom"].map((name) => ({ name, message: "backend/ is framework-free." })),
   patterns: [
@@ -25,9 +30,10 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     files: ["app/**", "components/**", "proxy.ts"],
-    ignores: ["**/*.test.ts"],
-    rules: { "no-restricted-imports": ["error", FRONTEND_IMPORTS] },
+    ignores: ["**/*.test.ts", "components/icons.ts"],
+    rules: { "no-restricted-imports": ["error", ICON_IMPORTS] },
   },
+  { files: ["components/icons.ts"], rules: { "no-restricted-imports": ["error", FRONTEND_IMPORTS] } },
   { files: ["backend/**"], rules: { "no-restricted-imports": ["error", BACKEND_IMPORTS] } },
   { files: ["shared/**"], rules: { "no-restricted-imports": ["error", SHARED_IMPORTS] } },
   // Override default ignores of eslint-config-next.

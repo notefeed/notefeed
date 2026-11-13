@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ChevronLeft, Flag, Link2, Pencil, Trash2 } from "lucide-react";
+import { BackIcon, DeleteIcon, DoneIcon, EditIcon, NoteLinkIcon, ReportIcon } from "@/components/icons";
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { copyText } from "@/components/copy";
 import { card, field, primary, secondary, sectionLabel } from "@/components/styles";
@@ -174,7 +174,7 @@ export function NoteActionsPanel() {
                 </label>
                 <div className="mt-4 flex gap-2">
                   <button type="submit" disabled={pending} className={primary}>
-                    <Check aria-hidden className="h-4 w-4" />
+                    <DoneIcon aria-hidden className="h-4 w-4" />
                     {pending ? "Saving…" : "Save"}
                   </button>
                   <button type="button" onClick={() => setMode(null)} className={secondary}>
@@ -225,7 +225,7 @@ function DeleteDialog({ onSubmit, onClose, pending, error }: { onSubmit: (e: For
         </p>
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <button type="submit" disabled={pending} className={`${primary} bg-error`}>
-            <Trash2 aria-hidden className="h-4 w-4" />
+            <DeleteIcon aria-hidden className="h-4 w-4" />
             Delete note
           </button>
           <button ref={cancel} type="button" onClick={onClose} className={secondary}>
@@ -253,21 +253,21 @@ export function NoteActionsBar() {
     >
       <p className={`${sectionLabel} hidden px-3 pb-1 pt-1.5 xl:block`}>This note</p>
       <button type="button" aria-pressed={mode === "edit"} onClick={() => setMode(mode === "edit" ? null : "edit")} className={`${button} ${mode === "edit" ? "text-carbon" : ""}`}>
-        <Pencil aria-hidden className="h-5 w-5" />
+        <EditIcon aria-hidden className="h-5 w-5" />
         Edit
       </button>
       <button type="button" onClick={copyLink} className={button}>
-        {copied ? <Check aria-hidden className="h-5 w-5" /> : <Link2 aria-hidden className="h-5 w-5" />}
+        {copied ? <DoneIcon aria-hidden className="h-5 w-5" /> : <NoteLinkIcon aria-hidden className="h-5 w-5" />}
         <span aria-live="polite">{copied ? "Copied" : "Copy link"}</span>
       </button>
       {reportHref && (
         <a href={reportHref} rel="nofollow noopener" className={button}>
-          <Flag aria-hidden className="h-5 w-5" />
+          <ReportIcon aria-hidden className="h-5 w-5" />
           Report
         </a>
       )}
       <button type="button" aria-pressed={mode === "delete"} onClick={() => setMode(mode === "delete" ? null : "delete")} className={`${button} text-error`}>
-        <Trash2 aria-hidden className="h-5 w-5" />
+        <DeleteIcon aria-hidden className="h-5 w-5" />
         Delete
       </button>
       {/* Not on a phone, where the "All notes" link above the note is at hand: first in the row from lg, last in the right
@@ -275,7 +275,7 @@ export function NoteActionsBar() {
       <div className="hidden lg:order-first lg:mr-auto lg:flex xl:order-none xl:mr-0 xl:flex-col">
         <div className="mx-2 my-1 hidden border-t border-rule xl:block" />
         <Link href={back} className={`${button} text-carbon`}>
-          <ChevronLeft aria-hidden className="h-5 w-5" />
+          <BackIcon aria-hidden className="h-5 w-5" />
           All notes
         </Link>
       </div>

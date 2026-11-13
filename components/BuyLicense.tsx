@@ -1,7 +1,7 @@
 "use client";
 
 import { openCheckout } from "@creem_io/embed";
-import { Check, KeyRound, ReceiptText, X } from "lucide-react";
+import { IncludedIcon, LicenseKeyIcon, NotIncludedIcon, PurchasesIcon } from "@/components/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "@/app/_lib/messages";
 import { CopyButton } from "@/components/CopyButton";
@@ -75,7 +75,7 @@ export function BuyLicense({ text, intro, fineprint, plans, cap, account }: { te
         <section aria-labelledby="your-key" className={`${card} p-5 sm:p-6`}>
           <h2 id="your-key" className="flex items-center gap-2 text-[17px] font-bold">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-              <KeyRound aria-hidden className="h-[18px] w-[18px]" />
+              <LicenseKeyIcon aria-hidden className="h-[18px] w-[18px]" />
             </span>
             Your license key
           </h2>
@@ -189,7 +189,7 @@ function Features({ features, cap, className }: { features: LicenseFeature[]; ca
 function Feature({ off = false, children }: { off?: boolean; children: ReactNode }) {
   return (
     <li className={`flex items-start gap-2 ${off ? "text-muted" : ""}`}>
-      {off ? <X aria-label="Not included:" className="mt-0.5 h-4 w-4 shrink-0" /> : <Check aria-label="Included:" className="mt-0.5 h-4 w-4 shrink-0 text-carbon" />}
+      {off ? <NotIncludedIcon aria-label="Not included:" className="mt-0.5 h-4 w-4 shrink-0" /> : <IncludedIcon aria-label="Included:" className="mt-0.5 h-4 w-4 shrink-0 text-carbon" />}
       {children}
     </li>
   );
@@ -202,7 +202,7 @@ function ManageLicense({ account }: { account: string }) {
     <section aria-labelledby="manage" className={`${card} p-5 sm:p-6`}>
       <h2 id="manage" className="flex items-center gap-2 text-[17px] font-bold">
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-          <ReceiptText aria-hidden className="h-[18px] w-[18px]" />
+          <PurchasesIcon aria-hidden className="h-[18px] w-[18px]" />
         </span>
         Cancel, payment and invoices
       </h2>

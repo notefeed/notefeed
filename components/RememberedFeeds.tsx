@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { X } from "lucide-react";
+import { CloseIcon } from "@/components/icons";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 // The feeds this browser has opened (issue #185): notefeed has no accounts, so "your feeds" is a list in localStorage,
@@ -99,7 +99,7 @@ export function RememberedFeedLinks({ current, onNavigate, query = "" }: { curre
           </Link>
           {f.name !== current && (
             <button type="button" onClick={() => forgetFeed(f.name)} title="Forget on this device" aria-label={`Forget ${f.title || f.name} on this device`} className="mr-1 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-ink group-hover:inline-flex focus:inline-flex">
-              <X aria-hidden className="h-4 w-4" />
+              <CloseIcon aria-hidden className="h-4 w-4" />
             </button>
           )}
         </div>

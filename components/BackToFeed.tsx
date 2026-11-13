@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { BackIcon } from "@/components/icons";
 import { card } from "@/components/styles";
 
 // The right column beside a note on the read page (#307): the feed it belongs to and a large way back to all its notes, in the
@@ -14,7 +14,7 @@ export function BackToFeed({ title, imageUrl, href }: { title: string; imageUrl:
         <span className="min-w-0">
           <span className="block truncate text-[13px] text-muted">{title}</span>
           <span className="flex items-center gap-1 text-lg font-bold text-carbon group-hover:underline">
-            <ChevronLeft aria-hidden className="h-5 w-5" />
+            <BackIcon aria-hidden className="h-5 w-5" />
             All notes
           </span>
         </span>

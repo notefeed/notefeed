@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { BackIcon } from "@/components/icons";
 import { card } from "@/components/styles";
 import { PageContent } from "@/components/NoteBody";
 import { Foot, fullDate, type Report } from "@/components/NoteFoot";
@@ -14,7 +14,7 @@ export function NoteArticle({ note, back, imageBase, report, backInBar = false, 
   return (
     <>
       <Link href={back} aria-label="Back to all notes" className={`-ml-2 mb-3 h-7 items-center gap-1 rounded-full px-2 text-sm text-carbon hover:bg-surface-2 ${backInBar ? "inline-flex lg:hidden" : backAside ? "inline-flex xl:hidden" : "inline-flex"}`}>
-        <ChevronLeft aria-hidden className="h-4 w-4" />
+        <BackIcon aria-hidden className="h-4 w-4" />
         All notes
       </Link>
       <article className={`${card} p-4 sm:p-5`}>

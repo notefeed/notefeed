@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { ArrowUpRight, ChevronDown, Info, LogOut, Plus } from "lucide-react";
+import { ExpandIcon, ExternalIcon, InfoIcon, NewFeedIcon, SignOutIcon } from "@/components/icons";
 import type { ReactNode } from "react";
 import { IDENTITY_COOKIE, SESSION_COOKIE, locked, sessionOk, type RunningVersion } from "@/backend";
 import { Disclosure } from "@/components/Disclosure";
@@ -37,7 +37,7 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
         )}
         <Link href="/" className="mt-3 flex items-center gap-3 rounded-xl px-2 py-2 text-[15px] font-bold text-carbon hover:bg-surface-2">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-carbon text-on-carbon">
-            <Plus aria-hidden className="h-[18px] w-[18px]" />
+            <NewFeedIcon aria-hidden className="h-[18px] w-[18px]" />
           </span>
           Open or create a feed
         </Link>
@@ -74,7 +74,7 @@ function LogOutButton({ className }: { className: string }) {
   return (
     <form method="post" action="/logout">
       <button type="submit" className={className}>
-        <LogOut aria-hidden className="h-4 w-4" />
+        <SignOutIcon aria-hidden className="h-4 w-4" />
         Log out
       </button>
     </form>
@@ -105,7 +105,7 @@ function FeedSwitcher({ feed }: { feed: string }) {
       summary={
         <>
           <span className="truncate text-[15px] font-bold tracking-tight text-carbon">{feed}</span>
-          <ChevronDown aria-hidden className="h-[18px] w-[18px] shrink-0 text-muted" />
+          <ExpandIcon aria-hidden className="h-[18px] w-[18px] shrink-0 text-muted" />
         </>
       }
     >
@@ -138,7 +138,7 @@ export function InfoMenu({ links, loggedIn, up = false }: { links: { product: Fo
     l.external ? (
       <a key={l.href} href={l.href} className={row}>
         <span className="flex-1">{l.label}</span>
-        <ArrowUpRight aria-hidden className="h-4 w-4 text-muted" />
+        <ExternalIcon aria-hidden className="h-4 w-4 text-muted" />
       </a>
     ) : (
       <Link key={l.href} href={l.href} className={row}>
@@ -153,11 +153,11 @@ export function InfoMenu({ links, loggedIn, up = false }: { links: { product: Fo
       summary={
         up ? (
           <>
-            <Info aria-hidden className="h-5 w-5" />
+            <InfoIcon aria-hidden className="h-5 w-5" />
             About &amp; legal
           </>
         ) : (
-          <Info aria-hidden className="h-5 w-5" />
+          <InfoIcon aria-hidden className="h-5 w-5" />
         )
       }
     >
