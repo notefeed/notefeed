@@ -733,3 +733,12 @@ def test_the_operators_mark_comes_through_a_list_as_removed(server):
     got = list(Client(server.url, "inbox").notes())
     assert [n.removed is True for n in got] == [True, False]  # absent is UNSET, as for draft
     assert got[0].file_url is None and got[0].type_ == "application/x-notefeed-removed"
+
+
+@pytest.mark.parametrize("password", [None, "secret"])
+def test_tls_is_verified_against_the_os_trust_store(password):
+    import truststore
+
+    with Client("https://notes.example", password=password) as c:
+        ctx = c._api.get_httpx_client()._transport._pool._ssl_context
+    assert isinstance(ctx, truststore.SSLContext)

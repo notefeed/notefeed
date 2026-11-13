@@ -80,6 +80,8 @@ Create the client with the server's URL and, usually, a default feed; every call
 
 A note has `id`, `type`, `title`, `content` (absent for a picture), `file`, `file_url`, `size`, `tags`, `date`, `scheduled` (only for the owner, when the date is in the future), `draft` (only for the owner, for a [draft](../using/posting.md#drafts)) and `url`, and optionally `alt`, `name` and `sender`. Timeouts default to 10 seconds. Feed names are checked on the client, so a typo fails with a `ConfigError` before any request.
 
+The Python client checks the instance's certificate against the operating system's trusted certificates ([truststore](https://truststore.readthedocs.io), not certifi's bundle, and only for its own connections), so an instance behind your own certificate authority works once that authority is trusted on the machine. Node uses its own bundled certificates unless started with `--use-system-ca` (or `NODE_USE_SYSTEM_CA=1`).
+
 ## Errors
 
 Every error is a `NotefeedError` with `status` and `code` (both empty for network and configuration problems). The type follows the code:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import ssl
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -12,6 +13,7 @@ from typing import Any, NoReturn, TypeVar
 
 import attrs
 import httpx
+import truststore
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
@@ -181,11 +183,14 @@ class Client:
             raise ConfigError("password contains invalid characters")
         self._feed_password = _check_feed_password(feed_password)
         # The generated clients: the authenticated one sends `Authorization: Bearer <password>` on every call.
+        # TLS is verified against the operating system's trust store (truststore), not certifi's bundle, so an
+        # instance behind a private CA the system trusts just works. Only this client gets it: a library does not change ssl for the whole process.
         t = httpx.Timeout(timeout)
+        tls = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self._api = (
-            AuthenticatedClient(base_url=self.url, token=password, timeout=t)
+            AuthenticatedClient(base_url=self.url, token=password, timeout=t, verify_ssl=tls)
             if password
-            else _GeneratedClient(base_url=self.url, timeout=t)
+            else _GeneratedClient(base_url=self.url, timeout=t, verify_ssl=tls)
         )
 
     def close(self) -> None:
