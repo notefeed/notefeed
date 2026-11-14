@@ -32,7 +32,7 @@ export const ROUTES = [
   "/api/licenses/webhook",
   "/api/login",
   "/api/oauth/authorize",
-  "/api/oidc/callback",
+  "/api/oidc/finish",
   "/api/oidc/start",
   "/api/operator/images/move",
   "/api/operator/images/unreferenced",

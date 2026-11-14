@@ -16,6 +16,9 @@ Notes are untouched by upgrades. Image tags on `ghcr.io/notefeed/notefeed`:
 
 To upgrade only on purpose, pin a version. Each release is listed on [GitHub Releases](https://github.com/notefeed/notefeed/releases) with its notes.
 
+!!! warning "Sign-in: a new redirect URI"
+    Since sign-in runs on Better Auth, the redirect URI an OpenID Connect provider sends people back to is `<PUBLIC_URL>/api/auth/callback/default` (and `/api/auth/callback/<name>` for each further provider), no longer `/api/oidc/callback`. Register the new one at your provider before upgrading, or sign-in fails with the provider's redirect error. Everyone signs in once more after the upgrade. Back up the new `accounts.sqlite` with your data.
+
 !!! note "Older set-ups"
     Up to 0.9.0 the image was `ghcr.io/marceltov/notefeed`; change the `image:` line to keep upgrading. Since 0.10.1 the image has no shell: remove a `healthcheck:` of your own that calls `wget` or `curl`, the image's own check does the same (see [Health check](operating.md#docker)).
 

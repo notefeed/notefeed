@@ -37,7 +37,7 @@ export { fileRoute, ownerFileRoute } from "./http/files";
 export { atomRoute, rssRoute } from "./http/rss";
 export { mcpRoute } from "./mcp";
 export { authRoute } from "./accounts/auth";
-export { oidcCallbackRoute, oidcStartRoute } from "./oidc/routes";
+export { oidcFinishRoute, oidcStartRoute } from "./oidc/routes";
 export {
   authServerRoute,
   authorizeRoute,

@@ -12,7 +12,7 @@ Sign-in is on only when all four of these are set:
 | `NOTEFEED_OIDC_SENDER_CLAIM` | Optional, default `name,email`: the id_token claims tried in order for the sender. |
 | `NOTEFEED_OIDC_LABEL` | Optional: the text after **Sign in with** on the button, else the issuer's host. |
 
-You also need `PUBLIC_URL`, because the redirect URI is `<PUBLIC_URL>/api/oidc/callback`, and `NOTEFEED_SECRET`. Register that redirect URI with the provider, exactly, with no trailing slash.
+You also need `PUBLIC_URL`, because the redirect URI is `<PUBLIC_URL>/api/auth/callback/default` (for a [further provider](#several-providers) named `WORK`, `<PUBLIC_URL>/api/auth/callback/work`), and `NOTEFEED_SECRET`. Register that redirect URI with the provider, exactly, with no trailing slash.
 
 ```sh
 # .env
@@ -26,7 +26,7 @@ NOTEFEED_OIDC_ALLOW="@example.com,guest@example.org"
 
 ### Example: Authentik
 
-1. Create an **OAuth2/OpenID provider**: client type confidential, redirect URI `https://notes.example.com/api/oidc/callback`, scopes `openid`, `profile` and `email`.
+1. Create an **OAuth2/OpenID provider**: client type confidential, redirect URI `https://notes.example.com/api/auth/callback/default`, scopes `openid`, `profile` and `email`.
 2. Create an **application** that uses it, with the slug `notefeed`.
 3. Copy the client id and secret, and set the issuer to the application's OpenID configuration issuer, `https://authentik.example.com/application/o/notefeed/`.
 
@@ -38,7 +38,7 @@ Two details trip people up: `NOTEFEED_OIDC_ISSUER` must equal the `issuer` in th
 
 ## Several providers
 
-Each further provider is its own set of variables with a name of your choosing, capitals, digits and underscores: `NOTEFEED_OIDC_<NAME>_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET`, `_ALLOW`, and optionally `_SENDER_CLAIM` and `_LABEL`. The unprefixed variables are one more provider, so the name `DEFAULT` is reserved. A provider with one of its four variables missing is left out, and the others still work. Every provider has its own allow-list, and all share the one redirect URI.
+Each further provider is its own set of variables with a name of your choosing, capitals, digits and underscores: `NOTEFEED_OIDC_<NAME>_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET`, `_ALLOW`, and optionally `_SENDER_CLAIM` and `_LABEL`. The unprefixed variables are one more provider, so the name `DEFAULT` is reserved. A provider with one of its four variables missing is left out, and the others still work. Every provider has its own allow-list and its own redirect URI, `<PUBLIC_URL>/api/auth/callback/<name in lower case>`.
 
 ```sh
 # .env
@@ -76,12 +76,12 @@ Every failed sign-in shows the same message, so read the log: `docker compose lo
 | `msg` | Fix |
 |---|---|
 | `discovery failed` | Open `<issuer>/.well-known/openid-configuration` from the notefeed container: a 404 is a wrong issuer path, a connection or certificate error is DNS, a firewall or a certificate between notefeed and the provider. |
-| `issuer does not match the discovery document` | Copy the document's `issuer` into `NOTEFEED_OIDC_ISSUER`. |
-| `token request rejected` | `invalid_client`: wrong id or secret, or the provider expects `client_secret_basic`. `invalid_grant`: the redirect URI or PKCE didn't match. |
+| `issuer is not an https URL` | The issuer must be `https://` (plain `http://` only on `localhost`). |
+| `provider sign-in failed` | `error` says which step: `invalid_code` is a wrong client id or secret, a provider expecting `client_secret_basic`, or a redirect URI or PKCE that didn't match; `issuer_mismatch` means the discovery document's `issuer` differs from `NOTEFEED_OIDC_ISSUER`; `unable_to_get_user_info` follows one of the refusals below, logged just before it. The `better-auth` lines next to it have the detail. |
 | `token response has no id_token` | The client must request the `openid` scope and be an OpenID Connect client, not plain OAuth 2. |
-| `id_token invalid` | `check` names what failed: `iss`, `aud`, `exp` (check the clocks) or `nonce`. |
+| `id_token invalid` | The token isn't one. A token whose signature, `iss`, `aud`, `exp` (check the clocks) or `nonce` is wrong is refused before that, as `provider sign-in failed`. |
 | `person not on the allow-list`, `address needs a verified email` | Add the address or domain, or have the provider include `email` and `email_verified`. |
 | `no sender claim in the id_token` | Add the `profile` and `email` scopes at the provider, or set `NOTEFEED_OIDC_SENDER_CLAIM`. |
-| `state mismatch or missing sign-in cookie` | The sign-in took over 10 minutes or the browser blocks cookies. Try again. |
+| `state mismatch or missing sign-in cookie`, `no session after the sign-in` | The sign-in took over 10 minutes or the browser blocks cookies. Try again. |
 
-A provider's error page before you return means the registered redirect URI differs from `<PUBLIC_URL>/api/oidc/callback`. Signed out after a while is expected: a sign-in lasts 7 days, and a changed `NOTEFEED_PASSWORD` or `NOTEFEED_SECRET` signs everyone out. Failed sign-ins count toward the [rate limit](../limits.md).
+A provider's error page before you return means the registered redirect URI differs from `<PUBLIC_URL>/api/auth/callback/<provider>`. Signed out after a while is expected: a sign-in lasts 7 days, and a changed `NOTEFEED_PASSWORD` or `NOTEFEED_SECRET` signs everyone out. Failed sign-ins count toward the [rate limit](../limits.md).
