@@ -14,7 +14,7 @@ export type Payloads = {
   code: { cid: string; redirect_uri: string; code_challenge: string; resource: string; jti: string; sender?: string; until?: number };
   access: { aud: string; sender?: string };
   refresh: { cid: string; aud: string; jti: string; sender?: string; until?: number };
-  oidc: { provider: string; next?: string; authorize?: Record<string, string> }; // a sign-in in flight, through `provider` (its id): where it goes back to
+  oidc: { provider: string; nonce: string; next?: string; authorize?: Record<string, string> }; // a sign-in in flight, through `provider` (its id): where it goes back to, and the nonce of the browser that started it (its nf_oidc cookie)
 };
 // `signIn` is how long a sign-in through a provider lasts, the Better Auth session (accounts/auth.ts) as an MCP client's refresh chain.
 export const TTL = { code: 300, access: 3600, refresh: 2592000, signIn: 604800, oidc: 600 } as const;

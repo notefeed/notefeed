@@ -15,7 +15,7 @@ const samples = {
   code: { cid: "a", redirect_uri: "http://x/cb", code_challenge: "ch", resource: "http://x/mcp", jti: "j" },
   access: { aud: "http://x/mcp" },
   refresh: { cid: "a", aud: "http://x/mcp", jti: "j" },
-  oidc: { provider: "default", next: "/x", authorize: { client_id: "c" } },
+  oidc: { provider: "default", nonce: "n", next: "/x", authorize: { client_id: "c" } },
 };
 const kinds = Object.keys(samples) as (keyof typeof samples)[];
 

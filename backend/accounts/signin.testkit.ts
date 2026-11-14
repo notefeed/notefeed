@@ -8,6 +8,7 @@ import { accountsAuth, migrateAccounts } from "./auth";
 
 export function stubSignInOn(): void {
   if (!process.env.NOTEFEED_SECRET) vi.stubEnv("NOTEFEED_SECRET", "a".repeat(40));
+  if (!process.env.PUBLIC_URL) vi.stubEnv("PUBLIC_URL", "http://localhost:3000");
   vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
   vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
   vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "secret");

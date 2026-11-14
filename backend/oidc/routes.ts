@@ -5,17 +5,27 @@
 // sign-in: back to next, or, for an MCP authorize request, a code for the client carrying the sender. 404 while the mode is off.
 import { accountsAuth, signedInName } from "../accounts/auth";
 import { AuthError } from "../errors";
-import { readFields, sameOrigin, seeOther } from "../http/request";
+import { cookie, readFields, sameOrigin, seeOther } from "../http/request";
 import { authFailed, authWait, clientIp } from "../limits";
 import { logger } from "../log";
 import { checkAuthorize, issueCode, redirectUriOk } from "../oauth/routes";
-import { type Payloads, sign, verify } from "../oauth/tokens";
-import { safeNext } from "../urls";
+import { type Payloads, sign, TTL, verify } from "../oauth/tokens";
+import { publicUrl, safeNext } from "../urls";
+import { safeEqual } from "../auth";
+import { randomBytes } from "node:crypto";
 import { identityOn, type Provider, providerById, providers } from "./config";
 import { errorCode, log, logFailure, logUrl } from "./log";
 
 type Flight = Payloads["oidc"];
 const notFound = () => new Response("not found", { status: 404 });
+
+// The browser that started a sign-in holds its nonce in this cookie; finish takes a flight only together with it, so a finish link
+// cut out of someone else's sign-in can't issue a code for whoever is signed in where it is opened.
+const FLIGHT_COOKIE = "nf_oidc";
+function flightCookie(h: Headers, value: string, maxAge: number): string {
+  const secure = publicUrl(h).startsWith("https:") ? "; Secure" : "";
+  return `${FLIGHT_COOKIE}=${value}; Path=/api/oidc; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+}
 
 // Where the sign-in started: the MCP client's authorize page, or the login page keeping next.
 function failedPage(from: { next?: string; authorize?: Record<string, string> } | null, error: string): string {
@@ -77,7 +87,7 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
     logFailure("issuer is not an https URL", { provider: provider.id, issuer: logUrl(provider.issuer) });
     return seeOther(failedPage({ next, authorize }, "sign_in_failed"));
   }
-  const flight: Flight = { provider: provider.id, next, ...(authorize ? { authorize } : {}) };
+  const flight: Flight = { provider: provider.id, nonce: randomBytes(16).toString("base64url"), next, ...(authorize ? { authorize } : {}) };
   try {
     const { headers, response } = await auth.api.signInSocial({
       body: { provider: provider.id, callbackURL: finishUrl(flight, false), errorCallbackURL: finishUrl(flight, true), disableRedirect: true },
@@ -85,7 +95,7 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
       returnHeaders: true,
     });
     if (!response?.url) throw new Error("no authorization URL");
-    const res = seeOther(response.url);
+    const res = seeOther(response.url, { "Set-Cookie": flightCookie(req.headers, flight.nonce, TTL.oidc) });
     for (const c of headers.getSetCookie()) res.headers.append("Set-Cookie", c);
     return res;
   } catch (e) {
@@ -97,7 +107,8 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
 
 // Throws AuthError unless the sign-in worked and the flight is ours; returns the signed-in name.
 async function signIn(params: URLSearchParams, flight: Flight | null, h: Headers): Promise<string> {
-  if (!flight) {
+  const nonce = cookie(h, FLIGHT_COOKIE);
+  if (!flight || !nonce || typeof flight.nonce !== "string" || !safeEqual(nonce, flight.nonce)) {
     logFailure("state mismatch or missing sign-in cookie");
     throw new AuthError();
   }
@@ -127,10 +138,11 @@ export async function oidcFinishRoute(req: Request): Promise<Response> {
   } catch (e) {
     if (!(e instanceof AuthError)) throw e;
     authFailed(ip);
-    return seeOther(failedPage(flight, "sign_in_failed"));
+    return seeOther(failedPage(flight, "sign_in_failed"), { "Set-Cookie": flightCookie(h, "", 0) });
   }
   log.info({ provider: flight!.provider }, "sign-in succeeded"); // which provider, never who
-  if (!flight!.authorize) return seeOther(safeNext(flight!.next));
+  const done = (res: Response) => (res.headers.append("Set-Cookie", flightCookie(h, "", 0)), res);
+  if (!flight!.authorize) return done(seeOther(safeNext(flight!.next)));
   logger("oauth").info({ via: flight!.provider }, "authorization granted");
-  return issueCode(flight!.authorize, h, sender);
+  return done(issueCode(flight!.authorize, h, sender));
 }

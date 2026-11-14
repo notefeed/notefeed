@@ -15,7 +15,7 @@ import { TTL } from "../oauth/tokens";
 import { identityOn, providers } from "../oidc/config";
 import { secret } from "../secret";
 import { processState } from "../state";
-import { genericOAuthPlugin } from "./providers";
+import { genericOAuthPlugin, senderName } from "./providers";
 
 export const AUTH_PATH = "/api/auth";
 const betterAuthLog = logger("better-auth");
@@ -30,7 +30,13 @@ function options() {
     // From the server secret and the instance password, like the other signed values (oauth/tokens.ts): changing either signs
     // everyone out.
     secret: createHmac("sha256", secret()).update("notefeed-better-auth\0").update(createHash("sha256").update(config.password()).digest()).digest("base64url"),
-    ...(config.publicUrl() ? { baseURL: config.publicUrl() } : {}),
+    // Always PUBLIC_URL (migrateAccounts refuses to start without it): from a request's Host, Better Auth's origin check would trust
+    // whatever host a request names.
+    baseURL: config.publicUrl(),
+    // Never the client's address (V2): Better Auth would write it, and the user agent, on every session.
+    advanced: { ipAddress: { disableIpTracking: true } },
+    // Two providers that report the same e-mail stay two people: one never signs in as the other.
+    account: { accountLinking: { enabled: false } },
     // A sign-in lasts 7 days from the moment it was made, as before: use doesn't extend it, so taking someone off the allow-list
     // ends their access within that time.
     session: { expiresIn: TTL.signIn, disableSessionRefresh: true, cookieCache: { enabled: true, maxAge: 300 } },
@@ -41,9 +47,9 @@ function options() {
         create: { before: async (account: Record<string, unknown>) => ({ data: { ...account, ...NO_TOKENS } }) },
         update: { before: async (account: Record<string, unknown>) => ({ data: { ...account, ...NO_TOKENS } }) },
       },
+      session: { create: { before: async (session: Record<string, unknown>) => ({ data: { ...session, ipAddress: null, userAgent: null } }) } },
     },
-    // The providers are Better Auth "social" providers (genericOAuth), so /sign-in/social stays; no built-in ones are configured.
-    disabledPaths: ["/sign-up/email", "/sign-in/email"],
+    // Better Auth's routes over HTTP are only those a sign-in passes through (authRoute); notefeed calls the rest on the server.
     // Better Auth's own lines (a discovery that failed, a code the provider refused) go to notefeed's log, component `better-auth`.
     logger: { level: "warn" as const, log: (level: "debug" | "info" | "warn" | "error", message: string) => betterAuthLog[level]({}, message) },
     plugins: [genericOAuthPlugin()],
@@ -58,9 +64,9 @@ const state = processState("accounts-auth", () => ({}) as { key?: string; auth?:
 const key = () =>
   JSON.stringify([config.accountsDb(), config.publicUrl(), createHash("sha256").update(secret()).update(config.password()).digest("hex"), providers()]);
 
-// The instance, or undefined while no sign-in provider is configured.
+// The instance, or undefined while no sign-in provider is configured (or PUBLIC_URL is missing, which startup refuses).
 export function accountsAuth(): Auth | undefined {
-  if (!identityOn()) return undefined;
+  if (!identityOn() || !config.publicUrl()) return undefined;
   const k = key();
   if (state.key !== k || !state.auth) {
     state.auth = build();
@@ -71,16 +77,22 @@ export function accountsAuth(): Auth | undefined {
 
 // Creates or updates Better Auth's tables; nothing while sign-in is off (no file is made).
 export async function migrateAccounts(): Promise<void> {
+  if (identityOn() && !config.publicUrl()) throw new Error("sign-in (NOTEFEED_OIDC_*) needs PUBLIC_URL, the address people reach notefeed at");
   const auth = accountsAuth();
   if (!auth) return;
   const { runMigrations } = await getMigrations(auth.options);
   await runMigrations();
 }
 
-// GET and POST /api/auth/*: Better Auth's own routes, 404 while sign-in is off.
+// What a browser may reach of Better Auth: a provider's return (/callback/<provider>) and its error and health pages. Everything else
+// (update-user, which would change the sender; account linking; sign-in with a bare id_token, which skips /api/oidc/start's checks;
+// session lists) is 404: notefeed calls what it needs on the server (auth.api).
+const OPEN = /^\/api\/auth\/(callback\/[a-z0-9_]{1,64}|error|ok)$/;
+
+// GET and POST /api/auth/*: 404 while sign-in is off.
 export async function authRoute(req: Request): Promise<Response> {
   const auth = accountsAuth();
-  if (!auth) return new Response("not found", { status: 404 });
+  if (!auth || !OPEN.test(new URL(req.url).pathname)) return new Response("not found", { status: 404 });
   return auth.handler(req);
 }
 
@@ -90,5 +102,5 @@ export async function signedInName(h: Headers): Promise<string | undefined> {
   const auth = accountsAuth();
   if (!auth) return undefined;
   const session = await auth.api.getSession({ headers: h }).catch(() => null);
-  return session?.user.name || undefined;
+  return senderName(session?.user.name);
 }

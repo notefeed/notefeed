@@ -8,6 +8,11 @@ import { genericOAuth } from "better-auth/plugins";
 import { decodeJwt } from "jose";
 import { allowed, type Provider, providers, senderFrom } from "../oidc/config";
 import { logFailure } from "../oidc/log";
+import { cleanLine } from "../../shared/links";
+import { MAX_SENDER } from "../notes";
+
+// A name as it may be shown on notes: one line, no control or text-direction override characters, at most MAX_SENDER characters.
+export const senderName = (name: string | undefined): string | undefined => [...cleanLine(name ?? "")].slice(0, MAX_SENDER).join("").trim() || undefined;
 
 const bare = (issuer: string) => issuer.replace(/\/$/, "");
 
@@ -20,7 +25,7 @@ export function person(p: Provider, claims: Record<string, unknown>): Record<str
     logFailure(email && verified ? "person not on the allow-list" : "address needs a verified email", { provider: p.id });
     return null;
   }
-  const name = senderFrom(claims, p.senderClaim);
+  const name = senderName(senderFrom(claims, p.senderClaim));
   if (!name) {
     logFailure("no sender claim in the id_token", { provider: p.id, claims: p.senderClaim.join(",") });
     return null;

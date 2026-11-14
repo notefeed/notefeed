@@ -38,9 +38,6 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
     if (missing.length > 0 && missing.length < 4)
       warnings.push(["startup", "sign-in provider configured partially; it stays off", { provider: name ? name.toLowerCase() : "default", missing }]);
   }
-  const oidcProviders = providers().length;
-  if (oidcProviders && !config.publicUrl())
-    warnings.push(["startup", "sign-in is on without PUBLIC_URL: the redirect URI comes from each request's Host header", {}]);
   const level = (env.NOTEFEED_LOG_LEVEL ?? "").trim().toLowerCase();
   if (level && level !== config.logLevel()) warnings.push(["startup", "NOTEFEED_LOG_LEVEL is not a level; using info", { accepted: [...LOG_LEVELS] }]);
   if (config.reservedFeeds().length && !config.reservedPassword())
@@ -59,7 +56,7 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
     storage: config.storage(),
     dataDir: config.dataDir(),
     passwordSet: config.password() !== "",
-    oidcProviders,
+    oidcProviders: providers().length,
     publicUrlSet: config.publicUrl() !== "",
     trustProxy: config.trustProxy(),
     maxFeeds: config.maxFeeds(),

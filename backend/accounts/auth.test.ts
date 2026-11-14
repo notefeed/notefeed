@@ -27,6 +27,7 @@ let saved: NodeJS.ProcessEnv;
 beforeEach(() => {
   saved = { ...process.env };
   process.env.NOTEFEED_SECRET = "s".repeat(32);
+  process.env.PUBLIC_URL = "http://localhost:3000";
 });
 afterEach(() => {
   process.env = saved;
@@ -92,4 +93,11 @@ describe("with a sign-in provider", () => {
     const res = await authRoute(new Request("http://localhost:3000/api/auth/ok", { headers: H }));
     expect(res.status).toBe(200);
   });
+});
+
+test("sign-in without PUBLIC_URL refuses to start: Better Auth would trust each request's Host", async () => {
+  withProvider();
+  delete process.env.PUBLIC_URL;
+  await expect(migrateAccounts()).rejects.toThrow(/PUBLIC_URL/);
+  expect(accountsAuth()).toBeUndefined();
 });

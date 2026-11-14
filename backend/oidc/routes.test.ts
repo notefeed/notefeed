@@ -263,3 +263,76 @@ describe("what sign-in keeps", () => {
     expect(rows).toEqual([{ accessToken: null, refreshToken: null, idToken: null }]);
   });
 });
+
+describe("final review", () => {
+  test("finish refuses a valid flight that another browser started (no code for a link sent to someone signed in)", async () => {
+    const victim = await signIn(webStart());
+    // The attacker's own start: a signed flight for their MCP client, which they could cut out of Better Auth's redirect.
+    const start = await oidcStartRoute(mcpStart(await mcpFields({ state: "evil" })));
+    const authorizeUrl = new URL(start.headers.get("location")!);
+    const callback = new URL(authorizeUrl.searchParams.get("redirect_uri")!);
+    expect(callback.pathname).toBe("/api/auth/callback/default");
+    const { sign: signFlight } = await import("../oauth/tokens");
+    const f = signFlight("oidc", { provider: "default", nonce: "the-attackers-own", authorize: await mcpFields({ state: "evil" }) });
+    const res = await oidcFinishRoute(get(`/api/oidc/finish?f=${encodeURIComponent(f)}`, victim.jar.header()));
+    expect(res.headers.get("location")).toMatch(/^\/oauth\/authorize\?.*error=sign_in_failed/);
+    expect(warned().map((e) => e.msg)).toContain("state mismatch or missing sign-in cookie");
+  });
+
+  test("the signed-in name is cleaned and capped before it becomes a sender", async () => {
+    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "*");
+    idp.claims = { name: `Ann‮${"x".repeat(150)}`, email: "ann@x.com", email_verified: true };
+    const { jar } = await signIn(webStart());
+    const name = await nameOf(jar);
+    expect(name).not.toMatch(/‮/);
+    expect([...name!].length).toBeLessThanOrEqual(100);
+  });
+
+  test("a session keeps neither the client's address nor its user agent", async () => {
+    const start = new Request(`${BASE}/api/oidc/start?next=/`, { headers: { ...H, "user-agent": "Secret/1.0", "x-forwarded-for": "203.0.113.9" } });
+    vi.stubEnv("NOTEFEED_TRUST_PROXY", "1");
+    await signIn(start);
+    const Database = (await import("better-sqlite3")).default;
+    const db = new Database(`${process.env.DATA_DIR}/accounts.sqlite`, { readonly: true });
+    const rows = db.prepare("select ipAddress, userAgent from session").all();
+    db.close();
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r).toEqual({ ipAddress: null, userAgent: null });
+  });
+
+  test.each([
+    "/api/auth/update-user",
+    "/api/auth/sign-in/social",
+    "/api/auth/link-social",
+    "/api/auth/unlink-account",
+    "/api/auth/list-accounts",
+    "/api/auth/account-info",
+    "/api/auth/get-access-token",
+    "/api/auth/refresh-token",
+    "/api/auth/delete-user",
+    "/api/auth/change-email",
+    "/api/auth/list-sessions",
+    "/api/auth/revoke-sessions",
+  ])("Better Auth's %s is closed: notefeed's sign-in never uses it", async (path) => {
+    const { jar } = await signIn(webStart());
+    const { authRoute } = await import("../accounts/auth");
+    const res = await authRoute(
+      new Request(BASE + path, {
+        method: "POST",
+        headers: { ...H, origin: BASE, cookie: jar.header(), "content-type": "application/json" },
+        body: JSON.stringify({ name: "Boss", provider: "default", idToken: { token: "x" } }),
+      }),
+    );
+    expect(res.status).toBe(404);
+    expect(await nameOf(jar)).toBe("Ann");
+  });
+
+  test("the same e-mail at a second provider is not linked to the first one's person", async () => {
+    stubEnv(providerEnv(other, "*", "WORK"));
+    await migrateAccounts();
+    await signIn(webStart("provider=default&next=/"));
+    other.claims = { name: "Not Ann", email: "ann@x.com", email_verified: true };
+    const second = await signIn(webStart("provider=work&next=/"));
+    expect(second.location).toMatch(/^\/login\?error=sign_in_failed/);
+  });
+});
