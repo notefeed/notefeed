@@ -10,14 +10,16 @@ import { authFailed, authWait } from "./limits";
 import { logger } from "./log";
 import { secret } from "./secret";
 import { signedInName, signedInSession } from "./accounts/auth";
+import { accountsLock } from "./accounts/mode";
 import { identityOn } from "./oidc/config";
 
 const log = logger("auth");
 
 export const SESSION_COOKIE = "nf_session";
 
-// Locked by a password, by sign-in, or both. Sign-in without a password is locked too: an unset password never matches.
-export const locked = () => config.password() !== "" || identityOn();
+// Locked by the instance password, or by accounts that keep people out until they sign in (provider or closed; never both, ADR 0058).
+// Open accounts (notefeed.me) leave the instance open. Accounts without a password are locked too: an unset password never matches.
+export const locked = () => config.password() !== "" || accountsLock();
 
 // Hash both sides so lengths match and timingSafeEqual never throws.
 export function safeEqual(a: string, b: string): boolean {

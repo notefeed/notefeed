@@ -12,7 +12,8 @@ import { dirname } from "node:path";
 import { config } from "../config";
 import { logger } from "../log";
 import { key as signingKey, TTL } from "../oauth/tokens";
-import { allowed, identityOn, providerById, providers } from "../oidc/config";
+import { allowed, providerById, providers } from "../oidc/config";
+import { accountsMode, accountsOn } from "./mode";
 import { logFailure } from "../oidc/log";
 import { processState } from "../state";
 import { genericOAuthPlugin, senderName } from "./providers";
@@ -62,11 +63,11 @@ export type Auth = ReturnType<typeof build>;
 
 const state = processState("accounts-auth", () => ({}) as { key?: string; auth?: Auth });
 // Everything the instance is built from, so a changed setting (or secret) builds it again.
-const key = () => JSON.stringify([config.accountsDb(), config.publicUrl(), betterAuthSecret(), providers()]);
+const key = () => JSON.stringify([config.accountsDb(), config.publicUrl(), betterAuthSecret(), accountsMode(), providers()]);
 
-// The instance, or undefined while no sign-in provider is configured (or PUBLIC_URL is missing, which startup refuses).
+// The instance, or undefined while accounts are off (or PUBLIC_URL is missing, which startup refuses).
 export function accountsAuth(): Auth | undefined {
-  if (!identityOn() || !config.publicUrl()) return undefined;
+  if (!accountsOn() || !config.publicUrl()) return undefined;
   const k = key();
   if (state.key !== k || !state.auth) {
     state.auth = build();
@@ -75,9 +76,9 @@ export function accountsAuth(): Auth | undefined {
   return state.auth;
 }
 
-// Creates or updates Better Auth's tables; nothing while sign-in is off (no file is made).
+// Creates or updates Better Auth's tables; nothing while accounts are off (no file is made). The settings were checked at start-up
+// (mode.ts, checkAccessSettings).
 export async function migrateAccounts(): Promise<void> {
-  if (identityOn() && !config.publicUrl()) throw new Error("sign-in (NOTEFEED_OIDC_*) needs PUBLIC_URL, the address people reach notefeed at");
   const auth = accountsAuth();
   if (!auth) return;
   const { runMigrations } = await getMigrations(auth.options);

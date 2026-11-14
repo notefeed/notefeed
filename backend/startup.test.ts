@@ -359,3 +359,11 @@ test("a support address that is not one warns, without its value", () => {
   vi.stubEnv("NOTEFEED_SUPPORT_EMAIL", "support@example.com");
   expect(warned()).toEqual([]);
 });
+
+test("an instance password together with accounts keeps logStartup from succeeding, naming the variables", async () => {
+  vi.stubEnv("NOTEFEED_PASSWORD", "pw");
+  vi.stubEnv("NOTEFEED_ACCOUNTS", "open");
+  vi.stubEnv("PUBLIC_URL", "https://notes.example");
+  await expect(logStartup()).rejects.toThrow(/NOTEFEED_PASSWORD or accounts, not both/);
+  vi.unstubAllEnvs();
+});

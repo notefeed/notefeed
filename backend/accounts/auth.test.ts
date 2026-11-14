@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { accountsAuth, authRoute, migrateAccounts } from "./auth";
+import { checkAccessSettings } from "./mode";
 
 const PROVIDER = {
   NOTEFEED_OIDC_ISSUER: "https://idp.example",
@@ -98,6 +99,6 @@ describe("with a sign-in provider", () => {
 test("sign-in without PUBLIC_URL refuses to start: Better Auth would trust each request's Host", async () => {
   withProvider();
   delete process.env.PUBLIC_URL;
-  await expect(migrateAccounts()).rejects.toThrow(/PUBLIC_URL/);
+  expect(() => checkAccessSettings()).toThrow(/PUBLIC_URL/);
   expect(accountsAuth()).toBeUndefined();
 });
