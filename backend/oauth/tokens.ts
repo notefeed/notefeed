@@ -11,9 +11,9 @@ import { processState } from "../state";
 export type Kind = "client" | "code" | "access" | "refresh" | "oidc";
 export type Payloads = {
   client: { client_name?: string; redirect_uris: string[] };
-  code: { cid: string; redirect_uri: string; code_challenge: string; resource: string; jti: string; sender?: string; until?: number };
+  code: { cid: string; redirect_uri: string; code_challenge: string; resource: string; jti: string; sender?: string; uid?: string; until?: number };
   access: { aud: string; sender?: string };
-  refresh: { cid: string; aud: string; jti: string; sender?: string; until?: number };
+  refresh: { cid: string; aud: string; jti: string; sender?: string; uid?: string; until?: number };
   oidc: { provider: string; nonce: string; next?: string; authorize?: Record<string, string> }; // a sign-in in flight, through `provider` (its id): where it goes back to, and the nonce of the browser that started it (its nf_oidc cookie)
 };
 // A sign-in through a provider (the Better Auth session, accounts/auth.ts) ends after `idle` unused, is renewed at most every

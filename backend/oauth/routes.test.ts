@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { signedInSession } from "../accounts/auth";
+import { signedInCookie, stubSignInOn } from "../accounts/signin.testkit";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logsOf } from "../log";
@@ -142,20 +144,28 @@ describe("flow", () => {
     expect(await again.json()).toEqual({ error: "invalid_grant" });
   });
 
-  // A code from a sign-in, as issueCode makes it after the provider's callback.
+  // A code from a sign-in, as issueCode makes it after the provider's callback, for a person signed in through the stub provider.
   async function signedInCode() {
     const id = await clientId();
     const { verifier, challenge } = pkce();
     const fields = Object.fromEntries(authParams(id, challenge));
-    const code = new URL(issueCode(fields, new Headers(H), "Ann").headers.get("location")!).searchParams.get("code")!;
-    return { id, verifier, code };
+    const uid = (await signedInSession(new Headers({ ...H, cookie: await signedInCookie("Ann") })))!.userId;
+    const code = new URL(issueCode(fields, new Headers(H), { sender: "Ann", uid }).headers.get("location")!).searchParams.get("code")!;
+    return { id, verifier, code, uid };
   }
-  const signInOn = () => {
-    vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
-    vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
-    vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "client-secret");
-    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "ann@x.com");
-  };
+  const signInOn = () => stubSignInOn();
+  // Refreshes `refresh_token` every `days` days from now until `total` days have passed; the last response.
+  async function refreshEvery(days: number, total: number, refresh_token: string, client_id: string): Promise<Response> {
+    const start = Date.now();
+    let res = new Response();
+    for (let d = days; d <= total; d += days) {
+      vi.spyOn(Date, "now").mockReturnValue(start + d * 86_400_000);
+      res = await token({ grant_type: "refresh_token", refresh_token, client_id });
+      if (res.status !== 200) return res;
+      refresh_token = (await res.clone().json()).refresh_token;
+    }
+    return res;
+  }
 
   test("a code's sender and sign-in limit are carried into the tokens and through refresh", async () => {
     signInOn();
@@ -182,24 +192,39 @@ describe("flow", () => {
     expect((await res.json()).error).toBe("invalid_grant");
   });
 
-  test("a sign-in's refresh chain ends with the sign-in lifetime", async () => {
+  test("a sign-in's refresh chain ends 90 days after the sign-in, however often it is refreshed", async () => {
     signInOn();
     const c = await signedInCode();
     const { refresh_token } = await (await exchange(c)).json();
-    vi.spyOn(Date, "now").mockReturnValue(Date.now() + (TTL.signInMax + 2) * 1000);
     let res = new Response();
-    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([
+    expect(await logsOf(async () => (res = await refreshEvery(20, 100, refresh_token, c.id)))).toEqual([
       { level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in past its lifetime" },
     ]);
     expect((await res.json()).error).toBe("invalid_grant");
   });
 
-  test("a password login's refresh has no limit but its own", async () => {
+  test("a refresh after the person was taken off the allow-list is invalid_grant", async () => {
+    signInOn();
+    const c = await signedInCode();
+    const { refresh_token } = await (await exchange(c)).json();
+    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "bob@x.com");
+    let res = new Response();
+    // Among Better Auth's own lines (the stub provider can't be reached) and the session check's.
+    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toContainEqual({
+      level: "warn",
+      component: "oauth",
+      msg: "refresh refused",
+      reason: "no longer allowed",
+    });
+    expect((await res.json()).error).toBe("invalid_grant");
+  });
+
+  test("a password login's refresh has no limit but its own: no uid, never re-checked", async () => {
     const c = await code();
     const { refresh_token } = await (await exchange(c)).json();
     expect(verify("refresh", refresh_token)).not.toHaveProperty("until");
-    vi.spyOn(Date, "now").mockReturnValue(Date.now() + (TTL.signInMax + 2) * 1000);
-    const res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id });
+    expect(verify("refresh", refresh_token)).not.toHaveProperty("uid");
+    const res = await refreshEvery(20, 120, refresh_token, c.id);
     expect(res.status).toBe(200);
     expect(verify("refresh", (await res.json()).refresh_token)).not.toHaveProperty("until");
   });
@@ -389,7 +414,7 @@ describe("login", () => {
   test("issueCode sends the browser back with a code carrying the sender", async () => {
     const id = await clientId();
     const fields = Object.fromEntries(authParams(id, pkce().challenge));
-    const loc = new URL(issueCode(fields, new Headers(H), "Ann").headers.get("location")!);
+    const loc = new URL(issueCode(fields, new Headers(H), { sender: "Ann", uid: "u1" }).headers.get("location")!);
     expect(loc.searchParams.get("state")).toBe("a b&c");
     expect(loc.searchParams.get("iss")).toBe(BASE);
     expect(verify("code", loc.searchParams.get("code")!)).toMatchObject({ cid: cid(id), redirect_uri: CB, resource: RESOURCE, sender: "Ann" });
