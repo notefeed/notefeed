@@ -172,7 +172,7 @@ export function issueCode(fields: Record<string, string>, h: Headers, sender?: s
     code_challenge: fields.code_challenge,
     resource: fields.resource ?? mcpResource(h),
     jti: newJti(),
-    ...(sender === undefined ? {} : { sender, until: Math.floor(Date.now() / 1000) + TTL.signIn }),
+    ...(sender === undefined ? {} : { sender, until: Math.floor(Date.now() / 1000) + TTL.signInMax }),
   });
   const to = new URL(fields.redirect_uri);
   to.searchParams.set("code", code);

@@ -16,8 +16,9 @@ export type Payloads = {
   refresh: { cid: string; aud: string; jti: string; sender?: string; until?: number };
   oidc: { provider: string; nonce: string; next?: string; authorize?: Record<string, string> }; // a sign-in in flight, through `provider` (its id): where it goes back to, and the nonce of the browser that started it (its nf_oidc cookie)
 };
-// `signIn` is how long a sign-in through a provider lasts, the Better Auth session (accounts/auth.ts) as an MCP client's refresh chain.
-export const TTL = { code: 300, access: 3600, refresh: 2592000, signIn: 604800, oidc: 600 } as const;
+// A sign-in through a provider (the Better Auth session, accounts/auth.ts) ends after `idle` unused, is renewed at most every
+// `renew` while used, and ends `signInMax` after it was made whatever the use; an MCP client's refresh chain ends with it (ADR 0056).
+export const TTL = { code: 300, access: 3600, refresh: 2592000, idle: 2592000, renew: 86400, signInMax: 7776000, oidc: 600 } as const;
 
 // Derived per call (secret() is cached, the password is not, and either may change); also the root of Better Auth's secret.
 export function key(): Buffer {

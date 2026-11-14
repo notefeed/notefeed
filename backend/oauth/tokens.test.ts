@@ -41,7 +41,8 @@ describe("sign/verify", () => {
   });
 
   test("a sign-in lasts 7 days, an oidc flight 600 s", () => {
-    expect(TTL.signIn).toBe(7 * 24 * 3600);
+    expect(TTL.signInMax).toBe(90 * 24 * 3600);
+    expect(TTL.idle).toBe(30 * 24 * 3600);
     expect(TTL.oidc).toBe(600);
     const t = sign("oidc", samples.oidc as never, NOW);
     expect(verify("oidc", t, NOW + TTL.oidc * 1000)).not.toBeNull();
