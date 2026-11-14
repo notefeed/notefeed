@@ -19,14 +19,14 @@ sequenceDiagram
   P->>N: the code
   N->>O: exchange it for the id_token
   N->>N: check its signature, the state, the nonce and NOTEFEED_OIDC_ALLOW
-  N-->>P: session cookie, 7 days: notes carry the sender
+  N-->>P: session cookie, renewed while used: notes carry the sender
 ```
 
 ## The sender
 
 The sender is one field in the note's metadata (the `.json` file next to the note, or its database row): by default the first non-empty claim of `NOTEFEED_OIDC_SENDER_CLAIM` (the `name`, else the `email`). A note can also be posted with a sender of its own, from a script or the composer; the sender is a label, not a proof of who posted.
 
-Sign-in keeps the person in `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every storage backend): their name from the provider (one line, at most 100 characters), their e-mail address (or a placeholder when the provider gives none), the provider's id for them, and their sessions, each valid for 7 days from signing in. A session keeps neither the browser's address nor its user agent, and none of the provider's tokens is kept. Each provider has its own people: the same e-mail address at two providers is two people, and the second one's sign-in is refused. Back the file up with the data ([Backups](../backups.md)).
+Sign-in keeps the person in `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every storage backend): their name from the provider (one line, at most 100 characters), their e-mail address (or a placeholder when the provider gives none), the provider's id for them, and their sessions. A session is renewed while it is used (at most once a day) and ends after 30 days unused, and 90 days after signing in whatever the use: then the person signs in again, usually one click at the provider ([ADR 0056](https://github.com/notefeed/notefeed/blob/main/docs/adr/0056-sign-ins-renew-while-used.md)). A session keeps neither the browser's address nor its user agent, and none of the provider's tokens is kept. Each provider has its own people: the same e-mail address at two providers is two people, and the second one's sign-in is refused. Back the file up with the data ([Backups](../backups.md)).
 
 The sender shows on the feed page, in the read-only view, in RSS as `<dc:creator>` and in the API as `sender`. A feed's **Show who posted** setting (`show_sender` in the [settings API](../../using/feeds.md#feed-settings-in-the-api)) hides it from readers; the feed page behind your password still shows it.
 
@@ -43,7 +43,7 @@ The OAuth authorize page that MCP clients open has a **Sign in with** button for
 
 ## Removing a person
 
-Take them off the allow-list and restart: they can no longer sign in, and what they already signed in with runs out within 7 days. To sign everyone out at once, change `NOTEFEED_SECRET` (or `NOTEFEED_PASSWORD`). To remove what sign-in keeps about them, with notefeed stopped: `sqlite3 accounts.sqlite "pragma foreign_keys = on; delete from user where email = 'ann@example.com'"` (their sessions and provider id go with it; someone whose provider gave no address has a placeholder ending in `.oidc.invalid`, so use `where name = 'Ann'` then). A browser that signed out, or a copy of its cookie, is let in for at most 5 more minutes: the session is checked against the file only that often. Their notes keep the `sender` line until you delete the notes or edit it out of the files.
+Take them off the allow-list and restart: they can no longer sign in, and their next request signs them out, in the browser and in MCP clients (an MCP client at its next token refresh, within an hour). Someone their provider removed while their address still fits the list (an `@domain` entry) keeps what they signed in with until it ends, at most 90 days after signing in: take them off the list too, or change `NOTEFEED_SECRET`. To sign everyone out at once, change `NOTEFEED_SECRET` (or `NOTEFEED_PASSWORD`). To remove what sign-in keeps about them, with notefeed stopped: `sqlite3 accounts.sqlite "pragma foreign_keys = on; delete from user where email = 'ann@example.com'"` (their sessions and provider id go with it; someone whose provider gave no address has a placeholder ending in `.oidc.invalid`, so use `where name = 'Ann'` then). A browser that signed out, or a copy of its cookie, is let in for at most 5 more minutes: the session is checked against the file only that often. Their notes keep the `sender` line until you delete the notes or edit it out of the files.
 
 ## Privacy page and imprint
 

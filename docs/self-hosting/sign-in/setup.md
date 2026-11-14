@@ -84,4 +84,4 @@ Every failed sign-in shows the same message, so read the log: `docker compose lo
 | `no sender claim in the id_token` | Add the `profile` and `email` scopes at the provider, or set `NOTEFEED_OIDC_SENDER_CLAIM`. |
 | `state mismatch or missing sign-in cookie`, `no session after the sign-in` | The sign-in took over 10 minutes or the browser blocks cookies. Try again. |
 
-A provider's error page before you return means the registered redirect URI differs from `<PUBLIC_URL>/api/auth/callback/<provider>`. Signed out after a while is expected: a sign-in lasts 7 days, and a changed `NOTEFEED_PASSWORD` or `NOTEFEED_SECRET` signs everyone out. Failed sign-ins count toward the [rate limit](../limits.md).
+A provider's error page before you return means the registered redirect URI differs from `<PUBLIC_URL>/api/auth/callback/<provider>`. Signed out after a while is expected: a sign-in ends after 30 days unused and 90 days after it was made, and a changed `NOTEFEED_PASSWORD` or `NOTEFEED_SECRET` signs everyone out. Failed sign-ins count toward the [rate limit](../limits.md).
