@@ -54,6 +54,7 @@ See [Sign-in and sender](sign-in/index.md). Sign-in is on only when all four of 
 | `NOTEFEED_OIDC_LABEL` | the issuer's host | The text after **Sign in with** on the button. |
 | `NOTEFEED_OIDC_SENDER_CLAIM` | `name,email` | The id_token claims tried in order for the sender shown on notes. |
 | `NOTEFEED_OIDC_<NAME>_…` | none | [Further providers](sign-in/setup.md#several-providers), with a name of your choosing. |
+| `NOTEFEED_ACCOUNTS_DB` | `DATA_DIR/accounts.sqlite` | The SQLite file where sign-in keeps its accounts and sessions, apart from the notes on every storage backend. Back it up next to the data. |
 
 ## Storage
 

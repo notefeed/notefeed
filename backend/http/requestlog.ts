@@ -25,6 +25,7 @@ export const ROUTES = [
   "/[feed]/files/[file]",
   "/[feed]/license",
   "/[feed]/settings",
+  "/api/auth/[...all]",
   "/api/licenses/attach",
   "/api/licenses/checkout",
   "/api/licenses/key",
