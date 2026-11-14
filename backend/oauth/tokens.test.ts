@@ -15,8 +15,7 @@ const samples = {
   code: { cid: "a", redirect_uri: "http://x/cb", code_challenge: "ch", resource: "http://x/mcp", jti: "j" },
   access: { aud: "http://x/mcp" },
   refresh: { cid: "a", aud: "http://x/mcp", jti: "j" },
-  identity: { sender: "Ann" },
-  oidc: { state: "s", nonce: "n", verifier: "v", next: "/x", authorize: { client_id: "c" } },
+  oidc: { provider: "default", next: "/x", authorize: { client_id: "c" } },
 };
 const kinds = Object.keys(samples) as (keyof typeof samples)[];
 
@@ -41,19 +40,12 @@ describe("sign/verify", () => {
       expect(verify(k, sign(k, { ...samples[k], sender: "Ann" } as never, NOW), NOW)).toMatchObject({ sender: "Ann" });
   });
 
-  test("identity lasts 7 days, oidc 600 s", () => {
-    expect(TTL.identity).toBe(7 * 24 * 3600);
+  test("a sign-in lasts 7 days, an oidc flight 600 s", () => {
+    expect(TTL.signIn).toBe(7 * 24 * 3600);
     expect(TTL.oidc).toBe(600);
-    for (const k of ["identity", "oidc"] as const) {
-      const t = sign(k, samples[k] as never, NOW);
-      expect(verify(k, t, NOW + TTL[k] * 1000)).not.toBeNull();
-      expect(verify(k, t, NOW + TTL[k] * 1000 + 1)).toBeNull();
-    }
-  });
-
-  test("an identity token is no access token and vice versa", () => {
-    expect(verify("access", sign("identity", samples.identity, NOW), NOW)).toBeNull();
-    expect(verify("identity", sign("access", samples.access, NOW), NOW)).toBeNull();
+    const t = sign("oidc", samples.oidc as never, NOW);
+    expect(verify("oidc", t, NOW + TTL.oidc * 1000)).not.toBeNull();
+    expect(verify("oidc", t, NOW + TTL.oidc * 1000 + 1)).toBeNull();
   });
 
   test("client has no expiry", () => expect(verify("client", sign("client", samples.client, NOW), NOW + 1e13)).not.toBeNull());

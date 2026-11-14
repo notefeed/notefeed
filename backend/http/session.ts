@@ -1,6 +1,7 @@
 // POST /login (proxy.ts rewrites it to /api/login) and POST /logout: the web UI's plain login and
 // logout forms. Both answer with a redirect, for browsers and scripts alike.
-import { IDENTITY_COOKIE, SESSION_COOKIE, locked, login } from "../auth";
+import { accountsAuth } from "../accounts/auth";
+import { SESSION_COOKIE, locked, login } from "../auth";
 import { NotefeedError, RateLimitedError } from "../errors";
 import { clientIp } from "../limits";
 import { publicUrl, safeNext } from "../urls";
@@ -24,8 +25,14 @@ export async function loginRoute(req: Request): Promise<Response> {
   }
 }
 
-// Relative Location, so it stays correct behind a reverse proxy.
-export function logoutRoute(): Response {
-  const clear = (name: string): [string, string] => ["Set-Cookie", `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`];
-  return seeOther(locked() ? "/login" : "/", [clear(SESSION_COOKIE), clear(IDENTITY_COOKIE)]);
+// Ends the password session and a Better Auth one (deleted from accounts.sqlite, its cookies cleared). Relative Location, so it
+// stays correct behind a reverse proxy.
+export async function logoutRoute(req?: Request): Promise<Response> {
+  const res = seeOther(locked() ? "/login" : "/", { "Set-Cookie": `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax` });
+  const auth = accountsAuth();
+  if (auth && req) {
+    const out = await auth.api.signOut({ headers: req.headers, returnHeaders: true }).catch(() => null);
+    for (const c of out?.headers.getSetCookie() ?? []) res.headers.append("Set-Cookie", c);
+  }
+  return res;
 }

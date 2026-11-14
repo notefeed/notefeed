@@ -1,6 +1,7 @@
 // Reading requests, for the handlers in backend/http.
 import { AuthError, NotefeedError, RateLimitedError } from "../errors";
-import { IDENTITY_COOKIE, SESSION_COOKIE, bearerOf, checkBearer, identitySender, locked, sessionOk } from "../auth";
+import { signedInName } from "../accounts/auth";
+import { bearerOf, checkBearer, cookieOf, locked, sessionOk } from "../auth";
 import { type FeedAccess, feedCookieName } from "../feedlock";
 import { assertFeed } from "../feeds";
 import { clientIp } from "../limits";
@@ -59,13 +60,7 @@ export async function readFields(req: Request, max: number): Promise<FormData | 
   return bytes ? parseForm(bytes, req.headers).catch(() => null) : null;
 }
 
-export function cookie(h: Headers, name: string): string | undefined {
-  for (const part of (h.get("cookie") ?? "").split(";")) {
-    const i = part.indexOf("=");
-    if (i !== -1 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
-  }
-  return undefined;
-}
+export const cookie = cookieOf;
 
 // A browser on this instance's own pages: the Origin's host is the public host. Browsers send Origin
 // on every POST, so a missing one is not same-origin.
@@ -90,12 +85,12 @@ export function errorRedirect(page: string, e: unknown): Response {
   return seeOther(`${path}${path.includes("?") ? "&" : "?"}error=${e.code}${retry}${hash ? `#${hash}` : ""}`);
 }
 
-// Scripts send the bearer password. The web UI sends a session cookie (password or identity) instead, accepted only from
+// Scripts send the bearer password. The web UI sends a session cookie (password or Better Auth) instead, accepted only from
 // this instance's own pages: a cross-site form would carry no cookie (SameSite=Lax), and the Origin
 // check covers browsers that would. Throws AuthError or TooManyAttemptsError.
-export function authorize(h: Headers, ip: string): void {
+export async function authorize(h: Headers, ip: string): Promise<void> {
   if (!locked()) return;
-  if (!h.has("authorization") && sameOrigin(h) && sessionOk(cookie(h, SESSION_COOKIE), cookie(h, IDENTITY_COOKIE))) return;
+  if (!h.has("authorization") && sameOrigin(h) && (await sessionOk(h))) return;
   checkBearer(h.get("authorization"), ip);
 }
 
@@ -123,7 +118,7 @@ export async function formPost(
     // Only this instance's own pages may send these: another site's form must not change anything with a visitor's cookies.
     if (!sameOrigin(h)) throw new AuthError();
     const ip = clientIp(h);
-    authorize(h, ip);
+    await authorize(h, ip);
     return await act(h, ip);
   } catch (e) {
     if (!(e instanceof NotefeedError)) throw e;
@@ -133,11 +128,11 @@ export async function formPost(
   }
 }
 
-// The verified sender of a request, or undefined: from the identity cookie, honoured like the session cookie
+// The signed-in sender of a request, or undefined: from the Better Auth session, honoured like the session cookie
 // in authorize (same origin, no Authorization header), or from an unexpired OAuth access token. Only while
-// identity mode is on; never from the request body. Callers must already have checked the access token's audience.
-export function sender(h: Headers): string | undefined {
+// sign-in is on. Callers must already have checked the access token's audience.
+export async function sender(h: Headers): Promise<string | undefined> {
   if (!identityOn()) return undefined;
-  if (!h.has("authorization")) return sameOrigin(h) ? identitySender(cookie(h, IDENTITY_COOKIE)) : undefined;
+  if (!h.has("authorization")) return sameOrigin(h) ? signedInName(h) : undefined;
   return verify("access", bearerOf(h.get("authorization")))?.sender;
 }

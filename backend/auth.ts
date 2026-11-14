@@ -1,6 +1,6 @@
 // Who may use the instance. The optional password (NOTEFEED_PASSWORD) is the bearer for scripts and, as an HMAC
-// cookie (nf_session), the UI's password session. Optional sign-in (backend/oidc) gives a signed nf_identity cookie
-// naming the person. Either one locks the instance; with neither set it is open and every check passes.
+// cookie (nf_session), the UI's password session. Optional sign-in (backend/oidc, run by Better Auth in backend/accounts) gives
+// a Better Auth session naming the person. Either one locks the instance; with neither set it is open and every check passes.
 // ponytail: the session is HMAC(secret, password): no expiry, logout only drops the browser's copy;
 // a leaked cookie works until the password changes (see docs/self-hosting/access.md). Add an expiry to the signed value if that matters.
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
@@ -9,13 +9,12 @@ import { AuthError, TooManyAttemptsError } from "./errors";
 import { authFailed, authWait } from "./limits";
 import { logger } from "./log";
 import { secret } from "./secret";
-import { verify } from "./oauth/tokens";
+import { signedInName } from "./accounts/auth";
 import { identityOn } from "./oidc/config";
 
 const log = logger("auth");
 
 export const SESSION_COOKIE = "nf_session";
-export const IDENTITY_COOKIE = "nf_identity";
 
 // Locked by a password, by sign-in, or both. Sign-in without a password is locked too: an unset password never matches.
 export const locked = () => config.password() !== "" || identityOn();
@@ -68,12 +67,23 @@ export function login(password: string, ip: string): string {
   return sessionValue();
 }
 
-// Who a signed identity cookie names; undefined when identity mode is off or the cookie doesn't verify (forged, expired).
-export const identitySender = (cookie: string | undefined): string | undefined => (identityOn() && cookie ? verify("identity", cookie)?.sender : undefined);
-
-// A password session (only when a password is set) or a signed-in identity.
-export function sessionOk(cookie: string | undefined, identity?: string): boolean {
-  if (!locked()) return true;
-  if (config.password() !== "" && cookie !== undefined && safeEqual(cookie, sessionValue())) return true;
-  return identitySender(identity) !== undefined;
+// The value of cookie `name` in a Cookie header, or undefined.
+export function cookieOf(h: Headers, name: string): string | undefined {
+  for (const part of (h.get("cookie") ?? "").split(";")) {
+    const i = part.indexOf("=");
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
+  }
+  return undefined;
 }
+
+// A password session (only when a password is set) or a Better Auth session, from the request's cookies. Which requests may
+// use a cookie at all (same origin, no Authorization header) is the caller's rule.
+export async function sessionOk(h: Headers): Promise<boolean> {
+  if (!locked()) return true;
+  const cookie = cookieOf(h, SESSION_COOKIE);
+  if (config.password() !== "" && cookie !== undefined && safeEqual(cookie, sessionValue())) return true;
+  return (await signedInName(h)) !== undefined;
+}
+
+// Whether a person is signed in through a provider (the compose box says their name is shown).
+export const signedIn = async (h: Headers): Promise<boolean> => identityOn() && (await signedInName(h)) !== undefined;

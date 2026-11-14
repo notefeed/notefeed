@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { serverCopy } from "@/app/_lib/copy";
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { connection } from "next/server";
 import { ExpandIcon, ExternalIcon, InfoIcon, NewFeedIcon, SignOutIcon } from "@/components/icons";
 import type { ReactNode } from "react";
-import { IDENTITY_COOKIE, SESSION_COOKIE, locked, sessionOk, type RunningVersion } from "@/backend";
+import { locked, sessionOk, type RunningVersion } from "@/backend";
 import { Disclosure } from "@/components/Disclosure";
 import { footerLinks, type FooterLink } from "@/components/LegalLinks";
 import { RememberedFeedLinks } from "@/components/RememberedFeeds";
@@ -66,8 +66,7 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
 
 // Whether "Log out" is offered: readers of /r/** on a locked instance have no session, and an open instance has none at all.
 export async function hasSession() {
-  const jar = await cookies();
-  return locked() && sessionOk(jar.get(SESSION_COOKIE)?.value, jar.get(IDENTITY_COOKIE)?.value);
+  return locked() && (await sessionOk(await headers()));
 }
 
 async function Logo({ wordmark = false }: { wordmark?: boolean }) {

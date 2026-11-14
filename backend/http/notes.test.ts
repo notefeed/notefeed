@@ -1,13 +1,13 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { IDENTITY_COOKIE, SESSION_COOKIE, login } from "../auth";
+import { SESSION_COOKIE, login } from "../auth";
+import { signedInCookie, stubSignInOn } from "../accounts/signin.testkit";
 import { hasFeed, readIdOf, resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logsOf } from "../log";
 import { cookieValue, feedCookieName, protectedFeed } from "../feedlock";
 import { getNote } from "../notes";
-import { sign } from "../oauth/tokens";
 import { editContent, postNote } from "../posting";
 import { dispatch } from "./api";
 
@@ -426,9 +426,9 @@ test("a post with the password bearer has no sender", async () => {
   expect((await getNote("test", (await res.json()).id))!.sender).toBeUndefined();
 });
 
-test("identity on: a same-origin post with the identity cookie stores the verified sender, not the body's", async () => {
-  for (const [k, v] of Object.entries({ ISSUER: "https://idp.example", CLIENT_ID: "id", CLIENT_SECRET: "s", ALLOW: "*" })) vi.stubEnv(`NOTEFEED_OIDC_${k}`, v);
-  const cookie = `${IDENTITY_COOKIE}=${sign("identity", { sender: "Ann" })}`;
+test("sign-in on: a same-origin post with the session cookie stores the signed-in sender", async () => {
+  stubSignInOn();
+  const cookie = await signedInCookie("Ann");
   expect((await post("x", { cookie })).status).toBe(401); // no Origin: not our page
   const res = await post("x", { cookie, origin: BASE, "x-note-sender": "Boss" });
   expect(res.status).toBe(201);

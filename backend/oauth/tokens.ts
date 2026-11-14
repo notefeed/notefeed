@@ -1,4 +1,4 @@
-// Stateless signed values: the OAuth tokens, the nf_identity sign-in cookie and the cookie of a sign-in in flight.
+// Stateless signed values: the OAuth tokens and where a sign-in in flight goes back to.
 // base64url(JSON payload) "." base64url(HMAC-SHA256). The key is derived from the server secret and the password,
 // so changing either one invalidates every token and cookie signed here.
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -8,16 +8,16 @@ import { processState } from "../state";
 
 // `sender` is the signed-in person's name, from an identity login; a password login has none. `until` (epoch
 // seconds) is when that sign-in ends: the refresh chain it starts stops there.
-export type Kind = "client" | "code" | "access" | "refresh" | "identity" | "oidc";
+export type Kind = "client" | "code" | "access" | "refresh" | "oidc";
 export type Payloads = {
   client: { client_name?: string; redirect_uris: string[] };
   code: { cid: string; redirect_uri: string; code_challenge: string; resource: string; jti: string; sender?: string; until?: number };
   access: { aud: string; sender?: string };
   refresh: { cid: string; aud: string; jti: string; sender?: string; until?: number };
-  identity: { sender: string }; // the nf_identity session cookie
   oidc: { provider: string; next?: string; authorize?: Record<string, string> }; // a sign-in in flight, through `provider` (its id): where it goes back to
 };
-export const TTL = { code: 300, access: 3600, refresh: 2592000, identity: 604800, oidc: 600 } as const;
+// `signIn` is how long a sign-in through a provider lasts, the Better Auth session (accounts/auth.ts) as an MCP client's refresh chain.
+export const TTL = { code: 300, access: 3600, refresh: 2592000, signIn: 604800, oidc: 600 } as const;
 
 // Derived per call: secret() is cached, the password is not, and either may change.
 function key(): Buffer {

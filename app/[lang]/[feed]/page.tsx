@@ -23,8 +23,7 @@ import {
   feedUnlocked,
   freeTier,
   getFeed,
-  IDENTITY_COOKIE,
-  identitySender,
+  signedIn,
   imageUploadsOn,
   isRemovedFeed,
   licensePageOn,
@@ -150,7 +149,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
         isNew={isNew}
         settingsHref={exists ? settingsPath(feed) : undefined}
         licensePage={licensePage}
-        sender={identitySender(jar.get(IDENTITY_COOKIE)?.value) !== undefined}
+        sender={await signedIn(await headers())}
         images={imageUploadsOn()}
         imageBase={`${feedPath(feed)}/files/`}
         initialTitle={one(share_title)}

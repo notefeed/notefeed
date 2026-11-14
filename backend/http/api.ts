@@ -95,12 +95,12 @@ const IMAGES_OFF = err(
 // For the Feeds reads: the password first (a locked instance tells strangers nothing else), then the name.
 // postNote does its own, because a browser form gets a redirect to the login page instead of a 401.
 // The feed's own password comes after both: the instance lock is always checked first.
-function passwordAndFeed({ req, params }: { req: Request; params: Record<string, string> }) {
-  authorize(req.headers, clientIp(req.headers));
+async function passwordAndFeed({ req, params }: { req: Request; params: Record<string, string> }) {
+  await authorize(req.headers, clientIp(req.headers));
   assertFeed(params.feed);
 }
 async function passwordFeedAndFeedPassword(input: { req: Request; params: Record<string, string> }) {
-  passwordAndFeed(input);
+  await passwordAndFeed(input);
   await checkFeedAccess(input.params.feed, feedAccess(input.req.headers, input.params.feed), clientIp(input.req.headers));
 }
 
@@ -381,7 +381,7 @@ const OPS: AnyOp[] = [
       const note = await editContent(params.feed, params.id, ip, () => readContent(req), access);
       return { status: 200, body: noteJson(note, base, await filesOf(params.feed, h)) };
     }
-    const { note, pictures } = await editWithPictures(params.feed, params.id, ip, () => readMultipart(req, "edit"), access, sender(h));
+    const { note, pictures } = await editWithPictures(params.feed, params.id, ip, () => readMultipart(req, "edit"), access, await sender(h));
     const readId = await readIdOf(params.feed);
     const attachments = pictures.map((p) => createdOf(h, params.feed, readId, p));
     return { status: 200, body: { ...noteJson(note, base, await filesOf(params.feed, h)), attachments } };

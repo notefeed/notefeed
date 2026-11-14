@@ -141,7 +141,7 @@ function server(h: Headers): McpServer {
       clientIp(h),
       async () => ({ body, mediaType: parsed.mediaType, title: f.title, alt: f.alt, name: f.name, tags: f.tags, draft: f.draft }),
       { password },
-      sender(h),
+      await sender(h),
     );
   };
   const fileUrl = (readId: string | null, file: string) => (readId ? base + imagePath(readId, file) : "");
@@ -239,7 +239,7 @@ function server(h: Headers): McpServer {
         clientIp(h),
         async () => ({ text: markdown, pictures, title, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }),
         { password },
-        sender(h),
+        await sender(h),
       );
       const feedUrl = base + feedPath(feed);
       const url = `${feedUrl}/${note.id}`;

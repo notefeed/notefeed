@@ -11,6 +11,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { config } from "../config";
 import { logger } from "../log";
+import { TTL } from "../oauth/tokens";
 import { identityOn, providers } from "../oidc/config";
 import { secret } from "../secret";
 import { processState } from "../state";
@@ -32,7 +33,7 @@ function options() {
     ...(config.publicUrl() ? { baseURL: config.publicUrl() } : {}),
     // A sign-in lasts 7 days from the moment it was made, as before: use doesn't extend it, so taking someone off the allow-list
     // ends their access within that time.
-    session: { expiresIn: 604_800, disableSessionRefresh: true, cookieCache: { enabled: true, maxAge: 300 } },
+    session: { expiresIn: TTL.signIn, disableSessionRefresh: true, cookieCache: { enabled: true, maxAge: 300 } },
     // Better Auth keeps the provider's tokens with the account. notefeed never uses them, and the id_token holds the person's
     // claims: none of them is stored.
     databaseHooks: {
@@ -53,7 +54,9 @@ const build = () => betterAuth(options());
 export type Auth = ReturnType<typeof build>;
 
 const state = processState("accounts-auth", () => ({}) as { key?: string; auth?: Auth });
-const key = () => JSON.stringify([config.accountsDb(), config.publicUrl(), createHash("sha256").update(config.password()).digest("hex"), providers()]);
+// Everything the instance is built from, so a changed setting (or secret) builds it again.
+const key = () =>
+  JSON.stringify([config.accountsDb(), config.publicUrl(), createHash("sha256").update(secret()).update(config.password()).digest("hex"), providers()]);
 
 // The instance, or undefined while no sign-in provider is configured.
 export function accountsAuth(): Auth | undefined {

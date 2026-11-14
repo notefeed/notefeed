@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { AuthError } from "../errors";
-import { IDENTITY_COOKIE, SESSION_COOKIE, sessionOk } from "../auth";
+import { SESSION_COOKIE, sessionOk } from "../auth";
+import { signedInCookie, stubSignInOn } from "../accounts/signin.testkit";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logsOf } from "../log";
@@ -26,13 +27,14 @@ const login = (fields: Record<string, string>) =>
       body: new URLSearchParams(fields),
     }),
   );
+const pw = (v: string | undefined) => new Headers(v === undefined ? {} : { cookie: `${SESSION_COOKIE}=${v}` });
 const sessionFrom = (res: Response) => /nf_session=([^;]*)/.exec(res.headers.get("set-cookie") ?? "")?.[1];
 
 test("the right password sets the session cookie and returns to next", async () => {
   const res = await login({ password: "pw", next: "/backups?x=1" });
   expect(res.status).toBe(303);
   expect(res.headers.get("location")).toBe("/backups?x=1");
-  expect(sessionOk(sessionFrom(res))).toBe(true);
+  expect(await sessionOk(pw(sessionFrom(res)))).toBe(true);
   expect(res.headers.get("set-cookie")).toMatch(/; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax$/);
 });
 
@@ -80,17 +82,17 @@ test("a wrong password logs a warning without password or address; the too-many-
 
 test("a wrong password bearer is a debug line", async () => {
   const h = new Headers({ host: "localhost:3000", authorization: "Bearer nope-secret" });
-  expect(await logsOf(() => expect(() => authorize(h, "ip")).toThrow(AuthError))).toEqual([
+  expect(await logsOf(() => expect(authorize(h, "ip")).rejects.toThrow(AuthError))).toEqual([
     { level: "debug", component: "auth", msg: "password bearer refused" },
   ]);
-  expect(await logsOf(() => expect(() => authorize(h, "ip")).toThrow(AuthError), "info")).toEqual([]);
+  expect(await logsOf(() => expect(authorize(h, "ip")).rejects.toThrow(AuthError), "info")).toEqual([]);
 });
 
 test("a long share carried in next still logs in and comes back", async () => {
   const next = `/?share_text=${encodeURIComponent("Grüße aus dem Artikel. ".repeat(300))}&shared=1`;
   const res = await login({ password: "pw", next });
   expect(res.headers.get("location")).toBe(next);
-  expect(sessionOk(sessionFrom(res))).toBe(true);
+  expect(await sessionOk(pw(sessionFrom(res)))).toBe(true);
 });
 
 test("an oversized body is a failed login, not a crash", async () => {
@@ -98,102 +100,93 @@ test("an oversized body is a failed login, not a crash", async () => {
   expect(res.headers.get("location")).toBe("/login?error=auth&next=%2F");
 });
 
-test("logout clears the cookie and goes to the login page (/ when open)", () => {
-  const res = logoutRoute();
+test("logout clears the cookie and goes to the login page (/ when open)", async () => {
+  const res = await logoutRoute();
   expect(res.status).toBe(303);
   expect(res.headers.get("location")).toBe("/login");
   expect(res.headers.get("set-cookie")).toMatch(new RegExp(`^${SESSION_COOKIE}=; Path=/; Max-Age=0`));
   delete process.env.NOTEFEED_PASSWORD;
-  expect(logoutRoute().headers.get("location")).toBe("/");
+  expect((await logoutRoute()).headers.get("location")).toBe("/");
 });
 
-test("logout clears the identity cookie too; with sign-in alone it goes to the login page", () => {
-  const cleared = (res: Response) => res.headers.getSetCookie().map((c) => c.split("=")[0]);
-  expect(cleared(logoutRoute())).toEqual([SESSION_COOKIE, IDENTITY_COOKIE]);
-  expect(logoutRoute().headers.getSetCookie()[1]).toMatch(new RegExp(`^${IDENTITY_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax$`));
+test("logout ends a Better Auth session too; with sign-in alone it goes to the login page", async () => {
   process.env.NOTEFEED_PASSWORD = "";
-  vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
-  vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
-  vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "secret");
-  vi.stubEnv("NOTEFEED_OIDC_ALLOW", "*");
-  try {
-    expect(logoutRoute().headers.get("location")).toBe("/login");
-  } finally {
-    vi.unstubAllEnvs();
-  }
+  stubSignInOn();
+  const cookie = await signedInCookie();
+  const SAME = { host: "localhost:3000", origin: "http://localhost:3000" };
+  expect(await sessionOk(new Headers({ ...SAME, cookie }))).toBe(true);
+  const res = await logoutRoute(new Request("http://localhost:3000/logout", { method: "POST", headers: { ...SAME, cookie } }));
+  expect(res.headers.get("location")).toBe("/login");
+  expect(res.headers.getSetCookie().some((c) => /session_token=;/.test(c))).toBe(true);
+  expect(await sessionOk(new Headers({ ...SAME, cookie }))).toBe(false); // the session is gone, not only the cookie
+  vi.unstubAllEnvs();
 });
 
-describe("identity session", () => {
+describe("signed-in session", () => {
   const SAME = { host: "localhost:3000", origin: "http://localhost:3000" };
-  const id = () => `${IDENTITY_COOKIE}=${sign("identity", { sender: "Ann" })}`;
-  const ok = (h: Record<string, string>) => {
+  let id: string;
+  const ok = async (h: Record<string, string>) => {
     try {
-      authorize(new Headers(h), "ip");
+      await authorize(new Headers(h), "ip");
       return true;
     } catch (e) {
       if (e instanceof AuthError) return false;
       throw e;
     }
   };
-  beforeEach(() => {
+  beforeEach(async () => {
     delete process.env.NOTEFEED_PASSWORD;
     vi.stubEnv("NOTEFEED_SECRET", "a".repeat(40));
-    vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
-    vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
-    vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "secret");
-    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "*");
+    stubSignInOn();
     resetFeedsForTests();
+    id = await signedInCookie();
   });
   afterEach(() => {
     vi.unstubAllEnvs();
     resetFeedsForTests();
   });
 
-  test("a same-origin identity cookie authorizes and names the sender", () => {
-    expect(ok({ ...SAME, cookie: id() })).toBe(true);
-    expect(sender(new Headers({ ...SAME, cookie: id() }))).toBe("Ann");
+  test("a same-origin identity cookie authorizes and names the sender", async () => {
+    expect(await ok({ ...SAME, cookie: id })).toBe(true);
+    expect(await sender(new Headers({ ...SAME, cookie: id }))).toBe("Ann");
   });
 
-  test("cross-origin, or with an Authorization header, the cookie counts for nothing", () => {
-    const cross = { host: "localhost:3000", origin: "https://evil.example", cookie: id() };
-    expect(ok(cross)).toBe(false);
-    expect(sender(new Headers(cross))).toBeUndefined();
-    expect(sender(new Headers({ host: "localhost:3000", cookie: id() }))).toBeUndefined(); // no Origin
-    const withAuth = { ...SAME, cookie: id(), authorization: "Bearer x" };
-    expect(ok(withAuth)).toBe(false);
-    expect(sender(new Headers(withAuth))).toBeUndefined();
+  test("cross-origin, or with an Authorization header, the cookie counts for nothing", async () => {
+    const cross = { host: "localhost:3000", origin: "https://evil.example", cookie: id };
+    expect(await ok(cross)).toBe(false);
+    expect(await sender(new Headers(cross))).toBeUndefined();
+    expect(await sender(new Headers({ host: "localhost:3000", cookie: id }))).toBeUndefined(); // no Origin
+    const withAuth = { ...SAME, cookie: id, authorization: "Bearer x" };
+    expect(await ok(withAuth)).toBe(false);
+    expect(await sender(new Headers(withAuth))).toBeUndefined();
   });
 
-  test("a tampered, expired or wrong-kind cookie is refused", () => {
-    const t = sign("identity", { sender: "Ann" });
-    for (const bad of [
-      t.slice(0, -2) + (t.endsWith("AA") ? "BB" : "AA"),
-      sign("identity", { sender: "Ann" }, Date.now() - 8 * 86400_000),
-      sign("access", { aud: "x", sender: "Ann" }),
-    ]) {
-      expect(ok({ ...SAME, cookie: `${IDENTITY_COOKIE}=${bad}` })).toBe(false);
-      expect(sender(new Headers({ ...SAME, cookie: `${IDENTITY_COOKIE}=${bad}` }))).toBeUndefined();
+  test("a tampered or expired session cookie is refused", async () => {
+    for (const bad of [id.slice(0, -2) + (id.endsWith("AA") ? "BB" : "AA"), await signedInCookie("Ann", new Date(Date.now() - 1000))]) {
+      expect(await ok({ ...SAME, cookie: bad })).toBe(false);
+      expect(await sender(new Headers({ ...SAME, cookie: bad }))).toBeUndefined();
     }
   });
 
-  test("an access bearer gives its sender; an expired one, a refresh token or the password bearer none", () => {
+
+  test("an access bearer gives its sender; an expired one, a refresh token or the password bearer none", async () => {
     const bearer = (t: string) => new Headers({ host: "localhost:3000", authorization: `Bearer ${t}` });
-    expect(sender(bearer(sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" })))).toBe("Ann");
-    expect(sender(bearer(sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" }, Date.now() - 3601_000)))).toBeUndefined();
-    expect(sender(bearer(sign("refresh", { cid: "c", aud: "a", jti: "j", sender: "Ann" })))).toBeUndefined();
+    expect(await sender(bearer(sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" })))).toBe("Ann");
+    expect(await sender(bearer(sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" }, Date.now() - 3601_000)))).toBeUndefined();
+    expect(await sender(bearer(sign("refresh", { cid: "c", aud: "a", jti: "j", sender: "Ann" })))).toBeUndefined();
     vi.stubEnv("NOTEFEED_PASSWORD", "pw");
-    expect(sender(bearer("pw"))).toBeUndefined();
+    expect(await sender(bearer("pw"))).toBeUndefined();
   });
 
-  test("identity off: a validly signed cookie neither authorizes nor names a sender", () => {
+  test("sign-in off: a valid session cookie neither authorizes nor names a sender", async () => {
     vi.stubEnv("NOTEFEED_PASSWORD", "pw");
-    const cookie = id(); // signed under the same key the instance has once identity is off
+    const cookie = id;
     vi.stubEnv("NOTEFEED_OIDC_ALLOW", "");
-    expect(ok({ ...SAME, cookie })).toBe(false);
-    expect(sender(new Headers({ ...SAME, cookie }))).toBeUndefined();
-    expect(sessionOk(undefined, cookie.split("=")[1])).toBe(false);
+    expect(await ok({ ...SAME, cookie })).toBe(false);
+    expect(await sender(new Headers({ ...SAME, cookie }))).toBeUndefined();
+    expect(await sessionOk(new Headers({ ...SAME, cookie }))).toBe(false);
     vi.stubEnv("NOTEFEED_PASSWORD", "");
-    expect(sender(new Headers({ ...SAME, cookie: id() }))).toBeUndefined(); // open instance
-    expect(sender(new Headers({ host: "localhost:3000", authorization: `Bearer ${sign("access", { aud: "a", sender: "Ann" })}` }))).toBeUndefined();
+    expect(await sender(new Headers({ ...SAME, cookie: id }))).toBeUndefined(); // open instance
+    expect(await sender(new Headers({ host: "localhost:3000", authorization: `Bearer ${sign("access", { aud: "a", sender: "Ann" })}` }))).toBeUndefined();
   });
 });
