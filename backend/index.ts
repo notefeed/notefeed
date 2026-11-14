@@ -28,7 +28,8 @@ export { hasLegalPage, licensePageOn, readLegalPage, readLicensePage, readNotice
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
 export { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, webhookRoute } from "./http/licenses";
-export { moveImagesRoute, resealRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
+export { moveImagesRoute, operatorAccountsRoute, resealRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
+export { accountCreateRoute, accountDeleteRoute, accountSignInRoute, recoveryKeyRoute } from "./http/accounts";
 export { feedCookieName, feedUnlocked } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
 export { feedAccessRoute } from "./http/feedsession";

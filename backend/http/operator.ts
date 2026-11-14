@@ -11,6 +11,9 @@
 //     POST    moves image bytes into the configured store, from the rows or from another store named in the JSON body
 //   /api/operator/reseal (issue #212)
 //     POST    encrypts the notes stored before NOTEFEED_ENCRYPTION_KEY was set, a batch per call
+//   /api/operator/accounts (#388, ADR 0057; 404 while accounts are off)
+//     POST    a new account, in any accounts mode (the only way in `closed`): its number and recovery key, once
+//     DELETE  ?number=<account number>: that account, with its sessions and passkeys
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { config } from "../config";
@@ -25,6 +28,9 @@ import { createS3ImageStore } from "../storage/images/s3";
 import type { ImageStore } from "../storage/images/types";
 import type { SqlStorage } from "../storage/sql";
 import { takedown, takedownNote } from "../takedown";
+import { accountsOn } from "../accounts/mode";
+import { accountsAuth } from "../accounts/auth";
+import { createAccount, deleteAccount, formatNumber, parseNumber } from "../accounts/numbers";
 
 // An object younger than this is never counted or removed: its note's row may still be on its way (the object is written first).
 export const MIN_AGE_MS = 3_600_000;
@@ -182,4 +188,23 @@ export async function resealRoute(req: Request): Promise<Response> {
     return json({ error: "the notes could not be resealed; see the log" }, 502);
   }
   return json({ resealed: r.resealed, skipped: r.skipped, failed: r.failed, left: r.left, next: r.next });
+}
+
+export async function operatorAccountsRoute(req: Request): Promise<Response> {
+  const refused = gate(req);
+  if (refused) return refused;
+  if (!accountsOn()) return json({ error: "accounts are off" }, 404);
+  if (req.method === "POST") {
+    const { number, recoveryKey } = await createAccount();
+    log.info("account created by the operator"); // never which
+    return json({ number: formatNumber(number), recoveryKey }, 201);
+  }
+  if (req.method !== "DELETE") return json({ error: "method not allowed" }, 405, { Allow: "POST, DELETE" });
+  const number = parseNumber(new URL(req.url).searchParams.get("number") ?? "");
+  const ctx = await accountsAuth()!.$context;
+  const user = number ? await ctx.internalAdapter.findUserByEmail(`${number}@accounts.invalid`) : null;
+  if (!user) return json({ error: "no such account" }, 404);
+  await deleteAccount(user.user.id);
+  log.info("account deleted by the operator");
+  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }

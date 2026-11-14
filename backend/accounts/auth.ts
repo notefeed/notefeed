@@ -94,10 +94,13 @@ export async function migrateAccounts(): Promise<void> {
   await runMigrations();
 }
 
-// What a browser may reach of Better Auth: a provider's return (/callback/<provider>) and its error and health pages. Everything else
+// What a browser may reach of Better Auth: a provider's return (/callback/<provider>), its error and health pages, and passkeys. Everything else
 // (update-user, which would change the sender; account linking; sign-in with a bare id_token, which skips /api/oidc/start's checks;
 // session lists) is 404: notefeed calls what it needs on the server (auth.api).
-const OPEN = /^\/api\/auth\/(callback\/[a-z0-9_]{1,64}|error|ok)$/;
+// Passkeys (ADR 0057) are Better Auth's own: adding one needs the session, signing in with one makes it; the browser talks to them
+// directly (WebAuthn).
+const OPEN =
+  /^\/api\/auth\/(callback\/[a-z0-9_]{1,64}|error|ok|passkey\/(generate-register-options|verify-registration|generate-authenticate-options|verify-authentication|list-user-passkeys|delete-passkey))$/;
 
 // GET and POST /api/auth/*: 404 while sign-in is off.
 export async function authRoute(req: Request): Promise<Response> {
