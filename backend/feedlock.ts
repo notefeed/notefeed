@@ -82,7 +82,7 @@ const cookieOf = (feed: string, hash: string) =>
 
 // The unlock cookie for the feed's first password: what a browser gets after creating a protected feed.
 export async function cookieValue(feed: string): Promise<string | null> {
-  const first = (await feedRecord(feed))?.passwords[0];
+  const first = (await feedRecord(feed))?.entries[0];
   return first ? cookieOf(feed, first.hash) : null;
 }
 
@@ -90,7 +90,7 @@ export async function cookieValue(feed: string): Promise<string | null> {
 function cookieUnlocks(feed: string, rec: FeedRecord, cookie: string | undefined): boolean {
   const got = Buffer.from(cookie ?? "");
   let ok = false;
-  for (const p of rec.passwords) {
+  for (const p of rec.entries) {
     const want = Buffer.from(cookieOf(feed, p.hash));
     if (got.length === want.length && timingSafeEqual(got, want)) ok = true;
   }
@@ -102,11 +102,11 @@ function cookieUnlocks(feed: string, rec: FeedRecord, cookie: string | undefined
 // The attempt is counted before the hashing and given back if the password was right: counted afterwards,
 // every guess of a concurrent burst would get past the limit while the first ones are still hashing.
 // Returns the password that matched.
-async function checkPassword(password: string | undefined, rec: FeedRecord, ip: string): Promise<FeedPassword> {
+async function matchEntry(password: string | undefined, rec: FeedRecord, ip: string): Promise<FeedPassword> {
   if (!password) throw new AuthError();
   const attempt = authAttempt(ip);
   if (typeof attempt === "number") throw new TooManyAttemptsError(attempt);
-  for (const p of rec.passwords)
+  for (const p of rec.entries)
     if (await verifyHash(password, p.hash)) {
       attempt();
       return p;
@@ -122,7 +122,7 @@ export async function checkFeedAccess(feed: string, access: FeedAccess, ip: stri
   const rec = await feedRecord(feed);
   if (!isProtected(rec)) return ownedBy(rec, access.account);
   if (ownedBy(rec, access.account)) return true;
-  if (!cookieUnlocks(feed, rec!, access.cookie)) await checkPassword(access.password, rec!, ip);
+  if (!cookieUnlocks(feed, rec!, access.cookie)) await matchEntry(access.password, rec!, ip);
   return true;
 }
 
@@ -138,14 +138,14 @@ export async function feedUnlocked(feed: string, cookie: string | undefined, acc
 export async function unlock(feed: string, password: string, ip: string): Promise<string> {
   const rec = await feedRecord(feed);
   if (!isProtected(rec)) throw new AuthError();
-  return cookieOf(feed, (await checkPassword(password, rec!, ip)).hash);
+  return cookieOf(feed, (await matchEntry(password, rec!, ip)).hash);
 }
 
 export async function createProtected(feed: string, password: string, readId?: string, account?: string): Promise<void> {
   checkNewPassword(password);
   const hash = await hashPassword(password);
   if (await createProtectedFeed(feed, hash, readId)) {
-    if (account) await writeRecord(feed, { owner: account, passwords: [{ id: LEGACY_ID, name: LEGACY_NAME, hash, created: Date.now() }] });
+    if (account) await writeRecord(feed, { owner: account, entries: [{ id: LEGACY_ID, name: LEGACY_NAME, hash, created: Date.now() }] });
     return;
   }
   throw (await protectedFeed(feed)) ? new AuthError() : new FeedExistsError();
@@ -154,7 +154,7 @@ export async function createProtected(feed: string, password: string, readId?: s
 // A feed that was just created by `account` becomes its own (ADR 0059); nothing for one made without an account.
 export async function ownNewFeed(feed: string, account: string | undefined): Promise<void> {
   if (!account) return;
-  const rec = (await feedRecord(feed)) ?? { passwords: [] };
+  const rec = (await feedRecord(feed)) ?? { entries: [] };
   if (!rec.owner) await writeRecord(feed, { ...rec, owner: account });
 }
 
@@ -172,7 +172,7 @@ export async function changePassword(feed: string, current: string, next: string
   if (rec === null && !(await hasFeed(feed))) throw new NotFoundError("no such feed");
   refuseOwned(rec);
   await requireLicense(feed); // setting or changing a password is for licensed feeds; removing one is not (ADR 0029)
-  if (isProtected(rec)) await checkPassword(current, rec!, ip);
+  if (isProtected(rec)) await matchEntry(current, rec!, ip);
   return writeNewHash(feed, next);
 }
 
@@ -180,8 +180,8 @@ export async function removePassword(feed: string, current: string, ip: string):
   const rec = await feedRecord(feed);
   if (!isProtected(rec)) throw new FeedExistsError();
   refuseOwned(rec);
-  await checkPassword(current, rec!, ip);
-  await writeRecord(feed, { passwords: [] });
+  await matchEntry(current, rec!, ip);
+  await writeRecord(feed, { entries: [] });
 }
 
 // A lost password (ADR 0037). With no accounts, the license key on the feed is the only proof of owning it; the buyer finds it
@@ -200,7 +200,7 @@ export async function recoverPassword(feed: string, key: string, next: string, i
   if ((await licenses().byKeyHash(hashKey(key)))?.feed !== feed) throw new AuthError();
   attempt();
   if (!next) {
-    await writeRecord(feed, { passwords: [] });
+    await writeRecord(feed, { entries: [] });
     return null;
   }
   await requireLicense(feed);
@@ -211,7 +211,7 @@ async function writeNewHash(feed: string, next: string): Promise<string> {
   const hash = await hashPassword(next);
   // ponytail: checked, not locked. The write is by path after the scrypt wait, so a feed deleted and re-created meanwhile (same
   // name) gets this password; a per-feed lock would close it.
-  await writeRecord(feed, { passwords: [{ id: LEGACY_ID, name: LEGACY_NAME, hash, created: Date.now() }] });
+  await writeRecord(feed, { entries: [{ id: LEGACY_ID, name: LEGACY_NAME, hash, created: Date.now() }] });
   return cookieOf(feed, hash);
 }
 
@@ -240,14 +240,14 @@ export async function claimFeed(feed: string, account: string, password: string,
   if (rec === null && !(await hasFeed(feed))) throw new NotFoundError("no such feed");
   if (rec?.owner) throw new FeedOwnedError();
   if (isProtected(rec)) {
-    const matched = await checkPassword(password, rec!, ip);
-    await writeRecord(feed, { owner: account, passwords: rec!.passwords });
+    const matched = await matchEntry(password, rec!, ip);
+    await writeRecord(feed, { owner: account, entries: rec!.entries });
     return cookieOf(feed, matched.hash);
   }
   checkNewPassword(password);
   await requireLicense(feed);
   const hash = await hashPassword(password);
-  await writeRecord(feed, { owner: account, passwords: [{ id: LEGACY_ID, name: LEGACY_NAME, hash, created: Date.now() }] });
+  await writeRecord(feed, { owner: account, entries: [{ id: LEGACY_ID, name: LEGACY_NAME, hash, created: Date.now() }] });
   return cookieOf(feed, hash);
 }
 
@@ -266,7 +266,7 @@ export type FeedPasswordInfo = { id: string; name: string; created: string | nul
 const info = (p: FeedPassword): FeedPasswordInfo => ({ id: p.id, name: p.name, created: p.created ? new Date(p.created).toISOString() : null });
 
 export const listFeedPasswords = async (feed: string, account: string | undefined): Promise<FeedPasswordInfo[]> =>
-  (await ownersRecord(feed, account)).passwords.map(info);
+  (await ownersRecord(feed, account)).entries.map(info);
 
 // A new named password for the owner's feed, generated: returned once with its id. Protection needs the license (ADR 0029).
 export async function addFeedPassword(feed: string, account: string | undefined, name: string): Promise<FeedPasswordInfo & { password: string }> {
@@ -275,16 +275,16 @@ export async function addFeedPassword(feed: string, account: string | undefined,
   await requireLicense(feed);
   const password = newSecret();
   const entry: FeedPassword = { id: randomBytes(9).toString("base64url"), name: clean, hash: await hashPassword(password), created: Date.now() };
-  await writeRecord(feed, { ...rec, passwords: [...rec.passwords, entry] });
+  await writeRecord(feed, { ...rec, entries: [...rec.entries, entry] });
   return { ...info(entry), password };
 }
 
-// Revokes one of the owner's passwords: it, and every cookie made with it, stops working at once. Revoking the last leaves the feed
+// Revokes one of the owner's entries: it, and every cookie made with it, stops working at once. Revoking the last leaves the feed
 // open, still the owner's.
 export async function revokeFeedPassword(feed: string, account: string | undefined, id: string): Promise<void> {
   const rec = await ownersRecord(feed, account);
-  if (!rec.passwords.some((p) => p.id === id)) throw new NotFoundError("no such feed password");
-  await writeRecord(feed, { ...rec, passwords: rec.passwords.filter((p) => p.id !== id) });
+  if (!rec.entries.some((p) => p.id === id)) throw new NotFoundError("no such feed password");
+  await writeRecord(feed, { ...rec, entries: rec.entries.filter((p) => p.id !== id) });
 }
 
 // The operator's (/api/operator/feeds): gives the feed to `account`, or takes its owner away (undefined), whoever owned it, for a feed
@@ -292,7 +292,7 @@ export async function revokeFeedPassword(feed: string, account: string | undefin
 export async function setFeedOwner(feed: string, account: string | undefined): Promise<void> {
   const rec = await feedRecord(feed);
   if (rec === null && !(await hasFeed(feed))) throw new NotFoundError("no such feed");
-  await writeRecord(feed, { ...(rec ?? { passwords: [] }), owner: account });
+  await writeRecord(feed, { ...(rec ?? { entries: [] }), owner: account });
 }
 
 // ---- Which feeds an account owns ----
