@@ -42,6 +42,8 @@ export default defineConfig({
     // The operator's imprint and privacy page: set on the locked server, unset on the open one. Their notice: on the SQLite one.
     { name: "legal", testMatch: "legal.spec.ts" },
     { name: "licenses", testMatch: "licenses.spec.ts", use: { baseURL: "http://localhost:3104" } },
+    // Accounts that anyone may create (#388): number and key, passkeys (a virtual authenticator), and open feeds without one.
+    { name: "accounts", testMatch: "accounts.spec.ts", use: { baseURL: "http://localhost:3105" } },
     // The same notes and pictures specs on the SQLite backend with its images in a folder (needs Node 22, like the app itself).
     { name: "sqlite", testMatch: ["notes.spec.ts", "images.spec.ts", "drafts.spec.ts"], use: { baseURL: "http://localhost:3102" } },
     // The pictures spec with the images in an S3-compatible store (a stand-in started by e2e/s3-setup.ts). The built app's fetch is
@@ -91,5 +93,6 @@ export default defineConfig({
       NOTEFEED_FAKE_WEBHOOK_SECRET: "e2e-webhook",
       NOTEFEED_FREE_NOTE_CAP: "10",
     }),
+    server(3105, { NOTEFEED_ACCOUNTS: "open", PUBLIC_URL: "http://localhost:3105", NOTEFEED_SECRET: "e2e-accounts-secret-".padEnd(32, "x") }),
   ],
 });

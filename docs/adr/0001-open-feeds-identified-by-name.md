@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0057: an account is now possible, never needed; and ADR 0058: the instance password and accounts never go together.
+
 Until 0.3, a notefeed instance held one feed protected by a shared `NOTEFEED_TOKEN` (bearer for the API, session cookie for the web UI). The goal is a hosted service at notefeed.me that anyone can use without accounts, like ntfy.sh, while self-hosters keep a simple private option. How should feeds be identified and protected on an instance that is open to the internet? (Issue #5.)
 
 ## Decision Drivers

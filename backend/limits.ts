@@ -48,6 +48,20 @@ function check(hits: Hits, key: string, now: number, count: boolean): number | n
   return null;
 }
 
+// Creating accounts (#388): at most 10 an hour per address, counted apart from posts, and off with the rest (NOTEFEED_RATE_LIMIT=0).
+// Seconds to wait, or null if allowed (and counted).
+const CREATIONS = { max: 10, window: 3_600_000 };
+const creations = processState("limits-accounts", () => new Map() as Hits);
+export function accountCreateWait(ip: string, now = Date.now()): number | null {
+  if (config.rateLimit() <= 0) return null;
+  for (const [k, v] of creations) if (now - v.start >= CREATIONS.window) creations.delete(k);
+  const e = creations.get(ip);
+  if (e && e.count >= CREATIONS.max) return Math.max(1, Math.ceil((e.start + CREATIONS.window - now) / 1000));
+  if (e) e.count++;
+  else creations.set(ip, { start: now, count: 1 });
+  return null;
+}
+
 // Seconds to wait, or null if allowed (and counted).
 export const rateLimit = (ip: string, now = Date.now()) => check(posts, ip, now, true);
 
@@ -71,6 +85,7 @@ export function authAttempt(ip: string, now = Date.now()): number | (() => void)
 }
 
 export const resetRateLimitsForTests = () => {
+  creations.clear();
   posts.clear();
   failures.clear();
   state.lastPrune = -Infinity;

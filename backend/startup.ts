@@ -1,5 +1,6 @@
 // The startup line and what is wrong with the configuration, logged once when the server starts
 // (instrumentation.ts). Names of variables only, never their values.
+import { checkAccessSettings } from "./accounts/mode";
 import { config, LOG_LEVELS, type StorageKind } from "./config";
 import { keyServiceDown } from "./errors";
 import { reservedFeedProblems, RESERVED_FEEDS } from "./feeds";
@@ -112,6 +113,7 @@ export async function requireLicensePage(): Promise<void> {
 
 export async function logStartup(): Promise<void> {
   config.validateStorage(); // a wrong storage setting keeps the server from starting; with a database the main key does too, below
+  checkAccessSettings(); // so does an instance password together with accounts, or accounts without PUBLIC_URL (ADR 0058)
   await requireLicensePage(); // so does selling licenses without the license page's words
   const warn = (warnings: Warning[]) => warnings.forEach(([component, msg, f]) => logger(component).warn(f, msg));
   let keyServiceIsDown = false;

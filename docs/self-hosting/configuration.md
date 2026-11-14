@@ -7,7 +7,7 @@ notefeed is configured with environment variables, kept in a `.env` file next to
 | Variable | Default | Meaning |
 |---|---|---|
 | `PUBLIC_URL` | from the request | The base URL used in links, e.g. `https://notes.example.com`. Set it on a public instance, see [below](#public_url). |
-| `NOTEFEED_PASSWORD` | none: open | The instance password: posting needs it as a bearer token, the web UI needs a login. Read links stay open. See [Passwords and access](access.md#the-password). |
+| `NOTEFEED_PASSWORD` | none: open | The instance password: posting needs it as a bearer token, the web UI needs a login. Read links stay open. Never together with [accounts](accounts.md). See [Passwords and access](access.md#the-password). |
 | `NOTEFEED_SECRET` | random, kept in `DATA_DIR/.secret` | The server secret, at least 32 characters (`openssl rand -hex 32`). Required with a database backend. It signs login and unlock cookies and MCP tokens, and older feeds' read links derive from it, so changing it changes those. |
 | `NOTEFEED_TRUST_PROXY` | off | `1` behind a reverse proxy: rate limits per client from `X-Forwarded-For`, and links follow `X-Forwarded-Proto` and `X-Forwarded-Host`. See [Reverse proxy](reverse-proxy.md). |
 | `NOTEFEED_TITLE` | `notefeed` | Title of the RSS feed and the read-only view for a feed without a title of its own. |
@@ -50,7 +50,8 @@ See [Sign-in and sender](sign-in/index.md). Sign-in is on only when all four of 
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `NOTEFEED_OIDC_ISSUER`, `NOTEFEED_OIDC_CLIENT_ID`, `NOTEFEED_OIDC_CLIENT_SECRET`, `NOTEFEED_OIDC_ALLOW` | none: off | Your OpenID Connect provider and who may sign in. Needs `PUBLIC_URL` and `NOTEFEED_SECRET`. |
+| `NOTEFEED_ACCOUNTS` | `off`; `provider` with an identity provider set | Who may create [accounts](accounts.md): `off`, `open` (anyone; the instance stays open), `provider` or `closed` (both lock it). Never together with `NOTEFEED_PASSWORD`. Needs `PUBLIC_URL` and `NOTEFEED_SECRET`. |
+| `NOTEFEED_OIDC_ISSUER`, `NOTEFEED_OIDC_CLIENT_ID`, `NOTEFEED_OIDC_CLIENT_SECRET`, `NOTEFEED_OIDC_ALLOW` | none: off | Your OpenID Connect provider and who may sign in. A sign-in through it is an [account](accounts.md), so it can't be set together with `NOTEFEED_PASSWORD`. Needs `PUBLIC_URL` and `NOTEFEED_SECRET`. |
 | `NOTEFEED_OIDC_LABEL` | the issuer's host | The text after **Sign in with** on the button. |
 | `NOTEFEED_OIDC_SENDER_CLAIM` | `name,email` | The id_token claims tried in order for the sender shown on notes. |
 | `NOTEFEED_OIDC_<NAME>_…` | none | [Further providers](sign-in/setup.md#several-providers), with a name of your choosing. |

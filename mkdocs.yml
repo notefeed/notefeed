@@ -126,6 +126,7 @@ nav:
       - Reverse proxy: self-hosting/reverse-proxy.md
       - Rate limits and caps: self-hosting/limits.md
       - Imprint, privacy page and terms: self-hosting/legal-pages.md
+      - Accounts: self-hosting/accounts.md
       - Sign-in and sender:
           - self-hosting/sign-in/index.md
           - Setup: self-hosting/sign-in/setup.md

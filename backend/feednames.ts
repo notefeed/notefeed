@@ -11,6 +11,7 @@ export const RESERVED_FEEDS: ReadonlySet<string> = new Set([
   "r",
   "api",
   "login",
+  "account",
   "logout",
   "mcp",
   "metrics",

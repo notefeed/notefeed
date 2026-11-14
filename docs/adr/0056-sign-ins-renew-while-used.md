@@ -38,5 +38,5 @@ Only the proxy renews a session, because only it can hand the renewed cookie to 
 * Good, because a daily user signs in through the provider at most every 90 days, usually one click.
 * Good, because a change to the allow-list takes effect at the person's next request, not within 7 days; in an MCP client at its next refresh, within an hour.
 * Bad, because someone their provider removed while their address still fits the list keeps access for up to 90 days. The operator takes them off the list, or changes `NOTEFEED_SECRET` to sign everyone out.
-* Neutral, because each read of a session costs two small queries on `accounts.sqlite` (the person and their provider), also when the session comes from the 5-minute cookie cache; a page reads it up to three times (the proxy, the page frame, the feed page).
+* Neutral, because each read of a session costs three small queries on `accounts.sqlite` (the session row, the person and their provider), also when the session comes from the 5-minute cookie cache, so an ended session is over at once; a page reads it up to three times (the proxy, the page frame, the feed page).
 * A sign-in made before this change is renewed at its next use, not ended. An MCP refresh chain from before it has no person's id and ends after its 7 days.
