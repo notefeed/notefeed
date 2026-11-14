@@ -20,14 +20,14 @@ export type Payloads = {
 export const TTL = { code: 300, access: 3600, refresh: 2592000, signIn: 604800, oidc: 600 } as const;
 
 // Derived per call (secret() is cached, the password is not, and either may change); also the root of Better Auth's secret.
-export function signingKey(): Buffer {
+export function key(): Buffer {
   const pw = createHash("sha256")
     .update(config.password() ?? "")
     .digest();
   return createHmac("sha256", secret()).update(pw).digest();
 }
 
-const mac = (body: string) => createHmac("sha256", signingKey()).update(body).digest();
+const mac = (body: string) => createHmac("sha256", key()).update(body).digest();
 
 export function sign<K extends Kind>(t: K, p: Payloads[K], now = Date.now()): string {
   const claims = t === "client" ? { ...p, t } : { ...p, t, exp: Math.floor(now / 1000) + TTL[t as Exclude<Kind, "client">] };
