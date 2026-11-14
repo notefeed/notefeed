@@ -64,7 +64,7 @@ In `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every stor
 
 - the account number
 - a hash of the recovery key
-- each passkey's public key, its name and when it was added
+- each passkey's public key, when it was added, and the kind of passkey store that made it (its AAGUID: iCloud Keychain, 1Password and the like, never the person or the device), shown to tell passkeys apart
 - the sessions, without the browser's address or user agent
 
 The e-mail field the sign-in library needs holds a placeholder, `<number>@accounts.invalid`. An account made through an identity provider holds what [sign-in keeps](sign-in/index.md#the-sender) instead. Back the file up with your data ([Backups](backups.md)).

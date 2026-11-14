@@ -47,7 +47,7 @@ This amends ADR 0014: sign-in keeps people in `accounts.sqlite` (their name and 
 * Bad, because the redirect URI changes to `<PUBLIC_URL>/api/auth/callback/<provider>`: an operator must register it at the provider before upgrading, and everyone signs in once more. The upgrade notes say so.
 * Bad, because an instance with sign-in now keeps a record per person, which its privacy page has to name, and a file more to back up.
 * Bad, because a reader can no longer tell a provider-verified sender from a typed one.
-* Bad, because a signed-out browser, or a copy of its cookie, still passes for up to 5 minutes (the session cookie cache).
+* Bad, because a signed-out browser, or a copy of its cookie, still passes for up to 5 minutes (the session cookie cache). No longer since #388: every read of a session also checks its row, so an ended session is over at once.
 * Bad, because an instance with sign-in no longer starts without `PUBLIC_URL`, which the docs always required.
 
 ### Confirmation
