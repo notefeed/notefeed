@@ -256,27 +256,27 @@ export type Error = {
 
 export type NoteMeta = {
     /**
-     * The note's title, at most 100 characters, one line (control and text-direction override characters are refused); empty or left out means the title is taken from the text (a markdown note) or there is none (an image)
+     * The note's title: at most 100 characters, one line (control and text-direction override characters are refused). Empty removes it: a markdown note's title follows its text again.
      */
     title?: string;
     /**
-     * Alternative text of an image note, at most 500 characters, one line (control and text-direction override characters are refused)
+     * A picture's alternative text: at most 500 characters, one line (control and text-direction override characters are refused). For image notes only. Empty removes it.
      */
     alt?: string;
     /**
-     * Who posted the note, as it is shown: at most 100 characters, one line (control and text-direction override characters are refused). Not verified. Given with a post, it wins over the signed-in name; empty means none
+     * Who posted the note, as shown on it: at most 100 characters, one line (control and text-direction override characters are refused). Not verified. Empty removes it.
      */
     sender?: string;
     /**
-     * The note's tags, the whole new list (`["ci","done"]`): at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Empty removes them all; omitted leaves them as they are.
+     * The note's tags (`ci`, `deploy`): at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Not verified; readers see them. The whole new list; empty removes them, left out keeps them.
      */
     tags?: Array<string>;
     /**
-     * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. The note's attachments move with it.
+     * The note's date: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`) or a date alone (midnight UTC), from 1970 to 9999. The note takes its place in the feed by it; a time after now schedules it: readers see it from then on. Its attachments move with it.
      */
     date?: string;
     /**
-     * true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)
+     * A draft: only whoever can post to the feed sees it, readers do not until it is published. Its pictures follow it. false publishes it, true hides it from readers again (refused while a picture of it is the feed's title image); its date stays.
      */
     draft?: boolean;
 };
@@ -541,31 +541,31 @@ export type PostNoteData = {
          */
         'X-License-Key'?: string;
         /**
-         * The note's title, for a raw body; a JSON or form body's own `title` wins. At most 100 characters, one line, with no control or text-direction override characters.
+         * The note's title: at most 100 characters, one line (control and text-direction override characters are refused). Left out or empty, a markdown note is titled by its text. Sent as UTF-8; empty is none.
          */
         'X-Note-Title'?: string;
         /**
-         * Who posted the note, as it is shown: at most 100 characters, one line, with no control or text-direction override characters. Not verified; it wins over the signed-in name. Empty is none (then a signed-in name applies).
+         * Who posted the note, as shown on it: at most 100 characters, one line (control and text-direction override characters are refused). Not verified. It wins over the signed-in name; left out or empty, the signed-in name, if any. Sent as UTF-8; empty is none.
          */
         'X-Note-Sender'?: string;
         /**
-         * Tags for the note, comma-separated (`ci,deploy`): at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. For a raw markdown body; a JSON or form body's own `tags` wins. Empty is none.
+         * The note's tags (`ci`, `deploy`): at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Not verified; readers see them. Comma-separated; empty is none.
          */
         'X-Note-Tags'?: string;
         /**
-         * For an image body: its alternative text; a form's own `alt` wins.
+         * A picture's alternative text: at most 500 characters, one line (control and text-direction override characters are refused). For image notes only. Sent as UTF-8; empty is none.
          */
         'X-Note-Alt'?: string;
         /**
-         * The note's file name (at most 200 characters; `/`, `\` and control characters are dropped): for a picture, its original name. The read link serves the newest note with that name at `/r/{readId}/{name}`, a stable address for a file that changes (a name ending in a lower-case extension, such as `post-to-notefeed.md`); a note's own file name (`<id>.<ext>`) comes first
+         * The note's file name (at most 200 characters; `/`, `\` and control characters are dropped): for a picture, its original name. The read link serves the newest note with that name at `/r/{readId}/{name}`, a stable address for a file that changes (a name ending in a lower-case extension, such as `post-to-notefeed.md`); a note's own file name (`<id>.<ext>`) comes first. Not unique. Sent as UTF-8; empty is none.
          */
         'X-Note-Name'?: string;
         /**
-         * An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on. Empty is now.
+         * The note's date: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`) or a date alone (midnight UTC), from 1970 to 9999. The note takes its place in the feed by it; a time after now schedules it: readers see it from then on. Its attachments move with it. Left out or empty: now. Sent as UTF-8; empty is none.
          */
         'X-Note-Date'?: string;
         /**
-         * `true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published
+         * A draft: only whoever can post to the feed sees it, readers do not until it is published. Its pictures follow it. Left out or false: published.
          */
         'X-Note-Draft'?: 'true' | 'false';
     };

@@ -1,3 +1,4 @@
+import { checkDate } from "./notefields";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   AuthError,
@@ -21,7 +22,6 @@ import { countNotes, createImageNote, createNote, getNote, isScheduled, listNote
 import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
 import {
-  checkDate,
   createFeed,
   deleteFeed,
   setFeedImage,

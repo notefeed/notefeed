@@ -113,6 +113,38 @@ function asFile(content: string | Uint8Array | Blob, type?: string): { body: Blo
   return { body: content instanceof Blob ? content : new Blob([content as BlobPart]), type: media };
 }
 
+/** What a post may carry besides its content: where it goes, and the note's metadata. */
+type PostOptions = {
+  feed?: string;
+  feedPassword?: string;
+  type?: string;
+  title?: string;
+  sender?: string;
+  tags?: string[];
+  alt?: string;
+  name?: string;
+  date?: string | Date;
+  draft?: boolean;
+  readId?: string;
+  licenseKey?: string;
+};
+
+// The headers of a post's metadata, once for a single file and for a note with its pictures (the server refuses alt and name with
+// pictures; post() checks that first). What is left out sends nothing.
+function postHeaders(o: PostOptions) {
+  return {
+    ...(o.title && { "X-Note-Title": headerValue(o.title) }),
+    ...(o.sender && { "X-Note-Sender": headerValue(o.sender) }),
+    ...(o.tags?.length && { "X-Note-Tags": o.tags.join(",") }),
+    ...(o.alt && { "X-Note-Alt": headerValue(o.alt) }),
+    ...(o.name && { "X-Note-Name": headerValue(o.name) }),
+    ...(o.date && { "X-Note-Date": dateString(o.date) }),
+    ...(o.draft && { "X-Note-Draft": "true" as const }),
+    ...(o.readId && { "X-Read-Id": o.readId }),
+    ...(o.licenseKey && { "X-License-Key": o.licenseKey }),
+  };
+}
+
 export class Client {
   readonly url: string;
   /** The feed calls use when they name none; a rename of it through updateFeed() (`name`) moves it to the new name. */
@@ -168,21 +200,7 @@ export class Client {
    */
   async post(
     content: string | Uint8Array | Blob | null,
-    options: {
-      feed?: string;
-      feedPassword?: string;
-      type?: string;
-      title?: string;
-      sender?: string;
-      tags?: string[];
-      alt?: string;
-      name?: string;
-      date?: string | Date;
-      draft?: boolean;
-      readId?: string;
-      licenseKey?: string;
-      attachments?: Attachment[];
-    } = {},
+    options: PostOptions & { attachments?: Attachment[] } = {},
   ): Promise<Created & { attachments: Created[] }> {
     const { attachments = [], ...own } = options;
     if (content === null && attachments.length === 0) throw new ConfigError("no content and no attachments");
@@ -203,49 +221,19 @@ export class Client {
     const headers = {
       ...this.opts(own.feedPassword).headers,
       "Content-Type": null, // fetch sets multipart/form-data with its boundary
-      ...(own.title && { "X-Note-Title": headerValue(own.title) }),
-      ...(own.sender && { "X-Note-Sender": headerValue(own.sender) }),
-      ...(own.tags?.length && { "X-Note-Tags": own.tags.join(",") }),
-      ...(own.date && { "X-Note-Date": dateString(own.date) }),
-      ...(own.draft && { "X-Note-Draft": "true" as const }),
-      ...(own.readId && { "X-Read-Id": own.readId }),
-      ...(own.licenseKey && { "X-License-Key": own.licenseKey }),
+      ...postHeaders(own),
     };
     const created = await this.call(postNote({ client: this.api, path: { feed }, body: form as never, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
     return { ...created, attachments: created.attachments ?? [] };
   }
 
-  private async postOne(
-    content: string | Uint8Array | Blob,
-    options: {
-      feed?: string;
-      feedPassword?: string;
-      type?: string;
-      title?: string;
-      sender?: string;
-      tags?: string[];
-      alt?: string;
-      name?: string;
-      date?: string | Date;
-      draft?: boolean;
-      readId?: string;
-      licenseKey?: string;
-    },
-  ): Promise<Created> {
+  private async postOne(content: string | Uint8Array | Blob, options: PostOptions): Promise<Created> {
     const feed = this.feedFor(options.feed);
     const { body, type } = asFile(content, options.type);
     const headers = {
       ...this.opts(options.feedPassword).headers,
       "Content-Type": type,
-      ...(options.title && { "X-Note-Title": headerValue(options.title) }),
-      ...(options.sender && { "X-Note-Sender": headerValue(options.sender) }),
-      ...(options.tags?.length && { "X-Note-Tags": options.tags.join(",") }),
-      ...(options.alt && { "X-Note-Alt": headerValue(options.alt) }),
-      ...(options.name && { "X-Note-Name": headerValue(options.name) }),
-      ...(options.date && { "X-Note-Date": dateString(options.date) }),
-      ...(options.draft && { "X-Note-Draft": "true" as const }),
-      ...(options.readId && { "X-Read-Id": options.readId }),
-      ...(options.licenseKey && { "X-License-Key": options.licenseKey }),
+      ...postHeaders(options),
     };
     return this.call(postNote({ client: this.api, path: { feed }, body, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
