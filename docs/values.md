@@ -8,17 +8,17 @@ It is written for you, if you are deciding whether to trust notefeed with your n
 
 These three come first. When a feature would be easier, or would sell better, by bending one of them, the feature changes or is not built.
 
-### V1. No user accounts {#v1}
+### V1. No identities {#v1}
 
-Access comes from knowing something: a feed's name lets you read and post, its password protects it, its read link lets others read. Access never depends on who you are. There is nothing to sign up for and nothing to lose but the name. Sign-in, where an operator of an own instance turns it on ([V12](#v12)), only adds a sender to notes; it grants nothing.
+Access comes from knowing something: a feed's name lets you post to it, its feed passwords protect it, its read link lets others read. An account is optional and is a number, not a person: it holds no e-mail address and no name, and it lets its holder manage the feeds it owns and their license on every device. Nothing to give but a number, nothing to lose but the number and its key.
 
-**Rules out:** sign-up, login as the way to reach a feed, profiles, "my feeds on every device" through a login, a password reset by e-mail, ownership of a feed by a person rather than by whoever knows its secrets.
+**Rules out:** an e-mail address, a name or a phone number to sign up; a sign-in through a provider on notefeed.me; profiles; a password reset by e-mail; an account needed to read, or to post to a feed someone has shared with you.
 
-ADRs: [0001](https://github.com/notefeed/notefeed/blob/main/docs/adr/0001-open-feeds-identified-by-name.md), [0008](https://github.com/notefeed/notefeed/blob/main/docs/adr/0008-per-feed-passwords.md).
+ADRs: [0001](https://github.com/notefeed/notefeed/blob/main/docs/adr/0001-open-feeds-identified-by-name.md), [0008](https://github.com/notefeed/notefeed/blob/main/docs/adr/0008-per-feed-passwords.md), [0057](https://github.com/notefeed/notefeed/blob/main/docs/adr/0057-accounts-that-are-a-number.md), [0059](https://github.com/notefeed/notefeed/blob/main/docs/adr/0059-feed-owners-and-named-feed-passwords.md).
 
 ### V2. No personal data we have to handle {#v2}
 
-notefeed stores nothing about the people who post or read: no names, no e-mail addresses, no client addresses in its logs. A client's address is used only in memory, to limit how fast it may post or guess passwords, and is never written down by notefeed; notefeed.me's proxy keeps only the network part of it (the last part zeroed), for 14 days. Where personal data can't be avoided, it stays with someone else: on notefeed.me the payment and the buyer's details are with Creem, the merchant of record, and notefeed keeps the key's hash, the provider's reference to the subscription and its end date, and nothing about the buyer. A report about a note is sent from notefeed's report form straight to the operator's inbox, and notefeed stores nothing of it; on notefeed.me the reporter's name and e-mail address in it are optional (the DSA requires the form to offer them, Art. 16(2)), and they are deleted the day after the report is dealt with.
+notefeed stores nothing about the people who post or read: no names, no e-mail addresses, no client addresses in its logs. A client's address is used only in memory, to limit how fast it may post or guess passwords, and is never written down by notefeed; notefeed.me's proxy keeps only the network part of it (the last part zeroed), for 14 days. Where personal data can't be avoided, it stays with someone else: on notefeed.me the payment and the buyer's details are with Creem, the merchant of record, and notefeed keeps the provider's references to the subscription, how many feeds it covers and its end date, with the account, and nothing about the buyer. An account holds a generated number, passkeys and hashed secrets, and nothing about who holds it. A report about a note is sent from notefeed's report form straight to the operator's inbox, and notefeed stores nothing of it; on notefeed.me the reporter's name and e-mail address in it are optional (the DSA requires the form to offer them, Art. 16(2)), and they are deleted the day after the report is dealt with.
 
 A note may carry a sender: a name its poster gives it, shown on the note and not verified, part of what they post like the note's text. A self-hoster may also turn on sign-in through their own identity provider ([V12](#v12)): then the signed-in name is the sender of the notes posted that way, stored on them, and that instance's operator is responsible for it; nothing else needs it.
 
@@ -106,19 +106,19 @@ ADRs: [0003](https://github.com/notefeed/notefeed/blob/main/docs/adr/0003-backen
 
 ### V12. Private by default {#v12}
 
-With nothing turned on, notefeed knows no one. A self-hoster can turn on sign-in through their own identity provider, which puts the signed-in name on the notes posted that way as their sender; it only adds, and no feature may need it.
+With nothing turned on, notefeed knows no one. An operator can turn on accounts, which are numbers ([V1](#v1)); on an own instance also sign-in through an identity provider, which adds the person's name to the notes they post and is that operator's personal data. No feature may need an account, except buying a license.
 
-**Rules out:** a feature that works only with sign-in on, sign-in on notefeed.me as the way to use it, people records or profiles behind sign-in.
+**Rules out:** a feature that works only with accounts on, besides buying; people records or profiles; a sign-in through a provider on notefeed.me.
 
 ADRs: [0014](https://github.com/notefeed/notefeed/blob/main/docs/adr/0014-private-by-default-identity-optional.md).
 
-### V13. A license is the proof for exactly one feed {#v13}
+### V13. A license belongs to one account {#v13}
 
-A license lifts the limits for one feed. In notefeed its key acts on that one feed only: it attaches to it, keeps its limits lifted and recovers its password. It opens nothing at the payment provider: the buyer manages their purchases there by signing in with their e-mail address, because the provider's pages show the buyer and every license they bought ([ADR 0050](https://github.com/notefeed/notefeed/blob/main/docs/adr/0050-a-license-key-opens-no-provider-page.md)). Still, give scripts, assistants and co-authors the feed password, not the key: the key resets the feed's password.
+A license lifts the limits for as many of one account's feeds as it covers, and acts on that account only. It opens the provider's pages to that account alone, because only its holder can open the account. Give scripts, assistants and co-authors a feed password, never the account's recovery key or an account token.
 
-**Rules out:** one key for several feeds, a key that changes another feed, a key that opens the buyer's account at the payment provider, a license tied to a person in notefeed.
+**Rules out:** a license shared between accounts, a feed under someone else's license, a license tied to a person's name or e-mail in notefeed.
 
-ADRs: [0029](https://github.com/notefeed/notefeed/blob/main/docs/adr/0029-licenses-per-feed-on-the-saas.md), [0037](https://github.com/notefeed/notefeed/blob/main/docs/adr/0037-feed-password-recovery-by-license-key.md), [0043](https://github.com/notefeed/notefeed/blob/main/docs/adr/0043-a-license-without-a-feed-password.md), [0050](https://github.com/notefeed/notefeed/blob/main/docs/adr/0050-a-license-key-opens-no-provider-page.md).
+ADRs: [0029](https://github.com/notefeed/notefeed/blob/main/docs/adr/0029-licenses-per-feed-on-the-saas.md), [0043](https://github.com/notefeed/notefeed/blob/main/docs/adr/0043-a-license-without-a-feed-password.md), [0061](https://github.com/notefeed/notefeed/blob/main/docs/adr/0061-licenses-on-the-account.md).
 
 ## Changing this page
 

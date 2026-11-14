@@ -559,7 +559,7 @@ export const en = {
     headline: "Notes in, RSS out.",
     intro:
       "A feed is a list of markdown notes with a name. Post to it from this page, your phone, one curl command or an AI assistant over MCP, and follow it in any RSS reader through its read link, which shows the notes but not the name.",
-    values: "No accounts, no personal data, readers stay invisible:",
+    values: "No account needed, no personal data, readers stay invisible:",
     valuesLink: "what notefeed stands for",
     open: "Open or create a feed",
     nameIsKey: "**The name is the key.** Anyone who knows a feed's name can read and post to it — pick one that's hard to guess, like the one suggested below.",
