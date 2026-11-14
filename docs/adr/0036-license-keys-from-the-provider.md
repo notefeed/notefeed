@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-21
 decision-makers: Marcel Bruckner
 ---
@@ -7,6 +7,8 @@ decision-makers: Marcel Bruckner
 # License keys from the payment provider
 
 ## Context and Problem Statement
+
+Superseded by ADR 0061: licenses belong to accounts; there are no license keys.
 
 ADR 0029 made the license key in notefeed: 128 random bits, carried through the checkout as a hash, shown once on the success page. notefeed keeps only the hash, so a lost key could not be recovered; at best the buyer was refunded. A buyer who cannot use what they paid for and cannot get help is the usual reason for a chargeback, and Creem charges 25 EUR for each, on a 1.99 EUR sale (issue #218). Creem issues license keys itself: one per purchase, in the receipt e-mail and in its customer portal.
 

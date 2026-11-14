@@ -159,7 +159,7 @@ items:
     date: 2026-10-21
     icon: lock-reset
     title: A lost feed password, recovered with the license key
-    summary: Whoever holds a feed's license key can set a new password, without an account or an e-mail address.
+    summary: Whoever held a feed's license key could set a new password, without an account or an e-mail address. Replaced by feed owners and licenses on the account (#391), which recover a feed by its owner's account.
     links:
       - {label: "#225", url: "https://github.com/notefeed/notefeed/pull/225"}
       - {label: "V13", url: "https://docs.notefeed.me/values/#v13"}

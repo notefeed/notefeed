@@ -62,7 +62,7 @@ curl -X DELETE -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" "https://note
 
 The owner's notes posted without a sender of their own show the feed's **Your name on your notes** setting, which only the owner sets: see [Sender](../using/posting.md#sender).
 
-With `open`, an account older than 30 days that owns no feed is deleted (once a day), so accounts made and forgotten don't pile up. Accounts you or an identity provider made stay.
+With `open`, an account older than 30 days that owns no feed and has no license is deleted (once a day), so accounts made and forgotten don't pile up. Accounts you or an identity provider made stay.
 
 The owner is stored with the feed, encrypted with its key on an encrypted database ([Storage](storage.md)), never in `accounts.sqlite`.
 
@@ -80,6 +80,12 @@ curl -X DELETE -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" "https://note
 
 With `provider` every account comes through the identity provider: creating one this way is refused with `409`.
 
+Where licenses are sold, a subscription the payment provider already has (bought before licenses were on accounts, or by hand) is put on an account by its number:
+
+```sh
+curl -X POST -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -d '{"number": "4821-0937-5521-7764", "subscription": "sub_…"}' https://notes.example.com/api/operator/subscriptions
+```
+
 ## What is stored
 
 In `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every storage backend):
@@ -89,6 +95,7 @@ In `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every stor
 - each passkey's public key, the name its holder gave it (optional, such as `Work laptop`), when it was added, and the kind of passkey store that made it (its AAGUID: iCloud Keychain, 1Password and the like, never the person or the device), shown to tell passkeys apart
 - the sessions, without the browser's address or user agent
 - each account token's hash, its name, scope, end and when it was last used
+- where licenses are sold: each subscription's reference at the payment provider, its customer reference there, how many feeds it covers, its period and end; nothing about the buyer
 - when the account was made, for the 30-day cleanup above
 
 The e-mail field the sign-in library needs holds a placeholder, `<number>@accounts.invalid`. An account made through an identity provider holds what [sign-in keeps](sign-in/index.md#the-sender) instead. Back the file up with your data ([Backups](backups.md)).
