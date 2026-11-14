@@ -6,19 +6,19 @@
 import Database from "better-sqlite3";
 import { betterAuth } from "better-auth";
 import { getMigrations } from "better-auth/db/migration";
-import { createHash, createHmac } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { config } from "../config";
 import { logger } from "../log";
-import { TTL } from "../oauth/tokens";
+import { signingKey, TTL } from "../oauth/tokens";
 import { identityOn, providers } from "../oidc/config";
-import { secret } from "../secret";
 import { processState } from "../state";
 import { genericOAuthPlugin, senderName } from "./providers";
 
 export const AUTH_PATH = "/api/auth";
 const betterAuthLog = logger("better-auth");
+const betterAuthSecret = () => createHmac("sha256", signingKey()).update("notefeed-better-auth").digest("base64url");
 const NO_TOKENS = { accessToken: null, refreshToken: null, idToken: null };
 
 function options() {
@@ -27,9 +27,9 @@ function options() {
   return {
     database: new Database(path),
     basePath: AUTH_PATH,
-    // From the server secret and the instance password, like the other signed values (oauth/tokens.ts): changing either signs
-    // everyone out.
-    secret: createHmac("sha256", secret()).update("notefeed-better-auth\0").update(createHash("sha256").update(config.password()).digest()).digest("base64url"),
+    // From the key of the other signed values (oauth/tokens.ts: the server secret and the instance password), so changing either
+    // signs everyone out.
+    secret: betterAuthSecret(),
     // Always PUBLIC_URL (migrateAccounts refuses to start without it): from a request's Host, Better Auth's origin check would trust
     // whatever host a request names.
     baseURL: config.publicUrl(),
@@ -61,8 +61,7 @@ export type Auth = ReturnType<typeof build>;
 
 const state = processState("accounts-auth", () => ({}) as { key?: string; auth?: Auth });
 // Everything the instance is built from, so a changed setting (or secret) builds it again.
-const key = () =>
-  JSON.stringify([config.accountsDb(), config.publicUrl(), createHash("sha256").update(secret()).update(config.password()).digest("hex"), providers()]);
+const key = () => JSON.stringify([config.accountsDb(), config.publicUrl(), betterAuthSecret(), providers()]);
 
 // The instance, or undefined while no sign-in provider is configured (or PUBLIC_URL is missing, which startup refuses).
 export function accountsAuth(): Auth | undefined {
