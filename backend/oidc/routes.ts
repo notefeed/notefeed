@@ -118,7 +118,7 @@ async function signIn(params: URLSearchParams, flight: Flight | null, h: Headers
     throw new AuthError();
   }
   const session = await signedInSession(h);
-  if (!session) {
+  if (!session?.name) {
     logFailure("no session after the sign-in", { provider: flight.provider });
     throw new AuthError();
   }

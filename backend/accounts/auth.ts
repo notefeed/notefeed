@@ -4,7 +4,9 @@
 // Stricter than Better Auth's defaults: no e-mail sign-up or sign-in, no social sign-in, telemetry never turned on, the secret
 // derived from notefeed's own.
 import Database from "better-sqlite3";
+import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
+import { username } from "better-auth/plugins";
 import { getMigrations } from "better-auth/db/migration";
 import { createHmac } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -54,7 +56,14 @@ function options() {
     // Better Auth's routes over HTTP are only those a sign-in passes through (authRoute); notefeed calls the rest on the server.
     // Better Auth's own lines (a discovery that failed, a code the provider refused) go to notefeed's log, component `better-auth`.
     logger: { level: "warn" as const, log: (level: "debug" | "info" | "warn" | "error", message: string) => betterAuthLog[level]({}, message) },
-    plugins: [genericOAuthPlugin()],
+    // Account numbers (ADR 0057): the username is the number, the password the recovery key. Accounts are made only by notefeed's
+    // own createAccount (numbers.ts) on the server: the e-mail routes are outside authRoute's allow-list.
+    emailAndPassword: { enabled: true, minPasswordLength: 20, maxPasswordLength: 64, autoSignIn: false },
+    plugins: [
+      genericOAuthPlugin(),
+      username({ minUsernameLength: 16, maxUsernameLength: 16, usernameValidator: (u: string) => /^[1-9]\d{15}$/.test(u), displayUsername: false }),
+      passkey({ rpID: new URL(config.publicUrl()).hostname, rpName: "notefeed" }),
+    ],
   };
 }
 
@@ -103,6 +112,8 @@ async function refusal(auth: Auth, userId: string): Promise<{ reason: string; pr
   const ctx = await auth.$context;
   const [user, accounts] = await Promise.all([ctx.internalAdapter.findUserById(userId), ctx.internalAdapter.findAccounts(userId)]);
   if (!user) return { reason: "person no longer known" };
+  // A number account (its credential is the recovery key) answers to no provider's allow-list.
+  if (accounts.some((a) => a.providerId === "credential")) return null;
   const id = accounts[0]?.providerId;
   const p = id ? providerById(id) : undefined;
   if (!p) return { reason: "provider no longer configured", ...(id && /^[a-z0-9_]{1,64}$/.test(id) ? { provider: id } : {}) };
@@ -116,7 +127,8 @@ export async function stillAllowed(userId: string): Promise<boolean> {
   return auth ? (await refusal(auth, userId)) === null : false;
 }
 
-export type SignedIn = { userId: string; name: string; setCookies: string[] };
+// `name`: the sender name from an identity provider; a number account has none.
+export type SignedIn = { userId: string; name?: string; setCookies: string[] };
 
 // The signed-in person from Better Auth's session cookie in `h`; undefined without a valid session or while sign-in is off. Only
 // with `renew` (the proxy, which hands the cookies to the browser with the page) is a session due for it renewed and its cookies
@@ -133,19 +145,19 @@ export async function signedInSession(h: Headers, { renew = false }: { renew?: b
   const tooOld = Date.now() - new Date(session.session.createdAt).getTime() > TTL.signInMax * 1000;
   const refused = tooOld ? { reason: "sign-in older than 90 days" } : await refusal(auth, session.user.id);
   const name = senderName(session.user.name);
-  if (refused || !name) {
+  if (refused) {
     // The 5-minute cookie cache brings an ended session back until it runs out: it is ended and logged only the first time.
     const { adapter, internalAdapter } = await auth.$context;
     const token = session.session.token;
     // The row itself: findSession also needs the person, who may be the one that is gone.
     if (await adapter.findOne({ model: "session", where: [{ field: "token", value: token }] })) {
       await internalAdapter.deleteSession(token);
-      const { reason, ...detail } = refused ?? { reason: "no sender name" };
+      const { reason, ...detail } = refused;
       logFailure(reason, detail);
     }
     return undefined;
   }
-  return { userId: session.user.id, name, setCookies: renew ? got.headers.getSetCookie() : [] };
+  return { userId: session.user.id, ...(name ? { name } : {}), setCookies: renew ? got.headers.getSetCookie() : [] };
 }
 
 // The signed-in person's name (the sender); see signedInSession.
