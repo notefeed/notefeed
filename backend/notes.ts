@@ -21,6 +21,8 @@ export { ImageNote, MarkdownNote, Note };
 export { cleanName }; // defined in shared/links.ts, with the characters a name may not hold
 
 export const MAX_NOTE_TITLE = 100;
+// Who posted, as given with the note or the signed-in name: one line like the title, not verified (ADR 0055).
+export const MAX_SENDER = 100;
 export { MAX_ALT }; // defined in shared/links.ts: the web box holds to it too
 
 // A note's title or alt text: trimmed, one line of at most `max` characters (an emoji is one). "" means none.
@@ -338,11 +340,13 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
   return getNote(feed, id);
 }
 
-/** Sets the title and/or alt text of a note; "" removes one. At least one is needed; alt only for types that have it. null: no such note. */
-export async function changeMeta(feed: string, id: string, edit: { title?: string; alt?: string; tags?: string[] }): Promise<Note | null> {
-  if (edit.title === undefined && edit.alt === undefined && edit.tags === undefined) throw new InvalidBodyError("nothing to change: send title, alt or tags");
+/** Sets the title, alt text, tags and/or sender of a note; "" removes one. At least one is needed; alt only for types that have it. null: no such note. */
+export async function changeMeta(feed: string, id: string, edit: { title?: string; alt?: string; tags?: string[]; sender?: string }): Promise<Note | null> {
+  if (edit.title === undefined && edit.alt === undefined && edit.tags === undefined && edit.sender === undefined)
+    throw new InvalidBodyError("nothing to change: send title, alt, tags or sender");
   const title = checkLine("title", edit.title, MAX_NOTE_TITLE);
   const alt = checkLine("alt", edit.alt, MAX_ALT);
+  const sender = checkLine("sender", edit.sender, MAX_SENDER);
   const tags = edit.tags === undefined ? undefined : checkTags(edit.tags);
   if (checkFeed(feed) || !isValidId(id)) return null;
   const note = await getNote(feed, id);
@@ -353,6 +357,7 @@ export async function changeMeta(feed: string, id: string, edit: { title?: strin
     ...(title !== undefined && { title }),
     ...(alt !== undefined && { alt }),
     ...(tags !== undefined && { tags: tags.length ? tags : null }),
+    ...(sender !== undefined && { sender: sender || null }),
     updated: new Date().toISOString(),
   };
   if (!(await storage().updateMeta(feed, id, EDIT_EXTS, patch))) return null;

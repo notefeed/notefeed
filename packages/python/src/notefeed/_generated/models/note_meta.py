@@ -19,6 +19,9 @@ class NoteMeta:
             none (an image)
         alt (str | Unset): Alternative text of an image note, at most 500 characters, one line (control and text-
             direction override characters are refused)
+        sender (str | Unset): Who posted the note, as it is shown: at most 100 characters, one line (control and text-
+            direction override characters are refused). Not verified. Given with a post, it wins over the signed-in name;
+            empty means none
         tags (list[str] | Unset): The note's tags, the whole new list (`["ci","done"]`): at most 10 tags, each 1 to 32
             characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Empty
             removes them all; omitted leaves them as they are.
@@ -32,6 +35,7 @@ class NoteMeta:
 
     title: str | Unset = UNSET
     alt: str | Unset = UNSET
+    sender: str | Unset = UNSET
     tags: list[str] | Unset = UNSET
     date: str | Unset = UNSET
     draft: bool | Unset = UNSET
@@ -40,6 +44,8 @@ class NoteMeta:
         title = self.title
 
         alt = self.alt
+
+        sender = self.sender
 
         tags: list[str] | Unset = UNSET
         if not isinstance(self.tags, Unset):
@@ -56,6 +62,8 @@ class NoteMeta:
             field_dict["title"] = title
         if alt is not UNSET:
             field_dict["alt"] = alt
+        if sender is not UNSET:
+            field_dict["sender"] = sender
         if tags is not UNSET:
             field_dict["tags"] = tags
         if date is not UNSET:
@@ -72,6 +80,8 @@ class NoteMeta:
 
         alt = d.pop("alt", UNSET)
 
+        sender = d.pop("sender", UNSET)
+
         tags = cast(list[str], d.pop("tags", UNSET))
 
         date = d.pop("date", UNSET)
@@ -81,6 +91,7 @@ class NoteMeta:
         note_meta = cls(
             title=title,
             alt=alt,
+            sender=sender,
             tags=tags,
             date=date,
             draft=draft,

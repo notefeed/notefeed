@@ -7,7 +7,9 @@ import { hasFeed, readIdOf, resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logsOf } from "../log";
 import { cookieValue, feedCookieName, protectedFeed } from "../feedlock";
-import { getNote } from "../notes";
+import { getNote, listNotes } from "../notes";
+import { png } from "../testimages";
+import { encodeHeaderValue } from "../../shared/headers";
 import { editContent, postNote } from "../posting";
 import { dispatch } from "./api";
 
@@ -413,10 +415,35 @@ test("postNote stores a verified sender, and editContent keeps it", async () => 
   expect((await getNote("test", note.id))!.sender).toBe("Ann");
 });
 
-test("a sender in the request is ignored", async () => {
-  const res = await post("x", { "x-note-sender": "Boss", "x-sender": "Boss" });
+test("X-Note-Sender is stored as the note's sender, trimmed; empty is none", async () => {
+  const res = await post("x", { "x-note-sender": " Backup bot " });
   expect(res.status).toBe(201);
-  expect((await getNote("test", (await res.json()).id))!.sender).toBeUndefined();
+  expect((await getNote("test", (await res.json()).id))!.sender).toBe("Backup bot");
+  const none = await post("x", { "x-note-sender": "" });
+  expect((await getNote("test", (await none.json()).id))!.sender).toBeUndefined();
+});
+
+test("a multipart post's X-Note-Sender goes on the note and its pictures", async () => {
+  const form = new FormData();
+  form.append("text", "![](a.png)");
+  form.append("file", new File([png(1) as BlobPart], "a.png", { type: "image/png" }));
+  const req = new Request(`${BASE}/test`, { method: "POST", body: form, headers: { host: "localhost:3000", "x-note-sender": "Backup bot" } });
+  const res = await postNoteRoute(req, "test");
+  expect(res.status).toBe(201);
+  const body = await res.json();
+  expect((await getNote("test", body.id))!.sender).toBe("Backup bot");
+  expect((await getNote("test", body.attachments[0].id))!.sender).toBe("Backup bot");
+});
+
+test.each([
+  ["a tab (headers carry no line breaks; MCP tests those)", "Ann\tBea"],
+  ["a right-to-left override", "Ann\u202E"],
+  ["101 characters", "x".repeat(101)],
+])("a sender with %s is a 400 and posts nothing", async (_, bad) => {
+  const res = await post("x", { "x-note-sender": encodeHeaderValue(bad) });
+  expect(res.status).toBe(400);
+  expect((await res.json()).error).toMatch(/sender/);
+  expect(await listNotes("test").catch(() => [])).toEqual([]);
 });
 
 test("a post with the password bearer has no sender", async () => {
@@ -430,8 +457,13 @@ test("sign-in on: a same-origin post with the session cookie stores the signed-i
   stubSignInOn();
   const cookie = await signedInCookie("Ann");
   expect((await post("x", { cookie })).status).toBe(401); // no Origin: not our page
-  const res = await post("x", { cookie, origin: BASE, "x-note-sender": "Boss" });
+  const res = await post("x", { cookie, origin: BASE });
   expect(res.status).toBe(201);
   expect((await getNote("test", (await res.json()).id))!.sender).toBe("Ann");
+  // A sender given with the note wins over the signed-in name; an empty header is no header.
+  const given = await post("x", { cookie, origin: BASE, "x-note-sender": "Backup bot" });
+  expect((await getNote("test", (await given.json()).id))!.sender).toBe("Backup bot");
+  const empty = await post("x", { cookie, origin: BASE, "x-note-sender": "" });
+  expect((await getNote("test", (await empty.json()).id))!.sender).toBe("Ann");
 });
 afterEach(() => vi.unstubAllEnvs());

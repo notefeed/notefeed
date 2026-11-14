@@ -23,7 +23,7 @@ type PostReply = { status: 201; body: Posted; headers?: HeadersInit };
 const headerOf = (req: Request) => (name: string) => decodeHeaderValue(req.headers.get(name) ?? "").trim() || undefined; // an empty header is none
 
 // What a post carries: the body is the file, `Content-Type` says which type (exactly one the registry accepts: no guessing, no lenient
-// defaults), and everything else is a header: X-Note-Title, -Tags, -Alt, -Name, -Date; X-Feed-Password, X-Read-Id and X-License-Key for the post
+// defaults), and everything else is a header: X-Note-Title, -Sender, -Tags, -Alt, -Name, -Date; X-Feed-Password, X-Read-Id and X-License-Key for the post
 // that creates the feed. The type decides the size limit (100 KB of markdown, NOTEFEED_MAX_IMAGE_BYTES for an image) before the body is read.
 export async function readPost(req: Request): Promise<PostInput> {
   const parsed = parseMediaType(req.headers.get("content-type"));
@@ -36,6 +36,7 @@ export async function readPost(req: Request): Promise<PostInput> {
     body,
     mediaType: parsed.mediaType,
     title: header("x-note-title"),
+    sender: header("x-note-sender"),
     alt: header("x-note-alt"),
     name: header("x-note-name"), // cleaned where the note is made (cleanName)
     tags: tagsFromHeader(req.headers.get("x-note-tags")),
@@ -94,6 +95,7 @@ export async function readMultipart(req: Request, kind: "post" | "edit"): Promis
     text,
     pictures,
     title: header("x-note-title"),
+    sender: header("x-note-sender"),
     tags: tagsFromHeader(req.headers.get("x-note-tags")),
     date: header("x-note-date"),
     draft: draftHeader(req),
@@ -124,7 +126,7 @@ export async function readContent(req: Request): Promise<{ body: Uint8Array; med
 }
 
 // The JSON of a PATCH: a title, an alt text and/or a date.
-export async function readMetaPatch(req: Request): Promise<{ title?: string; alt?: string; tags?: string[]; date?: string }> {
+export async function readMetaPatch(req: Request): Promise<{ title?: string; alt?: string; tags?: string[]; sender?: string; date?: string }> {
   if (mediaType(req.headers) !== "application/json") throw new UnsupportedTypeError("send Content-Type: application/json");
   const bytes = await readCapped(req, MAX_BYTES);
   if (!bytes) throw new NoteTooLargeError();
@@ -135,7 +137,7 @@ export async function readMetaPatch(req: Request): Promise<{ title?: string; alt
     throw new InvalidBodyError("invalid JSON");
   }
   const parsed = MetaJson.safeParse(json);
-  if (!parsed.success) throw new InvalidBodyError('JSON may carry "title", "alt" and "date" strings and a "tags" list of strings');
+  if (!parsed.success) throw new InvalidBodyError('JSON may carry "title", "alt", "sender" and "date" strings, "draft" and a "tags" list of strings');
   return parsed.data;
 }
 

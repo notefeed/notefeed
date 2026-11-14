@@ -38,6 +38,10 @@ A feed can have a password of its own as well: see [Feed passwords](feed-passwor
 
 A markdown note shows its text as written. Where a name is needed (RSS, the API, the browser's title) it is titled by its first heading, or else its first line. To set a title of your own, send `X-Note-Title` (at most 100 characters, one line), or fill in the **Title** field in the web UI; `PATCH` changes it later. The title is metadata, not part of the file: replacing the content keeps it, and an empty title makes the note follow its text again. A title of your own also shows as the heading above the text.
 
+## Sender
+
+A note can say who posted it: send `X-Note-Sender` (at most 100 characters, one line), fill in the **Sender** field in the web UI, or pass `sender` from a [client](../integrations/clients.md) or [MCP](../integrations/mcp.md); `PATCH` changes it later, and an empty one removes it. It is a label, not a proof: whoever can post to the feed can write any name. On an own instance with [sign-in](../self-hosting/sign-in/index.md), a note posted signed in without a sender of its own carries the signed-in name. The sender shows next to the note's time, in RSS and in the API; the feed's **Show who posted** setting hides it from readers.
+
 ## Long notes
 
 A note is GitHub-flavoured markdown: tables, task lists, strikethrough and autolinks work. Raw HTML stays text, on the page and in RSS. For a longer text, such as a blog post:

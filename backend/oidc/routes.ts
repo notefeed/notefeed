@@ -54,7 +54,8 @@ async function startRequest(req: Request): Promise<{ next: string; authorize?: R
   return { next: "/", authorize: checked.fields, provider: params.get("provider") };
 }
 
-const finishUrl = (flight: Flight, failed: boolean) => `/api/oidc/finish?${new URLSearchParams({ f: sign("oidc", flight), ...(failed ? { failed: "1" } : {}) })}`;
+const finishUrl = (flight: Flight, failed: boolean) =>
+  `/api/oidc/finish?${new URLSearchParams({ f: sign("oidc", flight), ...(failed ? { failed: "1" } : {}) })}`;
 
 export async function oidcStartRoute(req: Request): Promise<Response> {
   const auth = accountsAuth();

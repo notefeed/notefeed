@@ -108,6 +108,19 @@ describe("post", () => {
     const utf8 = (v: string | string[] | undefined) => Buffer.from(String(v), "latin1").toString("utf8"); // how a server reads the header bytes
     expect([utf8(h["x-note-title"]), utf8(h["x-note-alt"]), utf8(h["x-note-name"])]).toEqual(["Café 日本語", "Größe", "Größe.png"]);
   });
+  test("a sender goes as X-Note-Sender, as UTF-8 bytes, with or without attachments; update sends it in the body", async () => {
+    server.reply(201, CREATED);
+    const c = new Client({ url: server.url, feed: "inbox" });
+    await c.post("x", { sender: "Bäckup bot" });
+    await c.post("![](a.png)", { sender: "Bot", attachments: [{ name: "a.png", content: new Blob([new Uint8Array([1])], { type: "image/png" }) }] });
+    await c.post("x");
+    expect(Buffer.from(String(server.requests[0].headers["x-note-sender"]), "latin1").toString("utf8")).toBe("Bäckup bot");
+    expect(server.requests[1].headers["x-note-sender"]).toBe("Bot");
+    expect(server.requests[2].headers["x-note-sender"]).toBeUndefined();
+    server.reply(200, note(10));
+    await c.update("i", { sender: "" });
+    expect(JSON.parse(server.requests[3].body.toString())).toEqual({ sender: "" });
+  });
   test("notes({ tag }) goes as ?tag=", async () => {
     const c = new Client({ url: server.url, feed: "inbox" });
     server.reply(200, { notes: [], next: null });

@@ -173,6 +173,7 @@ export class Client {
       feedPassword?: string;
       type?: string;
       title?: string;
+      sender?: string;
       tags?: string[];
       alt?: string;
       name?: string;
@@ -203,6 +204,7 @@ export class Client {
       ...this.opts(own.feedPassword).headers,
       "Content-Type": null, // fetch sets multipart/form-data with its boundary
       ...(own.title && { "X-Note-Title": headerValue(own.title) }),
+      ...(own.sender && { "X-Note-Sender": headerValue(own.sender) }),
       ...(own.tags?.length && { "X-Note-Tags": own.tags.join(",") }),
       ...(own.date && { "X-Note-Date": dateString(own.date) }),
       ...(own.draft && { "X-Note-Draft": "true" as const }),
@@ -220,6 +222,7 @@ export class Client {
       feedPassword?: string;
       type?: string;
       title?: string;
+      sender?: string;
       tags?: string[];
       alt?: string;
       name?: string;
@@ -235,6 +238,7 @@ export class Client {
       ...this.opts(options.feedPassword).headers,
       "Content-Type": type,
       ...(options.title && { "X-Note-Title": headerValue(options.title) }),
+      ...(options.sender && { "X-Note-Sender": headerValue(options.sender) }),
       ...(options.tags?.length && { "X-Note-Tags": options.tags.join(",") }),
       ...(options.alt && { "X-Note-Alt": headerValue(options.alt) }),
       ...(options.name && { "X-Note-Name": headerValue(options.name) }),
@@ -254,10 +258,10 @@ export class Client {
     return this.call(editNote({ client: this.api, path: { feed, id }, body, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
-  /** Set a note's title, alt text (for pictures), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (`false` publishes it, `true` hides it from readers again; its date stays); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
+  /** Set a note's title, alt text (for pictures), sender (who posted it, as shown; `""` removes it), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (`false` publishes it, `true` hides it from readers again; its date stays); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
   async update(
     id: string,
-    meta: { title?: string; alt?: string; tags?: string[]; date?: string | Date; draft?: boolean },
+    meta: { title?: string; alt?: string; sender?: string; tags?: string[]; date?: string | Date; draft?: boolean },
     options: { feed?: string; feedPassword?: string } = {},
   ): Promise<Note> {
     const feed = this.feedFor(options.feed);

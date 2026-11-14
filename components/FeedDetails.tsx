@@ -25,7 +25,6 @@ export function FeedDetails({
   showSender: savedShowSender,
   readId,
   readIdChoice,
-  identity,
   renamable = true,
   error: initialError,
   sharing,
@@ -45,7 +44,6 @@ export function FeedDetails({
   showSender: boolean;
   readId: string | null;
   readIdChoice: "custom" | "random" | "fixed";
-  identity: boolean;
   error?: string;
 }) {
   const page = `/${feed}/settings`;
@@ -74,7 +72,7 @@ export function FeedDetails({
     body: { title: string; description: string; image?: string; show_sender?: boolean; read_id?: string } = {
       title,
       description,
-      ...(identity && { show_sender: showSender }),
+      show_sender: showSender,
       ...(readIdChoice === "custom" && readId && { read_id: readIdValue }),
     },
   ) =>
@@ -102,13 +100,13 @@ export function FeedDetails({
     if ("error" in up) {
       setImageError(up.error);
       setPending(false);
-    } else save(undefined, { title, description, image: up.file, ...(identity ? { show_sender: showSender } : {}) });
+    } else save(undefined, { title, description, image: up.file, show_sender: showSender });
   }
   // A rename (#350) goes to the settings page under the new name; on a protected feed that page asks for the password again.
   const rename = (e: FormEvent) =>
     run(
       e,
-      () => updateFeed({ ...opts(), body: { title, description, ...(identity && { show_sender: showSender }), name: newName.trim() } }),
+      () => updateFeed({ ...opts(), body: { title, description, show_sender: showSender, name: newName.trim() } }),
       () => {
         router.replace(`/${newName.trim()}/settings?saved=1`);
         router.refresh();
@@ -122,7 +120,7 @@ export function FeedDetails({
       404,
     ); // already gone: the goal is met
 
-  const withSender = identity ? { show_sender: showSender } : {};
+  const withSender = { show_sender: showSender };
 
   return (
     <div className="space-y-6 text-sm">
@@ -219,20 +217,18 @@ export function FeedDetails({
               className={field}
             />
           </FieldRow>
-          {identity && (
-            <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
-              <input type="hidden" name="show_sender_present" value="1" />
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-                <SenderIcon aria-hidden className="h-[18px] w-[18px]" />
-              </span>
-              <span className="min-w-0 flex-1 text-[15px]">{t.showSender}</span>
-              <input type="checkbox" name="show_sender" checked={showSender} onChange={(e) => setShowSender(e.target.checked)} className="peer sr-only" />
-              <span
-                aria-hidden
-                className="relative h-6 w-11 shrink-0 rounded-full bg-rule transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-surface after:shadow-card after:transition-transform peer-checked:bg-carbon peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-carbon"
-              />
-            </label>
-          )}
+          <label className="flex cursor-pointer items-center gap-3 px-4 py-3">
+            <input type="hidden" name="show_sender_present" value="1" />
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
+              <SenderIcon aria-hidden className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1 text-[15px]">{t.showSender}</span>
+            <input type="checkbox" name="show_sender" checked={showSender} onChange={(e) => setShowSender(e.target.checked)} className="peer sr-only" />
+            <span
+              aria-hidden
+              className="relative h-6 w-11 shrink-0 rounded-full bg-rule transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-surface after:shadow-card after:transition-transform peer-checked:bg-carbon peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-carbon"
+            />
+          </label>
           <div className="flex justify-end px-4 py-3">
             <button type="submit" disabled={pending} className={primary}>
               {t.save}

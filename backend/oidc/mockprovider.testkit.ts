@@ -7,7 +7,13 @@ import { oidcFinishRoute, oidcStartRoute } from "./routes";
 
 export const BASE = "http://localhost:3000";
 
-export type MockProvider = { issuer: string; claims: Record<string, unknown>; tokenRequests: { body: Record<string, unknown>; authorization?: string }[]; failToken: () => void; stop: () => Promise<void> };
+export type MockProvider = {
+  issuer: string;
+  claims: Record<string, unknown>;
+  tokenRequests: { body: Record<string, unknown>; authorization?: string }[];
+  failToken: () => void;
+  stop: () => Promise<void>;
+};
 
 export async function startProvider(): Promise<MockProvider> {
   const server = new OAuth2Server();
@@ -76,7 +82,8 @@ export async function signIn(start: Request, jar = new Jar()): Promise<{ locatio
     const headers = { host: "localhost:3000", cookie: jar.header() };
     if (url.startsWith(`${BASE}/api/auth/`)) res = step(await authRoute(new Request(url, { headers })));
     else if (url.startsWith(`${BASE}/api/oidc/finish`)) res = step(await oidcFinishRoute(new Request(url, { headers })));
-    else if (!url.startsWith(BASE) && /^http:\/\/(localhost|127\.0\.0\.1):\d+\//.test(url)) res = step(await fetch(url, { redirect: "manual" })); // the mock provider
+    else if (!url.startsWith(BASE) && /^http:\/\/(localhost|127\.0\.0\.1):\d+\//.test(url))
+      res = step(await fetch(url, { redirect: "manual" })); // the mock provider
     else break;
   }
   return { location: res.headers.get("location") ?? "", jar, responses };

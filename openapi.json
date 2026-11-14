@@ -95,6 +95,15 @@
             }
           },
           {
+            "name": "X-Note-Sender",
+            "in": "header",
+            "required": false,
+            "description": "Who posted the note, as it is shown: at most 100 characters, one line, with no control or text-direction override characters. Not verified; it wins over the signed-in name. Empty is none (then a signed-in name applies).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "X-Note-Tags",
             "in": "header",
             "required": false,
@@ -201,7 +210,7 @@
             }
           },
           "400": {
-            "description": "Invalid or reserved feed name; a blank note; a bad title, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`",
+            "description": "Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`",
             "content": {
               "application/json": {
                 "schema": {
@@ -3500,6 +3509,10 @@
           "alt": {
             "type": "string",
             "description": "Alternative text of an image note, at most 500 characters, one line (control and text-direction override characters are refused)"
+          },
+          "sender": {
+            "type": "string",
+            "description": "Who posted the note, as it is shown: at most 100 characters, one line (control and text-direction override characters are refused). Not verified. Given with a post, it wins over the signed-in name; empty means none"
           },
           "tags": {
             "description": "The note's tags, the whole new list (`[\"ci\",\"done\"]`): at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Empty removes them all; omitted leaves them as they are.",

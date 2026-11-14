@@ -16,7 +16,7 @@ import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
 import { logger } from "./log";
 import * as next from "./mcpguidance";
-import { checkLine, getNote, isDraft, isScheduled, listNotes, MAX_NOTE_TITLE, refuseRemovedNote, type Note } from "./notes";
+import { checkLine, getNote, isDraft, isScheduled, listNotes, MAX_NOTE_TITLE, MAX_SENDER, refuseRemovedNote, type Note } from "./notes";
 import { verify } from "./oauth/tokens";
 import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
@@ -41,6 +41,12 @@ const log = logger("mcp");
 const SECRET_NOTE = "The feed name works like a password: anyone who knows it can read and post. Don't repeat it in replies.";
 
 const feed = z.string().regex(FEED_RE);
+const SENDER = z
+  .string()
+  .optional()
+  .describe(
+    "Who posted the note, as shown on it (at most 100 characters, one line; control and text-direction override characters are refused). Not verified. Left out: the signed-in name, if any; empty: none",
+  );
 const password = z.string().optional();
 const PROTECTED = "A protected feed needs its password as password.";
 // Every picture is processed on the server (ADR 0049): an assistant should send the file it has, not shrink it first.
@@ -129,7 +135,7 @@ function server(h: Headers): McpServer {
   // One file as a note: the type must be accepted and the bytes must be what it says (postNote checks that); a picture is size-limited.
   const postBytes = async (
     feed: string,
-    f: { type: string; data: string; title?: string; alt?: string; name?: string; tags?: string[]; draft?: boolean },
+    f: { type: string; data: string; title?: string; sender?: string; alt?: string; name?: string; tags?: string[]; draft?: boolean },
     password: string | undefined,
   ) => {
     const parsed = parseMediaType(f.type);
@@ -139,7 +145,7 @@ function server(h: Headers): McpServer {
     return postNote(
       feed,
       clientIp(h),
-      async () => ({ body, mediaType: parsed.mediaType, title: f.title, alt: f.alt, name: f.name, tags: f.tags, draft: f.draft }),
+      async () => ({ body, mediaType: parsed.mediaType, title: f.title, sender: f.sender, alt: f.alt, name: f.name, tags: f.tags, draft: f.draft }),
       { password },
       await sender(h),
     );
@@ -153,6 +159,7 @@ function server(h: Headers): McpServer {
       inputSchema: z.object({
         feed,
         markdown: z.string(),
+        sender: SENDER,
         title: z
           .string()
           .optional()
@@ -220,7 +227,7 @@ function server(h: Headers): McpServer {
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    guard(async ({ feed, markdown, title, name, password, tags, date, draft, read_id, license_key, attachments = [] }) => {
+    guard(async ({ feed, markdown, title, sender: given, name, password, tags, date, draft, read_id, license_key, attachments = [] }) => {
       // Buffer.from skips what is not base64, so the data is checked here; the rest of the checks are postWithPictures's.
       const pictures = attachments.map((a) => {
         const clean = a.data.replace(/\s/g, "");
@@ -237,7 +244,7 @@ function server(h: Headers): McpServer {
       } = await postWithPictures(
         feed,
         clientIp(h),
-        async () => ({ text: markdown, pictures, title, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }),
+        async () => ({ text: markdown, pictures, title, sender: given, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }),
         { password },
         await sender(h),
       );
@@ -320,12 +327,13 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "edit_note",
     {
-      description: `Replace a note's markdown, set its title, its tags, its date or whether it is a draft, or any of them (an empty title removes it: the title follows the text again; tags replace the whole list, an empty one removes them; a future date schedules the note; draft false publishes a draft, draft true hides a note from readers again); its id stays. At least one of markdown, title, tags, date and draft. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Replace a note's markdown, set its title, its tags, its date or whether it is a draft, or any of them (an empty title removes it: the title follows the text again; tags replace the whole list, an empty one removes them; a future date schedules the note; draft false publishes a draft, draft true hides a note from readers again); its id stays. At least one of markdown, title, sender, tags, date and draft. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         id: z.string(),
         markdown: z.string().optional(),
         title: z.string().optional(),
+        sender: SENDER,
         tags: z
           .array(z.string())
           .optional()
@@ -347,18 +355,19 @@ function server(h: Headers): McpServer {
       outputSchema: NoteOut,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, id, markdown, title, tags, date, draft, password }) => {
-      if (markdown === undefined && title === undefined && tags === undefined && date === undefined && draft === undefined)
-        throw new InvalidBodyError("nothing to change: send markdown, title, tags, date, draft or several");
+    guard(async ({ feed, id, markdown, title, sender: given, tags, date, draft, password }) => {
+      if (markdown === undefined && title === undefined && given === undefined && tags === undefined && date === undefined && draft === undefined)
+        throw new InvalidBodyError("nothing to change: send markdown, title, sender, tags, date, draft or several");
       checkLine("title", title, MAX_NOTE_TITLE);
+      checkLine("sender", given, MAX_SENDER);
       if (tags !== undefined) checkTags(tags);
       checkDate(date); // before the content is replaced: a bad title, tag or date must not leave a half edit
       let note =
         markdown === undefined
           ? undefined
           : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), { password });
-      if (title !== undefined || tags !== undefined || date !== undefined || draft !== undefined)
-        note = await editMeta(feed, id, clientIp(h), async () => ({ title, tags, date, draft }), { password });
+      if (title !== undefined || given !== undefined || tags !== undefined || date !== undefined || draft !== undefined)
+        note = await editMeta(feed, id, clientIp(h), async () => ({ title, sender: given, tags, date, draft }), { password });
       const edited = summary(feed, note!);
       return ok({ ...edited, ...(note!.content !== undefined && { content: note!.content }), guidance: next.afterEdit({ ...state(note!), url: edited.url }) });
     }),
@@ -572,6 +581,7 @@ function server(h: Headers): McpServer {
         feed,
         type: z.string().describe("The file's media type"),
         data: z.string().describe("The file's bytes, base64"),
+        sender: SENDER,
         title: z
           .string()
           .optional()
@@ -587,8 +597,8 @@ function server(h: Headers): McpServer {
       outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string(), draft: DRAFT_OUT, guidance: GUIDANCE }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    guard(async ({ feed, type, data, title, alt, name, draft, password }) => {
-      const { note, readId } = await postBytes(feed, { type, data, title, alt, name, draft }, password);
+    guard(async ({ feed, type, data, title, sender: given, alt, name, draft, password }) => {
+      const { note, readId } = await postBytes(feed, { type, data, title, sender: given, alt, name, draft }, password);
       const url = fileUrl(readId, note.file);
       return ok({ id: note.id, file: note.file, url, ...(note.draft && { draft: true as const }), guidance: next.afterPostFile({ ...state(note), url }) });
     }),

@@ -409,6 +409,14 @@ def test_update_sets_title_and_alt(server, capsys):
     assert main(["update", "i", "--url", server.url, "--feed", "inbox"]) == 2  # nothing to change
 
 
+def test_post_and_update_take_a_sender(server):
+    assert main(["post", "hi", "--sender", "Backup bot", "--url", server.url, "--feed", "inbox"]) == 0
+    assert server.requests[0]["headers"]["X-Note-Sender"] == "Backup bot"
+    server.reply(200, NOTE)
+    assert main(["update", "i", "--sender", "", "--url", server.url, "--feed", "inbox"]) == 0
+    assert json.loads(server.requests[1]["body"]) == {"sender": ""}
+
+
 def test_update_sets_the_date(server):
     server.reply(200, NOTE)
     assert main(["update", "i", "--date", "2025-03-01", "--url", server.url, "--feed", "inbox"]) == 0

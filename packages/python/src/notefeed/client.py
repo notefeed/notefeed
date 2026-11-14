@@ -259,6 +259,7 @@ class Client:
         license_key: str | None = None,
         date: str | date | None = None,
         draft: bool = False,
+        sender: str | None = None,
     ) -> Posted:
         """Post a note: a `str` is markdown, `bytes` are a file whose media type is `type` (`text/markdown`, `image/png`,
         `image/jpeg`, `image/gif` or `image/webp`; the server accepts nothing else and checks that the body is what the type
@@ -267,7 +268,8 @@ class Client:
 
         `feed_password` overrides the client's, for a feed that has its own password. `tags` label the note (at most 10,
         each 1 to 32 characters of letters, digits, `-`, `_`, `.`, `:`; not verified). `title` is its title (at most 100
-        characters, one line); left out, it is taken from the text. `alt` is a picture's alternative text, `name` the
+        characters, one line); left out, it is taken from the text. `sender` is who posted it, as shown on the note (at most 100
+        characters, one line; not verified): it wins over the name of a signed-in session. `alt` is a picture's alternative text, `name` the
         file's original name. `date` is the note's date, if not now: a timezone-aware datetime, a date
         (midnight UTC) or an ISO 8601 string (`2026-10-01T09:30:00Z`, `2026-10-01`), from 1970 to 9999; a future date schedules the note: readers see it from then on. `draft` posts it, and its attachments, as a
         draft: only whoever can post to the feed sees it, readers do not until update() publishes it with `draft=False`. `read_id` is the read id the feed gets when this post creates it (3 to 64 characters of
@@ -290,7 +292,7 @@ class Client:
                 raise ConfigError("no content given")
             return Posted(
                 **attrs.asdict(
-                    self._post_one(content, feed, feed_password, type, title, tags, alt, name, read_id, license_key, created, drafted), recurse=False
+                    self._post_one(content, feed, feed_password, type, title, sender, tags, alt, name, read_id, license_key, created, drafted), recurse=False
                 )
             )
         if (content is not None and not isinstance(content, str)) or (type or "text/markdown") != "text/markdown":
@@ -319,6 +321,7 @@ class Client:
             x_read_id=read_id or UNSET,
             x_license_key=license_key or UNSET,
             x_note_title=_header_value(title) if title else UNSET,
+            x_note_sender=_header_value(sender) if sender else UNSET,
             x_note_tags=",".join(tags) if tags else UNSET,
             x_note_date=created,
             x_note_draft=drafted,
@@ -333,7 +336,7 @@ class Client:
             raise NotefeedError(f"unexpected response from {self.url} (not a notefeed server?)") from None
         return Posted(**attrs.asdict(done, recurse=False), attachments=extra)
 
-    def _post_one(self, content, feed, feed_password, type, title, tags, alt, name, read_id, license_key, created, drafted) -> Created:
+    def _post_one(self, content, feed, feed_password, type, title, sender, tags, alt, name, read_id, license_key, created, drafted) -> Created:
         payload, media = _as_file(content, type)
         kwargs = post_note._get_kwargs(
             feed=self._feed_for(feed),
@@ -342,6 +345,7 @@ class Client:
             x_read_id=read_id or UNSET,
             x_license_key=license_key or UNSET,
             x_note_title=_header_value(title) if title else UNSET,
+            x_note_sender=_header_value(sender) if sender else UNSET,
             x_note_tags=",".join(tags) if tags else UNSET,
             x_note_date=created,
             x_note_draft=drafted,
@@ -368,11 +372,13 @@ class Client:
         date: str | date | None = None,
         tags: list[str] | None = None,
         draft: bool | None = None,
+        sender: str | None = None,
     ) -> Note:
-        """Set a note's title, alt text (for pictures), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (False publishes it, True hides it from readers again; its date stays); "" removes a title or alt, so a markdown note's title follows its text again; tags replace the whole list ([] removes them); None leaves it. Same options as post()."""
+        """Set a note's title, alt text (for pictures), sender (who posted it, as shown; "" removes it), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (False publishes it, True hides it from readers again; its date stays); "" removes a title or alt, so a markdown note's title follows its text again; tags replace the whole list ([] removes them); None leaves it. Same options as post()."""
         meta = NoteMeta(
             title=UNSET if title is None else title,
             alt=UNSET if alt is None else alt,
+            sender=UNSET if sender is None else sender,
             tags=UNSET if tags is None else list(tags),
             date=_date(date),
             draft=UNSET if draft is None else draft,

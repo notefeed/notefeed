@@ -61,6 +61,7 @@ import {
   hasImageNote,
   MAX_ALT,
   MAX_NOTE_TITLE,
+  MAX_SENDER,
   newNoteId,
   refuseRemovedNote,
   removeNote,
@@ -199,6 +200,7 @@ export type PostInput = {
   body: Uint8Array;
   mediaType: string;
   title?: string;
+  sender?: string; // as given with the note: wins over the signed-in one; "" is none
   tags?: string[];
   alt?: string;
   name?: string;
@@ -247,7 +249,7 @@ export async function postNote(
   ip: string,
   read: () => Promise<PostInput>,
   access: FeedAccess,
-  sender?: string, // verified by the caller (identity cookie or OAuth token), never taken from a request body
+  signedIn?: string, // the signed-in name (Better Auth session or OAuth token): the sender unless the post gives its own
 ): Promise<{ note: Note; created: boolean; readId: string | null }> {
   const proved = await admit(feed, ip, access);
   const exists = await feedCapped(feed);
@@ -262,6 +264,7 @@ export async function postNote(
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
   type.checkBody(input.body);
   checkLine("title", input.title, MAX_NOTE_TITLE);
+  const sender = senderOf(input.sender, signedIn);
   if (checkLine("alt", input.alt, MAX_ALT) && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
   const tags = checkTags(input.tags);
   const at = checkDate(input.date);
@@ -283,6 +286,10 @@ export async function postNote(
   await trimToFreeCap(feed);
   return { ...made, created };
 }
+
+// The sender a post stores: its own (checked like a title; "" is none), else the signed-in name.
+const senderOf = (given: string | undefined, signedIn: string | undefined): string | undefined =>
+  given === undefined ? signedIn : checkLine("sender", given, MAX_SENDER) || undefined;
 
 // A feed without a note (#295, ADR 0047): reserved now, with a password and a read id if given, as a first post would create it.
 // Where licenses are sold it needs a license key, which goes on the new feed (free feeds still start with their first note). It counts
@@ -337,15 +344,15 @@ export async function editMeta(
   feed: string,
   id: string,
   ip: string,
-  read: () => Promise<{ title?: string; alt?: string; tags?: string[]; date?: string; draft?: boolean }>,
+  read: () => Promise<{ title?: string; alt?: string; tags?: string[]; sender?: string; date?: string; draft?: boolean }>,
   access: FeedAccess,
 ): Promise<Note> {
   await admit(feed, ip, access);
   await refuseRemovedNote(feed, id);
   const { date: given, draft, ...meta } = await read();
   const date = checkDate(given);
-  const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined;
-  if (date === undefined && draft === undefined && !metaGiven) throw new InvalidBodyError("nothing to change: send title, alt, tags, date or draft");
+  const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined || meta.sender !== undefined;
+  if (date === undefined && draft === undefined && !metaGiven) throw new InvalidBodyError("nothing to change: send title, alt, tags, sender, date or draft");
   if (draft !== undefined) {
     // A picture posted with a note is a draft when its note is: published alone, it would show readers part of a draft (V3).
     const of = (await getNote(feed, id))?.of;
@@ -488,6 +495,7 @@ export type PostBundle = {
   text?: string;
   pictures: Picture[];
   title?: string;
+  sender?: string; // as in PostInput
   tags?: string[];
   date?: string;
   draft?: boolean;
@@ -590,7 +598,7 @@ export async function postWithPictures(
   ip: string,
   read: () => Promise<PostBundle>,
   access: FeedAccess,
-  sender?: string,
+  signedIn?: string, // as in postNote
 ): Promise<{ note: Note; created: boolean; readId: string | null; pictures: Note[] }> {
   const proved = await admit(feed, ip, access);
   const exists = await feedCapped(feed);
@@ -600,6 +608,7 @@ export async function postWithPictures(
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
   checkLine("title", title, MAX_NOTE_TITLE);
+  const sender = senderOf(input.sender, signedIn);
   const tags = checkTags(input.tags);
   const at = checkDate(input.date) ?? new Date();
   await recheck(feed, ip, access, proved, input.password);

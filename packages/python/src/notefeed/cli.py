@@ -24,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--file", help="post this file (markdown or a picture; the type comes from its extension)")
     p.add_argument("--type", help="the file's media type, when the extension does not say")
     p.add_argument("--title", help="the note's title (default: taken from the text)")
+    p.add_argument("--sender", metavar="NAME", help="who posted it, as shown on the note (not verified)")
     p.add_argument("--tag", action="append", help="label the note with this tag (repeat for several)")
     p.add_argument(
         "--date", metavar="WHEN", help="the note's date, if not now: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note"
@@ -35,10 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("text", nargs="?", help='the new markdown, or "-" to read stdin')
     e.add_argument("--file", help="replace it with this file (of the note's own type)")
     e.add_argument("--type", help="the file's media type, when the extension does not say")
-    u = sub.add_parser("update", help="set a note's title, alt text, tags, date and/or draft state; prints its URL")
+    u = sub.add_parser("update", help="set a note's title, alt text, sender, tags, date and/or draft state; prints its URL")
     u.add_argument("id", help="the note's id")
     u.add_argument("--title", help='the note\'s title ("" removes it)')
     u.add_argument("--alt", help='a picture\'s alternative text ("" removes it)')
+    u.add_argument("--sender", metavar="NAME", help='who posted it, as shown on the note ("" removes it)')
     u.add_argument("--tags", metavar="LIST", help='the note\'s tags, the whole new list, comma-separated ("" removes them)')
     u.add_argument("--date", metavar="WHEN", help="the note's new date: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note")
     u.add_argument("--draft", action="store_true", help="make the note a draft: readers no longer see it")
@@ -66,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
                 content,
                 type=media,
                 title=args.title,
+                sender=args.sender,
                 tags=args.tag,
                 date=args.date,
                 draft=args.draft,
@@ -81,10 +84,10 @@ def main(argv: list[str] | None = None) -> int:
                 raise _UsageError("give --draft or --publish, not both")
             # --draft makes the note a draft (#265), --publish publishes it; either alone is an update.
             draft = True if args.draft else False if args.publish else None
-            if args.title is None and args.alt is None and args.tags is None and args.date is None and draft is None:
-                raise _UsageError("give --title, --alt, --tags, --date and/or --draft or --publish")
+            if all(v is None for v in (args.title, args.alt, args.sender, args.tags, args.date, draft)):
+                raise _UsageError("give --title, --alt, --sender, --tags, --date and/or --draft or --publish")
             tags = None if args.tags is None else [t.strip() for t in args.tags.split(",") if t.strip()]
-            print(_client(args).update(args.id, title=args.title, alt=args.alt, date=args.date, tags=tags, draft=draft).url)
+            print(_client(args).update(args.id, title=args.title, alt=args.alt, sender=args.sender, date=args.date, tags=tags, draft=draft).url)
         elif args.command == "delete":
             _client(args).delete(args.id)
         else:

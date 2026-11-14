@@ -168,7 +168,6 @@ describe("signed-in session", () => {
     }
   });
 
-
   test("an access bearer gives its sender; an expired one, a refresh token or the password bearer none", async () => {
     const bearer = (t: string) => new Headers({ host: "localhost:3000", authorization: `Bearer ${t}` });
     expect(await sender(bearer(sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" })))).toBe("Ann");
