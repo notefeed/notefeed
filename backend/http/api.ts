@@ -35,6 +35,7 @@ import {
   MultipartNote,
   NoteAltHeader,
   NoteNameHeader,
+  NoteSenderHeader,
   NoteTitleHeader,
   NoteDateHeader,
   NoteDraftHeader,
@@ -95,12 +96,12 @@ const IMAGES_OFF = err(
 // For the Feeds reads: the password first (a locked instance tells strangers nothing else), then the name.
 // postNote does its own, because a browser form gets a redirect to the login page instead of a 401.
 // The feed's own password comes after both: the instance lock is always checked first.
-function passwordAndFeed({ req, params }: { req: Request; params: Record<string, string> }) {
-  authorize(req.headers, clientIp(req.headers));
+async function passwordAndFeed({ req, params }: { req: Request; params: Record<string, string> }) {
+  await authorize(req.headers, clientIp(req.headers));
   assertFeed(params.feed);
 }
 async function passwordFeedAndFeedPassword(input: { req: Request; params: Record<string, string> }) {
-  passwordAndFeed(input);
+  await passwordAndFeed(input);
   await checkFeedAccess(input.params.feed, feedAccess(input.req.headers, input.params.feed), clientIp(input.req.headers));
 }
 
@@ -211,6 +212,7 @@ const OPS: AnyOp[] = [
       "X-Read-Id": ReadIdHeader,
       "X-License-Key": LicenseKeyHeader,
       "X-Note-Title": NoteTitleHeader,
+      "X-Note-Sender": NoteSenderHeader,
       "X-Note-Tags": NoteTagsHeader,
       "X-Note-Alt": NoteAltHeader,
       "X-Note-Name": NoteNameHeader,
@@ -221,7 +223,7 @@ const OPS: AnyOp[] = [
     responses: {
       201: { description: "Stored: the note, and with a multipart body its pictures", schema: Posted },
       400: err(
-        "Invalid or reserved feed name; a blank note; a bad title, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; " +
+        "Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; " +
           `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
@@ -381,7 +383,7 @@ const OPS: AnyOp[] = [
       const note = await editContent(params.feed, params.id, ip, () => readContent(req), access);
       return { status: 200, body: noteJson(note, base, await filesOf(params.feed, h)) };
     }
-    const { note, pictures } = await editWithPictures(params.feed, params.id, ip, () => readMultipart(req, "edit"), access, sender(h));
+    const { note, pictures } = await editWithPictures(params.feed, params.id, ip, () => readMultipart(req, "edit"), access, await sender(h));
     const readId = await readIdOf(params.feed);
     const attachments = pictures.map((p) => createdOf(h, params.feed, readId, p));
     return { status: 200, body: { ...noteJson(note, base, await filesOf(params.feed, h)), attachments } };

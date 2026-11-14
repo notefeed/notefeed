@@ -128,6 +128,24 @@ describe("PATCH changes metadata", () => {
   });
 });
 
+describe("PATCH changes the sender", () => {
+  test("sets it, trimmed, and an empty one removes it", async () => {
+    const made = await post("# Hi", "text/markdown", { "x-note-sender": "Ann" });
+    const res = await patch(made.id, { sender: "  Backup bot " });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ sender: "Backup bot" });
+    expect((await sidecar(made.file)).sender).toBe("Backup bot");
+    expect((await (await patch(made.id, { sender: "" })).json()).sender).toBeUndefined();
+    expect((await sidecar(made.file)).sender).toBeUndefined();
+  });
+  test("a sender with a line break is a 400 and changes nothing", async () => {
+    const made = await post("# Hi", "text/markdown", { "x-note-sender": "Ann" });
+    const res = await patch(made.id, { sender: "Ann\nBea" });
+    expect(res.status).toBe(400);
+    expect((await sidecar(made.file)).sender).toBe("Ann");
+  });
+});
+
 describe("PATCH changes the tags (#244)", () => {
   test("tags replace the whole list, folded and deduplicated as on a post; id, date and the other metadata stay", async () => {
     const made = await post("# x", "text/markdown", { "x-note-tags": "draft,ci", "x-note-title": "T" });
@@ -171,11 +189,11 @@ describe("PATCH changes the date", () => {
     const body = await (await patch(made.id, { date: "2099-01-01", title: "Later" })).json();
     expect(body).toMatchObject({ title: "Later", date: "2099-01-01T00:00:00.000Z", scheduled: true });
   });
-  test("PATCH {} is 400 and names title, alt, tags, date or draft; a bad date is 400 and changes nothing", async () => {
+  test("PATCH {} is 400 and names title, alt, tags, sender, date or draft; a bad date is 400 and changes nothing", async () => {
     const made = await post("# x", "text/markdown");
     const empty = await patch(made.id, {});
     expect(empty.status).toBe(400);
-    expect((await empty.json()).error).toContain("title, alt, tags, date or draft");
+    expect((await empty.json()).error).toContain("title, alt, tags, sender, date or draft");
     const before = (await get(made.id)).date;
     expect((await patch(made.id, { date: "2025-02-30" })).status).toBe(400);
     expect((await patch(made.id, { date: 5 })).status).toBe(400);

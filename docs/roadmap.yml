@@ -11,15 +11,26 @@
 
 items:
   # ---- open ------------------------------------------------------------------------------------------------------------
-  - id: several-licenses
-    status: next
-    when: Next
-    icon: key-plus
-    title: Several licenses in one checkout
-    summary: Someone with several feeds buys the licenses for all of them at once; each key still lifts the limits for exactly one feed.
+  - id: accounts
+    status: now
+    when: Now
+    icon: account-key-outline
+    title: Accounts that are a number, not a person
+    summary: An optional account holds your feeds and your license on every device, for scripts and MCP too. It is a generated number with passkeys, no e-mail and no name.
+    details: |
+      In four steps, each a release of its own:
+
+      - **Sign-in on Better Auth**, and one sender any post can set.
+      - **Accounts**: account number, recovery key and passkeys; a feed's owner and its several named feed passwords; account tokens; either an instance password or accounts.
+      - **Licenses on the account**: one checkout for several feeds, the number raised or lowered later.
+      - **Values and legal pages** for accounts.
+
+      Readers get nothing new, and nothing about who holds an account is stored.
     links:
       - {label: "#292", url: "https://github.com/notefeed/notefeed/issues/292"}
-      - {label: "V13", url: "https://docs.notefeed.me/values/#v13"}
+      - {label: "#297", url: "https://github.com/notefeed/notefeed/issues/297"}
+      - {label: "#347", url: "https://github.com/notefeed/notefeed/issues/347"}
+      - {label: "V2", url: "https://docs.notefeed.me/values/#v2"}
 
   - id: webhooks
     status: later

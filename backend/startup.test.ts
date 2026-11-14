@@ -106,13 +106,10 @@ test("a provider configured partially is named with its missing variables; empty
   ]);
 });
 
-test("sign-in without PUBLIC_URL, and a log level that isn't one, are warned about", () => {
+test("a log level that isn't one is warned about (sign-in without PUBLIC_URL no longer starts: backend/accounts)", () => {
   stub({ PUBLIC_URL: "", NOTEFEED_LOG_LEVEL: "verbose" });
   provider("", FULL);
-  expect(startupReport().warnings.map(([, m]) => m)).toEqual([
-    "sign-in is on without PUBLIC_URL: the redirect URI comes from each request's Host header",
-    "NOTEFEED_LOG_LEVEL is not a level; using info",
-  ]);
+  expect(startupReport().warnings.map(([, m]) => m)).toEqual(["NOTEFEED_LOG_LEVEL is not a level; using info"]);
   expect(startupReport().fields.logLevel).toBe("info");
   stub({ NOTEFEED_LOG_LEVEL: " WARN " });
   expect(startupReport().warnings.map(([, m]) => m)).not.toContain("NOTEFEED_LOG_LEVEL is not a level; using info");

@@ -1,4 +1,5 @@
-import { beforeEach, expect, test } from "vitest";
+import { signedInCookie, stubSignInOn } from "./accounts/signin.testkit";
+import { beforeEach, expect, test, vi } from "vitest";
 import { cookieValue, createProtected } from "./feedlock";
 import { readIdOf, resetFeedsForTests } from "./feeds";
 import {
@@ -10,11 +11,10 @@ import {
   getReadFeed,
   getReadNote,
   getReadPictures,
-  identitySender,
+  signedIn,
   passwordSet,
   signInProviders,
 } from "./index";
-import { sign } from "./oauth/tokens";
 import { createImageNote, createNote, removeNote } from "./notes";
 import { saveSettings } from "./feedsettings";
 
@@ -138,17 +138,17 @@ test("getFeed shows the owner the read link of a feed whose only note is schedul
 });
 
 // The compose box says "your name is shown" only to someone signed in through the provider.
-test("identitySender names the signed-in person only while sign-in is on", () => {
-  const vars = { NOTEFEED_OIDC_ISSUER: "https://auth.example.com", NOTEFEED_OIDC_CLIENT_ID: "id", NOTEFEED_OIDC_CLIENT_SECRET: "s", NOTEFEED_OIDC_ALLOW: "*" };
+test("signedIn is true only for a Better Auth session while sign-in is on", async () => {
   process.env.NOTEFEED_PASSWORD = "pw";
-  const c = sign("identity", { sender: "Ann" });
   try {
-    expect(identitySender(c)).toBeUndefined();
-    Object.assign(process.env, vars);
-    expect(identitySender(c)).toBe("Ann");
-    expect(identitySender(undefined)).toBeUndefined(); // a password session has no identity cookie
+    stubSignInOn();
+    const cookie = await signedInCookie("Ann");
+    expect(await signedIn(new Headers({ cookie }))).toBe(true);
+    expect(await signedIn(new Headers())).toBe(false); // a password session has no Better Auth cookie
+    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "");
+    expect(await signedIn(new Headers({ cookie }))).toBe(false);
   } finally {
-    for (const k of Object.keys(vars)) delete process.env[k];
+    vi.unstubAllEnvs();
     delete process.env.NOTEFEED_PASSWORD;
   }
 });

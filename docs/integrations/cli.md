@@ -16,6 +16,7 @@ notefeed post "# Backup finished"          # the text as an argument
 backup.sh 2>&1 | notefeed post -           # from stdin
 notefeed post --file report.md             # from a file
 notefeed post "# Deployed" --tag ci --tag deploy   # with tags
+notefeed post "# Backup done" --sender "Backup bot" # who posted it, as shown on the note
 notefeed post "# Disk at 91%" --feed alerts-q9x2m7hd4k1pv
 notefeed edit Vq3xH8mTn2KfLw0aZr9bYe "# Backup finished, verified"
 notefeed edit Vq3xH8mTn2KfLw0aZr9bYe --file report.md   # or "-" for stdin

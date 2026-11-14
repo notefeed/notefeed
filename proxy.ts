@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { IDENTITY_COOKIE, SESSION_COOKIE, locked, noteOutcome, publicUrl, sessionOk } from "@/backend";
+import { locked, noteOutcome, publicUrl, sessionOk } from "@/backend";
 import { LANG_COOKIE, LANG_HEADER, negotiate } from "@/shared/copy";
 
 // Exactly one segment, after stripping one trailing slash. Kept percent-encoded: the route's
@@ -33,7 +33,7 @@ function localized(req: NextRequest): NextResponse {
   return NextResponse.rewrite(new URL(`/${lang}${pathname === "/" ? "" : pathname}${search}`, req.url), { request: { headers } });
 }
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
   if (req.method === "POST") {
@@ -68,7 +68,7 @@ export function proxy(req: NextRequest) {
     /^\/(r|_next|api|oauth|\.well-known)\//.test(pathname) ||
     /^\/(icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js)$/.test(pathname);
   if (!locked() || exempt) return localized(req);
-  if (sessionOk(req.cookies.get(SESSION_COOKIE)?.value, req.cookies.get(IDENTITY_COOKIE)?.value)) return localized(req);
+  if (await sessionOk(req.headers)) return localized(req);
   // Must be absolute (Next rejects a relative Location here); built from the public base,
   // not req.url, so it is right behind a reverse proxy.
   noteOutcome("auth");

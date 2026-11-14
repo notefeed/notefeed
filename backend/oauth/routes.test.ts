@@ -161,7 +161,7 @@ describe("flow", () => {
     signInOn();
     const c = await signedInCode();
     const until = verify("code", c.code)!.until!;
-    expect(Math.abs(until - (Math.floor(Date.now() / 1000) + TTL.identity))).toBeLessThanOrEqual(1);
+    expect(Math.abs(until - (Math.floor(Date.now() / 1000) + TTL.signIn))).toBeLessThanOrEqual(1);
     const first = await (await exchange(c)).json();
     expect(verify("access", first.access_token)?.sender).toBe("Ann");
     expect(verify("refresh", first.refresh_token)).toMatchObject({ sender: "Ann", until });
@@ -186,7 +186,7 @@ describe("flow", () => {
     signInOn();
     const c = await signedInCode();
     const { refresh_token } = await (await exchange(c)).json();
-    vi.spyOn(Date, "now").mockReturnValue(Date.now() + (TTL.identity + 2) * 1000);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + (TTL.signIn + 2) * 1000);
     let res = new Response();
     expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([
       { level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in past its lifetime" },
@@ -198,7 +198,7 @@ describe("flow", () => {
     const c = await code();
     const { refresh_token } = await (await exchange(c)).json();
     expect(verify("refresh", refresh_token)).not.toHaveProperty("until");
-    vi.spyOn(Date, "now").mockReturnValue(Date.now() + (TTL.identity + 2) * 1000);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + (TTL.signIn + 2) * 1000);
     const res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id });
     expect(res.status).toBe(200);
     expect(verify("refresh", (await res.json()).refresh_token)).not.toHaveProperty("until");

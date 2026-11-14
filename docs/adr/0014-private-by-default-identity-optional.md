@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0055: sign-in runs on Better Auth and keeps people in `accounts.sqlite`; the sender is a label any post can set, no longer verified.
+
 An instance is open or locked with one shared password (ADR 0001, ADR 0008), and a feed can have its own password. Issue #65 asks for sign-in with OAuth/OIDC instead of only that shared password, which raises the larger question: should notefeed know who people are? The product is a way to pass information as a feed, and payment is planned by licence key. Some people who run it want no personal data at all; others, such as a team, want to know who posted.
 
 ## Considered Options

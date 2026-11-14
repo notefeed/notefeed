@@ -137,6 +137,11 @@ const NoteTitle = z
   .describe(
     "The note's title, at most 100 characters, one line (control and text-direction override characters are refused); empty or left out means the title is taken from the text (a markdown note) or there is none (an image)",
   );
+const NoteSender = z
+  .string()
+  .describe(
+    "Who posted the note, as it is shown: at most 100 characters, one line (control and text-direction override characters are refused). Not verified. Given with a post, it wins over the signed-in name; empty means none",
+  );
 const NoteAlt = z
   .string()
   .describe("Alternative text of an image note, at most 500 characters, one line (control and text-direction override characters are refused)");
@@ -147,6 +152,7 @@ export const MetaJson = z
   .object({
     title: NoteTitle.optional(),
     alt: NoteAlt.optional(),
+    sender: NoteSender.optional(),
     tags: z
       .array(z.string())
       .optional()
@@ -190,6 +196,9 @@ export const NoteTagsHeader = z
   );
 export const NoteTitleHeader = NoteTitle.describe(
   "The note's title, for a raw body; a JSON or form body's own `title` wins. At most 100 characters, one line, with no control or text-direction override characters.",
+);
+export const NoteSenderHeader = NoteSender.describe(
+  "Who posted the note, as it is shown: at most 100 characters, one line, with no control or text-direction override characters. Not verified; it wins over the signed-in name. Empty is none (then a signed-in name applies).",
 );
 export const NoteDateHeader = z.string().describe(`${DATE_FORMAT}${DATE_RULE} Empty is now.`);
 export const NoteDraftHeader = z

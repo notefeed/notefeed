@@ -1,32 +1,31 @@
-// GET /api/oidc/start and GET /api/oidc/callback: sign-in through one of the operator's OIDC providers. What a
-// sign-in in flight needs (which provider, state, nonce, PKCE verifier, where to go next) rides in a short-lived
-// signed cookie, so nothing is stored; the one callback URL serves every provider. Success sets the identity
-// cookie, or, for an MCP client's authorize request, sends the browser back to that client with a code carrying
-// the sender. 404 while the mode is off.
-import { createHash, randomBytes } from "node:crypto";
-import { IDENTITY_COOKIE, safeEqual } from "../auth";
+// GET /api/oidc/start and GET /api/oidc/finish: sign-in through one of the operator's OIDC providers, run by Better Auth
+// (backend/accounts). start checks the request as before and hands the browser to Better Auth's sign-in with two return
+// addresses on this instance: finish on success and on failure. Where to go afterwards (next, or an MCP client's checked authorize
+// fields) rides along signed, so finish can't be pointed elsewhere. finish turns a Better Auth session into what started the
+// sign-in: back to next, or, for an MCP authorize request, a code for the client carrying the sender. 404 while the mode is off.
+import { accountsAuth, signedInName } from "../accounts/auth";
 import { AuthError } from "../errors";
 import { cookie, readFields, sameOrigin, seeOther } from "../http/request";
 import { authFailed, authWait, clientIp } from "../limits";
 import { logger } from "../log";
-import { checkAuthorize, issueCode } from "../oauth/routes";
+import { checkAuthorize, issueCode, redirectUriOk } from "../oauth/routes";
 import { type Payloads, sign, TTL, verify } from "../oauth/tokens";
 import { publicUrl, safeNext } from "../urls";
+import { safeEqual } from "../auth";
+import { randomBytes } from "node:crypto";
 import { identityOn, type Provider, providerById, providers } from "./config";
-import { authorizeUrl, discover, exchange } from "./flow";
-import { errorCode, fail, log, logFailure } from "./log";
+import { errorCode, log, logFailure, logUrl } from "./log";
 
-const FLIGHT_COOKIE = "nf_oidc";
+type Flight = Payloads["oidc"];
 const notFound = () => new Response("not found", { status: 404 });
-const redirectUri = (h: Headers) => `${publicUrl(h)}/api/oidc/callback`;
-const random = (bytes: number) => randomBytes(bytes).toString("base64url");
 
-// Like the password session cookie (http/session.ts); the flight cookie only goes to these two routes.
-function setCookie(h: Headers, name: string, value: string, maxAge: number, path = "/"): string {
+// The browser that started a sign-in holds its nonce in this cookie; finish takes a flight only together with it, so a finish link
+// cut out of someone else's sign-in can't issue a code for whoever is signed in where it is opened.
+const FLIGHT_COOKIE = "nf_oidc";
+function flightCookie(h: Headers, value: string, maxAge: number): string {
   const secure = publicUrl(h).startsWith("https:") ? "; Secure" : "";
-  return `${name}=${value}; Path=${path}; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+  return `${FLIGHT_COOKIE}=${value}; Path=/api/oidc; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
 }
-const flightCookie = (h: Headers, value: string, maxAge: number) => setCookie(h, FLIGHT_COOKIE, value, maxAge, "/api/oidc");
 
 // Where the sign-in started: the MCP client's authorize page, or the login page keeping next.
 function failedPage(from: { next?: string; authorize?: Record<string, string> } | null, error: string): string {
@@ -35,8 +34,6 @@ function failedPage(from: { next?: string; authorize?: Record<string, string> } 
     ? `/oauth/authorize?${new URLSearchParams(from.authorize)}&error=${error}`
     : `/login?error=${error}${next === "/" ? "" : `&next=${encodeURIComponent(next)}`}`;
 }
-const failed = (from: Parameters<typeof failedPage>[0], error: string, h: Headers) =>
-  seeOther(failedPage(from, error), { "Set-Cookie": flightCookie(h, "", 0) });
 
 // The provider a start names (by id); with only one configured, naming none means that one.
 function chosen(id: string | null): Provider | undefined {
@@ -67,72 +64,85 @@ async function startRequest(req: Request): Promise<{ next: string; authorize?: R
   return { next: "/", authorize: checked.fields, provider: params.get("provider") };
 }
 
+const finishUrl = (flight: Flight, failed: boolean) =>
+  `/api/oidc/finish?${new URLSearchParams({ f: sign("oidc", flight), ...(failed ? { failed: "1" } : {}) })}`;
+
 export async function oidcStartRoute(req: Request): Promise<Response> {
-  if (!identityOn()) return notFound();
-  const h = req.headers;
+  const auth = accountsAuth();
+  if (!identityOn() || !auth) return notFound();
   const start = await startRequest(req);
   if (start instanceof Response) return start;
   const { next, authorize } = start;
+  const wait = authWait(clientIp(req.headers));
+  if (wait !== null) return seeOther(failedPage({ next, authorize }, `too_many_attempts&retry=${wait}`));
   const provider = chosen(start.provider);
-  // A missing or unknown provider: back where the sign-in started, with no flight and nothing fetched.
+  // A missing or unknown provider: back where the sign-in started, with nothing fetched.
   if (!provider) {
     // The id only when it has a provider id's shape: requested text is never echoed.
     logFailure("unknown provider", /^[a-z0-9_]{1,64}$/.test(start.provider ?? "") ? { provider: start.provider! } : {});
     return seeOther(failedPage({ next, authorize }, "sign_in_failed"));
   }
-  let meta;
-  try {
-    meta = await discover(provider);
-  } catch (e) {
-    if (!(e instanceof AuthError)) throw e;
-    return failed({ next, authorize }, "sign_in_failed", h);
+  // TLS to the provider: https, or plain http on loopback only (as for redirect URIs).
+  if (!redirectUriOk(provider.issuer)) {
+    logFailure("issuer is not an https URL", { provider: provider.id, issuer: logUrl(provider.issuer) });
+    return seeOther(failedPage({ next, authorize }, "sign_in_failed"));
   }
-  const flight = { state: random(16), nonce: random(16), verifier: random(32), provider: provider.id, next, ...(authorize ? { authorize } : {}) };
-  // ponytail: an MCP client that registered many long redirect URIs makes this cookie exceed the browser's
-  // 4 KB; the browser drops it and the callback refuses (fails closed). Keep only the client's hash if that bites.
-  const to = authorizeUrl(provider, meta, {
-    redirectUri: redirectUri(h),
-    state: flight.state,
-    nonce: flight.nonce,
-    challenge: createHash("sha256").update(flight.verifier).digest("base64url"),
-  });
-  return seeOther(to, { "Set-Cookie": flightCookie(h, sign("oidc", flight), TTL.oidc) });
+  const flight: Flight = { provider: provider.id, nonce: randomBytes(16).toString("base64url"), next, ...(authorize ? { authorize } : {}) };
+  try {
+    const { headers, response } = await auth.api.signInSocial({
+      body: { provider: provider.id, callbackURL: finishUrl(flight, false), errorCallbackURL: finishUrl(flight, true), disableRedirect: true },
+      headers: req.headers,
+      returnHeaders: true,
+    });
+    if (!response?.url) throw new Error("no authorization URL");
+    const res = seeOther(response.url, { "Set-Cookie": flightCookie(req.headers, flight.nonce, TTL.oidc) });
+    for (const c of headers.getSetCookie()) res.headers.append("Set-Cookie", c);
+    return res;
+  } catch (e) {
+    // Discovery failed, or the provider's configuration is unusable: Better Auth has logged its detail.
+    logFailure("discovery failed", { provider: provider.id, ...(e instanceof Error ? { error: e.name } : {}) });
+    return seeOther(failedPage({ next, authorize }, "sign_in_failed"));
+  }
 }
 
-// Throws AuthError (logging why) unless the provider's answer matches the flight and the person may sign in. The
-// provider is the flight's (signed), never the request's; one no longer configured fails like any invalid flight.
-async function signIn(params: URLSearchParams, flight: Payloads["oidc"] | null, h: Headers): Promise<string> {
-  const [state, code] = [params.get("state"), params.get("code")];
-  if (params.has("error")) fail("provider denied the sign-in", errorCode(params.get("error")));
-  if (!flight || state === null || !safeEqual(state, flight.state)) fail("state mismatch or missing sign-in cookie");
-  if (!code) fail("no code in the callback");
-  const provider = typeof flight.provider === "string" ? providerById(flight.provider) : undefined;
-  if (!provider) fail("provider no longer configured", typeof flight.provider === "string" ? { provider: flight.provider } : {});
-  const meta = await discover(provider);
-  return (await exchange(provider, meta, { code, redirectUri: redirectUri(h), verifier: flight.verifier, nonce: flight.nonce })).sender;
+// Throws AuthError unless the sign-in worked and the flight is ours; returns the signed-in name.
+async function signIn(params: URLSearchParams, flight: Flight | null, h: Headers): Promise<string> {
+  const nonce = cookie(h, FLIGHT_COOKIE);
+  if (!flight || !nonce || typeof flight.nonce !== "string" || !safeEqual(nonce, flight.nonce)) {
+    logFailure("state mismatch or missing sign-in cookie");
+    throw new AuthError();
+  }
+  if (params.has("failed")) {
+    // Better Auth's reason (`unable_to_get_user_info` after a refusal logged in accounts/providers.ts, `invalid_code`, …).
+    logFailure("provider sign-in failed", { provider: flight.provider, ...errorCode(params.get("error")) });
+    throw new AuthError();
+  }
+  const name = await signedInName(h);
+  if (!name) {
+    logFailure("no session after the sign-in", { provider: flight.provider });
+    throw new AuthError();
+  }
+  return name;
 }
 
-// Every failure counts toward the failed-password limit, which is checked before anything else.
-export async function oidcCallbackRoute(req: Request): Promise<Response> {
+// Every failure counts toward the failed-password limit.
+export async function oidcFinishRoute(req: Request): Promise<Response> {
   if (!identityOn()) return notFound();
   const h = req.headers;
   const ip = clientIp(h);
-  const flight = verify("oidc", cookie(h, FLIGHT_COOKIE) ?? "");
-  const wait = authWait(ip);
-  if (wait !== null) return failed(flight, `too_many_attempts&retry=${wait}`, h);
+  const params = new URL(req.url).searchParams;
+  const flight = verify("oidc", params.get("f") ?? "");
   let sender: string;
   try {
-    sender = await signIn(new URL(req.url).searchParams, flight, h);
+    sender = await signIn(params, flight, h);
   } catch (e) {
     if (!(e instanceof AuthError)) throw e;
     authFailed(ip);
-    return failed(flight, "sign_in_failed", h);
+    return seeOther(failedPage(flight, "sign_in_failed"), { "Set-Cookie": flightCookie(h, "", 0) });
   }
   log.info({ provider: flight!.provider }, "sign-in succeeded"); // which provider, never who
-  if (flight!.authorize) logger("oauth").info({ via: flight!.provider }, "authorization granted");
-  const res = flight!.authorize
-    ? issueCode(flight!.authorize, h, sender)
-    : seeOther(safeNext(flight!.next), { "Set-Cookie": setCookie(h, IDENTITY_COOKIE, sign("identity", { sender }), TTL.identity) });
-  res.headers.append("Set-Cookie", flightCookie(h, "", 0));
-  return res;
+  const done = (res: Response) => (res.headers.append("Set-Cookie", flightCookie(h, "", 0)), res);
+  if (!flight!.authorize) return done(seeOther(safeNext(flight!.next)));
+  logger("oauth").info({ via: flight!.provider }, "authorization granted");
+  return done(issueCode(flight!.authorize, h, sender));
 }

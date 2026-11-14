@@ -56,7 +56,7 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
     if (action === "lock") return seeOther(page, clear());
     // A feed without a note (#295, ADR 0047), from the new feed's card: a protected one leaves this browser unlocked for it.
     if (action === "create") {
-      authorize(h, clientIp(h)); // a locked instance's own password (or session) first, as every other way to create a feed needs it
+      await authorize(h, clientIp(h)); // a locked instance's own password (or session) first, as every other way to create a feed needs it
       const password = field("password");
       await createFeed(feed, clientIp(h), { password, licenseKey: field("key") });
       return password ? seeOther(`${page}?created=1`, set(await unlock(feed, password, clientIp(h)))) : seeOther(`${page}?created=1`);

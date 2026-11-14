@@ -1,11 +1,14 @@
 import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { bearerOf, checkBearer, locked, login, sessionOk } from "./auth";
+import { SESSION_COOKIE, bearerOf, checkBearer, locked, login, sessionOk } from "./auth";
+import { signedInCookie, stubSignInOn } from "./accounts/signin.testkit";
 import { resetFeedsForTests } from "./feeds";
-import { sign } from "./oauth/tokens";
 import { AuthError, TooManyAttemptsError } from "./errors";
 import { resetRateLimitsForTests } from "./limits";
 import { resetSecretForTests } from "./secret";
+
+// A request carrying the password session cookie `v` (none when undefined).
+const pw = (v: string | undefined) => new Headers(v === undefined ? {} : { cookie: `${SESSION_COOKIE}=${v}` });
 
 beforeEach(() => {
   process.env.NOTEFEED_PASSWORD = "s3cret";
@@ -19,13 +22,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
   resetFeedsForTests();
 });
-
-const identityOn = () => {
-  vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
-  vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
-  vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "secret");
-  vi.stubEnv("NOTEFEED_OIDC_ALLOW", "*");
-};
 
 // The thrown error, or null if the call passed.
 const thrown = (f: () => unknown) => {
@@ -72,31 +68,31 @@ test("login: successes are not counted", () => {
   expect(thrown(() => login("wrong", "a"))).toBeInstanceOf(AuthError);
 });
 
-test("the session value is not the password and verifies only for the current password", () => {
+test("the session value is not the password and verifies only for the current password", async () => {
   const v = login("s3cret", "ip");
   expect(v).not.toContain("s3cret");
-  expect(sessionOk(v)).toBe(true);
-  expect(sessionOk(undefined)).toBe(false);
-  expect(sessionOk("nope")).toBe(false);
+  expect(await sessionOk(pw(v))).toBe(true);
+  expect(await sessionOk(pw(undefined))).toBe(false);
+  expect(await sessionOk(pw("nope"))).toBe(false);
   process.env.NOTEFEED_PASSWORD = "other";
-  expect(sessionOk(v)).toBe(false);
+  expect(await sessionOk(pw(v))).toBe(false);
 });
 
 // #374: the server secret is in the session value, so a leaked cookie can't be used to guess the password offline.
-test("the session value depends on the server secret too", () => {
+test("the session value depends on the server secret too", async () => {
   const v = login("s3cret", "ip");
   vi.stubEnv("NOTEFEED_SECRET", "b".repeat(40));
   resetSecretForTests();
-  expect(sessionOk(v)).toBe(false);
-  expect(sessionOk(login("s3cret", "ip"))).toBe(true);
+  expect(await sessionOk(pw(v))).toBe(false);
+  expect(await sessionOk(pw(login("s3cret", "ip")))).toBe(true);
 });
 
-test("a session value made from the password alone, as before #374, is refused", () => {
+test("a session value made from the password alone, as before #374, is refused", async () => {
   const old = createHmac("sha256", "s3cret").update("notefeed-session").digest("hex");
-  expect(sessionOk(old)).toBe(false);
+  expect(await sessionOk(pw(old))).toBe(false);
 });
 
-test("unlocked: bearer and session always pass, login never does and is never counted", () => {
+test("unlocked: bearer and session always pass, login never does and is never counted", async () => {
   delete process.env.NOTEFEED_PASSWORD;
   process.env.NOTEFEED_RATE_LIMIT = "1";
   for (let i = 0; i < 3; i++) {
@@ -104,7 +100,7 @@ test("unlocked: bearer and session always pass, login never does and is never co
     expect(thrown(() => checkBearer("Bearer anything", "ip"))).toBeNull();
     expect(thrown(() => login("", "ip"))).toBeInstanceOf(AuthError); // never a TooManyAttemptsError
   }
-  expect(sessionOk(undefined)).toBe(true);
+  expect(await sessionOk(pw(undefined))).toBe(true);
 });
 
 test("an empty NOTEFEED_PASSWORD counts as unlocked", () => {
@@ -113,7 +109,7 @@ test("an empty NOTEFEED_PASSWORD counts as unlocked", () => {
   expect(thrown(() => login("", "ip"))).toBeInstanceOf(AuthError);
 });
 
-test("sign-in without a password locks the instance, and an unset password never matches", () => {
+test("sign-in without a password locks the instance, and an unset password never matches", async () => {
   delete process.env.NOTEFEED_PASSWORD;
   process.env.NOTEFEED_OIDC_ISSUER = "https://idp.example";
   process.env.NOTEFEED_OIDC_CLIENT_ID = "id";
@@ -123,33 +119,36 @@ test("sign-in without a password locks the instance, and an unset password never
     expect(locked()).toBe(true);
     expect(thrown(() => checkBearer("Bearer ", "ip"))).toBeInstanceOf(AuthError);
     expect(thrown(() => login("", "ip"))).toBeInstanceOf(AuthError);
-    expect(sessionOk(createHmac("sha256", "").update("notefeed-session").digest("hex"))).toBe(false);
+    expect(await sessionOk(pw(createHmac("sha256", "").update("notefeed-session").digest("hex")))).toBe(false);
   } finally {
     for (const n of ["ISSUER", "CLIENT_ID", "CLIENT_SECRET", "ALLOW"]) delete process.env[`NOTEFEED_OIDC_${n}`];
   }
   expect(locked()).toBe(false);
 });
 
-test("identity on, no password: a signed identity cookie is a session; tampered, expired or foreign ones are not", () => {
+test("sign-in on, no password: a Better Auth session is a session; a forged or expired one is not", async () => {
   delete process.env.NOTEFEED_PASSWORD;
-  identityOn();
-  const t = sign("identity", { sender: "Ann" });
-  expect(sessionOk(undefined, t)).toBe(true);
-  expect(sessionOk(undefined, undefined)).toBe(false);
-  expect(sessionOk(undefined, t.slice(0, -2) + (t.endsWith("AA") ? "BB" : "AA"))).toBe(false);
-  expect(sessionOk(undefined, sign("identity", { sender: "Ann" }, Date.now() - 8 * 24 * 3600 * 1000))).toBe(false);
-  expect(sessionOk(undefined, sign("access", { aud: "x", sender: "Ann" }))).toBe(false);
+  stubSignInOn();
+  const h = (cookie?: string) => new Headers(cookie ? { cookie } : {});
+  const cookie = await signedInCookie();
+  expect(await sessionOk(h(cookie))).toBe(true);
+  expect(await sessionOk(h())).toBe(false);
+  expect(await sessionOk(h(cookie.slice(0, -2) + (cookie.endsWith("AA") ? "BB" : "AA")))).toBe(false);
+  expect(await sessionOk(h(await signedInCookie("Ann", new Date(Date.now() - 1000))))).toBe(false);
   vi.stubEnv("NOTEFEED_SECRET", "b".repeat(40));
   resetFeedsForTests();
-  expect(sessionOk(undefined, t)).toBe(false);
+  expect(await sessionOk(h(cookie))).toBe(false);
 });
 
-test("identity on with a password: either session passes", () => {
-  identityOn();
-  expect(sessionOk(login("s3cret", "ip"), undefined)).toBe(true);
-  expect(sessionOk(undefined, sign("identity", { sender: "Ann" }))).toBe(true);
+test("sign-in on with a password: either session passes", async () => {
+  stubSignInOn();
+  expect(await sessionOk(new Headers({ cookie: `${SESSION_COOKIE}=${login("s3cret", "ip")}` }))).toBe(true);
+  expect(await sessionOk(new Headers({ cookie: await signedInCookie() }))).toBe(true);
 });
 
-test("identity off: an identity cookie is no session", () => {
-  expect(sessionOk(undefined, sign("identity", { sender: "Ann" }))).toBe(false);
+test("sign-in off: a Better Auth cookie is no session", async () => {
+  stubSignInOn();
+  const cookie = await signedInCookie();
+  for (const n of ["ISSUER", "CLIENT_ID", "CLIENT_SECRET", "ALLOW"]) vi.stubEnv(`NOTEFEED_OIDC_${n}`, "");
+  expect(await sessionOk(new Headers({ cookie }))).toBe(false);
 });

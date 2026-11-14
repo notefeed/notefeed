@@ -20,6 +20,7 @@ def _get_kwargs(
     x_read_id: str | Unset = UNSET,
     x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
+    x_note_sender: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
@@ -38,6 +39,9 @@ def _get_kwargs(
 
     if not isinstance(x_note_title, Unset):
         headers["X-Note-Title"] = x_note_title
+
+    if not isinstance(x_note_sender, Unset):
+        headers["X-Note-Sender"] = x_note_sender
 
     if not isinstance(x_note_tags, Unset):
         headers["X-Note-Tags"] = x_note_tags
@@ -158,6 +162,7 @@ def sync_detailed(
     x_read_id: str | Unset = UNSET,
     x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
+    x_note_sender: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
@@ -208,6 +213,7 @@ def sync_detailed(
         x_read_id (str | Unset):
         x_license_key (str | Unset):
         x_note_title (str | Unset):
+        x_note_sender (str | Unset):
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
@@ -230,6 +236,7 @@ def sync_detailed(
         x_read_id=x_read_id,
         x_license_key=x_license_key,
         x_note_title=x_note_title,
+        x_note_sender=x_note_sender,
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
@@ -253,6 +260,7 @@ def sync(
     x_read_id: str | Unset = UNSET,
     x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
+    x_note_sender: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
@@ -303,6 +311,7 @@ def sync(
         x_read_id (str | Unset):
         x_license_key (str | Unset):
         x_note_title (str | Unset):
+        x_note_sender (str | Unset):
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
@@ -326,6 +335,7 @@ def sync(
         x_read_id=x_read_id,
         x_license_key=x_license_key,
         x_note_title=x_note_title,
+        x_note_sender=x_note_sender,
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
@@ -343,6 +353,7 @@ async def asyncio_detailed(
     x_read_id: str | Unset = UNSET,
     x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
+    x_note_sender: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
@@ -393,6 +404,7 @@ async def asyncio_detailed(
         x_read_id (str | Unset):
         x_license_key (str | Unset):
         x_note_title (str | Unset):
+        x_note_sender (str | Unset):
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
@@ -415,6 +427,7 @@ async def asyncio_detailed(
         x_read_id=x_read_id,
         x_license_key=x_license_key,
         x_note_title=x_note_title,
+        x_note_sender=x_note_sender,
         x_note_tags=x_note_tags,
         x_note_alt=x_note_alt,
         x_note_name=x_note_name,
@@ -436,6 +449,7 @@ async def asyncio(
     x_read_id: str | Unset = UNSET,
     x_license_key: str | Unset = UNSET,
     x_note_title: str | Unset = UNSET,
+    x_note_sender: str | Unset = UNSET,
     x_note_tags: str | Unset = UNSET,
     x_note_alt: str | Unset = UNSET,
     x_note_name: str | Unset = UNSET,
@@ -486,6 +500,7 @@ async def asyncio(
         x_read_id (str | Unset):
         x_license_key (str | Unset):
         x_note_title (str | Unset):
+        x_note_sender (str | Unset):
         x_note_tags (str | Unset):
         x_note_alt (str | Unset):
         x_note_name (str | Unset):
@@ -510,6 +525,7 @@ async def asyncio(
             x_read_id=x_read_id,
             x_license_key=x_license_key,
             x_note_title=x_note_title,
+            x_note_sender=x_note_sender,
             x_note_tags=x_note_tags,
             x_note_alt=x_note_alt,
             x_note_name=x_note_name,

@@ -1,6 +1,6 @@
 "use client";
 
-import { CameraIcon, CloseIcon, DraftIcon, MoreIcon, PostIcon, ScheduledIcon, TagIcon } from "@/components/icons";
+import { CameraIcon, CloseIcon, DraftIcon, MoreIcon, PostIcon, ScheduledIcon, SenderIcon, TagIcon } from "@/components/icons";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { bare, card, primary } from "@/components/styles";
@@ -76,6 +76,7 @@ export function Compose({
   const licenseRefused = code === "license_required";
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState(initialTitle);
+  const [senderName, setSenderName] = useState(""); // as shown on the note; empty: the signed-in name, if any
   const [date, setDate] = useState(""); // a datetime-local value, the browser's time: empty is now, a later time schedules the note
   const [draft, setDraft] = useState(false); // a draft (#265): on the feed page only, readers see it once it is published
 
@@ -91,6 +92,7 @@ export function Compose({
     setSent({ password: password !== "", key: licenseKey !== "" });
     const headers = {
       ...(title.trim() && { "X-Note-Title": encodeHeaderValue(title.trim()) }),
+      ...(senderName.trim() && { "X-Note-Sender": encodeHeaderValue(senderName.trim()) }),
       ...(password && { "X-Feed-Password": password }),
       ...(password && licenseKey && { "X-License-Key": licenseKey }),
       ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
@@ -351,6 +353,23 @@ export function Compose({
                   title={t.tagsHint}
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
+                  className={`${bare} text-[13px]`}
+                />
+              </div>
+              <div className="flex min-w-0 basis-36 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 sm:max-w-48" title={t.senderHint}>
+                <SenderIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <label htmlFor="note-sender" className="sr-only">
+                  {t.senderLabel}
+                </label>
+                <input
+                  id="note-sender"
+                  name="sender"
+                  type="text"
+                  autoComplete="off"
+                  maxLength={100}
+                  placeholder={t.senderPlaceholder}
+                  value={senderName}
+                  onChange={(e) => setSenderName(e.target.value)}
                   className={`${bare} text-[13px]`}
                 />
               </div>

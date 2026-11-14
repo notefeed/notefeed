@@ -94,6 +94,19 @@ def test_title_tags_alt_name_and_read_id_go_as_headers_and_nothing_is_sent_for_w
         assert k not in server.requests[1]["headers"]
 
 
+def test_a_sender_goes_as_x_note_sender_with_or_without_attachments_and_update_sends_it(server):
+    c = Client(server.url, "inbox")
+    c.post("x", sender="Bäckup bot")
+    c.post("![](a.png)", sender="Bot", attachments=[Attachment("a.png", b"\x89PNG\r\n\x1a\n", "image/png")])
+    c.post("x")
+    assert server.requests[0]["headers"]["X-Note-Sender"].encode("latin-1").decode("utf-8") == "Bäckup bot"
+    assert server.requests[1]["headers"]["X-Note-Sender"] == "Bot"
+    assert "X-Note-Sender" not in server.requests[2]["headers"]
+    server.reply(200, note(10))
+    c.update("i", sender="")
+    assert json.loads(server.requests[3]["body"]) == {"sender": ""}
+
+
 def test_date_goes_as_x_note_date_a_naive_datetime_is_refused(server):
     c = Client(server.url, "inbox")
     c.post("x", date="2025-03-01")

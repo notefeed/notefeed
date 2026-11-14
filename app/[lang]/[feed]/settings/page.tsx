@@ -26,7 +26,6 @@ import {
   getFeed,
   getFeedImages,
   freeTier,
-  identityOn,
   isReservedFeed,
   licensePageOn,
   licensingOn,
@@ -102,7 +101,6 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         showSender={data.showSender}
         readId={readId}
         readIdChoice={isReservedFeed(feed) ? "fixed" : customIdsOn() ? "custom" : "random"}
-        identity={identityOn()}
         renamable={!isReservedFeed(feed)}
         error={detailsError ? feedDetailsErrorMessage(error, retry) : undefined}
         sharing={

@@ -407,6 +407,15 @@ test("updateSetsTitleAndAlt", async () => {
   expect(await main(["update", "i", "--url", server.url, "--feed", "inbox"], io().io)).toBe(2); // nothing to change
 });
 
+test("postAndUpdateTakeASender", async () => {
+  server.reply(201, CREATED_REPLY);
+  expect(await main(["post", "hi", "--sender", "Backup bot", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect(server.requests[0].headers["x-note-sender"]).toBe("Backup bot");
+  server.reply(200, { ...NOTE, url: "https://n.example/inbox/i" });
+  expect(await main(["update", "i", "--sender", "", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect(JSON.parse(sent(1))).toEqual({ sender: "" });
+});
+
 test("updateSetsTheDate", async () => {
   server.reply(200, { ...NOTE, url: "https://n.example/inbox/i" });
   expect(await main(["update", "i", "--date", "2025-03-01", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);

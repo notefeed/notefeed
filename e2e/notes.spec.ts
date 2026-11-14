@@ -384,3 +384,15 @@ test("the read link serves Atom beside RSS, and an edit moves the entry's update
   expect(after.published).toBe("2025-03-01T08:00:00.000Z");
   expect(Date.parse(after.updated!)).toBeGreaterThanOrEqual(Date.parse(before.updated!));
 });
+
+test("the composer's Sender field shows on the posted note; the feed can hide it from readers", async ({ page }) => {
+  const name = feedName();
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill("# From the bot");
+  await page.getByLabel("Sender (optional)").fill("Backup bot");
+  await page.getByRole("button", { name: "Post note" }).click();
+  await expect(page.getByRole("link", { name: "From the bot" })).toBeVisible();
+  await expect(page.getByText("Backup bot")).toBeVisible();
+  await page.goto(`/${name}/settings`);
+  await expect(page.getByLabel("Show who posted")).toBeChecked(); // offered without sign-in too: any note can carry a sender
+});

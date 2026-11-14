@@ -185,6 +185,21 @@ describe("tools", () => {
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
   });
 
+  test("post_note, post_file and edit_note take a sender; a bad one is an error and posts nothing", async () => {
+    const r = await call("post_note", { feed: "a", markdown: "# Hi", sender: "Backup bot" });
+    expect((await getNote("a", r.structuredContent.id))!.sender).toBe("Backup bot");
+    await call("edit_note", { feed: "a", id: r.structuredContent.id, sender: "Ann" });
+    expect((await getNote("a", r.structuredContent.id))!.sender).toBe("Ann");
+    await call("edit_note", { feed: "a", id: r.structuredContent.id, sender: "" });
+    expect((await getNote("a", r.structuredContent.id))!.sender).toBeUndefined();
+    const f = await call("post_file", { feed: "a", type: "text/markdown", data: Buffer.from("# File").toString("base64"), sender: "Cy" });
+    expect((await getNote("a", f.structuredContent.id))!.sender).toBe("Cy");
+    for (const bad of ["Ann\nBea", "Ann\u202E", "x".repeat(101)]) {
+      expect((await call("post_note", { feed: "b", markdown: "# Hi", sender: bad })).isError, JSON.stringify(bad)).toBe(true);
+    }
+    expect(await hasFeed("b")).toBe(false);
+  });
+
   test("post_note with a date posts the note at that time; a bad one is an error", async () => {
     const r = await call("post_note", { feed: "a", markdown: "# Old", date: "2025-03-01" });
     expect((await getNote("a", r.structuredContent.id))?.date.toISOString()).toBe("2025-03-01T00:00:00.000Z");
@@ -214,12 +229,6 @@ describe("tools", () => {
       expect(r.isError).toBe(true);
       expect(r.content[0].text).not.toMatch(/[\u0080-\u009f\u202a-\u202e]/);
     }
-  });
-
-  test("post_note ignores a sender argument and stores none", async () => {
-    const r = await call("post_note", { feed: "a", markdown: "# Hi", sender: "Boss" });
-    expect(r.isError).toBeUndefined();
-    expect((await getNote("a", r.structuredContent.id))!.sender).toBeUndefined();
   });
 
   test("post_note takes tags, list_notes shows and filters by them", async () => {
@@ -597,10 +606,13 @@ describe("gate on a locked instance", () => {
       vi.stubEnv(`NOTEFEED_OIDC_${k}`, v);
     for (const h of [{}, { authorization: "Bearer " }, { authorization: "Bearer" }, bearer("x")]) expect((await rpc("tools/list", {}, h)).status).toBe(401);
     const t = sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" });
-    const res = await rpc("tools/call", { name: "post_note", arguments: { feed: "a", markdown: "# Hi", sender: "Boss" } }, bearer(t));
+    const res = await rpc("tools/call", { name: "post_note", arguments: { feed: "a", markdown: "# Hi" } }, bearer(t));
     expect(res.status).toBe(200);
     const id = (await res.json()).result.structuredContent.id;
     expect((await getNote("a", id))!.sender).toBe("Ann");
+    // A sender given with the note wins over the token's.
+    const given = await rpc("tools/call", { name: "post_note", arguments: { feed: "a", markdown: "# Hi", sender: "Backup bot" } }, bearer(t));
+    expect((await getNote("a", (await given.json()).result.structuredContent.id))!.sender).toBe("Backup bot");
   });
   test("a post_note with the password bearer has no sender", async () => {
     const res = await rpc("tools/call", { name: "post_note", arguments: { feed: "a", markdown: "# Hi" } }, bearer("pw"));

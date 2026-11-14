@@ -1,11 +1,11 @@
 # Sign-in and sender
 
 !!! info "notefeed is private by default"
-    notefeed stores nothing about a person: no accounts, no profiles. Sign-in is **opt-in**, switched on only by the `NOTEFEED_OIDC_*` variables (see [Setup](setup.md)).
+    notefeed stores nothing about a person until you switch sign-in on: it is **opt-in**, switched on only by the `NOTEFEED_OIDC_*` variables (see [Setup](setup.md)). Then it keeps the signed-in people in `accounts.sqlite` (see [The sender](#the-sender)), and nothing else.
 
 With sign-in on, people log in through your own OpenID Connect provider (Authentik, Keycloak, Google and the like, one or several) instead of sharing the instance password, and the notes they post carry their name as a **sender**. Read links, RSS, feed passwords and scripts work as before. You want it when a team shares one instance and wants to see who posted what, or when each person should authorise [MCP](../../integrations/mcp.md) clients with their own account. A single person, or scripts, need nothing from it.
 
-A sign-in, top to bottom; notefeed stores nothing of it, everything in flight rides in signed cookies:
+A sign-in, top to bottom. notefeed runs it with [Better Auth](https://better-auth.com), which keeps the person and the sign-in in a file of its own, `accounts.sqlite` (see [The sender](#the-sender)):
 
 ```mermaid
 sequenceDiagram
@@ -13,18 +13,20 @@ sequenceDiagram
   participant N as notefeed
   participant O as OIDC provider
   P->>N: Sign in with (provider)
-  N-->>P: signed flight cookie (state, nonce, PKCE), redirect
+  N-->>P: state cookie (state, nonce, PKCE), redirect
   P->>O: log in
-  O-->>P: redirect to /api/oidc/callback with a code
+  O-->>P: redirect to /api/auth/callback/<provider> with a code
   P->>N: the code
   N->>O: exchange it for the id_token
-  N->>N: check it against the flight and NOTEFEED_OIDC_ALLOW
-  N-->>P: signed sign-in cookie, 7 days: notes carry the sender
+  N->>N: check its signature, the state, the nonce and NOTEFEED_OIDC_ALLOW
+  N-->>P: session cookie, 7 days: notes carry the sender
 ```
 
 ## The sender
 
-The sender is one field in the note's metadata (the `.json` file next to the note, or its database row), the first non-empty claim of `NOTEFEED_OIDC_SENDER_CLAIM` (by default the `name`, else the `email`), and nothing else is stored about the person: no user table, no session list. The sign-in itself is a signed cookie in their browser, valid for 7 days.
+The sender is one field in the note's metadata (the `.json` file next to the note, or its database row): by default the first non-empty claim of `NOTEFEED_OIDC_SENDER_CLAIM` (the `name`, else the `email`). A note can also be posted with a sender of its own, from a script or the composer; the sender is a label, not a proof of who posted.
+
+Sign-in keeps the person in `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every storage backend): their name from the provider (one line, at most 100 characters), their e-mail address (or a placeholder when the provider gives none), the provider's id for them, and their sessions, each valid for 7 days from signing in. A session keeps neither the browser's address nor its user agent, and none of the provider's tokens is kept. Each provider has its own people: the same e-mail address at two providers is two people, and the second one's sign-in is refused. Back the file up with the data ([Backups](../backups.md)).
 
 The sender shows on the feed page, in the read-only view, in RSS as `<dc:creator>` and in the API as `sender`. A feed's **Show who posted** setting (`show_sender` in the [settings API](../../using/feeds.md#feed-settings-in-the-api)) hides it from readers; the feed page behind your password still shows it.
 
@@ -41,8 +43,8 @@ The OAuth authorize page that MCP clients open has a **Sign in with** button for
 
 ## Removing a person
 
-Take them off the allow-list and restart: they can no longer sign in, and what they already signed in with runs out within 7 days. To sign everyone out at once, change `NOTEFEED_SECRET`. Their notes keep the `sender` line until you delete the notes or edit it out of the files.
+Take them off the allow-list and restart: they can no longer sign in, and what they already signed in with runs out within 7 days. To sign everyone out at once, change `NOTEFEED_SECRET` (or `NOTEFEED_PASSWORD`). To remove what sign-in keeps about them, with notefeed stopped: `sqlite3 accounts.sqlite "pragma foreign_keys = on; delete from user where email = 'ann@example.com'"` (their sessions and provider id go with it; someone whose provider gave no address has a placeholder ending in `.oidc.invalid`, so use `where name = 'Ann'` then). A browser that signed out, or a copy of its cookie, is let in for at most 5 more minutes: the session is checked against the file only that often. Their notes keep the `sender` line until you delete the notes or edit it out of the files.
 
 ## Privacy page and imprint
 
-A sender name or e-mail address is personal data, and as the operator you are its controller. Before you switch sign-in on, make your [privacy page](../legal-pages.md) say that notes carry the signed-in person's name or address, that it is shown on the public read link and in RSS unless the feed hides it, and how a person can have it removed.
+A sender name or e-mail address is personal data, and as the operator you are its controller. Before you switch sign-in on, make your [privacy page](../legal-pages.md) say that notefeed keeps the signed-in person's name and e-mail address in its sign-in file, that notes carry their name or address, that it is shown on the public read link and in RSS unless the feed hides it, and how a person can have it removed.

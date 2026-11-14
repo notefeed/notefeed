@@ -190,6 +190,8 @@ export const config = {
   paymentProvider,
   // The SQLite file of the licenses (ADR 0029), apart from the feeds' storage: a path, or `file:<path>`.
   licenseDb: () => (env("NOTEFEED_LICENSE_DB").trim() || `${dataDir().replace(/\/+$/, "")}/licenses.db`).replace(/^file:/, ""),
+  // The SQLite file of sign-in (Better Auth, backend/accounts/auth.ts), apart from the content store: a path, or `file:<path>`.
+  accountsDb: () => (env("NOTEFEED_ACCOUNTS_DB").trim() || `${dataDir().replace(/\/+$/, "")}/accounts.sqlite`).replace(/^file:/, ""),
   // Notes a free feed keeps while a payment provider is set: the oldest is dropped past it.
   // Creem (NOTEFEED_PAYMENT_PROVIDER=creem): the API key (`creem_test_…` for the sandbox), the product of the monthly license, that of
   // the yearly one if sold, and the webhook secret.
