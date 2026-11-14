@@ -45,20 +45,15 @@ export const en = {
       auth: "That password is wrong.",
       newPassword: (rule: string) => `The new password must be ${rule}.`,
     },
-    recover: {
-      auth: "That is not the license key of this feed.",
-      licenseRequired: "A new password needs an active license. Leave the new password empty to remove the password instead.",
-    },
     create: {
-      licenseRequired: "Creating a feed without a note needs a license key: enter one above.",
+      licenseRequired: "Creating a feed without a note needs an account whose license covers one more feed: sign in first.",
       exists: "This feed exists already.",
-      invalid: (rule: string) => `The password must be ${rule}, and the license key a valid one.`,
+      invalid: (rule: string) => `The password must be ${rule}.`,
     },
     passwordSaved: {
       others: "Scripts and other browsers need the new password from now on; this browser stays unlocked.",
       set: "Password set.",
       changed: "Password changed.",
-      recovered: "New password set with the license key.",
     },
     protect: {
       auth: "Someone has set a password on this feed meanwhile.",
@@ -146,12 +141,6 @@ export const en = {
   unlock: {
     password: "Feed password",
     unlock: "Unlock",
-    forgot: "Forgot the password?",
-    recoverIntro:
-      "Enter this feed's license key: it is in the payment provider's receipt e-mail and customer portal. Then choose a new password, or leave it empty to remove the password.",
-    licenseKey: "License key",
-    newPassword: "New password (empty removes it)",
-    recover: "Recover",
   },
   // The License group of a feed's settings (components/LicenseSection.tsx).
   licenseSection: {
@@ -215,12 +204,6 @@ export const en = {
     change: "Change",
     remove: "Remove password",
     removeNeedsCurrent: "Removing it needs the current password too.",
-    forgotCurrent: "Forgot the current password?",
-    recoverIntro:
-      "Enter this feed's license key: it is in the payment provider's receipt e-mail and customer portal. Then choose a new password, or leave it empty to remove the password.",
-    feedKey: "This feed's license key",
-    newPasswordEmpty: "New password (empty removes it)",
-    resetWithKey: "Reset with license key",
     thisBrowser: "This browser",
     asksAgain: "Asks for the password again here",
     lock: "Lock this browser",

@@ -49,7 +49,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
   const { feed, lang } = await params;
   const all = copyFor(lang);
   const t = all.settings;
-  const { feedDetailsErrorMessage, feedErrorMessage, passwordNotice, protectErrorMessage, recoverErrorMessage } = messagesFor(all);
+  const { feedDetailsErrorMessage, feedErrorMessage, passwordNotice, protectErrorMessage } = messagesFor(all);
   const { saved, error, retry, form } = await searchParams;
   if (checkFeed(feed)) notFound();
   const account = (await accountOf(await headers()))?.userId;

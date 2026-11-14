@@ -14,7 +14,6 @@ import {
   subscriptionByRef,
   subscriptionsOf,
   updateSubscription,
-  type Subscription,
 } from "./accounts/subscriptions";
 
 const log = logger("licenses");

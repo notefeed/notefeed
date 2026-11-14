@@ -92,6 +92,10 @@ export default defineConfig({
       NOTEFEED_PAYMENT_PROVIDER: "fake",
       NOTEFEED_FAKE_WEBHOOK_SECRET: "e2e-webhook",
       NOTEFEED_FREE_NOTE_CAP: "10",
+      // A license is an account's (#391): accounts anyone may create, as on notefeed.me.
+      NOTEFEED_ACCOUNTS: "open",
+      PUBLIC_URL: "http://localhost:3104",
+      NOTEFEED_SECRET: "e2e-licenses-secret-".padEnd(32, "x"),
     }),
     server(3105, { NOTEFEED_ACCOUNTS: "open", PUBLIC_URL: "http://localhost:3105", NOTEFEED_SECRET: "e2e-accounts-secret-".padEnd(32, "x") }),
   ],

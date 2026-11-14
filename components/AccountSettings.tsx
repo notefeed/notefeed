@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/CopyButton";
 import { useCopy, useLocale } from "@/components/CopyProvider";
@@ -300,9 +301,9 @@ export function AccountLicense({ license, bought, licensePage }: { license: Lice
           </button>
         )}
         {licensePage && (
-          <a href="/license" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+          <Link href="/license" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
             {t.buyMore}
-          </a>
+          </Link>
         )}
       </div>
       <p role="alert" className="mt-2 text-sm text-error">

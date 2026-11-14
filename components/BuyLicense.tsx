@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { openCheckout } from "@creem_io/embed";
 import { IncludedIcon, NotIncludedIcon, PurchasesIcon } from "@/components/icons";
 import { useState, type ReactNode } from "react";
@@ -223,9 +224,9 @@ function ManageLicense({ t }: { t: Copy }) {
         {t.buy.manageTitle}
       </h2>
       <p className="mt-3 text-muted">{t.buy.managePurchases}</p>
-      <a href="/account" className={`${secondary} mt-4 inline-flex`}>
+      <Link href="/account" className={`${secondary} mt-4 inline-flex`}>
         {t.buy.manage}
-      </a>
+      </Link>
     </section>
   );
 }

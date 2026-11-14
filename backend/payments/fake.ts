@@ -27,7 +27,9 @@ export function createFake(webhookSecret: string): PaymentProvider {
     },
     async createCheckout({ successUrl, period, units, account }) {
       fake.checkouts.push({ period, units, account });
-      return { url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}checkout_id=fake_${randomBytes(9).toString("base64url")}` };
+      // The account rides in the made-up id, so a test can send the webhook the provider would (fake only: Creem's ids carry nothing).
+      const id = `fake_${Buffer.from(account).toString("base64url")}_${randomBytes(9).toString("base64url")}`;
+      return { url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}checkout_id=${id}` };
     },
     async changeUnits(providerRef, units, how) {
       fake.changes.push({ providerRef, units, how });

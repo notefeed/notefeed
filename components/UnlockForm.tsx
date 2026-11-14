@@ -1,6 +1,5 @@
 import { LockedIcon } from "@/components/icons";
-import { card, field, primary, secondary } from "@/components/styles";
-import { PASSWORD_PATTERN } from "@/shared/password";
+import { card, field, primary } from "@/components/styles";
 import { serverCopy } from "@/app/_lib/copy";
 
 // The feed password screen: a plain form, POST /<feed>/access sets the unlock cookie and returns to the feed. `recover` is set
