@@ -251,7 +251,7 @@ export type Error = {
     /**
      * Stable machine-readable code; absent only on a 500
      */
-    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'title_image' | 'removed' | 'blocked' | 'unreadable' | 'unavailable' | 'busy';
+    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'title_image' | 'removed' | 'blocked' | 'unreadable' | 'unavailable' | 'busy' | 'owner_only' | 'owned';
 };
 
 export type NoteMeta = {
@@ -377,6 +377,14 @@ export type Feed = {
      */
     protected: boolean;
     /**
+     * Whether the feed belongs to an account (its owner): then only the owner manages its passwords, renames and deletes it
+     */
+    owned: boolean;
+    /**
+     * Whether it belongs to the account signed in with this request
+     */
+    yours: boolean;
+    /**
      * The feed's read-only RSS link; null while the feed has no notes, or if the server can't read the feed's stored read id
      */
     read_url: string | null;
@@ -459,6 +467,65 @@ export type Licenses = {
      * How managing a purchase works, in a sentence to show a person
      */
     manage: string;
+};
+
+export type Claim = {
+    /**
+     * A protected feed: one of its passwords. An open feed: the password it gets now, as setting one does (8 to 1024 characters)
+     */
+    password: string;
+};
+
+export type FeedPassword = {
+    /**
+     * The password's id, to revoke it
+     */
+    id: string;
+    /**
+     * What it is for, as the owner named it ("blog script", "Anna"); a feed's password from before it had an owner is "Feed password"
+     */
+    name: string;
+    /**
+     * When it was added (ISO 8601); null for the one from before the feed had an owner
+     */
+    created: string | null;
+};
+
+export type FeedPasswords = {
+    passwords: Array<FeedPassword>;
+};
+
+export type NewFeedPassword = {
+    /**
+     * The password's id, to revoke it
+     */
+    id: string;
+    /**
+     * What it is for, as the owner named it ("blog script", "Anna"); a feed's password from before it had an owner is "Feed password"
+     */
+    name: string;
+    /**
+     * When it was added (ISO 8601); null for the one from before the feed had an owner
+     */
+    created: string | null;
+    /**
+     * The password, 24 characters: shown only this once. Send it as X-Feed-Password
+     */
+    password: string;
+};
+
+export type FeedPasswordName = {
+    /**
+     * What it is for: one line, 1 to 50 characters
+     */
+    name: string;
+};
+
+export type AccountFeeds = {
+    /**
+     * The names of the feeds the account owns, sorted
+     */
+    feeds: Array<string>;
 };
 
 export type ListNotesData = {
@@ -1004,6 +1071,10 @@ export type DeleteFeedErrors = {
      */
     401: Error;
     /**
+     * An owned feed, deleted by anyone but its owner (`owner_only`)
+     */
+    403: Error;
+    /**
      * No such feed
      */
     404: Error;
@@ -1161,6 +1232,10 @@ export type UpdateFeedErrors = {
      * The instance has a password, or the feed has its own, and it is missing or wrong
      */
     401: Error;
+    /**
+     * A new name for an owned feed, from anyone but its owner (`owner_only`)
+     */
+    403: Error;
     /**
      * No such feed
      */
@@ -1428,6 +1503,235 @@ export type ChangeFeedPasswordResponses = {
 };
 
 export type ChangeFeedPasswordResponse = ChangeFeedPasswordResponses[keyof ChangeFeedPasswordResponses];
+
+export type ClaimFeedData = {
+    body: Claim;
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/claim';
+};
+
+export type ClaimFeedErrors = {
+    /**
+     * Invalid or reserved feed name, bad JSON, or an open feed's new password that is not 1 to 256 printable ASCII characters, with no space at the start or end
+     */
+    400: Error;
+    /**
+     * No signed-in account, or a wrong password
+     */
+    401: Error;
+    /**
+     * Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds
+     */
+    402: Error;
+    /**
+     * No such feed
+     */
+    404: Error;
+    /**
+     * The feed has an owner (`owned`)
+     */
+    409: Error;
+    /**
+     * Too many wrong passwords from this client
+     */
+    429: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type ClaimFeedError = ClaimFeedErrors[keyof ClaimFeedErrors];
+
+export type ClaimFeedResponses = {
+    /**
+     * Claimed
+     */
+    204: void;
+};
+
+export type ClaimFeedResponse = ClaimFeedResponses[keyof ClaimFeedResponses];
+
+export type ListFeedPasswordsData = {
+    body?: never;
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/passwords';
+};
+
+export type ListFeedPasswordsErrors = {
+    /**
+     * Invalid or reserved feed name
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * Not the feed's owner (`owner_only`)
+     */
+    403: Error;
+    /**
+     * No such feed
+     */
+    404: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type ListFeedPasswordsError = ListFeedPasswordsErrors[keyof ListFeedPasswordsErrors];
+
+export type ListFeedPasswordsResponses = {
+    /**
+     * The feed's passwords
+     */
+    200: FeedPasswords;
+};
+
+export type ListFeedPasswordsResponse = ListFeedPasswordsResponses[keyof ListFeedPasswordsResponses];
+
+export type AddFeedPasswordData = {
+    body: FeedPasswordName;
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/passwords';
+};
+
+export type AddFeedPasswordErrors = {
+    /**
+     * Invalid or reserved feed name, or a name that is not one line of 1 to 50 characters
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds
+     */
+    402: Error;
+    /**
+     * Not the feed's owner (`owner_only`)
+     */
+    403: Error;
+    /**
+     * No such feed
+     */
+    404: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type AddFeedPasswordError = AddFeedPasswordErrors[keyof AddFeedPasswordErrors];
+
+export type AddFeedPasswordResponses = {
+    /**
+     * Added; the password is in the answer, only this once
+     */
+    201: NewFeedPassword;
+};
+
+export type AddFeedPasswordResponse = AddFeedPasswordResponses[keyof AddFeedPasswordResponses];
+
+export type RevokeFeedPasswordData = {
+    body?: never;
+    path: {
+        /**
+         * The feed's name. It is the write key: anyone who knows it can post.
+         */
+        feed: string;
+        /**
+         * The password's id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/feeds/{feed}/passwords/{id}';
+};
+
+export type RevokeFeedPasswordErrors = {
+    /**
+     * Invalid or reserved feed name
+     */
+    400: Error;
+    /**
+     * The instance has a password, or the feed has its own, and it is missing or wrong
+     */
+    401: Error;
+    /**
+     * Not the feed's owner (`owner_only`)
+     */
+    403: Error;
+    /**
+     * No such feed, or no such password
+     */
+    404: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type RevokeFeedPasswordError = RevokeFeedPasswordErrors[keyof RevokeFeedPasswordErrors];
+
+export type RevokeFeedPasswordResponses = {
+    /**
+     * Revoked
+     */
+    204: void;
+};
+
+export type RevokeFeedPasswordResponse = RevokeFeedPasswordResponses[keyof RevokeFeedPasswordResponses];
+
+export type ListAccountFeedsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/feeds';
+};
+
+export type ListAccountFeedsErrors = {
+    /**
+     * No signed-in account
+     */
+    401: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type ListAccountFeedsError = ListAccountFeedsErrors[keyof ListAccountFeedsErrors];
+
+export type ListAccountFeedsResponses = {
+    /**
+     * The account's feeds
+     */
+    200: AccountFeeds;
+};
+
+export type ListAccountFeedsResponse = ListAccountFeedsResponses[keyof ListAccountFeedsResponses];
 
 export type RecoverFeedPasswordData = {
     body: RecoveryJson;

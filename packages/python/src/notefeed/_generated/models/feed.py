@@ -22,6 +22,9 @@ class Feed:
         description (str): Description, at most 500 characters, one line (control and text-direction override characters
             are refused); may be empty
         protected (bool): Whether the feed has its own password
+        owned (bool): Whether the feed belongs to an account (its owner): then only the owner manages its passwords,
+            renames and deletes it
+        yours (bool): Whether it belongs to the account signed in with this request
         read_url (None | str): The feed's read-only RSS link; null while the feed has no notes, or if the server can't
             read the feed's stored read id
         atom_url (None | str): The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is
@@ -38,6 +41,8 @@ class Feed:
     title: str
     description: str
     protected: bool
+    owned: bool
+    yours: bool
     read_url: None | str
     atom_url: None | str
     image_url: None | str
@@ -55,6 +60,10 @@ class Feed:
         description = self.description
 
         protected = self.protected
+
+        owned = self.owned
+
+        yours = self.yours
 
         read_url: None | str
         read_url = self.read_url
@@ -83,6 +92,8 @@ class Feed:
                 "title": title,
                 "description": description,
                 "protected": protected,
+                "owned": owned,
+                "yours": yours,
                 "read_url": read_url,
                 "atom_url": atom_url,
                 "image_url": image_url,
@@ -106,6 +117,10 @@ class Feed:
         description = d.pop("description")
 
         protected = d.pop("protected")
+
+        owned = d.pop("owned")
+
+        yours = d.pop("yours")
 
         def _parse_read_url(data: object) -> None | str:
             if data is None:
@@ -152,6 +167,8 @@ class Feed:
             title=title,
             description=description,
             protected=protected,
+            owned=owned,
+            yours=yours,
             read_url=read_url,
             atom_url=atom_url,
             image_url=image_url,

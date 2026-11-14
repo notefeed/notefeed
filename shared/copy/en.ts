@@ -36,6 +36,8 @@ export const en = {
       removed: "This feed was removed by the operator. Its name can't be used again.",
       blocked: "This image may not be posted here.",
       busy: "notefeed is busy with other pictures. Try again in {retry} seconds.",
+      owner_only: "Only the feed's owner can do that. Sign in to its account.",
+      owned: "This feed has an owner already, so it can't be claimed.",
       sign_in_failed: "Sign-in didn't work. Try again.",
     },
     feed: {

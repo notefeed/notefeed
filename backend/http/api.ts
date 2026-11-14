@@ -4,8 +4,20 @@
 import * as z from "zod";
 import { noteHeaderSchemas } from "../notefields";
 import { config } from "../config";
-import { ImageTooLargeError, InvalidBodyError, NotFoundError, RemovedFeedError, UnsupportedTypeError } from "../errors";
-import { changePassword, checkFeedAccess, protectedFeed, recoverPassword, removePassword } from "../feedlock";
+import { ImageTooLargeError, InvalidBodyError, NotFoundError, RemovedFeedError, UnsupportedTypeError, AuthError } from "../errors";
+import {
+  addFeedPassword,
+  changePassword,
+  checkFeedAccess,
+  claimFeed,
+  feedOwner,
+  listFeedPasswords,
+  ownedFeeds,
+  protectedFeed,
+  recoverPassword,
+  removePassword,
+  revokeFeedPassword,
+} from "../feedlock";
 import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf } from "../feeds";
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
@@ -20,7 +32,7 @@ import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch"
 import { MAX_ATTACHMENTS, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
 import { ownerFile } from "./files";
 import { MULTIPART_SLACK, createdOf, handlePostNote, readContent, readMetaPatch, readMultipart } from "./notes";
-import { authorize, feedAccess, mediaType, readCapped, sender } from "./request";
+import { authorize, feedAccess, mediaType, readCapped, sender, requestAccount } from "./request";
 import {
   COMPONENTS,
   CurrentPasswordHeader,
@@ -48,6 +60,11 @@ import {
   Posted,
   ReadFeedJson,
   ReadIdParam,
+  AccountFeedsJson,
+  ClaimJson,
+  FeedPasswordsJson,
+  FeedPasswordNameJson,
+  NewFeedPasswordJson,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -96,7 +113,7 @@ async function passwordAndFeed({ req, params }: { req: Request; params: Record<s
 }
 async function passwordFeedAndFeedPassword(input: { req: Request; params: Record<string, string> }) {
   await passwordAndFeed(input);
-  await checkFeedAccess(input.params.feed, feedAccess(input.req.headers, input.params.feed), clientIp(input.req.headers));
+  await checkFeedAccess(input.params.feed, await feedAccess(input.req.headers, input.params.feed), clientIp(input.req.headers));
 }
 
 // Wire form of a note; `base` is the absolute URL its page lives under, `files` the one its files are served under
@@ -161,6 +178,7 @@ export async function licensesJson(headers: Headers): Promise<z.infer<typeof Lic
 }
 
 export async function feedJson(feed: string, headers: Headers): Promise<z.infer<typeof FeedJson>> {
+  const owner = await feedOwner(feed);
   const readId = (await countNotes(feed)) ? await readIdOf(feed) : null;
   const { title, description, image, showSender } = await getSettings(feed);
   return {
@@ -168,6 +186,8 @@ export async function feedJson(feed: string, headers: Headers): Promise<z.infer<
     title,
     description,
     protected: await protectedFeed(feed),
+    owned: owner !== undefined,
+    yours: owner !== undefined && owner === (await requestAccount(headers)),
     read_url: readId && publicUrl(headers) + rssPath(readId),
     atom_url: readId && publicUrl(headers) + atomPath(readId),
     image_url: readId && image ? publicUrl(headers) + imagePath(readId, image) : null,
@@ -367,7 +387,7 @@ const OPS: AnyOp[] = [
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
     const h = req.headers;
-    const [ip, access] = [clientIp(h), feedAccess(h, params.feed)];
+    const [ip, access] = [clientIp(h), await feedAccess(h, params.feed)];
     const base = publicUrl(h) + feedPath(params.feed);
     if (mediaType(h) !== "multipart/form-data") {
       const note = await editContent(params.feed, params.id, ip, () => readContent(req), access);
@@ -409,7 +429,7 @@ const OPS: AnyOp[] = [
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
-    const note = await editMeta(params.feed, params.id, clientIp(req.headers), () => readMetaPatch(req), feedAccess(req.headers, params.feed));
+    const note = await editMeta(params.feed, params.id, clientIp(req.headers), () => readMetaPatch(req), await feedAccess(req.headers, params.feed));
     return { status: 200, body: noteJson(note, publicUrl(req.headers) + feedPath(params.feed), await filesOf(params.feed, req.headers)) };
   }),
 
@@ -434,7 +454,7 @@ const OPS: AnyOp[] = [
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
-    await deleteNote(params.feed, params.id, clientIp(req.headers), feedAccess(req.headers, params.feed));
+    await deleteNote(params.feed, params.id, clientIp(req.headers), await feedAccess(req.headers, params.feed));
     return { status: 204, body: undefined };
   }),
 
@@ -469,7 +489,12 @@ const OPS: AnyOp[] = [
       body = CreateFeedJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes?.length ? bytes : new TextEncoder().encode("{}"))));
     } catch {}
     if (!body?.success) throw new InvalidBodyError('JSON with optional "password", "license_key" and "read_id" strings');
-    await createFeed(params.feed, clientIp(req.headers), { password: body.data.password, licenseKey: body.data.license_key, readId: body.data.read_id });
+    await createFeed(
+      params.feed,
+      clientIp(req.headers),
+      { password: body.data.password, licenseKey: body.data.license_key, readId: body.data.read_id },
+      await requestAccount(req.headers),
+    );
     return { status: 201, body: await feedJson(params.feed, req.headers) };
   }),
 
@@ -519,6 +544,7 @@ const OPS: AnyOp[] = [
         "Invalid or reserved feed name, bad JSON, a title or description that is too long or has control or text-direction override characters, a malformed read id, a reserved feed's read id, or chosen read ids turned off",
       ),
       401: UNAUTHORIZED,
+      403: err("A new name for an owned feed, from anyone but its owner (`owner_only`)"),
       404: err("No such feed"),
       409: err("The read id or the new name belongs to another feed, or is held back"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
@@ -536,7 +562,7 @@ const OPS: AnyOp[] = [
         throw new InvalidBodyError('JSON needs "title" and "description" strings');
       }
     };
-    const { feed } = await updateFeed(params.feed, clientIp(req.headers), read, feedAccess(req.headers, params.feed));
+    const { feed } = await updateFeed(params.feed, clientIp(req.headers), read, await feedAccess(req.headers, params.feed));
     return { status: 200, body: await feedJson(feed, req.headers) };
   }),
 
@@ -557,13 +583,14 @@ const OPS: AnyOp[] = [
       204: { description: "Deleted" },
       400: err("Invalid or reserved feed name"),
       401: UNAUTHORIZED,
+      403: err("An owned feed, deleted by anyone but its owner (`owner_only`)"),
       404: err("No such feed"),
       429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
       503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
-    await deleteFeed(params.feed, clientIp(req.headers), feedAccess(req.headers, params.feed));
+    await deleteFeed(params.feed, clientIp(req.headers), await feedAccess(req.headers, params.feed));
     return { status: 204, body: undefined };
   }),
 
@@ -607,7 +634,7 @@ const OPS: AnyOp[] = [
         if (!body.length) throw new UnsupportedTypeError("the body is empty: send an image, or DELETE to remove the title image");
         return { body, mediaType };
       },
-      feedAccess(req.headers, params.feed),
+      await feedAccess(req.headers, params.feed),
     );
     return { status: 200, body: await feedJson(params.feed, req.headers) };
   }),
@@ -633,7 +660,7 @@ const OPS: AnyOp[] = [
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
-    await setFeedImage(params.feed, clientIp(req.headers), async () => ({ body: new Uint8Array(), mediaType: "" }), feedAccess(req.headers, params.feed));
+    await setFeedImage(params.feed, clientIp(req.headers), async () => ({ body: new Uint8Array(), mediaType: "" }), await feedAccess(req.headers, params.feed));
     return { status: 200, body: await feedJson(params.feed, req.headers) };
   }),
 
@@ -671,6 +698,128 @@ const OPS: AnyOp[] = [
     await changePassword(params.feed, req.headers.get("x-feed-password") ?? "", body.data.password, clientIp(req.headers));
     return { status: 204, body: undefined };
   }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/feeds/{feed}/claim`,
+    operationId: "claimFeed",
+    summary: "Claim a feed for the signed-in account",
+    description:
+      "The feed becomes the account's own (its owner): only the owner then manages its feed passwords, renames and deletes it. " +
+      "A protected feed is claimed with one of its passwords, which stays as its first, named `Feed password`, so scripts keep working. " +
+      "An open feed is claimed by giving it a password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`). " +
+      "Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    body: { "application/json": ClaimJson },
+    responses: {
+      204: { description: "Claimed" },
+      400: err(`Invalid or reserved feed name, bad JSON, or an open feed's new password that is not ${PASSWORD_RULE}`),
+      401: err("No signed-in account, or a wrong password"),
+      402: LICENSE_REQUIRED,
+      404: err("No such feed"),
+      409: err("The feed has an owner (`owned`)"),
+      429: { ...err("Too many wrong passwords from this client"), headers: RETRY },
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const account = await signedInAccount(req.headers);
+    const body = ClaimJson.safeParse(await jsonBody(req));
+    if (!body.success) throw new InvalidBodyError('JSON needs a "password" string');
+    await claimFeed(params.feed, account, body.data.password, clientIp(req.headers));
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/feeds/{feed}/passwords`,
+    operationId: "listFeedPasswords",
+    summary: "List an owned feed's passwords",
+    description: "Their names, ids and when they were added, never the passwords. Only for the feed's owner.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    responses: {
+      200: { description: "The feed's passwords", schema: FeedPasswordsJson },
+      400: err("Invalid or reserved feed name"),
+      401: UNAUTHORIZED,
+      403: err("Not the feed's owner (`owner_only`)"),
+      404: err("No such feed"),
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => ({ status: 200, body: { passwords: await listFeedPasswords(params.feed, await requestAccount(req.headers)) } })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/feeds/{feed}/passwords`,
+    operationId: "addFeedPassword",
+    summary: "Add a named password to an owned feed",
+    description:
+      "A new password for one person or script, generated and shown only in this answer. It does what a feed password does: post, edit, delete notes, change the settings. " +
+      "Each is revoked on its own. Only for the feed's owner; where licenses are sold, the feed needs one.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam },
+    body: { "application/json": FeedPasswordNameJson },
+    responses: {
+      201: { description: "Added; the password is in the answer, only this once", schema: NewFeedPasswordJson },
+      400: err("Invalid or reserved feed name, or a name that is not one line of 1 to 50 characters"),
+      401: UNAUTHORIZED,
+      402: LICENSE_REQUIRED,
+      403: err("Not the feed's owner (`owner_only`)"),
+      404: err("No such feed"),
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    const body = FeedPasswordNameJson.safeParse(await jsonBody(req));
+    if (!body.success) throw new InvalidBodyError('JSON needs a "name" string');
+    return { status: 201, body: await addFeedPassword(params.feed, await requestAccount(req.headers), body.data.name) };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/feeds/{feed}/passwords/{id}`,
+    operationId: "revokeFeedPassword",
+    summary: "Revoke one of an owned feed's passwords",
+    description:
+      "It, and every browser unlocked with it, stops working at once; the others keep working. Revoking the last leaves the feed open, still the owner's.",
+    tags: ["Feeds"],
+    password: true,
+    params: { feed: FeedParam, id: z.string().describe("The password's id") },
+    responses: {
+      204: { description: "Revoked" },
+      400: err("Invalid or reserved feed name"),
+      401: UNAUTHORIZED,
+      403: err("Not the feed's owner (`owner_only`)"),
+      404: err("No such feed, or no such password"),
+      503: UNAVAILABLE,
+    },
+    before: passwordAndFeed,
+  }).handle(async ({ req, params }) => {
+    await revokeFeedPassword(params.feed, await requestAccount(req.headers), params.id);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/account/feeds`,
+    operationId: "listAccountFeeds",
+    summary: "The signed-in account's feeds",
+    description: "The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.",
+    tags: ["Feeds"],
+    password: true,
+    params: {},
+    responses: {
+      200: { description: "The account's feeds", schema: AccountFeedsJson },
+      401: err("No signed-in account"),
+      503: UNAVAILABLE,
+    },
+    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+  }).handle(async ({ req }) => ({ status: 200, body: { feeds: await ownedFeeds(await signedInAccount(req.headers)) } })),
 
   op({
     method: "DELETE",
@@ -761,7 +910,7 @@ const OPS: AnyOp[] = [
       body = LicenseKeyJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array())));
     } catch {}
     if (!body?.success) throw new InvalidBodyError('JSON needs a "key" string');
-    await setLicense(params.feed, clientIp(req.headers), body.data.key, feedAccess(req.headers, params.feed));
+    await setLicense(params.feed, clientIp(req.headers), body.data.key, await feedAccess(req.headers, params.feed));
     return { status: 200, body: await feedJson(params.feed, req.headers) };
   }),
 
@@ -787,7 +936,7 @@ const OPS: AnyOp[] = [
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
-    await setLicense(params.feed, clientIp(req.headers), null, feedAccess(req.headers, params.feed));
+    await setLicense(params.feed, clientIp(req.headers), null, await feedAccess(req.headers, params.feed));
     return { status: 200, body: await feedJson(params.feed, req.headers) };
   }),
 
@@ -997,4 +1146,21 @@ export function openApiDocument(serverUrl: string): Json {
       },
     },
   };
+}
+
+// The signed-in account of a request, or AuthError: for what only an account can do.
+async function signedInAccount(h: Headers): Promise<string> {
+  const account = await requestAccount(h);
+  if (!account) throw new AuthError();
+  return account;
+}
+
+// A small JSON body, or undefined when it is none.
+async function jsonBody(req: Request): Promise<unknown> {
+  const bytes = await readCapped(req, 4096);
+  try {
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array()));
+  } catch {
+    return undefined;
+  }
 }

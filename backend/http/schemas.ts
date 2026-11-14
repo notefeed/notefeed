@@ -244,6 +244,8 @@ export const FeedJson = z
     title: TITLE,
     description: DESCRIPTION,
     protected: z.boolean().describe("Whether the feed has its own password"),
+    owned: z.boolean().describe("Whether the feed belongs to an account (its owner): then only the owner manages its passwords, renames and deletes it"),
+    yours: z.boolean().describe("Whether it belongs to the account signed in with this request"),
     read_url: z
       .url()
       .nullable()
@@ -266,6 +268,29 @@ export const ReadFeedJson = z.object({ title: TITLE, description: DESCRIPTION, i
 // A raw request body, not JSON.
 export const FileBody = z.string().meta({ format: "binary" }).describe("The note, a file: its bytes, of the type `Content-Type` declares");
 
+export const ClaimJson = z
+  .object({
+    password: z.string().describe("A protected feed: one of its passwords. An open feed: the password it gets now, as setting one does (8 to 1024 characters)"),
+  })
+  .meta({ id: "Claim" });
+export const FeedPasswordJson = z
+  .object({
+    id: z.string().describe("The password's id, to revoke it"),
+    name: z
+      .string()
+      .describe('What it is for, as the owner named it ("blog script", "Anna"); a feed\'s password from before it had an owner is "Feed password"'),
+    created: z.string().nullable().describe("When it was added (ISO 8601); null for the one from before the feed had an owner"),
+  })
+  .meta({ id: "FeedPassword" });
+export const FeedPasswordsJson = z.object({ passwords: z.array(FeedPasswordJson) }).meta({ id: "FeedPasswords" });
+export const NewFeedPasswordJson = FeedPasswordJson.extend({
+  password: z.string().describe("The password, 24 characters: shown only this once. Send it as X-Feed-Password"),
+}).meta({ id: "NewFeedPassword" });
+export const FeedPasswordNameJson = z.object({ name: z.string().describe("What it is for: one line, 1 to 50 characters") }).meta({ id: "FeedPasswordName" });
+export const AccountFeedsJson = z
+  .object({ feeds: z.array(z.string()).describe("The names of the feeds the account owns, sorted") })
+  .meta({ id: "AccountFeeds" });
+
 export const COMPONENTS = [
   NoteJson,
   NoteList,
@@ -284,6 +309,12 @@ export const COMPONENTS = [
   FeedJson,
   ReadFeedJson,
   LicensesJson,
+  ClaimJson,
+  FeedPasswordJson,
+  FeedPasswordsJson,
+  NewFeedPasswordJson,
+  FeedPasswordNameJson,
+  AccountFeedsJson,
 ];
 
 export const FeedParam = z.string().regex(FEED_RE).describe("The feed's name. It is the write key: anyone who knows it can post.");
