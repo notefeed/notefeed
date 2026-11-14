@@ -11,26 +11,59 @@
 
 items:
   # ---- open ------------------------------------------------------------------------------------------------------------
-  - id: accounts
-    status: now
-    when: Now
-    icon: account-key-outline
-    title: Accounts that are a number, not a person
-    summary: An optional account holds your feeds and your license on every device, for scripts and MCP too. It is a generated number with passkeys, no e-mail and no name.
-    details: |
-      In four steps:
-
-      - **Sign-in on Better Auth**, and one sender any post can set (done).
-      - **Accounts**: sign-ins that renew while used (no weekly sign-in, the allow-list checked on every request); account number, recovery key and passkeys; a feed's owner and its several named feed passwords; account tokens; either an instance password or accounts.
-      - **Licenses on the account**: one checkout for several feeds, the number raised or lowered later.
-      - **Values and legal pages** for accounts.
-
-      Readers get nothing new, and nothing about who holds an account is stored.
+  - id: post-to-several-feeds
+    status: next
+    when: Next
+    icon: content-duplicate
+    title: One note to several of your feeds
+    summary: With an account, post a note once to several of the feeds it owns.
     links:
-      - {label: "#292", url: "https://github.com/notefeed/notefeed/issues/292"}
-      - {label: "#297", url: "https://github.com/notefeed/notefeed/issues/297"}
       - {label: "#347", url: "https://github.com/notefeed/notefeed/issues/347"}
-      - {label: "V2", url: "https://docs.notefeed.me/values/#v2"}
+
+  - id: co-authors
+    status: later
+    when: Later
+    icon: account-multiple-outline
+    title: Co-authors as accounts
+    summary: Several accounts on one feed, each posting as themselves; the owner keeps the feed.
+    links:
+      - {label: "#398", url: "https://github.com/notefeed/notefeed/issues/398"}
+
+  - id: closed-reading
+    status: later
+    when: Later
+    icon: eye-lock-outline
+    title: Closed reading
+    summary: A feed only those with a reading secret can follow, without breaking RSS readers.
+    links:
+      - {label: "#399", url: "https://github.com/notefeed/notefeed/issues/399"}
+
+  - id: operator-account
+    status: later
+    when: Later
+    icon: shield-account-outline
+    title: The operator signs in as an account
+    summary: The operator's tools over MCP and on a page, for the operator's own account instead of a token.
+    links:
+      - {label: "#400", url: "https://github.com/notefeed/notefeed/issues/400"}
+
+  - id: oauth-on-better-auth
+    status: later
+    when: Later
+    icon: key-chain-variant
+    title: MCP sign-in on Better Auth
+    summary: The one OAuth server for MCP clients moves onto Better Auth, for every instance.
+    links:
+      - {label: "#401", url: "https://github.com/notefeed/notefeed/issues/401"}
+
+  - id: account-recovery
+    status: later
+    when: Later
+    icon: account-reactivate-outline
+    title: A lost account, recovered through the payment provider
+    summary: An account that bought a license comes back through the buyer's e-mail at the provider, which notefeed never stores.
+    links:
+      - {label: "#402", url: "https://github.com/notefeed/notefeed/issues/402"}
 
   - id: webhooks
     status: later
@@ -73,6 +106,34 @@ items:
       - {label: "V4", url: "https://docs.notefeed.me/values/#v4"}
 
   # ---- done ------------------------------------------------------------------------------------------------------------
+  - id: accounts
+    status: done
+    date: 2026-11-14
+    icon: account-key-outline
+    title: Accounts that are a number, not a person
+    summary: An optional account holds your feeds and your license on every device, for scripts and MCP too. It is a generated number with passkeys, no e-mail and no name.
+    details: |
+      Done in four steps:
+
+      - **Sign-in on Better Auth**, and one sender any post can set.
+      - **Accounts**: sign-ins that renew while used (no weekly sign-in, the allow-list checked on every request); account number, recovery key and passkeys; a feed's owner and its several named feed passwords; account tokens; either an instance password or accounts.
+      - **Licenses on the account**: one checkout for several feeds, the number raised or lowered later.
+      - **Values and legal pages** for accounts, and notefeed.me's setup.
+
+      Readers get nothing new, and nothing about who holds an account is stored.
+    links:
+      - {label: "#383", url: "https://github.com/notefeed/notefeed/pull/383"}
+      - {label: "#386", url: "https://github.com/notefeed/notefeed/pull/386"}
+      - {label: "#393", url: "https://github.com/notefeed/notefeed/pull/393"}
+      - {label: "#394", url: "https://github.com/notefeed/notefeed/pull/394"}
+      - {label: "#395", url: "https://github.com/notefeed/notefeed/pull/395"}
+      - {label: "#396", url: "https://github.com/notefeed/notefeed/pull/396"}
+      - {label: "#397", url: "https://github.com/notefeed/notefeed/pull/397"}
+      - {label: "#292", url: "https://github.com/notefeed/notefeed/issues/292"}
+      - {label: "#297", url: "https://github.com/notefeed/notefeed/issues/297"}
+      - {label: "#347", url: "https://github.com/notefeed/notefeed/issues/347"}
+      - {label: "V2", url: "https://docs.notefeed.me/values/#v2"}
+
   - id: iphone-shortcut
     status: done
     date: 2026-11-12

@@ -10,7 +10,7 @@ export NOTEFEED_URL=https://notefeed.me NOTEFEED_FEED=homelab-7f3k2q9x4m8wz
 
 ## What to know before you use it
 
-- **There are no accounts.** Nothing to register, and no instance password. The [feed name](../get-started/concepts.md) is what lets someone read and post, so on an instance the whole internet can reach, pick a long name nobody can guess. A [feed password](../using/feed-passwords.md) protects posting and the feed page on top of that.
+- **No account needed.** Nothing to register, and no instance password. An [account](../self-hosting/accounts.md) is optional, a number with no e-mail and no name, and needed only to buy a license. The [feed name](../get-started/concepts.md) is what lets someone read and post, so on an instance the whole internet can reach, pick a long name nobody can guess. A [feed password](../using/feed-passwords.md) protects posting and the feed page on top of that.
 - **Sign-in is off.** Notes carry no sender.
 - **Every feed starts on the free tier.** It keeps its newest 100 notes and has no pictures and no feed password; a [license](licenses.md) on your account, covering as many of your feeds as you choose, lifts that. The [rate limits](../self-hosting/limits.md) apply at their defaults.
 - **Some feed names are taken by the operator**, as [reserved feeds](../self-hosting/access.md#reserved-feeds).
@@ -33,7 +33,7 @@ Every note on notefeed.me carries a **Report** link, on the feed page, the note 
 - **Nothing is hidden automatically.** The operator reads each report and decides.
 - **A feed that must go is removed for good,** with all its notes and images: its name and its read link answer *removed by the operator* and cannot be used again, and the same images are refused in every feed afterwards.
 - **There is no appeal path yet** beyond writing to the address above.
-- **Nobody is identified.** There are no accounts and notes carry no sender, so a removal is not attributed to anyone and nobody can be barred from posting.
+- **Nobody is identified.** An account is a number, and a note's sender is a label its poster gives it, so a removal is not attributed to anyone and nobody can be barred from posting.
 
 How the link, the form and the removal work is in the self-hosting pages: [A report link on every published note](../self-hosting/legal-pages.md#a-report-link-on-every-published-note) and [Removing a feed as the operator](../self-hosting/deleting.md#removing-a-feed-as-the-operator).
 
