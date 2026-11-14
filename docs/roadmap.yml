@@ -18,10 +18,10 @@ items:
     title: Accounts that are a number, not a person
     summary: An optional account holds your feeds and your license on every device, for scripts and MCP too. It is a generated number with passkeys, no e-mail and no name.
     details: |
-      In four steps, each a release of its own:
+      In four steps:
 
-      - **Sign-in on Better Auth**, and one sender any post can set.
-      - **Accounts**: account number, recovery key and passkeys; a feed's owner and its several named feed passwords; account tokens; either an instance password or accounts.
+      - **Sign-in on Better Auth**, and one sender any post can set (done).
+      - **Accounts**: sign-ins that renew while used (no weekly sign-in, the allow-list checked on every request); account number, recovery key and passkeys; a feed's owner and its several named feed passwords; account tokens; either an instance password or accounts.
       - **Licenses on the account**: one checkout for several feeds, the number raised or lowered later.
       - **Values and legal pages** for accounts.
 
