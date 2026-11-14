@@ -16,7 +16,7 @@ export { UnreadableNoteError } from "./errors";
 export type { Note };
 // Dated after now: only its owner sees it, marked "Scheduled for" (components/NoteFoot.tsx).
 export { isDraft, isScheduled };
-export { SESSION_COOKIE, locked, sessionOk, signedIn } from "./auth";
+export { SESSION_COOKIE, locked, sessionCheck, sessionOk, signedIn } from "./auth";
 export { checkFeed, isHeldBack as isReservedFeed, isRemovedFeed, isRemovedReadId, readIdOf } from "./feeds";
 export { identityOn };
 export { atomPath, feedPath, publicUrl, readPath, rssPath, safeNext, settingsPath, SHORTCUT_PATH } from "./urls";

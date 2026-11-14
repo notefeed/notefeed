@@ -165,6 +165,39 @@ test("sign-in on: a Better Auth session passes the lock; a forged one, or one wh
   expect(passes(await proxy(req("/backups", { headers: { cookie } })))).toBe(false);
 });
 
+// A session made a while ago: its expiry is close enough that the next use renews it.
+const dueCookie = () => signedInCookie("Ann", new Date(Date.now() + 6 * 86_400_000));
+const sessionCookies = (res: Response) => res.headers.getSetCookie().filter((c) => c.includes("session_token"));
+
+test("sign-in on: a page request a day after signing in carries the renewed session cookie", async () => {
+  stubSignInOn();
+  const res = await proxy(req("/backups", { headers: { cookie: await dueCookie() } }));
+  expect(passes(res)).toBe(true);
+  expect(sessionCookies(res)).toEqual([expect.stringMatching(/Max-Age=2592000/i)]);
+});
+
+test("sign-in on: the same cookie twice in a row is let in both times", async () => {
+  stubSignInOn();
+  const cookie = await dueCookie();
+  expect(passes(await proxy(req("/backups", { headers: { cookie } })))).toBe(true);
+  expect(passes(await proxy(req("/backups", { headers: { cookie } })))).toBe(true);
+});
+
+test("sign-in on: a request for /api/… carries no Set-Cookie from the proxy", async () => {
+  stubSignInOn();
+  const res = await proxy(req("/api/v1/feeds", { headers: { cookie: await dueCookie() } }));
+  expect(res.headers.getSetCookie()).toEqual([]);
+});
+
+test("sign-in on: a session ended by the allow-list is sent to /login", async () => {
+  stubSignInOn();
+  const cookie = await signedInCookie();
+  vi.stubEnv("NOTEFEED_OIDC_ALLOW", "ann@example.com");
+  const res = await proxy(req("/backups", { headers: { cookie } }));
+  expect(passes(res)).toBe(false);
+  expect(new URL(res.headers.get("location")!).pathname).toBe("/login");
+});
+
 test("locked: POST /login is rewritten without a session (that's how you get one)", async () => {
   process.env.NOTEFEED_PASSWORD = "pw";
   expect(rewrite(await proxy(req("/login", { method: "POST" })))).toBe("http://localhost:3000/api/login");

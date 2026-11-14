@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { locked, noteOutcome, publicUrl, sessionOk } from "@/backend";
+import { locked, noteOutcome, publicUrl, sessionCheck } from "@/backend";
 import { LANG_COOKIE, LANG_HEADER, negotiate } from "@/shared/copy";
 
 // Exactly one segment, after stripping one trailing slash. Kept percent-encoded: the route's
@@ -68,7 +68,13 @@ export async function proxy(req: NextRequest) {
     /^\/(r|_next|api|oauth|\.well-known)\//.test(pathname) ||
     /^\/(icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js)$/.test(pathname);
   if (!locked() || exempt) return localized(req);
-  if (await sessionOk(req.headers)) return localized(req);
+  // A sign-in renews while used (ADR 0056): the renewed cookie goes back with the page.
+  const session = await sessionCheck(req.headers);
+  if (session.ok) {
+    const res = localized(req);
+    for (const c of session.setCookies) res.headers.append("Set-Cookie", c);
+    return res;
+  }
   // Must be absolute (Next rejects a relative Location here); built from the public base,
   // not req.url, so it is right behind a reverse proxy.
   noteOutcome("auth");
