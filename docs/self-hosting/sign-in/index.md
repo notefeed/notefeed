@@ -3,7 +3,7 @@
 !!! info "notefeed is private by default"
     notefeed stores nothing about a person until you switch sign-in on: it is **opt-in**, switched on only by the `NOTEFEED_OIDC_*` variables (see [Setup](setup.md)). Then it keeps the signed-in people in `accounts.sqlite` (see [The sender](#the-sender)), and nothing else.
 
-With sign-in on, people log in through your own OpenID Connect provider (Authentik, Keycloak, Google and the like, one or several) instead of sharing the instance password, and the notes they post carry their name as a **sender**. Read links, RSS, feed passwords and scripts work as before. You want it when a team shares one instance and wants to see who posted what, or when each person should authorise [MCP](../../integrations/mcp.md) clients with their own account. A single person, or scripts, need nothing from it.
+With sign-in on, people log in through your own OpenID Connect provider (Authentik, Keycloak, Google and the like, one or several) instead of sharing the instance password, and the notes they post carry their name as a **sender**. Read links, RSS, feed passwords and scripts work as before. You want it when a team shares one instance and wants to see who posted what, or when each person should authorise [MCP](../../integrations/mcp.md) clients with their own account. A single person, or scripts, need nothing from it. A sign-in through a provider is an [account](../accounts.md): setting a provider means `NOTEFEED_ACCOUNTS=provider` unless you set another value, and it can't be combined with `NOTEFEED_PASSWORD`.
 
 A sign-in, top to bottom. notefeed runs it with [Better Auth](https://better-auth.com), which keeps the person and the sign-in in a file of its own, `accounts.sqlite` (see [The sender](#the-sender)):
 
@@ -35,15 +35,15 @@ The sender shows on the feed page, in the read-only view, in RSS as `<dc:creator
 
 ## Scripts and passwords
 
-`NOTEFEED_PASSWORD` keeps working as a bearer token, and a note posted with it has no sender. Sign-in alone locks the instance to signed-in people, so set a password as well if scripts need to post.
+Sign-in locks the instance to signed-in people, and there is no instance password beside it ([Accounts](../accounts.md)). Scripts can't post to such an instance until accounts get tokens for scripts.
 
 ## MCP
 
-The OAuth authorize page that MCP clients open has a **Sign in with** button for each provider next to the password field. A client authorised that way posts with the person's sender.
+The OAuth authorize page that MCP clients open has a **Sign in with** button for each provider. A client authorised that way posts with the person's sender.
 
 ## Removing a person
 
-Take them off the allow-list and restart: they can no longer sign in, and their next request signs them out, in the browser and in MCP clients (an MCP client at its next token refresh, within an hour). Someone their provider removed while their address still fits the list (an `@domain` entry) keeps what they signed in with until it ends, at most 90 days after signing in: take them off the list too, or change `NOTEFEED_SECRET`. To sign everyone out at once, change `NOTEFEED_SECRET` (or `NOTEFEED_PASSWORD`). To remove what sign-in keeps about them, with notefeed stopped: `sqlite3 accounts.sqlite "pragma foreign_keys = on; delete from user where email = 'ann@example.com'"` (their sessions and provider id go with it; someone whose provider gave no address has a placeholder ending in `.oidc.invalid`, so use `where name = 'Ann'` then). A browser that signed out, or a copy of its cookie, is let in for at most 5 more minutes: the session is checked against the file only that often. Their notes keep the `sender` line until you delete the notes or edit it out of the files.
+Take them off the allow-list and restart: they can no longer sign in, and their next request signs them out, in the browser and in MCP clients (an MCP client at its next token refresh, within an hour). Someone their provider removed while their address still fits the list (an `@domain` entry) keeps what they signed in with until it ends, at most 90 days after signing in: take them off the list too, or change `NOTEFEED_SECRET`. To sign everyone out at once, change `NOTEFEED_SECRET`. To remove what sign-in keeps about them, with notefeed stopped: `sqlite3 accounts.sqlite "pragma foreign_keys = on; delete from user where email = 'ann@example.com'"` (their sessions and provider id go with it; someone whose provider gave no address has a placeholder ending in `.oidc.invalid`, so use `where name = 'Ann'` then). A browser that signed out, or a copy of its cookie, is let in for at most 5 more minutes: the session is checked against the file only that often. Their notes keep the `sender` line until you delete the notes or edit it out of the files.
 
 ## Privacy page and imprint
 

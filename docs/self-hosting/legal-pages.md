@@ -31,7 +31,7 @@ services:
 
 ## What to write
 
-That is yours to decide, and for a public service worth a lawyer's look. A privacy page usually says who is responsible and how to reach them, where the instance is hosted, what is stored (notes, feeds, images, [what the logs hold](operating.md#logs)), for how long, [how long backups keep what was deleted](backups.md#how-long-a-backup-keeps-what-was-deleted), and which rights a person has. With [sign-in](sign-in/index.md#privacy-page-and-imprint) on, say what is stored about the people who sign in.
+That is yours to decide, and for a public service worth a lawyer's look. A privacy page usually says who is responsible and how to reach them, where the instance is hosted, what is stored (notes, feeds, images, [what the logs hold](operating.md#logs)), for how long, [how long backups keep what was deleted](backups.md#how-long-a-backup-keeps-what-was-deleted), and which rights a person has. With [sign-in](sign-in/index.md#privacy-page-and-imprint) on, say what is stored about the people who sign in; with [accounts](accounts.md#what-is-stored), what an account holds.
 
 ## A report link on every published note
 

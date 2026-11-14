@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0058: an instance has the instance password or accounts, never both; instances with accounts move to Better Auth's OAuth in a later step.
+
 AI assistants (Claude Code, Claude Desktop, Claude.ai, any MCP client) should post notes to feeds and read them back over one URL, `<PUBLIC_URL>/mcp`. On an open instance there is no auth step. On a locked instance, Claude Code and scripts can send the password as a bearer, but the Claude.ai and Desktop connectors can't send headers: they need the OAuth flow of the MCP authorization spec. How should notefeed serve MCP and authorize those clients? (Issue #7, building on ADR 0001 and ADR 0005.)
 
 ## Decision Drivers

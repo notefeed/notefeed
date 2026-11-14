@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0057: accounts; the account's own feeds join the remembered ones with feed owners.
+
 The redesign (issue #185) gives notefeed the structure of a social app: a feed switcher on the phone, the feeds in a left column on a wide screen, and a share target that asks which feed a shared text goes to. All of these need a list of "your feeds". notefeed has no accounts and stores nothing about anyone (ADR 0014): a feed is reached by knowing its name. Where does the list come from?
 
 ## Considered Options

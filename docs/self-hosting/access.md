@@ -15,9 +15,15 @@ There is one password for the whole instance. Changing it logs out every browser
 
 A single feed can have a password of its own as well, set by whoever creates it: see [Feed passwords](../using/feed-passwords.md). On a locked instance a protected feed needs both.
 
+The instance password and [accounts](accounts.md) don't go together: notefeed refuses to start with both. An identity provider counts as accounts.
+
+## Accounts
+
+Optional, and off unless `NOTEFEED_ACCOUNTS` (or an identity provider) is set: an account is a generated number with a recovery key and passkeys, no e-mail and no name. With `open` anyone may create one and the instance stays open; `provider` and `closed` lock it. See [Accounts](accounts.md).
+
 ## Sign-in
 
-Optional, and off unless the `NOTEFEED_OIDC_*` variables are set: people sign in through your OpenID Connect provider and their notes carry a sender. See [Sign-in and sender](sign-in/index.md).
+Optional, and off unless the `NOTEFEED_OIDC_*` variables are set: people sign in through your OpenID Connect provider and their notes carry a sender. A sign-in through a provider is an account. See [Sign-in and sender](sign-in/index.md).
 
 ## Reserved feeds
 
