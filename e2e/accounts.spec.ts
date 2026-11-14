@@ -83,6 +83,7 @@ test("a passkey added while signed in signs in later", async ({ page, browserNam
   await page.goto("/account");
   await page.getByRole("button", { name: "Add a passkey" }).click();
   await expect(page.getByRole("button", { name: "Remove" })).toHaveCount(1);
+  await expect(page.getByText(/^Passkey, added /)).toBeVisible(); // the virtual authenticator has no known kind
   await logOut(page);
   await page.goto("/login?next=/account");
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();

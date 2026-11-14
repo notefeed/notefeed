@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/CopyButton";
 import { useCopy, useLocale } from "@/components/CopyProvider";
 import { accountClient } from "@/components/accountClient";
+import { passkeyKind } from "@/shared/passkeys";
 
-type Passkey = { id: string; name?: string | null; createdAt: string | Date };
+type Passkey = { id: string; name?: string | null; aaguid?: string | null; createdAt: string | Date };
 const fetchPasskeys = async (): Promise<Passkey[]> => ((await accountClient().passkey.listUserPasskeys()).data as Passkey[] | null) ?? [];
 
 // The account's passkeys: listed, added (this device's WebAuthn) and removed through Better Auth's passkey endpoints.
@@ -37,7 +38,7 @@ export function Passkeys() {
       <ul className="mb-3">
         {keys?.map((k) => (
           <li key={k.id} className="flex items-center justify-between gap-2 py-1">
-            <span>{k.name || t.passkeyAdded(new Date(k.createdAt).toLocaleDateString(lang))}</span>
+            <span>{k.name || t.passkeyAdded(passkeyKind(k.aaguid), new Date(k.createdAt).toLocaleDateString(lang))}</span>
             <button type="button" onClick={() => run(() => accountClient().passkey.deletePasskey({ id: k.id }))} className="text-sm text-muted underline">
               {t.removePasskey}
             </button>
