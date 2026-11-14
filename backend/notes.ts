@@ -1,4 +1,5 @@
 // Notes: validation, ids and reading them back. Where they are kept is the storage backend's business (backend/storage).
+import { parseRecord } from "./feedrecord";
 import { randomBytes } from "node:crypto";
 import { InvalidBodyError, RemovedNoteError, UnreadableNoteError, UnsupportedTypeError } from "./errors";
 import { assertFeed, checkFeed, ensureFeed, forgetFeed } from "./feeds";
@@ -90,6 +91,7 @@ export type NewNoteOptions = {
   id?: string;
   of?: string;
   draft?: boolean;
+  byOwner?: boolean; // the feed's owner posted it without a sender of its own: shown with the feed's sender name (ADR 0059)
 };
 
 /**
@@ -114,6 +116,7 @@ export async function createNoteOf(
   const name = cleanName(opts.name);
   const meta: Meta = {
     ...(sender !== undefined && { sender }),
+    ...(opts.byOwner && sender === undefined && { by: "owner" }),
     ...(tags.length && { tags }),
     ...(title && { title }),
     ...(alt && { alt }),
@@ -208,8 +211,9 @@ export async function listNotes(
   asOf?: Date,
 ): Promise<Note[]> {
   const refs = await noteRefs(feed, typeName, { upTo: asOf?.getTime(), before, ...(tag === undefined && { limit }) });
+  const ownerName = ownerNameOf(feed);
   const one = (ref: NoteRef): Promise<Note | null> =>
-    readOf(feed, ref).catch((e) => {
+    readOf(feed, ref, ownerName).catch((e) => {
       if (!(e instanceof UnreadableNoteError)) throw e;
       return placeholders ? new UnreadableNote(ref.id, ref.ext, new Date(ref.date), ref.draft) : null;
     });
@@ -289,18 +293,33 @@ export async function fileVisible(feed: string, file: string, to: Date | "owner"
 }
 
 // The note, found by trying `exts` (a lookup by id alone) or the one extension a listing already knows.
-async function readNoteAs(feed: string, id: string, exts: readonly string[]): Promise<Note | null> {
+// What the owner's own notes show (ADR 0059), read once per listing: the feed's sender name, else the name the owner's account has from
+// its identity provider (a number account has none).
+const ownerNameOf = (feed: string) => {
+  let name: Promise<string | undefined> | undefined;
+  const find = async () => {
+    const set = (await storage().readSettings(feed)).senderName;
+    if (set) return set;
+    const owner = parseRecord(await storage().readHash(feed))?.owner;
+    return owner ? (await import("./accounts/auth")).accountName(owner) : undefined;
+  };
+  return () => (name ??= find().catch(() => undefined));
+};
+
+async function readNoteAs(feed: string, id: string, exts: readonly string[], ownerName = ownerNameOf(feed)): Promise<Note | null> {
   if (checkFeed(feed) || !isValidId(id)) return null;
   const stored = await storage()
     .readNote(feed, id, exts, withContent)
     .catch((e) => Promise.reject(unreadableNote(id, e)));
   const type = stored && typeForExt(stored.ext);
-  return stored && type
-    ? type.read({ id, ext: stored.ext, meta: stored.meta, date: new Date(stored.date), size: stored.size, draft: stored.draft }, stored.content)
-    : null;
+  if (!stored || !type) return null;
+  // The owner's own note shows the feed's sender name as it is now; the mark itself stays as stored.
+  const byOwner = stored.meta.by === "owner" && stored.meta.sender === undefined ? await ownerName() : undefined;
+  const meta = byOwner ? { ...stored.meta, sender: byOwner } : stored.meta;
+  return type.read({ id, ext: stored.ext, meta, date: new Date(stored.date), size: stored.size, draft: stored.draft }, stored.content);
 }
 
-const readOf = (feed: string, ref: NoteRef) => readNoteAs(feed, ref.id, [ref.ext]);
+const readOf = (feed: string, ref: NoteRef, ownerName?: () => Promise<string | undefined>) => readNoteAs(feed, ref.id, [ref.ext], ownerName);
 
 /** Whether the operator removed this note (#159): its id answers 410 for good, while its mark is there and after. `asOf`: a reader's
  *  lookup, which is told only of a note it could have seen then; a removed draft or a post dated later is a missing one to it. */

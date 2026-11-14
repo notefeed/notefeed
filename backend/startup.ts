@@ -1,6 +1,7 @@
 // The startup line and what is wrong with the configuration, logged once when the server starts
 // (instrumentation.ts). Names of variables only, never their values.
-import { checkAccessSettings } from "./accounts/mode";
+import { accountsOn, checkAccessSettings } from "./accounts/mode";
+import { startAccountCleanup } from "./accounts/cleanup";
 import { config, LOG_LEVELS, type StorageKind } from "./config";
 import { keyServiceDown } from "./errors";
 import { reservedFeedProblems, RESERVED_FEEDS } from "./feeds";
@@ -41,7 +42,9 @@ export function startupReport(env: NodeJS.ProcessEnv = process.env): { fields: F
   }
   const level = (env.NOTEFEED_LOG_LEVEL ?? "").trim().toLowerCase();
   if (level && level !== config.logLevel()) warnings.push(["startup", "NOTEFEED_LOG_LEVEL is not a level; using info", { accepted: [...LOG_LEVELS] }]);
-  if (config.reservedFeeds().length && !config.reservedPassword())
+  if (config.reservedFeeds().length && accountsOn() && !config.operatorAccount())
+    warnings.push(["feeds", "reserved feeds are listed but NOTEFEED_OPERATOR_ACCOUNT is not set; they are not created", {}]);
+  if (config.reservedFeeds().length && !accountsOn() && !config.reservedPassword())
     warnings.push(["feeds", "reserved feeds are listed but have no password; they are not created", {}]);
   if (config.metrics() && !config.metricsToken())
     warnings.push(["startup", "metrics are on without NOTEFEED_METRICS_TOKEN: /metrics is open to anyone who can reach the app", {}]);
@@ -142,6 +145,7 @@ export async function logStartup(): Promise<void> {
     await openLicenses();
     // Sign-in's own file (backend/accounts): its tables made or brought up to date before the first sign-in.
     await migrateAccounts();
+    startAccountCleanup(); // accounts made and left without a feed, after 30 days (#389)
   });
   // Notes with ids from before ids were opaque move to their new ones before the first request, whatever the report did: a failure
   // keeps the server from starting. Once a pass completed (the storage's mark), a start skips it. Only a key service that is down

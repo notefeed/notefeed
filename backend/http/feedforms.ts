@@ -24,6 +24,7 @@ export const feedSettingsRoute = (req: Request, feed: string): Promise<Response>
         title: form.get("title"),
         description: form.get("description"),
         showSender: form.has("show_sender_present") ? form.has("show_sender") : undefined,
+        senderName: form.has("sender_name") ? String(form.get("sender_name")) : undefined,
         readId: form.has("generate_read_id") ? "" : typeof readId === "string" ? readId : undefined,
         name: typeof form.get("name") === "string" ? form.get("name") : undefined, // the rename form (#350)
       };

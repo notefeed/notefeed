@@ -39,7 +39,7 @@ export {
   unreferencedImagesRoute,
 } from "./http/operator";
 export { accountCreateRoute, accountDeleteRoute, accountSignInRoute, recoveryKeyRoute } from "./http/accounts";
-export { feedCookieName, feedOwner, feedUnlocked, listFeedPasswords } from "./feedlock";
+export { feedCookieName, feedOwner, feedUnlocked, listFeedPasswords, ownedFeeds } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
 export { feedAccessRoute } from "./http/feedsession";
 export { loginRoute, logoutRoute } from "./http/session";
@@ -112,6 +112,7 @@ export async function getFeed(
   description: string;
   image: string;
   showSender: boolean;
+  senderName?: string;
   imageUrl: string | null;
 } | null> {
   if (checkFeed(feed)) return null;

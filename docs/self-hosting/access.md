@@ -36,6 +36,8 @@ NOTEFEED_RESERVED_PASSWORD: a-long-operator-password
 
 At start-up each listed name that doesn't exist yet is created as a [protected feed](../using/feed-passwords.md#in-the-api) with that password, and its read id is its name: `/r/news/feed.xml` is the link to hand out, and it never changes. Nobody else can create a listed name (`400`, `reserved_feed`). Without the password the names are blocked but the feeds don't exist. A name that already exists as an open feed is not converted: delete its folder and restart. Where licenses are sold, a reserved feed counts as licensed: it keeps every note, takes pictures and has no free-tier cap.
 
+With [accounts](accounts.md), reserved feeds belong to your account instead: set `NOTEFEED_OPERATOR_ACCOUNT` to its number. Each listed name that doesn't exist yet is created at start-up owned by it, open until you give it [feed passwords](../using/feed-passwords.md#a-feed-with-an-owner) on its settings page (one per script, such as "GitHub releases"); `NOTEFEED_RESERVED_PASSWORD` is not used. Without `NOTEFEED_OPERATOR_ACCOUNT` none are created, and start-up says so. A reserved feed that exists from before, protected by the reserved password, keeps it; give it to your account with the operator's [feeds endpoint](accounts.md#feeds-and-their-owners).
+
 A reserved name is not linked anywhere by itself, so you can hold back names (`admin`, `www`) that you never post to. To link feeds in every page's footer and the ⓘ menu, name them in `NOTEFEED_FOOTER_FEEDS`, in the order they should appear, reserved or not:
 
 ```yaml

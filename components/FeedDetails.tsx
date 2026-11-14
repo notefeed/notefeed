@@ -23,6 +23,7 @@ export function FeedDetails({
   imageUrl,
   images,
   showSender: savedShowSender,
+  senderName: savedSenderName,
   readId,
   readIdChoice,
   renamable = true,
@@ -42,6 +43,8 @@ export function FeedDetails({
   imageUrl: string | null;
   images: { file: string; url: string; title: string }[];
   showSender: boolean;
+  /** The feed's sender name, for its owner only (ADR 0059); undefined hides the field. */
+  senderName?: string;
   readId: string | null;
   readIdChoice: "custom" | "random" | "fixed";
   error?: string;
@@ -53,6 +56,7 @@ export function FeedDetails({
   const [title, setTitle] = useState(savedTitle);
   const [description, setDescription] = useState(savedDescription);
   const [showSender, setShowSender] = useState(savedShowSender);
+  const [senderName, setSenderName] = useState(savedSenderName ?? "");
   const [readIdValue, setReadIdValue] = useState(readId ?? "");
   const [confirm, setConfirm] = useState("");
   const [newName, setNewName] = useState("");
@@ -69,10 +73,11 @@ export function FeedDetails({
   // The read id goes along with every save while it can be chosen; an unchanged one is no change to the server.
   const save = (
     e: FormEvent | undefined,
-    body: { title: string; description: string; image?: string; show_sender?: boolean; read_id?: string } = {
+    body: { title: string; description: string; image?: string; show_sender?: boolean; read_id?: string; sender_name?: string } = {
       title,
       description,
       show_sender: showSender,
+      ...(savedSenderName !== undefined && { sender_name: senderName }),
       ...(readIdChoice === "custom" && readId && { read_id: readIdValue }),
     },
   ) =>
@@ -229,6 +234,19 @@ export function FeedDetails({
               className="relative h-6 w-11 shrink-0 rounded-full bg-rule transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-surface after:shadow-card after:transition-transform peer-checked:bg-carbon peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-carbon"
             />
           </label>
+          {savedSenderName !== undefined && (
+            <FieldRow icon={<SenderIcon />} label={t.senderName} htmlFor="feed-sender-name">
+              <input
+                id="feed-sender-name"
+                name="sender_name"
+                maxLength={100}
+                placeholder={t.senderName}
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                className={field}
+              />
+            </FieldRow>
+          )}
           <div className="flex justify-end px-4 py-3">
             <button type="submit" disabled={pending} className={primary}>
               {t.save}

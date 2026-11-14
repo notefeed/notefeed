@@ -34,6 +34,10 @@ Chosen: several named passwords, because they are one credential doing one job: 
 * **An account's feeds** are found by reading every feed's record, since the owner is sealed and the storage can't be asked. The result is kept for a minute and dropped at each change this process makes.
 * **Deleting an account** deletes its feeds first. A feed whose owner's account is gone can't be claimed; the operator gives it to an account or deletes it (`/api/operator/feeds`).
 
+* **The owner's sender name.** A note the owner's account posts without a sender of its own stores the mark `by: owner`, never an account id. It shows the feed's sender name as it is now, set by the owner only, or else the name the account has from its identity provider. A sender given with a note is stored as given, and a note by anyone else carries no owner's name.
+* **Reserved feeds** (ADR 0012) belong to `NOTEFEED_OPERATOR_ACCOUNT` on an instance with accounts. They are created open, for the owner to give passwords, and `NOTEFEED_RESERVED_PASSWORD` is not used there. Without that account none are created: an open reserved feed nobody owns would be anyone's.
+* **Accounts nobody uses.** With `open`, an account older than 30 days that owns no feed is deleted, once a day.
+
 ### Consequences
 
 * Good, because one person's or one script's access ends without touching anyone else's.

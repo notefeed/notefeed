@@ -105,6 +105,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         imageUrl={data.imageUrl}
         images={images}
         showSender={data.showSender}
+        senderName={owner !== undefined && owner === account ? (data.senderName ?? "") : undefined}
         readId={readId}
         readIdChoice={isReservedFeed(feed) ? "fixed" : customIdsOn() ? "custom" : "random"}
         renamable={!isReservedFeed(feed)}

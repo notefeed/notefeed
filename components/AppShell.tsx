@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { connection } from "next/server";
 import { ExpandIcon, ExternalIcon, InfoIcon, NewFeedIcon, SignOutIcon } from "@/components/icons";
 import type { ReactNode } from "react";
-import { accountOf, accountsMode, accountsOn, locked, sessionOk, type RunningVersion } from "@/backend";
+import { accountOf, accountsMode, accountsOn, locked, ownedFeeds, sessionOk, type RunningVersion } from "@/backend";
 import { Disclosure } from "@/components/Disclosure";
 import { footerLinks, type FooterLink } from "@/components/LegalLinks";
 import { RememberedFeedLinks } from "@/components/RememberedFeeds";
@@ -21,7 +21,7 @@ import { card, iconButton, sectionLabel } from "@/components/styles";
 export async function AppShell({ feed, about, docked = false, children }: { feed?: string; about?: ReactNode; docked?: boolean; children: ReactNode }) {
   const t = await serverCopy();
   await connection(); // the footer looks for the operator's files on every request
-  const [loggedIn, account, links] = await Promise.all([hasSession(), accountLink(), footerLinks()]);
+  const [loggedIn, account, links, accountFeeds] = await Promise.all([hasSession(), accountLink(), footerLinks(), feedsOfAccount()]);
   return (
     <div className="shell min-h-dvh pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:px-6">
       <TopBar feed={feed} links={links} loggedIn={loggedIn} account={account} />
@@ -32,7 +32,7 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
           <>
             <p className={`${sectionLabel} mt-8 px-2`}>{t.shell.yourFeeds}</p>
             <div className="mt-2 min-h-0 overflow-y-auto">
-              <RememberedFeedLinks current={feed} />
+              <RememberedFeedLinks current={feed} accountFeeds={accountFeeds} />
             </div>
           </>
         )}
@@ -68,6 +68,13 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
 export async function hasSession() {
   if (locked()) return sessionOk(await headers());
   return accountsOn() && (await accountOf(await headers())) !== undefined;
+}
+
+// The signed-in account's own feeds for the feed lists (#389), or undefined while nobody is signed in.
+async function feedsOfAccount(): Promise<string[] | undefined> {
+  if (!accountsOn()) return undefined;
+  const account = await accountOf(await headers());
+  return account ? ownedFeeds(account.userId) : undefined;
 }
 
 // The ⓘ menu's way to the account: the account page when signed in, the sign-in page where anyone may create one, else none.
@@ -145,7 +152,7 @@ async function FeedSwitcher({ feed }: { feed: string }) {
         </div>
         <p className="px-2 text-[17px] font-bold">{t.yourFeeds}</p>
         <p className="mb-3 px-2 text-[13px] text-muted">{t.remembered}</p>
-        <RememberedFeedLinks current={feed} />
+        <RememberedFeedLinks current={feed} accountFeeds={await feedsOfAccount()} />
         <form method="get" action="/" className="mt-4 flex gap-2 px-2">
           <label htmlFor="switch-feed" className="sr-only">
             {t.openByName}

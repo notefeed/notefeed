@@ -25,8 +25,10 @@ function checkReadId(id: string): void {
   if (isHeldBack(id)) throw new ReadIdTakenError();
 }
 
-// The reserved feeds exist only while NOTEFEED_RESERVED_PASSWORD is set: each is made, once per storage, protected by that password
-// and with its own name as read id, unless the name is already an ordinary feed (reservedFeedProblems says so at start-up).
+// The reserved feeds are made once per storage, with their own name as read id, unless the name is already an ordinary feed
+// (reservedFeedProblems says so at start-up). Without accounts: only while NOTEFEED_RESERVED_PASSWORD is set, protected by it. With
+// accounts: owned by NOTEFEED_OPERATOR_ACCOUNT, open until its owner gives them passwords (ADR 0059); the reserved password is
+// not used. A missing operator account makes none: an open reserved feed nobody owns would be anyone's.
 const ready = new WeakMap<Storage, Promise<Storage>>();
 function prepared(): Promise<Storage> {
   const s = storage();
@@ -40,12 +42,31 @@ function prepared(): Promise<Storage> {
 }
 
 async function makeReservedFeeds(s: Storage): Promise<void> {
+  const { accountsOn } = await import("./accounts/mode");
+  if (accountsOn()) return makeOwnedReservedFeeds(s);
   const password = config.reservedPassword();
   if (!password) return;
   const { hashPassword } = await import("./feedlock"); // feedlock imports this file
   for (const n of heldBack()) {
     if ((await s.feedReadId(n)) !== undefined || (await s.feedForReadId(n)) !== null) continue;
     await s.createFeed(n, n, await hashPassword(password)).catch((e) => {
+      if (!(e instanceof ReadIdTakenError)) throw e; // another process was first
+    });
+  }
+}
+
+async function makeOwnedReservedFeeds(s: Storage): Promise<void> {
+  if (!heldBack().length || !config.operatorAccount()) return;
+  const { accountIdOf } = await import("./accounts/numbers");
+  const owner = await accountIdOf(config.operatorAccount());
+  if (!owner) {
+    log.warn("NOTEFEED_OPERATOR_ACCOUNT names no account; the reserved feeds are not created");
+    return;
+  }
+  const { serializeRecord } = await import("./feedrecord");
+  for (const n of heldBack()) {
+    if ((await s.feedReadId(n)) !== undefined || (await s.feedForReadId(n)) !== null) continue;
+    await s.createFeed(n, n, serializeRecord({ owner, entries: [] })!).catch((e) => {
       if (!(e instanceof ReadIdTakenError)) throw e; // another process was first
     });
   }
@@ -171,7 +192,7 @@ export async function feedForReadId(id: string): Promise<string | null> {
 // Reserved feeds makeReservedFeeds did not make, because the name was already an ordinary feed: it stays open (no password)
 // or keeps another read id than its name. For the startup log; nothing while NOTEFEED_RESERVED_PASSWORD is unset.
 export async function reservedFeedProblems(): Promise<{ feed: string; problem: "unprotected" | "read_id" }[]> {
-  if (!config.reservedPassword()) return [];
+  if (!config.reservedPassword() || (await import("./accounts/mode")).accountsOn()) return [];
   const s = await prepared();
   const found: { feed: string; problem: "unprotected" | "read_id" }[] = [];
   for (const feed of heldBack()) {

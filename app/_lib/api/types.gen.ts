@@ -339,6 +339,10 @@ export type FeedSettings = {
      */
     show_sender?: boolean;
     /**
+     * What the owner's own notes show as their sender, when posted by the owner's account without a sender of their own; changing it changes it on all of them. One line, at most 100 characters; empty shows none. Only the feed's owner may change it (403, code `owner_only`); omitted leaves it as it is
+     */
+    sender_name?: string;
+    /**
      * A new read id (3 to 64 characters: a-z, 0-9, - and _), empty for a random one; omitted leaves it as it is. The old read link stops showing this feed, and may later show another one. Notes are not edited: a relative image link (`![](file)`) follows the new id, a full URL keeps the old one and is yours to change. Reserved feeds keep theirs. 409 when it is taken
      */
     read_id?: string;
@@ -400,6 +404,10 @@ export type Feed = {
      * Whether readers see who posted each note
      */
     show_sender: boolean;
+    /**
+     * What the owner's own notes show as their sender; empty for none (see updateFeed)
+     */
+    sender_name: string;
     /**
      * The iPhone Shortcut "Send to notefeed": opened on an iPhone, it adds notefeed to the share sheet; at setup it asks for the server's address, this feed's name, its password and, optional, the server password
      */

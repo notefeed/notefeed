@@ -56,6 +56,10 @@ curl -X PUT -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -d '{"number": "
 curl -X DELETE -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" "https://notes.example.com/api/operator/feeds?feed=<name>"
 ```
 
+The owner's notes posted without a sender of their own show the feed's **Your name on your notes** setting, which only the owner sets: see [Sender](../using/posting.md#sender).
+
+With `open`, an account older than 30 days that owns no feed is deleted (once a day), so accounts made and forgotten don't pile up. Accounts you or an identity provider made stay.
+
 The owner is stored with the feed, encrypted with its key on an encrypted database ([Storage](storage.md)), never in `accounts.sqlite`.
 
 ## The operator's accounts
@@ -80,5 +84,6 @@ In `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every stor
 - a hash of the recovery key
 - each passkey's public key, the name its holder gave it (optional, such as `Work laptop`), when it was added, and the kind of passkey store that made it (its AAGUID: iCloud Keychain, 1Password and the like, never the person or the device), shown to tell passkeys apart
 - the sessions, without the browser's address or user agent
+- when the account was made, for the 30-day cleanup above
 
 The e-mail field the sign-in library needs holds a placeholder, `<number>@accounts.invalid`. An account made through an identity provider holds what [sign-in keeps](sign-in/index.md#the-sender) instead. Back the file up with your data ([Backups](backups.md)).

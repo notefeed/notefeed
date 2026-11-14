@@ -195,3 +195,52 @@ describe("the operator", () => {
     expect((await op("DELETE", "feed=annsfeed")).status).toBe(404);
   });
 });
+
+describe("the owner's sender name", () => {
+  const postAs = (feed: string, h: Record<string, string>, extra: Record<string, string> = {}) =>
+    call("POST", `/feeds/${feed}/notes`, { ...h, "content-type": "text/markdown", ...extra }, "# a note");
+  const senders = async (feed: string, h: Record<string, string>) =>
+    ((await (await call("GET", `/feeds/${feed}/notes`, h)).json()).notes as { sender?: string }[]).map((n) => n.sender ?? null);
+  const setName = (feed: string, h: Record<string, string>, sender_name: string) =>
+    call("PUT", `/feeds/${feed}`, h, { title: "", description: "", sender_name });
+
+  test("follows the owner's own notes: a change changes them all; a sender given with a note stays", async () => {
+    const ann = await signedIn();
+    await create("f", ann);
+    expect((await postAs("f", ann)).status).toBe(201);
+    expect((await postAs("f", ann, { "x-note-sender": "Backup bot" })).status).toBe(201);
+    expect(await senders("f", ann)).toEqual(["Backup bot", null]); // a number account has no name of its own
+    expect((await setName("f", ann, "Ann")).status).toBe(200);
+    expect(await senders("f", ann)).toEqual(["Backup bot", "Ann"]);
+    expect((await setName("f", ann, "Ann B.")).status).toBe(200);
+    expect(await senders("f", ann)).toEqual(["Backup bot", "Ann B."]);
+    expect(await (await call("GET", "/feeds/f", ann)).json()).toMatchObject({ sender_name: "Ann B." });
+  });
+
+  test("a note posted with a feed password, or by another account, doesn't carry the owner's name", async () => {
+    const ann = await signedIn();
+    const bob = await signedIn();
+    await create("f", ann, "first-password");
+    await setName("f", ann, "Ann");
+    await postAs("f", { "x-feed-password": "first-password" });
+    await postAs("f", { ...bob, "x-feed-password": "first-password" });
+    expect(await senders("f", ann)).toEqual([null, null]);
+  });
+
+  test("only the owner sets it; on a feed without an owner it can't be set", async () => {
+    const ann = await signedIn();
+    await create("f", ann, "first-password");
+    const byPassword = await setName("f", { "x-feed-password": "first-password" }, "Mallory");
+    expect(byPassword.status).toBe(403);
+    expect((await byPassword.json()).code).toBe("owner_only");
+    await create("free", {});
+    expect((await setName("free", {}, "Anyone")).status).toBe(403);
+    expect((await setName("free", {}, "")).status).toBe(200); // unchanged is fine
+  });
+
+  test("one line of at most 100 characters", async () => {
+    const ann = await signedIn();
+    await create("f", ann);
+    expect((await setName("f", ann, "x".repeat(101))).status).toBe(400);
+  });
+});

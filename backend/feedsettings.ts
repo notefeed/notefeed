@@ -1,12 +1,13 @@
 // A feed's display title and description: validation and storage. Access and rate limits are posting.ts.
 import { cleanLine, FORBIDDEN_IN_TEXT } from "../shared/links";
 import { InvalidBodyError, NotFoundError } from "./errors";
-import { hasImageNote, type Note } from "./notes";
+import { checkLine, hasImageNote, MAX_SENDER, type Note } from "./notes";
 import { storage } from "./storage";
 import { FeedGoneError } from "./storage/types";
 
 // `ownImage`: the title image was uploaded as the feed's own (setFeedImage in posting.ts), so it is no post.
-export type FeedSettings = { title: string; description: string; image: string; showSender: boolean; ownImage?: boolean };
+// `senderName`: what the owner's own notes show as their sender (ADR 0059).
+export type FeedSettings = { title: string; description: string; image: string; showSender: boolean; ownImage?: boolean; senderName?: string };
 
 export const MAX_TITLE = 100;
 export const MAX_DESCRIPTION = 500;
@@ -26,7 +27,7 @@ function field(input: Record<string, unknown>, name: "title" | "description", ma
 // posting.ts checks it against the other feeds.
 export function checkSettings(
   input: unknown,
-): Omit<FeedSettings, "image" | "showSender"> & { image?: string; showSender?: boolean; readId?: string; name?: string } {
+): Omit<FeedSettings, "image" | "showSender" | "senderName"> & { image?: string; showSender?: boolean; readId?: string; name?: string; senderName?: string } {
   if (typeof input !== "object" || input === null || Array.isArray(input)) throw new InvalidBodyError('JSON needs "title" and "description" strings');
   const o = input as Record<string, unknown>;
   const image = o.image ?? undefined;
@@ -37,6 +38,8 @@ export function checkSettings(
   if (readId !== undefined && typeof readId !== "string") throw new InvalidBodyError("read_id must be a string");
   const name = o.name ?? undefined;
   if (name !== undefined && typeof name !== "string") throw new InvalidBodyError("name must be a string");
+  const senderName = o.senderName ?? undefined;
+  if (senderName !== undefined && typeof senderName !== "string") throw new InvalidBodyError("sender_name must be a string");
   return {
     title: field(o, "title", MAX_TITLE),
     description: field(o, "description", MAX_DESCRIPTION),
@@ -44,6 +47,7 @@ export function checkSettings(
     showSender,
     readId: readId?.trim(),
     name: name?.trim(),
+    ...(senderName !== undefined && { senderName: checkLine("sender_name", senderName, MAX_SENDER) ?? "" }),
   };
 }
 
