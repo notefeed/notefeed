@@ -8,6 +8,8 @@ tar czf notefeed-notes.tgz -C data .
 
 With a [database](storage.md#databases), back up the database instead (`pg_dump`, or the SQLite file) and keep `NOTEFEED_SECRET` with it: it is not in the database. With [encryption at rest](storage.md#encryption-at-rest), keep `NOTEFEED_ENCRYPTION_KEY` too, but not in the same place as the backups: a backup and its key together can be read by whoever has both, and a backup without its key can be read by nobody. With the main key in [OpenBao](storage.md#the-main-key-in-openbao), a backup needs OpenBao and the key version it was wrapped with: back up OpenBao on its own, and retiring a key version makes the backups only it wrapped unreadable. With [image bytes outside the database](storage.md#image-bytes-outside-the-database), back up the folder or the bucket as well, after the database: an image without its note is only an unused file, while a note without its image shows as broken.
 
+With [sign-in](sign-in/index.md) on, back up `accounts.sqlite` too (`NOTEFEED_ACCOUNTS_DB`, in the `data` folder by default, on every storage backend): it holds who may sign in and their sessions, apart from the notes. Copy it with `sqlite3 accounts.sqlite ".backup 'accounts-copy.sqlite'"`, not `cp`, while notefeed runs. Without it, everyone signs in again and nothing else is lost.
+
 ## How long a backup keeps what was deleted
 
 A backup still holds every feed and note deleted after it was made, so how long you keep backups is how long deleted notes live on. The times add up when one backup holds another: database dumps kept 1 day on a server whose disk is backed up for 7 days are 8 days. On a public instance, say that number on your [privacy page](legal-pages.md#what-to-write).
