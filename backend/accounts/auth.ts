@@ -101,9 +101,10 @@ export async function authRoute(req: Request): Promise<Response> {
 async function refusal(auth: Auth, userId: string): Promise<{ reason: string; provider?: string } | null> {
   const ctx = await auth.$context;
   const [user, accounts] = await Promise.all([ctx.internalAdapter.findUserById(userId), ctx.internalAdapter.findAccounts(userId)]);
+  if (!user) return { reason: "person no longer known" };
   const id = accounts[0]?.providerId;
   const p = id ? providerById(id) : undefined;
-  if (!user || !p) return { reason: "provider no longer configured", ...(id && /^[a-z0-9_]{1,64}$/.test(id) ? { provider: id } : {}) };
+  if (!p) return { reason: "provider no longer configured", ...(id && /^[a-z0-9_]{1,64}$/.test(id) ? { provider: id } : {}) };
   const email = user.email.endsWith(".oidc.invalid") ? undefined : user.email;
   return allowed(p, { email, email_verified: user.emailVerified }) ? null : { reason: "person no longer on the allow-list", provider: p.id };
 }
@@ -116,26 +117,34 @@ export async function stillAllowed(userId: string): Promise<boolean> {
 
 export type SignedIn = { userId: string; name: string; setCookies: string[] };
 
-// The signed-in person from Better Auth's session cookie in `h`, with the cookies that renew it (the proxy passes them on); undefined
-// without a valid session or while sign-in is off. A session older than 90 days, or whose person the allow-list no longer lets in,
-// is deleted here and logged with the provider and the reason, never who. Which requests may use it (same origin, no
-// Authorization header) is the caller's rule.
-export async function signedInSession(h: Headers): Promise<SignedIn | undefined> {
+// The signed-in person from Better Auth's session cookie in `h`; undefined without a valid session or while sign-in is off. Only
+// with `renew` (the proxy, which hands the cookies to the browser with the page) is a session due for it renewed and its cookies
+// returned: a renewal anywhere else would move the session's end in the file but not the browser's cookie. A session older than
+// 90 days, or whose person the allow-list no longer lets in, is deleted here and logged once with the provider and the reason,
+// never who. Which requests may use it (same origin, no Authorization header) is the caller's rule.
+export async function signedInSession(h: Headers, { renew = false }: { renew?: boolean } = {}): Promise<SignedIn | undefined> {
   const auth = accountsAuth();
   if (!auth) return undefined;
-  const got = await auth.api.getSession({ headers: h, returnHeaders: true }).catch(() => null);
+  const query = renew ? {} : { disableRefresh: true };
+  const got = await auth.api.getSession({ headers: h, query, returnHeaders: true }).catch(() => null);
   const session = got?.response;
   if (!session) return undefined;
   const tooOld = Date.now() - new Date(session.session.createdAt).getTime() > TTL.signInMax * 1000;
   const refused = tooOld ? { reason: "sign-in older than 90 days" } : await refusal(auth, session.user.id);
   const name = senderName(session.user.name);
   if (refused || !name) {
-    await (await auth.$context).internalAdapter.deleteSession(session.session.token);
-    const { reason, ...detail } = refused ?? { reason: "no sender name" };
-    logFailure(reason, detail);
+    // The 5-minute cookie cache brings an ended session back until it runs out: it is ended and logged only the first time.
+    const { adapter, internalAdapter } = await auth.$context;
+    const token = session.session.token;
+    // The row itself: findSession also needs the person, who may be the one that is gone.
+    if (await adapter.findOne({ model: "session", where: [{ field: "token", value: token }] })) {
+      await internalAdapter.deleteSession(token);
+      const { reason, ...detail } = refused ?? { reason: "no sender name" };
+      logFailure(reason, detail);
+    }
     return undefined;
   }
-  return { userId: session.user.id, name, setCookies: got.headers.getSetCookie() };
+  return { userId: session.user.id, name, setCookies: renew ? got.headers.getSetCookie() : [] };
 }
 
 // The signed-in person's name (the sender); see signedInSession.

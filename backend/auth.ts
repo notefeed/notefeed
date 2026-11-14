@@ -79,11 +79,11 @@ export function cookieOf(h: Headers, name: string): string | undefined {
 // A password session (only when a password is set) or a Better Auth session, from the request's cookies, with the cookies that
 // renew a Better Auth session (the proxy passes them on with a page). Which requests may use a cookie at all (same origin, no
 // Authorization header) is the caller's rule.
-export async function sessionCheck(h: Headers): Promise<{ ok: boolean; setCookies: string[] }> {
+export async function sessionCheck(h: Headers, { renew = false }: { renew?: boolean } = {}): Promise<{ ok: boolean; setCookies: string[] }> {
   if (!locked()) return { ok: true, setCookies: [] };
   const cookie = cookieOf(h, SESSION_COOKIE);
   if (config.password() !== "" && cookie !== undefined && safeEqual(cookie, sessionValue())) return { ok: true, setCookies: [] };
-  const signed = await signedInSession(h);
+  const signed = await signedInSession(h, { renew });
   return { ok: signed !== undefined, setCookies: signed?.setCookies ?? [] };
 }
 

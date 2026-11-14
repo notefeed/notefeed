@@ -69,7 +69,7 @@ export async function proxy(req: NextRequest) {
     /^\/(icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js)$/.test(pathname);
   if (!locked() || exempt) return localized(req);
   // A sign-in renews while used (ADR 0056): the renewed cookie goes back with the page.
-  const session = await sessionCheck(req.headers);
+  const session = await sessionCheck(req.headers, { renew: true });
   if (session.ok) {
     const res = localized(req);
     for (const c of session.setCookies) res.headers.append("Set-Cookie", c);

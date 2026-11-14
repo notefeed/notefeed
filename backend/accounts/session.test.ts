@@ -53,13 +53,16 @@ const cookieOf = (header: string) =>
     .split("; ")
     .filter((c) => c.includes("session_token"))
     .join("; ");
-async function signedInAt(): Promise<{ cookie: string; at: number }> {
+async function signedInAt(): Promise<{ cookie: string; withCache: string; at: number }> {
   const { jar } = await signIn(start());
   const at = Date.now();
   vi.useFakeTimers({ toFake: ["Date"], now: at });
-  return { cookie: cookieOf(jar.header()), at };
+  return { cookie: cookieOf(jar.header()), withCache: jar.header(), at };
 }
-const read = (cookie: string) => signedInSession(new Headers({ ...H, cookie }));
+// As the proxy reads it: the only caller that can hand the renewed cookie to the browser.
+const read = (cookie: string) => signedInSession(new Headers({ ...H, cookie }), { renew: true });
+// As every other caller reads it (an API request, a server component).
+const peek = (cookie: string) => signedInSession(new Headers({ ...H, cookie }));
 const later = (at: number, days: number) => vi.setSystemTime(at + days * DAY);
 const warned = () => lines.map((l) => JSON.parse(l) as Record<string, unknown>).filter((e) => e.level === "warn");
 
@@ -133,4 +136,36 @@ test("ending a session is logged with the provider and the reason, never who", a
   const line = warned().find((e) => e.msg === "person no longer on the allow-list");
   expect(line).toMatchObject({ provider: "default" });
   expect(JSON.stringify(line)).not.toMatch(/ann|Ann/);
+});
+
+test("a read that can't hand the cookie on doesn't renew: the next page does", async () => {
+  const { cookie, at } = await signedInAt();
+  later(at, 1.5);
+  const before = new Date(sessions()[0].expiresAt).getTime();
+  expect((await peek(cookie))?.setCookies).toEqual([]);
+  expect(new Date(sessions()[0].expiresAt).getTime()).toBe(before);
+  expect((await read(cookie))?.setCookies.some((c) => c.includes("session_token"))).toBe(true);
+});
+
+test("an ended session is logged once, however often its cookies (with the 5-minute cache) come back", async () => {
+  const { withCache } = await signedInAt();
+  expect(withCache).toContain("session_data");
+  vi.stubEnv("NOTEFEED_OIDC_ALLOW", "bob@x.com");
+  await read(withCache);
+  await peek(withCache);
+  expect(await read(withCache)).toBeUndefined();
+  expect(warned().filter((e) => e.msg === "person no longer on the allow-list")).toHaveLength(1);
+});
+
+test("a person removed from the file is logged as no longer known", async () => {
+  // Better Auth finds no session without its person; the 5-minute cookie cache still brings it.
+  const { withCache } = await signedInAt();
+  const db = new Database(join(process.env.DATA_DIR!, "accounts.sqlite"));
+  // Without the cascade, as a hand edit of the file can leave it: the session outlives its person.
+  db.pragma("foreign_keys = off");
+  db.prepare("delete from account").run();
+  db.prepare("delete from user").run();
+  db.close();
+  expect(await read(withCache)).toBeUndefined();
+  expect(warned().map((e) => e.msg)).toContain("person no longer known");
 });

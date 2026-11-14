@@ -174,7 +174,9 @@ describe("flow", () => {
     expect(Math.abs(until - (Math.floor(Date.now() / 1000) + TTL.signInMax))).toBeLessThanOrEqual(1);
     const first = await (await exchange(c)).json();
     expect(verify("access", first.access_token)?.sender).toBe("Ann");
-    expect(verify("refresh", first.refresh_token)).toMatchObject({ sender: "Ann", until });
+    expect(verify("refresh", first.refresh_token)).toMatchObject({ sender: "Ann", uid: c.uid, until });
+    // The 1-hour access token carries no person's id: it is re-checked at its next refresh (ADR 0056).
+    expect(verify("access", first.access_token)).not.toHaveProperty("uid");
     const second = await (await token({ grant_type: "refresh_token", refresh_token: first.refresh_token, client_id: c.id })).json();
     expect(verify("access", second.access_token)?.sender).toBe("Ann");
     expect(verify("refresh", second.refresh_token)).toMatchObject({ sender: "Ann", until });

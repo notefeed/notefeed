@@ -31,12 +31,12 @@ Chosen: renew, re-check, 90 days at most. A session is Better Auth's sliding ses
 * the allow-list no longer lets in the address and verified flag the provider gave at sign-in; or
 * the sign-in is older than 90 days.
 
-The proxy passes the renewed cookie on with each page. An MCP client's refresh token carries the person's id and is re-checked the same way at every refresh, and its chain ends 90 days after the sign-in.
+Only the proxy renews a session, because only it can hand the renewed cookie to the browser, with the page; every other read (an API request, a server component) leaves the session as it is, so the file and the browser's cookie never disagree about when it ends. An MCP client's refresh token carries the person's id and is re-checked the same way at every refresh, and its chain ends 90 days after the sign-in.
 
 ### Consequences
 
 * Good, because a daily user signs in through the provider at most every 90 days, usually one click.
 * Good, because a change to the allow-list takes effect at the person's next request, not within 7 days; in an MCP client at its next refresh, within an hour.
 * Bad, because someone their provider removed while their address still fits the list keeps access for up to 90 days. The operator takes them off the list, or changes `NOTEFEED_SECRET` to sign everyone out.
-* Neutral, because each request that reads a session costs one query on `accounts.sqlite`.
+* Neutral, because each read of a session costs two small queries on `accounts.sqlite` (the person and their provider), also when the session comes from the 5-minute cookie cache; a page reads it up to three times (the proxy, the page frame, the feed page).
 * A sign-in made before this change is renewed at its next use, not ended. An MCP refresh chain from before it has no person's id and ends after its 7 days.
