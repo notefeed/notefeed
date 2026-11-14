@@ -1,6 +1,6 @@
 # notefeed
 
-A place to post short notes to a named feed, by script or by hand, and read them back as RSS. There are no accounts: knowing a feed's name is what lets someone post to it.
+A place to post short notes to a named feed, by script or by hand, and read them back as RSS. Knowing a feed's name is what lets someone post to it; an account is optional, and it is a number, not a person.
 
 ## Language
 
@@ -85,8 +85,8 @@ A note that readers do not see until it is published, whatever its date; the own
 _Avoid_: Unpublished note, hidden note, private note
 
 **Sender**:
-The verified identity of the person who posted a note. Present only when the note was posted by someone signed in.
-_Avoid_: Author, user, poster
+The name shown as who posted a note: given with the note, or the default the owner set for the feed (on an own instance with sign-in, the name from the identity provider). Not verified.
+_Avoid_: Author, user, poster, alias
 
 **Tag**:
 A label on a note that a feed can be filtered by.
@@ -131,20 +131,36 @@ An instance with an instance password, needed to post to any feed and to use the
 _Avoid_: Private instance, protected instance
 
 **Instance password**:
-The one password of a locked instance, set by the operator.
+The one password of a locked instance, set by the operator. An instance has either an instance password or accounts, never both.
 _Avoid_: Admin password, global password
 
 **Feed password**:
-The password of one protected feed, set by whoever created the feed.
-_Avoid_: Feed key
+A secret that lets someone post to a protected feed. A feed with an owner can have several, each named and revoked by the owner; a feed without one has a single one, which whoever knows it can change.
+_Avoid_: Feed key, API key
+
+**Account**:
+What someone signs in to: a generated account number, with the feeds it owns and its license. It holds no e-mail address and no name.
+_Avoid_: User, profile, login
+
+**Account number**:
+The generated number that names an account. It is not secret on its own.
+_Avoid_: Username, account id
+
+**Recovery key**:
+The generated secret that goes with an account number, kept by the account's holder in their password manager.
+_Avoid_: Account password, master password
+
+**Owner**:
+The account a feed belongs to. Only the owner sets or resets the feed password, renames or deletes the feed and puts it under its license.
+_Avoid_: Admin, creator
 
 **Sign-in**:
-The optional way for a person to prove who they are, so that their notes carry a sender. Off by default.
-_Avoid_: Login, accounts, user management
+Proving that one holds an account: by account number and recovery key, by passkey, or on an own instance through an identity provider. Optional, and off by default on an own instance.
+_Avoid_: Login, user management
 
 **License**:
-What a feed owner buys on a hosted instance, per month or (where offered) per year: a key, kept by the buyer, that lifts the free tier's limits for one feed (no cap on stored notes, a feed password, images). notefeed stores only the key's hash. Instances with no payment provider have no licenses and no free tier.
-_Avoid_: Subscription, plan, account
+What an account buys on a hosted instance, per month or (where offered) per year: one or more subscriptions that together lift the free tier's limits for as many of the account's feeds as they cover (no cap on stored notes, a feed password, images). Instances with no payment provider have no licenses and no free tier.
+_Avoid_: Plan, license key, seat
 
 **Cap**:
 An operator-set upper limit on how much an instance stores: feeds, notes per feed, images per feed, and the size of an image.
