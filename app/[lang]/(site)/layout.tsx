@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { copyFor } from "@/shared/copy";
 import { connection } from "next/server";
-import { InfoMenu, hasSession } from "@/components/AppShell";
+import { InfoMenu, accountLink, hasSession } from "@/components/AppShell";
 import { Footer, footerLinks } from "@/components/LegalLinks";
 
 // The plain pages (home, the operator's legal pages, the license page, login, report): the logo and the ⓘ menu, one
@@ -9,7 +9,7 @@ import { Footer, footerLinks } from "@/components/LegalLinks";
 export default async function SiteLayout({ children, params }: LayoutProps<"/[lang]">) {
   const t = copyFor((await params).lang);
   await connection(); // the footer looks for the operator's files on every request
-  const [links, loggedIn] = await Promise.all([footerLinks(), hasSession()]);
+  const [links, loggedIn, account] = await Promise.all([footerLinks(), hasSession(), accountLink()]);
   return (
     <div className="mx-auto flex min-h-dvh max-w-[42rem] flex-col px-[max(1rem,env(safe-area-inset-left),env(safe-area-inset-right))] py-6 sm:py-10">
       <div className="mb-8 flex items-center justify-between">
@@ -18,7 +18,7 @@ export default async function SiteLayout({ children, params }: LayoutProps<"/[la
           <img src="/icon.svg" alt="" className="h-8 w-8" />
           <span className="text-xl font-bold tracking-tight">notefeed</span>
         </Link>
-        <InfoMenu links={links} loggedIn={loggedIn} />
+        <InfoMenu links={links} loggedIn={loggedIn} account={account} />
       </div>
       <div className="flex-1">{children}</div>
       <Footer className="mt-12 border-t border-rule pt-4" />

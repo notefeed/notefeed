@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { connection } from "next/server";
 import { ExpandIcon, ExternalIcon, InfoIcon, NewFeedIcon, SignOutIcon } from "@/components/icons";
 import type { ReactNode } from "react";
-import { locked, sessionOk, type RunningVersion } from "@/backend";
+import { accountOf, accountsMode, accountsOn, locked, sessionOk, type RunningVersion } from "@/backend";
 import { Disclosure } from "@/components/Disclosure";
 import { footerLinks, type FooterLink } from "@/components/LegalLinks";
 import { RememberedFeedLinks } from "@/components/RememberedFeeds";
@@ -21,11 +21,10 @@ import { card, iconButton, sectionLabel } from "@/components/styles";
 export async function AppShell({ feed, about, docked = false, children }: { feed?: string; about?: ReactNode; docked?: boolean; children: ReactNode }) {
   const t = await serverCopy();
   await connection(); // the footer looks for the operator's files on every request
-  const loggedIn = await hasSession();
-  const links = await footerLinks();
+  const [loggedIn, account, links] = await Promise.all([hasSession(), accountLink(), footerLinks()]);
   return (
     <div className="shell min-h-dvh pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:px-6">
-      <TopBar feed={feed} links={links} loggedIn={loggedIn} />
+      <TopBar feed={feed} links={links} loggedIn={loggedIn} account={account} />
 
       <aside aria-label={t.shell.feeds} className="sticky top-0 hidden h-dvh flex-col self-start py-6 [grid-area:nav] lg:flex">
         <Logo wordmark />
@@ -44,7 +43,7 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
           {t.shell.openOrCreate}
         </Link>
         <div className="mt-auto flex items-center gap-1 border-t border-rule pt-3">
-          <InfoMenu links={links} loggedIn={false} up />
+          <InfoMenu links={links} loggedIn={false} account={account} up />
           {loggedIn && (
             <LogOutButton className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-ink" />
           )}
@@ -64,9 +63,18 @@ export async function AppShell({ feed, about, docked = false, children }: { feed
   );
 }
 
-// Whether "Log out" is offered: readers of /r/** on a locked instance have no session, and an open instance has none at all.
+// Whether "Log out" is offered: readers of /r/** on a locked instance have no session, and an open instance has none at all, unless
+// someone signed in to an account there (accounts `open`).
 export async function hasSession() {
-  return locked() && (await sessionOk(await headers()));
+  if (locked()) return sessionOk(await headers());
+  return accountsOn() && (await accountOf(await headers())) !== undefined;
+}
+
+// The ⓘ menu's way to the account: the account page when signed in, the sign-in page where anyone may create one, else none.
+export async function accountLink(): Promise<"account" | "signIn" | undefined> {
+  if (!accountsOn()) return undefined;
+  if (await accountOf(await headers())) return "account";
+  return accountsMode() === "open" ? "signIn" : undefined;
 }
 
 async function Logo({ wordmark = false }: { wordmark?: boolean }) {
@@ -99,16 +107,18 @@ function TopBar({
   feed,
   links,
   loggedIn,
+  account,
 }: {
   feed?: string;
   links: { product: FooterLink[]; legal: FooterLink[]; version: RunningVersion };
   loggedIn: boolean;
+  account?: "account" | "signIn";
 }) {
   return (
     <div className="sticky top-0 z-40 flex items-center gap-2 border-b border-rule/70 bg-paper/95 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] [grid-area:top] lg:hidden">
       <Logo wordmark={feed === undefined} />
       <div className="flex min-w-0 flex-1 justify-center">{feed !== undefined && <FeedSwitcher feed={feed} />}</div>
-      <InfoMenu links={links} loggedIn={loggedIn} />
+      <InfoMenu links={links} loggedIn={loggedIn} account={account} />
     </div>
   );
 }
@@ -164,10 +174,12 @@ async function FeedSwitcher({ feed }: { feed: string }) {
 export async function InfoMenu({
   links,
   loggedIn,
+  account,
   up = false,
 }: {
   links: { product: FooterLink[]; legal: FooterLink[]; version: RunningVersion };
   loggedIn: boolean;
+  account?: "account" | "signIn";
   up?: boolean;
 }) {
   const t = (await serverCopy()).shell;
@@ -205,12 +217,13 @@ export async function InfoMenu({
         {links.product.map(item)}
         {links.legal.length > 0 && <div className="my-1.5 border-t border-rule" />}
         {links.legal.map(item)}
-        {loggedIn && (
-          <>
-            <div className="my-1.5 border-t border-rule" />
-            <LogOutButton className={`${row} w-full`} />
-          </>
+        {(account || loggedIn) && <div className="my-1.5 border-t border-rule" />}
+        {account && (
+          <Link href={account === "account" ? "/account" : "/login"} className={row}>
+            {account === "account" ? t.account : t.signInOrCreate}
+          </Link>
         )}
+        {loggedIn && <LogOutButton className={`${row} w-full`} />}
         <div className="my-1.5 border-t border-rule" />
         <a href={links.version.url} className="block px-3 py-1.5 font-mono text-[12px] text-muted hover:text-ink hover:underline">
           {links.version.label}

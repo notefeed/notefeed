@@ -12,7 +12,7 @@
 //   /api/operator/reseal (issue #212)
 //     POST    encrypts the notes stored before NOTEFEED_ENCRYPTION_KEY was set, a batch per call
 //   /api/operator/accounts (#388, ADR 0057; 404 while accounts are off)
-//     POST    a new account, in any accounts mode (the only way in `closed`): its number and recovery key, once
+//     POST    a new account, with accounts `open` or `closed` (the only way in `closed`): its number and recovery key, once
 //     DELETE  ?number=<account number>: that account, with its sessions and passkeys
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
@@ -28,7 +28,7 @@ import { createS3ImageStore } from "../storage/images/s3";
 import type { ImageStore } from "../storage/images/types";
 import type { SqlStorage } from "../storage/sql";
 import { takedown, takedownNote } from "../takedown";
-import { accountsOn } from "../accounts/mode";
+import { accountsMode, accountsOn } from "../accounts/mode";
 import { accountsAuth } from "../accounts/auth";
 import { createAccount, deleteAccount, formatNumber, parseNumber } from "../accounts/numbers";
 
@@ -195,6 +195,8 @@ export async function operatorAccountsRoute(req: Request): Promise<Response> {
   if (refused) return refused;
   if (!accountsOn()) return json({ error: "accounts are off" }, 404);
   if (req.method === "POST") {
+    // In `provider` mode every account comes through the identity provider and its allow-list.
+    if (accountsMode() === "provider") return json({ error: "accounts come from the identity provider (NOTEFEED_ACCOUNTS=provider)" }, 409);
     const { number, recoveryKey } = await createAccount();
     log.info("account created by the operator"); // never which
     return json({ number: formatNumber(number), recoveryKey }, 201);

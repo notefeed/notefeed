@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { messagesFor } from "@/app/_lib/messages";
 import { copyFor } from "@/shared/copy";
-import { identityOn, locked, passwordSet, signInProviders, safeNext } from "@/backend";
+import Link from "next/link";
+import { accountsMode, accountsOn, identityOn, locked, passwordSet, signInProviders, safeNext } from "@/backend";
+import { PasskeySignIn } from "@/components/PasskeySignIn";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +12,55 @@ export default async function LoginPage({ params, searchParams }: PageProps<"/[l
   const t = copyFor((await params).lang);
   const { SENDER_NOTICE, errorMessage } = messagesFor(t);
   const { next, error, retry } = await searchParams;
-  if (!locked()) redirect(safeNext(next)); // an open instance has no password
+  if (!locked() && !accountsOn()) redirect(safeNext(next)); // an open instance without accounts has nothing to sign in to
+  // With accounts there is no instance password (ADR 0058): a refused sign-in is the number and key.
+  const message = accountsOn() && error === "auth" ? t.login.wrongKey : errorMessage(error, retry);
+  // Number accounts exist where anyone or the operator makes them; in `provider` mode every account comes from the identity provider.
+  const numbers = accountsMode() === "open" || accountsMode() === "closed";
+  const field = "min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none";
   return (
     <main className="mt-[6vh]">
       <h1 className="mb-6 text-xl font-bold tracking-tight">notefeed</h1>
+      {accountsOn() && (
+        <div className="mb-8 max-w-sm">
+          {numbers && (
+            <form method="post" action="/api/accounts/sign-in" className="mb-4">
+              <input type="hidden" name="next" value={safeNext(next)} />
+              <label htmlFor="number" className="mb-1 block text-sm text-muted">
+                {t.login.accountNumber}
+              </label>
+              <input id="number" name="number" inputMode="numeric" autoComplete="username" required className={`${field} mb-3 w-full`} />
+              <label htmlFor="recoveryKey" className="mb-1 block text-sm text-muted">
+                {t.login.recoveryKey}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="recoveryKey"
+                  name="recoveryKey"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  aria-describedby="login-error"
+                  aria-invalid={error ? true : undefined}
+                  className={field}
+                />
+                <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+                  {t.login.signInWithKey}
+                </button>
+              </div>
+            </form>
+          )}
+          <PasskeySignIn next={safeNext(next)} />
+          {accountsMode() === "open" && (
+            <p className="mt-4 text-sm">
+              <Link href={`/account/new?next=${encodeURIComponent(safeNext(next))}`} className="font-bold underline">
+                {t.login.createAccount}
+              </Link>
+              <span className="block text-muted">{t.login.noAccountNeeded}</span>
+            </p>
+          )}
+        </div>
+      )}
       {identityOn() && (
         <div className="mb-6 max-w-sm">
           <div className="flex flex-col items-start gap-2">
@@ -53,13 +100,13 @@ export default async function LoginPage({ params, searchParams }: PageProps<"/[l
             </button>
           </div>
           <p id="login-error" role="alert" className="mt-2 text-sm text-error">
-            {errorMessage(error, retry)}
+            {message}
           </p>
         </form>
       )}
       {!passwordSet() && (
         <p id="login-error" role="alert" className="mt-2 text-sm text-error">
-          {errorMessage(error, retry)}
+          {message}
         </p>
       )}
     </main>

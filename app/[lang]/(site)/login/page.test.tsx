@@ -70,3 +70,23 @@ test("no provider: no link; password only is unchanged", async () => {
   expect(html).not.toContain("/api/oidc/start");
   expect(html).toContain('action="/login"');
 });
+
+test("accounts open: the number and key form, the passkey button and the way to create one, without an instance password", async () => {
+  vi.stubEnv("NOTEFEED_OIDC_ALLOW", "");
+  vi.stubEnv("NOTEFEED_ACCOUNTS", "open");
+  vi.stubEnv("PUBLIC_URL", "http://localhost:3000");
+  const html = await render({ next: "/feed" });
+  expect(html).toContain('action="/api/accounts/sign-in"');
+  expect(html).toContain("Sign in with a passkey");
+  expect(html).toContain('href="/account/new?next=%2Ffeed"');
+  expect(html).not.toContain('name="password"');
+});
+
+test("accounts: a refused number and key says so", async () => {
+  vi.stubEnv("NOTEFEED_OIDC_ALLOW", "");
+  vi.stubEnv("NOTEFEED_ACCOUNTS", "closed");
+  vi.stubEnv("PUBLIC_URL", "http://localhost:3000");
+  const html = await render({ error: "auth" });
+  expect(html).toContain("That account number and recovery key don&#x27;t belong together.");
+  expect(html).not.toContain("/account/new");
+});

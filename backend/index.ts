@@ -174,3 +174,5 @@ export async function getReadNote(readId: string, id: string, asOf = new Date())
   return note && feed ? forReaders([note], await getSettings(feed))[0] : null;
 }
 export { runningVersion, type RunningVersion } from "./version";
+export { accountsMode, accountsOn } from "./accounts/mode";
+export { accountOf, renewedAccountCookies } from "./accounts/numbers";

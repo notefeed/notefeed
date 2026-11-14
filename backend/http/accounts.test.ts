@@ -116,7 +116,7 @@ describe("while signed in", () => {
 describe("the operator", () => {
   const op = (method: string, query = "") => new Request(`${BASE}/api/operator/accounts${query}`, { method, headers: { authorization: `Bearer ${TOKEN}` } });
 
-  test("creates an account in any mode with accounts, getting the number and key once", async () => {
+  test("creates an account where accounts are closed, getting the number and key once", async () => {
     vi.stubEnv("NOTEFEED_ACCOUNTS", "closed");
     const res = await operatorAccountsRoute(op("POST"));
     expect(res.status).toBe(201);
@@ -129,6 +129,15 @@ describe("the operator", () => {
     const { number } = await (await operatorAccountsRoute(op("POST"))).json();
     expect((await operatorAccountsRoute(op("DELETE", `?number=${number}`))).status).toBe(204);
     expect((await operatorAccountsRoute(op("DELETE", `?number=${number}`))).status).toBe(404);
+  });
+
+  test("doesn't make number accounts where they come from the identity provider", async () => {
+    vi.stubEnv("NOTEFEED_ACCOUNTS", "provider");
+    vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
+    vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
+    vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "secret");
+    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "*");
+    expect((await operatorAccountsRoute(op("POST"))).status).toBe(409);
   });
 
   test("needs the operator token, and accounts on", async () => {

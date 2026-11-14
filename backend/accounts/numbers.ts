@@ -4,7 +4,7 @@
 // the account is gone.
 import { randomInt } from "node:crypto";
 import { AuthError } from "../errors";
-import { accountsAuth } from "./auth";
+import { accountsAuth, signedInSession } from "./auth";
 
 const DIGITS = 16;
 // Crockford's base32 without I, L, O and U: nothing to misread when it is copied by hand.
@@ -82,3 +82,15 @@ export async function accountNumber(userId: string): Promise<string | undefined>
   const user = (await ctx.internalAdapter.findUserById(userId)) as { username?: string | null } | null;
   return user?.username ?? undefined;
 }
+
+// The signed-in account of a request (no renewal: see signedInSession): its user id, its formatted number (none for one made through
+// an identity provider) and its sender name (none for a number account).
+export async function accountOf(h: Headers): Promise<{ userId: string; number?: string; name?: string } | undefined> {
+  const session = await signedInSession(h);
+  if (!session) return undefined;
+  const number = await accountNumber(session.userId);
+  return { userId: session.userId, ...(number ? { number: formatNumber(number) } : {}), ...(session.name ? { name: session.name } : {}) };
+}
+
+// The cookies that renew a signed-in account's session, for the proxy on an instance whose accounts don't lock it (`open`).
+export const renewedAccountCookies = async (h: Headers): Promise<string[]> => (await signedInSession(h, { renew: true }))?.setCookies ?? [];

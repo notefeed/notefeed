@@ -30,6 +30,8 @@ export const ROUTES = [
   "/api/licenses/checkout",
   "/api/licenses/key",
   "/api/licenses/webhook",
+  "/account",
+  "/account/new",
   "/api/accounts/create",
   "/api/accounts/delete",
   "/api/accounts/recovery-key",

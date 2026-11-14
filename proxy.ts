@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { locked, noteOutcome, publicUrl, sessionCheck } from "@/backend";
+import { accountsOn, locked, noteOutcome, publicUrl, renewedAccountCookies, sessionCheck } from "@/backend";
 import { LANG_COOKIE, LANG_HEADER, negotiate } from "@/shared/copy";
 
 // Exactly one segment, after stripping one trailing slash. Kept percent-encoded: the route's
@@ -67,7 +67,12 @@ export async function proxy(req: NextRequest) {
     pathname === "/imprint" ||
     /^\/(r|_next|api|oauth|\.well-known)\//.test(pathname) ||
     /^\/(icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js)$/.test(pathname);
-  if (!locked() || exempt) return localized(req);
+  if (!locked() || exempt) {
+    const res = localized(req);
+    // Accounts that don't lock the instance (`open`, ADR 0057): a signed-in account's session renews with the pages too (ADR 0056).
+    if (!locked() && accountsOn() && !NOT_A_PAGE.test(pathname)) for (const c of await renewedAccountCookies(req.headers)) res.headers.append("Set-Cookie", c);
+    return res;
+  }
   // A sign-in renews while used (ADR 0056): the renewed cookie goes back with the page.
   const session = await sessionCheck(req.headers, { renew: true });
   if (session.ok) {
