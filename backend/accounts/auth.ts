@@ -17,6 +17,7 @@ import { key as signingKey, TTL } from "../oauth/tokens";
 import { allowed, providerById, providers } from "../oidc/config";
 import { accountsMode, accountsOn } from "./mode";
 import { logFailure } from "../oidc/log";
+import { clientIp, rateLimit } from "../limits";
 import { processState } from "../state";
 import { genericOAuthPlugin, senderName } from "./providers";
 
@@ -102,10 +103,24 @@ export async function migrateAccounts(): Promise<void> {
 const OPEN =
   /^\/api\/auth\/(callback\/[a-z0-9_]{1,64}|error|ok|passkey\/(generate-register-options|verify-registration|generate-authenticate-options|verify-authentication|list-user-passkeys|delete-passkey))$/;
 
+// Passkey steps anyone may start, without a session: each writes a challenge to accounts.sqlite, so they count toward the posts limit
+// (Better Auth's own limiter is off: it would need the client's address, which notefeed never gives it).
+const ANONYMOUS = /\/passkey\/(generate-authenticate-options|verify-authentication)$/;
+
 // GET and POST /api/auth/*: 404 while sign-in is off.
 export async function authRoute(req: Request): Promise<Response> {
   const auth = accountsAuth();
-  if (!auth || !OPEN.test(new URL(req.url).pathname)) return new Response("not found", { status: 404 });
+  const path = new URL(req.url).pathname;
+  if (!auth || !OPEN.test(path)) return new Response("not found", { status: 404 });
+  if (ANONYMOUS.test(path)) {
+    const wait = rateLimit(clientIp(req.headers));
+    if (wait !== null) return Response.json({ error: "rate limit exceeded" }, { status: 429, headers: { "Retry-After": String(wait) } });
+  }
+  // Removing a passkey changes how the account is reached: like a new recovery key, it needs a sign-in from the last day.
+  if (path.endsWith("/passkey/delete-passkey")) {
+    const session = await signedInSession(req.headers);
+    if (session && !fresh(session)) return Response.json({ error: "sign in again" }, { status: 403 });
+  }
   return auth.handler(req);
 }
 
@@ -115,8 +130,8 @@ async function refusal(auth: Auth, userId: string): Promise<{ reason: string; pr
   const ctx = await auth.$context;
   const [user, accounts] = await Promise.all([ctx.internalAdapter.findUserById(userId), ctx.internalAdapter.findAccounts(userId)]);
   if (!user) return { reason: "person no longer known" };
-  // A number account (its credential is the recovery key) answers to no provider's allow-list.
-  if (accounts.some((a) => a.providerId === "credential")) return null;
+  // A number account (its credential is the recovery key) answers to no provider's allow-list; with `provider` there are none.
+  if (accounts.some((a) => a.providerId === "credential")) return accountsMode() === "provider" ? { reason: "number accounts are off (provider mode)" } : null;
   const id = accounts[0]?.providerId;
   const p = id ? providerById(id) : undefined;
   if (!p) return { reason: "provider no longer configured", ...(id && /^[a-z0-9_]{1,64}$/.test(id) ? { provider: id } : {}) };
@@ -130,8 +145,13 @@ export async function stillAllowed(userId: string): Promise<boolean> {
   return auth ? (await refusal(auth, userId)) === null : false;
 }
 
-// `name`: the sender name from an identity provider; a number account has none.
-export type SignedIn = { userId: string; name?: string; setCookies: string[] };
+// `name`: the sender name from an identity provider; a number account has none. `token`: the session's own, `createdAt`: when it
+// was signed in (ms), for the steps that need a recent sign-in (`fresh`).
+export type SignedIn = { userId: string; name?: string; token: string; createdAt: number; setCookies: string[] };
+
+// Signed in within the last day: what changing how the account is reached needs (a new recovery key, removing a passkey, deleting
+// it), so a stolen session cookie alone can't lock the holder out. Better Auth asks the same for adding a passkey.
+export const fresh = (s: Pick<SignedIn, "createdAt">): boolean => Date.now() - s.createdAt < TTL.renew * 1000;
 
 // The signed-in person from Better Auth's session cookie in `h`; undefined without a valid session or while sign-in is off. Only
 // with `renew` (the proxy, which hands the cookies to the browser with the page) is a session due for it renewed and its cookies
@@ -145,22 +165,30 @@ export async function signedInSession(h: Headers, { renew = false }: { renew?: b
   const got = await auth.api.getSession({ headers: h, query, returnHeaders: true }).catch(() => null);
   const session = got?.response;
   if (!session) return undefined;
-  const tooOld = Date.now() - new Date(session.session.createdAt).getTime() > TTL.signInMax * 1000;
+  // The row itself, also behind the 5-minute cookie cache: a session ended (logged out, a new recovery key, the account deleted) is
+  // over at once, and its sign-in time is the file's.
+  const { adapter, internalAdapter } = await auth.$context;
+  const token = session.session.token;
+  const row = await adapter.findOne<{ createdAt: Date | string }>({ model: "session", where: [{ field: "token", value: token }] });
+  if (!row) return undefined;
+  const createdAt = new Date(row.createdAt).getTime();
+  const tooOld = Date.now() - createdAt > TTL.signInMax * 1000;
   const refused = tooOld ? { reason: "sign-in older than 90 days" } : await refusal(auth, session.user.id);
   const name = senderName(session.user.name);
   if (refused) {
-    // The 5-minute cookie cache brings an ended session back until it runs out: it is ended and logged only the first time.
-    const { adapter, internalAdapter } = await auth.$context;
-    const token = session.session.token;
-    // The row itself: findSession also needs the person, who may be the one that is gone.
-    if (await adapter.findOne({ model: "session", where: [{ field: "token", value: token }] })) {
-      await internalAdapter.deleteSession(token);
-      const { reason, ...detail } = refused;
-      logFailure(reason, detail);
-    }
+    // Ended and logged once: the row is gone after this, so the cookie cache can't bring it back.
+    await internalAdapter.deleteSession(token);
+    const { reason, ...detail } = refused;
+    logFailure(reason, detail);
     return undefined;
   }
-  return { userId: session.user.id, ...(name ? { name } : {}), setCookies: renew ? got.headers.getSetCookie() : [] };
+  return {
+    userId: session.user.id,
+    ...(name ? { name } : {}),
+    token,
+    createdAt,
+    setCookies: renew ? got.headers.getSetCookie() : [],
+  };
 }
 
 // The signed-in person's name (the sender); see signedInSession.

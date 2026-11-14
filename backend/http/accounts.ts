@@ -5,11 +5,11 @@
 //   POST /api/accounts/delete         signed in, with the number typed again: the account goes, and the browser is signed out
 // Passkeys go through Better Auth's own endpoints (accounts/auth.ts, authRoute). A person's account actions over the API and MCP come
 // with account tokens.
-import { accountsAuth, signedInSession } from "../accounts/auth";
+import { accountsAuth, fresh, type SignedIn, signedInSession } from "../accounts/auth";
 import { accountsMode, accountsOn } from "../accounts/mode";
 import { accountNumber, createAccount, deleteAccount, formatNumber, newRecoveryKey, parseNumber, signInWithNumber } from "../accounts/numbers";
 import { AuthError, NotefeedError, RateLimitedError, TooManyAttemptsError } from "../errors";
-import { authAttempt, clientIp, rateLimit } from "../limits";
+import { accountCreateWait, authAttempt, clientIp } from "../limits";
 import { logger } from "../log";
 import { safeNext } from "../urls";
 import { FORM_WITH_SHARE_BYTES, readFields, sameOrigin, seeOther } from "./request";
@@ -23,7 +23,7 @@ const forbidden = () => json({ error: "forbidden" }, 403);
 export async function accountCreateRoute(req: Request): Promise<Response> {
   if (!accountsOn()) return notFound();
   if (!sameOrigin(req.headers) || accountsMode() !== "open") return forbidden();
-  const wait = rateLimit(clientIp(req.headers));
+  const wait = accountCreateWait(clientIp(req.headers));
   if (wait !== null) return json({ error: "rate limit exceeded" }, 429, { "Retry-After": String(wait) });
   const { number, recoveryKey } = await createAccount();
   const cookies = await signInWithNumber(number, recoveryKey, req.headers);
@@ -34,12 +34,14 @@ export async function accountCreateRoute(req: Request): Promise<Response> {
 }
 
 export async function accountSignInRoute(req: Request): Promise<Response> {
-  if (!accountsOn()) return notFound();
+  if (!accountsOn() || accountsMode() === "provider") return notFound(); // with `provider` every account comes from the provider
   if (!sameOrigin(req.headers)) return forbidden();
   const fields = await readFields(req, FORM_WITH_SHARE_BYTES); // `next` may carry a share from the start page
   const next = safeNext(fields?.get("next"));
   const back = (e: NotefeedError) =>
-    seeOther(`/login?error=${e.code}${e instanceof RateLimitedError ? `&retry=${e.retryAfter}` : ""}${next === "/" ? "" : `&next=${encodeURIComponent(next)}`}`);
+    seeOther(
+      `/login?error=${e.code}${e instanceof RateLimitedError ? `&retry=${e.retryAfter}` : ""}${next === "/" ? "" : `&next=${encodeURIComponent(next)}`}`,
+    );
   const attempt = authAttempt(clientIp(req.headers));
   if (typeof attempt === "number") return back(new TooManyAttemptsError(attempt));
   try {
@@ -57,7 +59,7 @@ export async function accountSignInRoute(req: Request): Promise<Response> {
 }
 
 // The signed-in account of a request from this instance's own page, or the response refusing it.
-async function signedIn(req: Request): Promise<{ userId: string } | Response> {
+async function signedIn(req: Request): Promise<SignedIn | Response> {
   if (!accountsOn()) return notFound();
   if (!sameOrigin(req.headers)) return forbidden();
   const session = await signedInSession(req.headers);
@@ -68,7 +70,8 @@ export async function recoveryKeyRoute(req: Request): Promise<Response> {
   const who = await signedIn(req);
   if (who instanceof Response) return who;
   if (!(await accountNumber(who.userId))) return forbidden(); // an identity provider's account has no recovery key
-  return json({ recoveryKey: await newRecoveryKey(who.userId) });
+  if (!fresh(who)) return json({ error: "sign in again" }, 403);
+  return json({ recoveryKey: await newRecoveryKey(who.userId, who.token) });
 }
 
 export async function accountDeleteRoute(req: Request): Promise<Response> {
@@ -79,6 +82,7 @@ export async function accountDeleteRoute(req: Request): Promise<Response> {
   // The number typed again, so a stray click or a forged form can't delete it; an identity provider's account confirms with "delete".
   const confirmed = number ? parseNumber(String(fields?.get("confirm") ?? "")) === number : fields?.get("confirm") === "delete";
   if (!confirmed) return seeOther("/account?error=confirm");
+  if (!fresh(who)) return seeOther("/account?error=fresh");
   const out = await accountsAuth()!
     .api.signOut({ headers: req.headers, returnHeaders: true })
     .catch(() => null);

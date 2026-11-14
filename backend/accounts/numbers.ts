@@ -20,8 +20,7 @@ export function parseNumber(typed: string): string | null {
 
 const newNumber = () => String(randomInt(1, 10)) + Array.from({ length: DIGITS - 1 }, () => randomInt(0, 10)).join("");
 // 25 characters in groups of five, 125 bits.
-const newKey = () =>
-  Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => KEY_ALPHABET[randomInt(0, KEY_ALPHABET.length)]).join("")).join("-");
+const newKey = () => Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => KEY_ALPHABET[randomInt(0, KEY_ALPHABET.length)]).join("")).join("-");
 
 function auth() {
   const a = accountsAuth();
@@ -61,11 +60,13 @@ export async function signInWithNumber(typed: string, recoveryKey: string, h: He
   return out.headers.getSetCookie();
 }
 
-// A new recovery key for the account, replacing the old one; returned once.
-export async function newRecoveryKey(userId: string): Promise<string> {
+// A new recovery key for the account, replacing the old one; returned once. Every other session ends with the old key: whoever
+// signed in with it, perhaps the reason for the new one, is out. `keep`: the session that asked.
+export async function newRecoveryKey(userId: string, keep?: string): Promise<string> {
   const ctx = await auth().$context;
   const key = newKey();
   await ctx.internalAdapter.updatePassword(userId, await ctx.password.hash(key));
+  for (const s of await ctx.internalAdapter.listSessions(userId)) if (s.token !== keep) await ctx.internalAdapter.deleteSession(s.token);
   return key;
 }
 

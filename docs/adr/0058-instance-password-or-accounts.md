@@ -30,6 +30,7 @@ Chosen: either, because two ways into one instance meant two OAuth flows, two ki
   * `NOTEFEED_PASSWORD` together with accounts, or with an identity provider
   * `provider` without a provider
   * `off` with a provider
+  * `closed` with a provider (its sign-ins would create accounts)
   * accounts without `PUBLIC_URL`
 * **MCP OAuth:** a password-locked instance keeps notefeed's own OAuth server. Instances with accounts move to Better Auth's in a later step; until then they keep the provider path of the existing one.
 
@@ -37,5 +38,6 @@ Chosen: either, because two ways into one instance meant two OAuth flows, two ki
 
 * Good, because each instance has exactly one way in to reason about.
 * Bad, because an instance that had a provider and a password for scripts no longer starts. Its scripts need account tokens, which come in a later step, and the upgrading page says so.
+* Bad, until that step: a `closed` instance has no way in for scripts or MCP clients, only the web pages.
 
 This amends ADR 0007 and ADR 0014.

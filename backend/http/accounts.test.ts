@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import Database from "better-sqlite3";
+import { join } from "node:path";
 import { authRoute, migrateAccounts, signedInSession } from "../accounts/auth";
+import { checkAccessSettings } from "../accounts/mode";
 import { resetRateLimitsForTests } from "../limits";
 import { accountCreateRoute, accountDeleteRoute, accountSignInRoute, recoveryKeyRoute } from "./accounts";
 import { operatorAccountsRoute } from "./operator";
@@ -48,21 +51,14 @@ describe("creating an account", () => {
     vi.stubEnv("NOTEFEED_ACCOUNTS", "off");
     expect((await accountCreateRoute(post("/api/accounts/create", SAME))).status).toBe(404);
   });
-
-  test("is rate-limited per address", async () => {
-    vi.stubEnv("NOTEFEED_RATE_LIMIT", "2");
-    await created();
-    await created();
-    const res = await accountCreateRoute(post("/api/accounts/create", SAME));
-    expect(res.status).toBe(429);
-    expect(res.headers.get("retry-after")).toMatch(/^\d+$/);
-  });
 });
 
 describe("signing in with the number and key", () => {
   test("goes to next with the session cookie", async () => {
     const { body } = await created();
-    const res = await accountSignInRoute(post("/api/accounts/sign-in", formHeaders(), form({ number: body.number, recoveryKey: body.recoveryKey, next: "/feed" })));
+    const res = await accountSignInRoute(
+      post("/api/accounts/sign-in", formHeaders(), form({ number: body.number, recoveryKey: body.recoveryKey, next: "/feed" })),
+    );
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("/feed");
     expect(await signedInSession(new Headers({ ...SAME, cookie: cookieOf(res) }))).toBeDefined();
@@ -79,7 +75,13 @@ describe("signing in with the number and key", () => {
 
   test("from another site is refused", async () => {
     const { body } = await created();
-    const res = await accountSignInRoute(post("/api/accounts/sign-in", formHeaders({ host: "localhost:3000", origin: "https://evil.example" }), form({ number: body.number, recoveryKey: body.recoveryKey })));
+    const res = await accountSignInRoute(
+      post(
+        "/api/accounts/sign-in",
+        formHeaders({ host: "localhost:3000", origin: "https://evil.example" }),
+        form({ number: body.number, recoveryKey: body.recoveryKey }),
+      ),
+    );
     expect(res.status).toBe(403);
   });
 });
@@ -155,4 +157,78 @@ test("a browser reaches Better Auth's passkey endpoints, and still not its e-mai
   expect((await at("/api/auth/sign-up/email")).status).toBe(404);
   expect((await at("/api/auth/sign-in/email")).status).toBe(404);
   expect((await at("/api/auth/sign-in/username")).status).toBe(404);
+});
+
+// Makes every session of the account look `days` old, as a stolen cookie from a while ago would be.
+const age = (days: number) => {
+  const db = new Database(join(process.env.DATA_DIR!, "accounts.sqlite"));
+  db.prepare("update session set createdAt = ?").run(new Date(Date.now() - days * 86_400_000).toISOString());
+  db.close();
+};
+const signInAgain = async (number: string, recoveryKey: string) =>
+  cookieOf(await accountSignInRoute(post("/api/accounts/sign-in", formHeaders(), form({ number, recoveryKey }))));
+
+describe("what a session alone can't do (review)", () => {
+  test("a new recovery key signs every other session out", async () => {
+    const { body, cookie } = await created();
+    const other = await signInAgain(body.number, body.recoveryKey);
+    const res = await recoveryKeyRoute(post("/api/accounts/recovery-key", { ...SAME, cookie }));
+    expect(res.status).toBe(200);
+    expect(await signedInSession(new Headers({ ...SAME, cookie: other }))).toBeUndefined();
+    expect(await signedInSession(new Headers({ ...SAME, cookie }))).toBeDefined();
+  });
+
+  test("a new recovery key, deleting the account or removing a passkey need a sign-in from the last day", async () => {
+    const { body, cookie } = await created();
+    age(2);
+    const key = await recoveryKeyRoute(post("/api/accounts/recovery-key", { ...SAME, cookie }));
+    expect(key.status).toBe(403);
+    expect(await key.json()).toEqual({ error: "sign in again" });
+    const del = await accountDeleteRoute(post("/api/accounts/delete", formHeaders({ ...SAME, cookie }), form({ confirm: body.number })));
+    expect(del.headers.get("location")).toBe("/account?error=fresh");
+    const passkey = await authRoute(
+      post("/api/auth/passkey/delete-passkey", { ...SAME, cookie, "content-type": "application/json" }, JSON.stringify({ id: "x" })),
+    );
+    expect(passkey.status).toBe(403);
+  });
+});
+
+test("Better Auth's passkey endpoints that need no session are rate-limited per address", async () => {
+  vi.stubEnv("NOTEFEED_RATE_LIMIT", "2");
+  const options = () => authRoute(new Request(`${BASE}/api/auth/passkey/generate-authenticate-options`, { headers: SAME }));
+  await options();
+  await options();
+  const res = await options();
+  expect(res.status).toBe(429);
+  expect(res.headers.get("retry-after")).toMatch(/^\d+$/);
+});
+
+test("creating accounts has its own, tighter limit: 10 an hour per address", async () => {
+  vi.stubEnv("NOTEFEED_RATE_LIMIT", "1000");
+  for (let i = 0; i < 10; i++) expect((await accountCreateRoute(post("/api/accounts/create", SAME))).status).toBe(200);
+  expect((await accountCreateRoute(post("/api/accounts/create", SAME))).status).toBe(429);
+});
+
+describe("provider mode: every account comes from the identity provider (review)", () => {
+  const provider = () => {
+    vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
+    vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
+    vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "secret");
+    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "*");
+  };
+
+  test("a number account made before switching to provider can't sign in, and its session ends", async () => {
+    const { body, cookie } = await created();
+    provider();
+    vi.stubEnv("NOTEFEED_ACCOUNTS", "provider");
+    const res = await accountSignInRoute(post("/api/accounts/sign-in", formHeaders(), form({ number: body.number, recoveryKey: body.recoveryKey })));
+    expect(res.status).toBe(404);
+    expect(await signedInSession(new Headers({ ...SAME, cookie }))).toBeUndefined();
+  });
+
+  test("closed accounts with an identity provider refuse to start: its sign-ins would create accounts", () => {
+    provider();
+    vi.stubEnv("NOTEFEED_ACCOUNTS", "closed");
+    expect(() => checkAccessSettings()).toThrow(/closed.*identity provider/);
+  });
 });

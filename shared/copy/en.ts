@@ -528,6 +528,7 @@ export const en = {
     confirmWord: "Type delete to confirm",
     delete: "Delete account",
     confirmWrong: "That isn't this account's number.",
+    signInAgain: "For this, log out and sign in again first: your sign-in is more than a day old.",
   },
   // The start page (app/[lang]/(site)/page.tsx).
   home: {

@@ -16,11 +16,14 @@ An account is a number, not a person: a generated **account number** with a **re
 Unset with an identity provider configured (`NOTEFEED_OIDC_*`) means `provider`, so an instance with sign-in keeps working as it did. Accounts need `PUBLIC_URL` and `NOTEFEED_SECRET`.
 
 !!! warning "Never together with the instance password"
-    notefeed refuses to start with `NOTEFEED_PASSWORD` and accounts both set. An identity provider counts as accounts. Pick one: the instance password for one person, accounts for several. Scripts then use [feed passwords](../using/feed-passwords.md).
+    notefeed refuses to start with `NOTEFEED_PASSWORD` and accounts both set. An identity provider counts as accounts. Pick one: the instance password for one person, accounts for several. `closed` with an identity provider doesn't start either: its sign-ins would create accounts (use `provider` or `open`).
+
+!!! note "Scripts and MCP clients"
+    With `open`, scripts and MCP clients work as on any open instance, and [feed passwords](../using/feed-passwords.md) protect single feeds. With `provider` or `closed` the instance is locked and has no instance password: scripts can't post to it yet, and MCP clients connect only through an identity provider (`provider`), until accounts get tokens for scripts and their own MCP sign-in.
 
 ## Creating one
 
-With `open`, the login page links to **Create an account**. notefeed shows the new account number (`4821-0937-5521-7764`) and the recovery key (`K7QX2-…`, 25 characters) once, each with a copy button, and goes on only after **I saved them**. Creating accounts is rate-limited per client address, like posting (`NOTEFEED_RATE_LIMIT`); the address is never written down.
+With `open`, the login page links to **Create an account**. notefeed shows the new account number (`4821-0937-5521-7764`) and the recovery key (`K7QX2-…`, 25 characters) once, each with a copy button, and goes on only after **I saved them**. Creating accounts is limited to 10 an hour per client address (off with `NOTEFEED_RATE_LIMIT=0`); the address is never written down.
 
 ## Signing in
 
@@ -30,9 +33,9 @@ On the login page:
 - with a passkey added on the account page
 - through the identity provider, on an instance that has one
 
-Wrong keys count toward the failed-attempt limit, like wrong passwords. A sign-in renews while it is used and ends after 30 days unused, and 90 days after signing in at the latest ([ADR 0056](https://github.com/notefeed/notefeed/blob/main/docs/adr/0056-sign-ins-renew-while-used.md)).
+Wrong keys count toward the failed-attempt limit, like wrong passwords. With `provider`, number accounts don't sign in: every account comes from the identity provider. A sign-in renews while it is used and ends after 30 days unused, and 90 days after signing in at the latest ([ADR 0056](https://github.com/notefeed/notefeed/blob/main/docs/adr/0056-sign-ins-renew-while-used.md)).
 
-**The account page** (**Account** in the ⓘ menu) shows the number, adds and removes passkeys, makes a new recovery key (the old one stops working at once), logs out, and deletes the account after its number is typed again.
+**The account page** (**Account** in the ⓘ menu) shows the number, adds and removes passkeys, makes a new recovery key (the old one stops working at once, and every other session of the account ends), logs out, and deletes the account after its number is typed again. Adding or removing a passkey, a new key and deleting need a sign-in from the last day, so a stolen session cookie alone can't lock the holder out.
 
 !!! note "Passkeys belong to `PUBLIC_URL`'s host"
     A passkey works only on the host it was made on. Moving notefeed to another host name (a changed `PUBLIC_URL`) leaves every passkey behind: people sign in with their number and key, and add new ones.

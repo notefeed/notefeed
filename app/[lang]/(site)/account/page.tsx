@@ -68,7 +68,7 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
             </button>
           </div>
           <p id="delete-error" role="alert" className="mt-2 text-sm text-error">
-            {error === "confirm" ? t.confirmWrong : null}
+            {error === "confirm" ? t.confirmWrong : error === "fresh" ? t.signInAgain : null}
           </p>
         </form>
       </section>

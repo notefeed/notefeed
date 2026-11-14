@@ -21,10 +21,14 @@ export function Passkeys() {
       live = false;
     };
   }, []);
-  const run = async (step: () => Promise<{ error: unknown }>) => {
+  // Adding or removing a passkey needs a sign-in from the last day (Better Auth's check, and notefeed's): a 403 says so.
+  const [stale, setStale] = useState(false);
+  const run = async (step: () => Promise<{ error: { status?: number } | null }>) => {
     setFailed(false);
+    setStale(false);
     const { error } = await step();
-    if (error) setFailed(true);
+    if (error?.status === 403) setStale(true);
+    else if (error) setFailed(true);
     setKeys(await fetchPasskeys());
   };
   return (
@@ -44,7 +48,7 @@ export function Passkeys() {
         {t.addPasskey}
       </button>
       <p role="alert" className="mt-2 text-sm text-error">
-        {failed ? t.passkeyError : null}
+        {stale ? t.signInAgain : failed ? t.passkeyError : null}
       </p>
     </div>
   );
@@ -54,12 +58,12 @@ export function Passkeys() {
 export function NewRecoveryKey() {
   const t = useCopy().account;
   const [key, setKey] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<false | "stale" | "error">(false);
   const make = async () => {
     setFailed(false);
     const res = await fetch("/api/accounts/recovery-key", { method: "POST" }).catch(() => null);
     if (res?.ok) setKey((await res.json()).recoveryKey);
-    else setFailed(true);
+    else setFailed(res?.status === 403 ? "stale" : "error");
   };
   if (key)
     return (
@@ -78,7 +82,7 @@ export function NewRecoveryKey() {
         {t.newKey}
       </button>
       <p role="alert" className="mt-2 text-sm text-error">
-        {failed ? t.passkeyError : null}
+        {failed === "stale" ? t.signInAgain : failed ? t.passkeyError : null}
       </p>
     </div>
   );
