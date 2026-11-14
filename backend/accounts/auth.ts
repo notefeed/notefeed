@@ -12,7 +12,8 @@ import { dirname } from "node:path";
 import { config } from "../config";
 import { logger } from "../log";
 import { key as signingKey, TTL } from "../oauth/tokens";
-import { identityOn, providers } from "../oidc/config";
+import { allowed, identityOn, providerById, providers } from "../oidc/config";
+import { logFailure } from "../oidc/log";
 import { processState } from "../state";
 import { genericOAuthPlugin, senderName } from "./providers";
 
@@ -37,9 +38,9 @@ function options() {
     advanced: { ipAddress: { disableIpTracking: true } },
     // Two providers that report the same e-mail stay two people: one never signs in as the other.
     account: { accountLinking: { enabled: false } },
-    // A sign-in lasts 7 days from the moment it was made, as before: use doesn't extend it, so taking someone off the allow-list
-    // ends their access within that time.
-    session: { expiresIn: TTL.signIn, disableSessionRefresh: true, cookieCache: { enabled: true, maxAge: 300 } },
+    // A sign-in renews while used (at most once a day) and ends after 30 days unused; signedInSession ends it sooner: 90 days after it
+    // was made, or as soon as the allow-list no longer lets the person in (ADR 0056).
+    session: { expiresIn: TTL.idle, updateAge: TTL.renew, cookieCache: { enabled: true, maxAge: 300 } },
     // Better Auth keeps the provider's tokens with the account. notefeed never uses them, and the id_token holds the person's
     // claims: none of them is stored.
     databaseHooks: {
@@ -95,11 +96,56 @@ export async function authRoute(req: Request): Promise<Response> {
   return auth.handler(req);
 }
 
-// The signed-in person's name (the sender), from Better Auth's session cookie in `h`; undefined without a valid session or while
-// sign-in is off. Which requests may use it (same origin, no Authorization header) is the caller's rule.
-export async function signedInName(h: Headers): Promise<string | undefined> {
+// Why the person behind `userId` may no longer be signed in, or null while they may: their provider is still configured and its
+// allow-list still lets in the address (and verified flag) it gave at sign-in. A placeholder address (no email claim) is none.
+async function refusal(auth: Auth, userId: string): Promise<{ reason: string; provider?: string } | null> {
+  const ctx = await auth.$context;
+  const [user, accounts] = await Promise.all([ctx.internalAdapter.findUserById(userId), ctx.internalAdapter.findAccounts(userId)]);
+  if (!user) return { reason: "person no longer known" };
+  const id = accounts[0]?.providerId;
+  const p = id ? providerById(id) : undefined;
+  if (!p) return { reason: "provider no longer configured", ...(id && /^[a-z0-9_]{1,64}$/.test(id) ? { provider: id } : {}) };
+  const email = user.email.endsWith(".oidc.invalid") ? undefined : user.email;
+  return allowed(p, { email, email_verified: user.emailVerified }) ? null : { reason: "person no longer on the allow-list", provider: p.id };
+}
+
+// Whether the person may still be signed in (for an MCP client's refresh, oauth/routes.ts); false while sign-in is off.
+export async function stillAllowed(userId: string): Promise<boolean> {
+  const auth = accountsAuth();
+  return auth ? (await refusal(auth, userId)) === null : false;
+}
+
+export type SignedIn = { userId: string; name: string; setCookies: string[] };
+
+// The signed-in person from Better Auth's session cookie in `h`; undefined without a valid session or while sign-in is off. Only
+// with `renew` (the proxy, which hands the cookies to the browser with the page) is a session due for it renewed and its cookies
+// returned: a renewal anywhere else would move the session's end in the file but not the browser's cookie. A session older than
+// 90 days, or whose person the allow-list no longer lets in, is deleted here and logged once with the provider and the reason,
+// never who. Which requests may use it (same origin, no Authorization header) is the caller's rule.
+export async function signedInSession(h: Headers, { renew = false }: { renew?: boolean } = {}): Promise<SignedIn | undefined> {
   const auth = accountsAuth();
   if (!auth) return undefined;
-  const session = await auth.api.getSession({ headers: h }).catch(() => null);
-  return senderName(session?.user.name);
+  const query = renew ? {} : { disableRefresh: true };
+  const got = await auth.api.getSession({ headers: h, query, returnHeaders: true }).catch(() => null);
+  const session = got?.response;
+  if (!session) return undefined;
+  const tooOld = Date.now() - new Date(session.session.createdAt).getTime() > TTL.signInMax * 1000;
+  const refused = tooOld ? { reason: "sign-in older than 90 days" } : await refusal(auth, session.user.id);
+  const name = senderName(session.user.name);
+  if (refused || !name) {
+    // The 5-minute cookie cache brings an ended session back until it runs out: it is ended and logged only the first time.
+    const { adapter, internalAdapter } = await auth.$context;
+    const token = session.session.token;
+    // The row itself: findSession also needs the person, who may be the one that is gone.
+    if (await adapter.findOne({ model: "session", where: [{ field: "token", value: token }] })) {
+      await internalAdapter.deleteSession(token);
+      const { reason, ...detail } = refused ?? { reason: "no sender name" };
+      logFailure(reason, detail);
+    }
+    return undefined;
+  }
+  return { userId: session.user.id, name, setCookies: renew ? got.headers.getSetCookie() : [] };
 }
+
+// The signed-in person's name (the sender); see signedInSession.
+export const signedInName = async (h: Headers): Promise<string | undefined> => (await signedInSession(h))?.name;

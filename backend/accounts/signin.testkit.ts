@@ -22,6 +22,8 @@ export async function signedInCookie(name = "Ann", expiresAt?: Date): Promise<st
   if (!auth) throw new Error("sign-in is off: call stubSignInOn() first");
   const ctx = await auth.$context;
   const user = await ctx.internalAdapter.createUser({ email: `${randomUUID()}@test.invalid`, name, emailVerified: true }, { method: "test" } as never);
+  // Signed in through the stub provider `default`, as signedInSession checks.
+  await ctx.internalAdapter.createAccount({ userId: user.id, providerId: "default", accountId: randomUUID() });
   const session = await ctx.internalAdapter.createSession(user.id, false, expiresAt ? { expiresAt } : undefined, true);
   return `${ctx.authCookies.sessionToken.name}=${session.token}.${await makeSignature(session.token, ctx.secret)}`;
 }

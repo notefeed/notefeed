@@ -3,6 +3,7 @@
 // endpoint (authorization code with PKCE S256, rotating refresh tokens). Everything is a signed token
 // (./tokens), so there is nothing to store. An open instance has no password to key them with: 404.
 import { createHash } from "node:crypto";
+import { stillAllowed } from "../accounts/auth";
 import { checkPassword, locked } from "../auth";
 import { AuthError, NotefeedError, RateLimitedError } from "../errors";
 import { parseForm, readCapped, seeOther } from "../http/request";
@@ -163,16 +164,16 @@ export async function authorizeRoute(req: Request): Promise<Response> {
   return issueCode(fields, h);
 }
 
-// Back to the client with a code, after a password login or an identity sign-in (`sender`). `fields` must come
-// from checkAuthorize, never from a request.
-export function issueCode(fields: Record<string, string>, h: Headers, sender?: string): Response {
+// Back to the client with a code, after a password login or an identity sign-in (`signedIn`: the sender and the Better Auth user
+// id, re-checked at every refresh). `fields` must come from checkAuthorize, never from a request.
+export function issueCode(fields: Record<string, string>, h: Headers, signedIn?: { sender: string; uid: string }): Response {
   const code = sign("code", {
     cid: cid(fields.client_id),
     redirect_uri: fields.redirect_uri,
     code_challenge: fields.code_challenge,
     resource: fields.resource ?? mcpResource(h),
     jti: newJti(),
-    ...(sender === undefined ? {} : { sender, until: Math.floor(Date.now() / 1000) + TTL.signIn }),
+    ...(signedIn === undefined ? {} : { ...signedIn, until: Math.floor(Date.now() / 1000) + TTL.signInMax }),
   });
   const to = new URL(fields.redirect_uri);
   to.searchParams.set("code", code);
@@ -182,10 +183,11 @@ export function issueCode(fields: Record<string, string>, h: Headers, sender?: s
 }
 
 // The sender (an identity login's) goes from the code into both tokens, and from each refresh token into the
-// next; its `until` goes into each refresh token, so the chain ends with the sign-in.
-function issue(clientHash: string, aud: string, sender: string | undefined, until: number | undefined): Response {
+// next; its user id and `until` go into each refresh token, so every refresh re-checks the person and the chain ends with the sign-in.
+function issue(clientHash: string, aud: string, signedIn: { sender?: string; uid?: string; until?: number }): Response {
+  const { sender, uid, until } = signedIn;
   const s = sender === undefined ? {} : { sender };
-  const u = until === undefined ? {} : { until };
+  const u = { ...(uid === undefined ? {} : { uid }), ...(until === undefined ? {} : { until }) };
   return Response.json(
     {
       access_token: sign("access", { aud, ...s }),
@@ -226,7 +228,7 @@ export async function tokenRoute(req: Request): Promise<Response> {
     if (createHash("sha256").update(verifier).digest("base64url") !== c.code_challenge) return oauthError("invalid_grant");
     if (resource !== undefined && resource !== c.resource) return oauthError("invalid_grant");
     if (!spendOnce(c.jti, c.exp!)) return oauthError("invalid_grant");
-    return issue(c.cid, c.resource, c.sender, c.until);
+    return issue(c.cid, c.resource, c);
   }
 
   if (grant === "refresh_token") {
@@ -241,8 +243,11 @@ export async function tokenRoute(req: Request): Promise<Response> {
     // A sign-in's chain ends with sign-in switched off or with the sign-in's lifetime, like a browser session.
     if (r.sender !== undefined && !identityOn()) return refusedRefresh("sign-in switched off");
     if (r.sender !== undefined && !(r.until !== undefined && Date.now() <= r.until * 1000)) return refusedRefresh("sign-in past its lifetime");
+    // The person, as a browser session is checked on every request (ADR 0056). A chain from before ADR 0056 has no uid: it ends
+    // with its until.
+    if (r.uid !== undefined && !(await stillAllowed(r.uid))) return refusedRefresh("no longer allowed");
     if (!spendOnce(r.jti, r.exp!)) return oauthError("invalid_grant");
-    return issue(r.cid, r.aud, r.sender, r.until);
+    return issue(r.cid, r.aud, r);
   }
 
   return oauthError(grant === undefined ? "invalid_request" : "unsupported_grant_type");

@@ -9,7 +9,7 @@ import { AuthError, TooManyAttemptsError } from "./errors";
 import { authFailed, authWait } from "./limits";
 import { logger } from "./log";
 import { secret } from "./secret";
-import { signedInName } from "./accounts/auth";
+import { signedInName, signedInSession } from "./accounts/auth";
 import { identityOn } from "./oidc/config";
 
 const log = logger("auth");
@@ -76,14 +76,18 @@ export function cookieOf(h: Headers, name: string): string | undefined {
   return undefined;
 }
 
-// A password session (only when a password is set) or a Better Auth session, from the request's cookies. Which requests may
-// use a cookie at all (same origin, no Authorization header) is the caller's rule.
-export async function sessionOk(h: Headers): Promise<boolean> {
-  if (!locked()) return true;
+// A password session (only when a password is set) or a Better Auth session, from the request's cookies, with the cookies that
+// renew a Better Auth session (the proxy passes them on with a page). Which requests may use a cookie at all (same origin, no
+// Authorization header) is the caller's rule.
+export async function sessionCheck(h: Headers, { renew = false }: { renew?: boolean } = {}): Promise<{ ok: boolean; setCookies: string[] }> {
+  if (!locked()) return { ok: true, setCookies: [] };
   const cookie = cookieOf(h, SESSION_COOKIE);
-  if (config.password() !== "" && cookie !== undefined && safeEqual(cookie, sessionValue())) return true;
-  return (await signedInName(h)) !== undefined;
+  if (config.password() !== "" && cookie !== undefined && safeEqual(cookie, sessionValue())) return { ok: true, setCookies: [] };
+  const signed = await signedInSession(h, { renew });
+  return { ok: signed !== undefined, setCookies: signed?.setCookies ?? [] };
 }
+
+export const sessionOk = async (h: Headers): Promise<boolean> => (await sessionCheck(h)).ok;
 
 // Whether a person is signed in through a provider (the compose box says their name is shown).
 export const signedIn = async (h: Headers): Promise<boolean> => identityOn() && (await signedInName(h)) !== undefined;

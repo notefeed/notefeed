@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0056: a sign-in renews while used instead of lasting 7 days from signing in.
+
 notefeed is getting optional accounts that are a number, not a person: an account holds a person's feeds and license on every device, with no e-mail and no name (the accounts design, issues #292, #297, #347). The first step is the ground they stand on. Sign-in through an OpenID Connect provider (ADR 0014) was a relying party written by hand (`backend/oidc/flow.ts`), and the signed-in person was a signed cookie, `nf_identity`, with no record behind it. The engineering conventions rule out hand-written sign-in code (conventions: Sign-in, Better Auth). Where does sign-in run, where are its records kept, and what does that make of the sender, which only a sign-in could set?
 
 ## Decision Drivers

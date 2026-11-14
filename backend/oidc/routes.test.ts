@@ -234,19 +234,6 @@ describe("what sign-in keeps", () => {
     expect(idp.tokenRequests.at(-1)).toMatchObject({ body: { client_id: "notefeed", client_secret: "secret" }, authorization: undefined });
   });
 
-  test("a session lasts 7 days and is not extended by use", async () => {
-    const { jar } = await signIn(webStart());
-    const now = Date.now();
-    vi.useFakeTimers({ now: now + 6 * 86_400_000, toFake: ["Date"] });
-    try {
-      expect(await nameOf(jar)).toBe("Ann");
-      vi.setSystemTime(now + 7 * 86_400_000 + 60_000);
-      expect(await nameOf(jar)).toBeUndefined();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
   test("changing NOTEFEED_PASSWORD signs everyone out", async () => {
     const { jar } = await signIn(webStart());
     vi.stubEnv("NOTEFEED_PASSWORD", "a-new-password");
