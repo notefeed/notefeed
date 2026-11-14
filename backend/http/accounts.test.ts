@@ -232,3 +232,16 @@ describe("provider mode: every account comes from the identity provider (review)
     expect(() => checkAccessSettings()).toThrow(/closed.*identity provider/);
   });
 });
+
+test("a passkey's name is one line of at most 50 characters: anything else is refused before Better Auth sees it", async () => {
+  const { cookie } = await created();
+  const register = (name: unknown) =>
+    authRoute(post("/api/auth/passkey/verify-registration", { ...SAME, cookie, "content-type": "application/json" }, JSON.stringify({ response: {}, name })));
+  for (const bad of ["a".repeat(51), "two\nlines", "evil‮override", 7]) {
+    const res = await register(bad);
+    expect(res.status, String(bad)).toBe(400);
+    expect(await res.json()).toEqual({ error: "a passkey's name is one line of at most 50 characters" });
+  }
+  // A fine name (or none) reaches Better Auth, which then refuses the empty WebAuthn response itself, in its own words.
+  for (const fine of ["Work laptop", undefined]) expect(await (await register(fine)).json()).toHaveProperty("message");
+});

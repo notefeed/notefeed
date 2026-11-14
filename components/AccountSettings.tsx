@@ -24,6 +24,7 @@ export function Passkeys() {
   }, []);
   // Adding or removing a passkey needs a sign-in from the last day (Better Auth's check, and notefeed's): a 403 says so.
   const [stale, setStale] = useState(false);
+  const [name, setName] = useState("");
   const run = async (step: () => Promise<{ error: { status?: number } | null }>) => {
     setFailed(false);
     setStale(false);
@@ -38,16 +39,40 @@ export function Passkeys() {
       <ul className="mb-3">
         {keys?.map((k) => (
           <li key={k.id} className="flex items-center justify-between gap-2 py-1">
-            <span>{k.name || t.passkeyAdded(passkeyKind(k.aaguid), new Date(k.createdAt).toLocaleDateString(lang))}</span>
+            <span>
+              {k.name && <span className="font-bold">{k.name} · </span>}
+              {t.passkeyAdded(passkeyKind(k.aaguid), new Date(k.createdAt).toLocaleDateString(lang))}
+            </span>
             <button type="button" onClick={() => run(() => accountClient().passkey.deletePasskey({ id: k.id }))} className="text-sm text-muted underline">
               {t.removePasskey}
             </button>
           </li>
         ))}
       </ul>
-      <button type="button" onClick={() => run(() => accountClient().passkey.addPasskey())} className="rounded-full bg-surface-2 px-4 py-1.5 font-bold">
-        {t.addPasskey}
-      </button>
+      <label htmlFor="passkey-name" className="mb-1 block text-sm text-muted">
+        {t.passkeyName}
+      </label>
+      <div className="flex max-w-sm gap-2">
+        <input
+          id="passkey-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={50}
+          autoComplete="off"
+          aria-describedby="passkey-name-hint"
+          className="min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => run(() => accountClient().passkey.addPasskey(name.trim() ? { name: name.trim() } : undefined)).then(() => setName(""))}
+          className="shrink-0 rounded-full bg-surface-2 px-4 py-1.5 font-bold"
+        >
+          {t.addPasskey}
+        </button>
+      </div>
+      <p id="passkey-name-hint" className="mt-1 text-sm text-muted">
+        {t.passkeyNameHint}
+      </p>
       <p role="alert" className="mt-2 text-sm text-error">
         {stale ? t.signInAgain : failed ? t.passkeyError : null}
       </p>

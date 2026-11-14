@@ -516,6 +516,8 @@ export const en = {
     passkeysIntro: "Sign in with this device's fingerprint, face or PIN instead of the number and key.",
     addPasskey: "Add a passkey",
     passkeyAdded: (kind: string | undefined, date: string) => `${kind ?? "Passkey"}, added ${date}`,
+    passkeyName: "Name (optional)",
+    passkeyNameHint: "Only to tell your passkeys apart, such as Work laptop.",
     noPasskeys: "No passkeys yet.",
     removePasskey: "Remove",
     passkeyError: "That didn't work. Please try again.",

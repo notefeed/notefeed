@@ -18,6 +18,7 @@ import { allowed, providerById, providers } from "../oidc/config";
 import { accountsMode, accountsOn } from "./mode";
 import { logFailure } from "../oidc/log";
 import { clientIp, rateLimit } from "../limits";
+import { cleanLine } from "../../shared/links";
 import { processState } from "../state";
 import { genericOAuthPlugin, senderName } from "./providers";
 
@@ -115,6 +116,16 @@ export async function authRoute(req: Request): Promise<Response> {
   if (ANONYMOUS.test(path)) {
     const wait = rateLimit(clientIp(req.headers));
     if (wait !== null) return Response.json({ error: "rate limit exceeded" }, { status: 429, headers: { "Retry-After": String(wait) } });
+  }
+  // A passkey's name is its holder's, shown on the account page: one line, at most 50 characters (cleanLine's rules, as a note title).
+  if (path.endsWith("/passkey/verify-registration")) {
+    const body = (await req
+      .clone()
+      .json()
+      .catch(() => ({}))) as { name?: unknown };
+    const name = body?.name;
+    if (name !== undefined && (typeof name !== "string" || cleanLine(name) !== name || [...name].length > 50))
+      return Response.json({ error: "a passkey's name is one line of at most 50 characters" }, { status: 400 });
   }
   // Removing a passkey changes how the account is reached: like a new recovery key, it needs a sign-in from the last day.
   if (path.endsWith("/passkey/delete-passkey")) {

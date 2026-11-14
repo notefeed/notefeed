@@ -35,7 +35,7 @@ On the login page:
 
 Wrong keys count toward the failed-attempt limit, like wrong passwords. With `provider`, number accounts don't sign in: every account comes from the identity provider. A sign-in renews while it is used and ends after 30 days unused, and 90 days after signing in at the latest ([ADR 0056](https://github.com/notefeed/notefeed/blob/main/docs/adr/0056-sign-ins-renew-while-used.md)).
 
-**The account page** (**Account** in the ⓘ menu) shows the number, adds and removes passkeys, makes a new recovery key (the old one stops working at once, and every other session of the account ends), logs out, and deletes the account after its number is typed again. Adding or removing a passkey, a new key and deleting need a sign-in from the last day, so a stolen session cookie alone can't lock the holder out.
+**The account page** (**Account** in the ⓘ menu) shows the number, adds passkeys (each with an optional name of its holder's choosing) and removes them, makes a new recovery key (the old one stops working at once, and every other session of the account ends), logs out, and deletes the account after its number is typed again. Adding or removing a passkey, a new key and deleting need a sign-in from the last day, so a stolen session cookie alone can't lock the holder out.
 
 !!! note "Passkeys belong to `PUBLIC_URL`'s host"
     A passkey works only on the host it was made on. Moving notefeed to another host name (a changed `PUBLIC_URL`) leaves every passkey behind: people sign in with their number and key, and add new ones.
@@ -64,7 +64,7 @@ In `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every stor
 
 - the account number
 - a hash of the recovery key
-- each passkey's public key, when it was added, and the kind of passkey store that made it (its AAGUID: iCloud Keychain, 1Password and the like, never the person or the device), shown to tell passkeys apart
+- each passkey's public key, the name its holder gave it (optional, such as `Work laptop`), when it was added, and the kind of passkey store that made it (its AAGUID: iCloud Keychain, 1Password and the like, never the person or the device), shown to tell passkeys apart
 - the sessions, without the browser's address or user agent
 
 The e-mail field the sign-in library needs holds a placeholder, `<number>@accounts.invalid`. An account made through an identity provider holds what [sign-in keeps](sign-in/index.md#the-sender) instead. Back the file up with your data ([Backups](backups.md)).
