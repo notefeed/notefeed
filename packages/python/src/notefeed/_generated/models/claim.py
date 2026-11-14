@@ -13,7 +13,7 @@ class Claim:
     """
     Attributes:
         password (str): A protected feed: one of its passwords. An open feed: the password it gets now, as setting one
-            does (8 to 1024 characters)
+            does (1 to 256 printable ASCII characters, with no space at the start or end)
     """
 
     password: str

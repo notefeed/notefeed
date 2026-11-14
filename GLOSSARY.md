@@ -151,7 +151,7 @@ The generated secret that goes with an account number, kept by the account's hol
 _Avoid_: Account password, master password
 
 **Owner**:
-The account a feed belongs to. Only the owner sets or resets the feed password, renames or deletes the feed and puts it under its license.
+The account a feed belongs to: the one that created it while signed in, or claimed it. Only the owner manages its feed passwords, renames or deletes the feed and puts it under its license.
 _Avoid_: Admin, creator
 
 **Sign-in**:

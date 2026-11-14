@@ -270,7 +270,7 @@ export const FileBody = z.string().meta({ format: "binary" }).describe("The note
 
 export const ClaimJson = z
   .object({
-    password: z.string().describe("A protected feed: one of its passwords. An open feed: the password it gets now, as setting one does (8 to 1024 characters)"),
+    password: z.string().describe(`A protected feed: one of its passwords. An open feed: the password it gets now, as setting one does (${PASSWORD_RULE})`),
   })
   .meta({ id: "Claim" });
 export const FeedPasswordJson = z

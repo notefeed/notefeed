@@ -30,7 +30,7 @@ export { healthRoute } from "./http/health";
 export { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, webhookRoute } from "./http/licenses";
 export { moveImagesRoute, operatorAccountsRoute, operatorFeedsRoute, resealRoute, takedownRoute, unreferencedImagesRoute } from "./http/operator";
 export { accountCreateRoute, accountDeleteRoute, accountSignInRoute, recoveryKeyRoute } from "./http/accounts";
-export { feedCookieName, feedUnlocked } from "./feedlock";
+export { feedCookieName, feedOwner, feedUnlocked, listFeedPasswords } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
 export { feedAccessRoute } from "./http/feedsession";
 export { loginRoute, logoutRoute } from "./http/session";

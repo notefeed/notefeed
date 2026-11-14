@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0059: setting a password claims an open feed for the signed-in account; an owned feed can't be claimed.
+
 A feed could only get a password on the post that creates it (ADR 0008, *Claiming*), and on notefeed.me that post also needs a license key (ADR 0029, #193). A feed that started open, because a password wasn't needed then, could never be protected: the way out was a new feed under a new name, which breaks every script and read link (#248).
 
 ADR 0008 rejected *first to set wins* so that nobody who merely knows a feed's name could lock its owner out. But on an open feed, knowing the name already is full access: whoever has it can post, edit and delete every note, change the read link and delete the feed. A password set by such a stranger adds nothing they could not already do.

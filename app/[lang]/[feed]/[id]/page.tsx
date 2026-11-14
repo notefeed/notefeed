@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { NoteArticle } from "@/components/NoteArticle";
@@ -24,6 +24,7 @@ import {
   licensingOn,
   readIdOf,
   reportTemplate,
+  accountOf,
 } from "@/backend";
 import { attachmentLinks, kindOf } from "@/shared/notekinds";
 
@@ -41,7 +42,7 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[la
       </AppShell>
     );
   }
-  if ((await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value)) === "locked") {
+  if ((await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value, (await accountOf(await headers()))?.userId)) === "locked") {
     return (
       <AppShell feed={feed}>
         <UnlockForm feed={feed} recover={licensingOn() ? { open: false } : undefined} />

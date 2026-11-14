@@ -34,6 +34,7 @@ import {
   reportTemplate,
   rssPath,
   settingsPath,
+  accountOf,
 } from "@/backend";
 import { sortTags } from "@/shared/tags";
 import { shareQuery } from "@/shared/share";
@@ -57,7 +58,7 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/[feed]">):
   const { feed } = await params;
   if (checkFeed(feed)) return {};
   // A locked feed shows nothing of itself, not even its title.
-  const access = await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value);
+  const access = await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value, (await accountOf(await headers()))?.userId);
   return { title: access === "locked" ? feed : (await feedData(feed))?.title || feed };
 }
 
@@ -78,7 +79,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
     );
   }
   const jar = await cookies();
-  const access = await feedUnlocked(feed, jar.get(feedCookieName(feed))?.value);
+  const access = await feedUnlocked(feed, jar.get(feedCookieName(feed))?.value, (await accountOf(await headers()))?.userId);
   // A locked feed shows nothing of itself: no notes, no read link.
   if (access === "locked") {
     return (

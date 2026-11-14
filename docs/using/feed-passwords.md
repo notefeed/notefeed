@@ -45,6 +45,24 @@ curl -X PUT -H "Content-Type: application/json" -d "{\"password\": \"${FEED_PASS
 
 From then on everyone who posts to the feed needs the password, scripts and co-authors included, and so does its page by name. The read link and RSS stay open. On notefeed.me a feed needs a [license](../hosted/licenses.md) for a password: an unlicensed feed answers `402`.
 
+## A feed with an owner
+
+With an [account](../self-hosting/accounts.md), a feed can belong to it: its **owner**. A feed created while signed in, or made by a post from the signed-in account, is the account's own. An existing feed is claimed on its settings page (**Make this feed yours**): a protected one with its password, an open one by giving it a password. A feed with an owner can't be claimed by anyone else.
+
+An owned feed has as many passwords as its owner gives it, each with a name ("blog script", "Anna") and revoked on its own. On the settings page the owner sees them under **Feed passwords**. **Add a password** generates one and shows it only once; **Revoke** stops it, and every browser unlocked with it, at once. The password a protected feed had when it was claimed stays as its first, named "Feed password", so scripts keep working. Each password does what a feed password does: post, edit and delete notes, change the settings. Only the owner renames or deletes the feed, and the owner's own account opens it without a password.
+
+In the API, with the account signed in on this instance's own pages:
+
+| Request | What it does |
+|---|---|
+| `POST /api/v1/feeds/<feed>/claim` `{"password": "…"}` | claims the feed |
+| `GET /api/v1/feeds/<feed>/passwords` | its passwords' names and ids, never the passwords |
+| `POST /api/v1/feeds/<feed>/passwords` `{"name": "…"}` | a new password, in the answer only this once (`201`) |
+| `DELETE /api/v1/feeds/<feed>/passwords/<id>` | revokes it |
+| `GET /api/v1/account/feeds` | the account's feeds |
+
+Anyone else gets `403`, code `owner_only`; claiming an owned feed is `409`, code `owned`. Changing or removing a feed's single password, and recovering it with a license key, are for feeds without an owner.
+
 ## A lost password
 
 The password is stored only as a salted hash, so nobody can look it up. On an instance that sells licenses, the feed's license key recovers it: the unlock screen's **Forgot the password?**, the API's `POST /api/v1/feeds/<feed>/password/recover` or the MCP tool `recover_feed_password` sets a new password or removes it ([hosted](../hosted/licenses.md#a-lost-feed-password)).

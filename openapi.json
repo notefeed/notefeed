@@ -4380,7 +4380,7 @@
         "properties": {
           "password": {
             "type": "string",
-            "description": "A protected feed: one of its passwords. An open feed: the password it gets now, as setting one does (8 to 1024 characters)"
+            "description": "A protected feed: one of its passwords. An open feed: the password it gets now, as setting one does (1 to 256 printable ASCII characters, with no space at the start or end)"
           }
         },
         "required": [

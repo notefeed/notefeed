@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0059: a feed can have an owner, who gives it several named passwords.
+
 Amended by ADR 0057: accounts that are a number; feed owners and several feed passwords follow.
 
 A feed is identified by its name, and anyone who knows the name can read and post (ADR 0001). The only lock is the instance password, which covers every feed at once and belongs to the operator. On a shared or hosted instance, a person wants to protect their own feed without the operator and without an account. How do feeds get a password of their own, and how does it fit the existing paths? (Issue #8, building on ADR 0001, ADR 0003, ADR 0005 and ADR 0007.)
