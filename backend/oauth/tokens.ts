@@ -19,8 +19,7 @@ export type Payloads = {
 // `signIn` is how long a sign-in through a provider lasts, the Better Auth session (accounts/auth.ts) as an MCP client's refresh chain.
 export const TTL = { code: 300, access: 3600, refresh: 2592000, signIn: 604800, oidc: 600 } as const;
 
-// Derived per call: secret() is cached, the password is not, and either may change.
-// Also the root of Better Auth's secret (accounts/auth.ts): one place where the server secret and the password make a key.
+// Derived per call (secret() is cached, the password is not, and either may change); also the root of Better Auth's secret.
 export function signingKey(): Buffer {
   const pw = createHash("sha256")
     .update(config.password() ?? "")
