@@ -146,6 +146,7 @@ export async function attachSubscription(account: string, providerRef: string): 
     validUntil: now.validUntil,
     status: now.active ? "active" : "lapsed",
   });
+  licenseEvent("attached");
 }
 
 /** Deleting an account: its subscriptions end at the provider, so it is not charged again, and their rows go. */

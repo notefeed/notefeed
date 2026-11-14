@@ -40,6 +40,7 @@ Chosen: only on the account, because one model is simpler for people, for every 
   * a license bought before is attached to an account by the operator (`/api/operator/subscriptions`)
 * **A new feed** with a password or pictures, or made without a note where licenses are sold, needs the posting account to have a unit free, and goes under it.
 * **Deleting an account** cancels its subscriptions at the provider.
+* **The operator's metrics** (ADR 0039) count subscriptions as `active` or `lapsed` (no `unattached` any more) and the units paid for, `notefeed_license_units`.
 
 ### Consequences
 
@@ -48,4 +49,4 @@ Chosen: only on the account, because one model is simpler for people, for every 
 * Bad, because buying needs an account, and so does a protected feed on notefeed.me.
 * Bad, because a feed without an owner whose password is lost can't be recovered by a key any more: the operator removes the password, as on an instance without licenses.
 
-This supersedes the per-feed part of ADR 0029, and ADR 0036, 0037 and 0050; it amends ADR 0043.
+This supersedes the per-feed part of ADR 0029, and ADR 0036, 0037 and 0050; it amends ADR 0039 and 0043.

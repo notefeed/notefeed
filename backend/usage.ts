@@ -88,10 +88,8 @@ export const resetUsageForTests = (): void => {
   state.running = undefined;
 };
 
-// The subscriptions behind the gauge (ADR 0061): paid for now, or lapsed. A license is no longer bought apart from its account, so none
-// is unattached; the state stays for the dashboards that read it.
-async function licenseCounts(): Promise<{ active: number; unattached: number; lapsed: number }> {
+// The subscriptions behind the gauges (ADR 0061): paid for now or lapsed, and the feeds the paid ones cover.
+async function licenseCounts(): Promise<{ active: number; lapsed: number; units: number }> {
   const { subscriptionCounts } = await import("./accounts/subscriptions");
-  const { active, lapsed } = await subscriptionCounts();
-  return { active, unattached: 0, lapsed };
+  return subscriptionCounts();
 }
