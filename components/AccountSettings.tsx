@@ -113,3 +113,89 @@ export function NewRecoveryKey() {
     </div>
   );
 }
+
+type Token = { id: string; name: string; scope: "read" | "read+write"; expires_at: string | null };
+
+// The account's tokens (#390): listed by the server, made (shown once) and revoked through the API from this page.
+export function AccountTokens({ tokens }: { tokens: Token[] }) {
+  const t = useCopy().account;
+  const lang = useLocale();
+  const [name, setName] = useState("");
+  const [scope, setScope] = useState<"read" | "read+write">("read+write");
+  const [shown, setShown] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const refresh = () => window.location.reload();
+  const make = async () => {
+    setFailed(false);
+    const res = await fetch("/api/v1/account/tokens", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), scope }),
+    }).catch(() => null);
+    if (res?.ok) {
+      setShown((await res.json()).token);
+      setName("");
+    } else setFailed(true);
+  };
+  const revoke = async (id: string) => {
+    const res = await fetch(`/api/v1/account/tokens/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => null);
+    if (res?.ok) refresh();
+    else setFailed(true);
+  };
+  const field = "min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none";
+  return (
+    <div>
+      {tokens.length === 0 && !shown && <p className="mb-3 text-sm text-muted">{t.noTokens}</p>}
+      <ul className="mb-3">
+        {tokens.map((k) => (
+          <li key={k.id} className="flex items-center justify-between gap-2 py-1">
+            <span>
+              <span className="font-bold">{k.name}</span>
+              <span className="text-sm text-muted">
+                {" "}
+                · {k.scope === "read" ? t.scopeRead : t.scopeWrite}
+                {k.expires_at && ` · ${t.tokenEnds(new Date(k.expires_at).toLocaleDateString(lang))}`}
+              </span>
+            </span>
+            <button type="button" onClick={() => revoke(k.id)} className="text-sm text-muted underline">
+              {t.revokeToken}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {shown && (
+        <div className="mb-4">
+          <p className="mb-1 text-sm font-bold">{t.tokenShown}</p>
+          <div className="flex items-center gap-2">
+            <code className="break-all rounded-lg bg-surface-2 px-3 py-1.5 font-mono text-[13px]">{shown}</code>
+            <CopyButton text={shown} />
+          </div>
+        </div>
+      )}
+      <label htmlFor="token-name" className="mb-1 block text-sm text-muted">
+        {t.tokenName}
+      </label>
+      <div className="flex max-w-md flex-wrap gap-2">
+        <input id="token-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={50} className={field} />
+        <label htmlFor="token-scope" className="sr-only">
+          {t.tokenScope}
+        </label>
+        <select
+          id="token-scope"
+          value={scope}
+          onChange={(e) => setScope(e.target.value as "read" | "read+write")}
+          className="rounded-xl border border-rule bg-surface px-2 py-1.5"
+        >
+          <option value="read+write">{t.scopeWrite}</option>
+          <option value="read">{t.scopeRead}</option>
+        </select>
+        <button type="button" onClick={make} disabled={!name.trim()} className="shrink-0 rounded-full bg-surface-2 px-4 py-1.5 font-bold">
+          {t.makeToken}
+        </button>
+      </div>
+      <p role="alert" className="mt-2 text-sm text-error">
+        {failed ? t.passkeyError : null}
+      </p>
+    </div>
+  );
+}

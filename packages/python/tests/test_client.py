@@ -865,3 +865,34 @@ def test_tls_is_verified_against_the_os_trust_store(password):
     with Client("https://notes.example", password=password) as c:
         ctx = c._api.get_httpx_client()._transport._pool._ssl_context
     assert isinstance(ctx, truststore.SSLContext)
+
+
+def test_an_account_token_is_sent_as_the_bearer_and_never_with_a_password(server):
+    server.reply(200, {"feeds": ["a", "b"]})
+    c = Client(server.url, token="nf_abc")
+    assert c.account_feeds() == ["a", "b"]
+    (req,) = server.requests
+    assert (req["path"], req["headers"]["Authorization"]) == ("/api/v1/account/feeds", "Bearer nf_abc")
+    with pytest.raises(ConfigError):
+        Client(server.url, password="pw", token="nf_abc")
+    with pytest.raises(ConfigError):
+        Client(server.url, token="abc")
+
+
+def test_claim_and_the_owners_feed_passwords(server):
+    server.reply(204, "")
+    server.reply(200, {"passwords": [{"id": "p1", "name": "Feed password", "created": None}]})
+    server.reply(201, {"id": "p2", "name": "blog", "created": "2026-11-14T00:00:00.000Z", "password": "x" * 24})
+    server.reply(204, "")
+    c = Client(server.url, "inbox", token="nf_abc")
+    c.claim_feed("old-password")
+    assert [p.name for p in c.feed_passwords()] == ["Feed password"]
+    assert c.add_feed_password("blog").password == "x" * 24
+    c.revoke_feed_password("p2")
+    assert [(r["method"], r["path"]) for r in server.requests] == [
+        ("POST", "/api/v1/feeds/inbox/claim"),
+        ("GET", "/api/v1/feeds/inbox/passwords"),
+        ("POST", "/api/v1/feeds/inbox/passwords"),
+        ("DELETE", "/api/v1/feeds/inbox/passwords/p2"),
+    ]
+    assert json.loads(server.requests[0]["body"]) == {"password": "old-password"}

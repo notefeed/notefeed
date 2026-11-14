@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { accountOf, accountsOn } from "@/backend";
-import { NewRecoveryKey, Passkeys } from "@/components/AccountSettings";
+import { accountOf, accountsOn, listAccountTokens } from "@/backend";
+import { AccountTokens, NewRecoveryKey, Passkeys } from "@/components/AccountSettings";
 import { copyFor } from "@/shared/copy";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +45,12 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
           <NewRecoveryKey />
         </section>
       )}
+
+      <section className={section}>
+        <h2 className="mb-1 font-bold">{t.tokens}</h2>
+        <p className="mb-3 text-sm text-muted">{t.tokensIntro}</p>
+        <AccountTokens tokens={(await listAccountTokens(account.userId)).map((k) => ({ id: k.id, name: k.name, scope: k.scope, expires_at: k.expiresAt }))} />
+      </section>
 
       <section className={section}>
         <h2 className="mb-1 font-bold">{t.deleteTitle}</h2>

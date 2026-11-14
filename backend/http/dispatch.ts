@@ -5,8 +5,9 @@ import * as z from "zod";
 import { InvalidRequestError, NotFoundError } from "../errors";
 import { logger } from "../log";
 import { measured } from "../metrics";
-import { noteOutcome, noteRoute } from "../requestscope";
+import { noteMethod, noteOutcome, noteRoute } from "../requestscope";
 import { errorReply } from "./errors";
+import { ErrorJson } from "./schemas";
 
 const log = logger("http");
 
@@ -59,7 +60,13 @@ export type AnyOp = Meta<Record<number, ResponseSpec>, z.ZodObject | undefined> 
 export function op<const R extends Record<number, ResponseSpec>, Q extends z.ZodObject | undefined = undefined>(
   meta: Meta<R, Q>,
 ): { handle: (h: Handler<R, Q>) => Op<R, Q> } {
-  return { handle: (handle) => ({ ...meta, handle }) };
+  // Every request that writes may come with an account token that may only read (#390): its 403 is declared on each, so the
+  // description lists it and the dispatcher lets it through.
+  const responses =
+    meta.method === "GET" || 403 in meta.responses
+      ? meta.responses
+      : { ...meta.responses, 403: { description: "An account token that may only read (`read_only`)", schema: ErrorJson } };
+  return { handle: (handle) => ({ ...meta, responses, handle }) };
 }
 
 // The entries for a path, whatever the method, with its path parameters. `segments` are the decoded
@@ -125,6 +132,7 @@ export function createDispatcher(ops: AnyOp[], prefix: string): (req: Request, s
     noteRoute(m.ops[0].path.replace(/\{(\w+)\}/g, "[$1]"));
     // Next answers HEAD by calling the GET export with the request as is; it drops the body itself.
     const method = req.method === "HEAD" ? "GET" : req.method;
+    noteMethod(method);
     const entry = m.ops.find((o) => o.method === method);
     if (!entry) {
       const methods = m.ops.map((o) => o.method);

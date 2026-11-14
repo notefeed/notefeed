@@ -251,7 +251,7 @@ export type Error = {
     /**
      * Stable machine-readable code; absent only on a 500
      */
-    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'title_image' | 'removed' | 'blocked' | 'unreadable' | 'unavailable' | 'busy' | 'owner_only' | 'owned';
+    code?: 'invalid_feed' | 'reserved_feed' | 'auth' | 'rate_limited' | 'too_many_attempts' | 'feed_limit' | 'note_limit' | 'image_limit' | 'images_off' | 'license_required' | 'empty_note' | 'too_large' | 'unsupported_type' | 'invalid_body' | 'invalid_request' | 'not_found' | 'feed_exists' | 'taken' | 'title_image' | 'removed' | 'blocked' | 'unreadable' | 'unavailable' | 'busy' | 'owner_only' | 'owned' | 'read_only';
 };
 
 export type NoteMeta = {
@@ -536,6 +536,75 @@ export type AccountFeeds = {
     feeds: Array<string>;
 };
 
+export type AccountToken = {
+    /**
+     * The token's id, to revoke it
+     */
+    id: string;
+    /**
+     * What it is for
+     */
+    name: string;
+    /**
+     * `read`: only reading requests; `read+write`: everything the account may do
+     */
+    scope: 'read' | 'read+write';
+    /**
+     * When it stops working (ISO 8601)
+     */
+    expires_at: string | null;
+    /**
+     * When it was last used (ISO 8601), or null
+     */
+    last_used: string | null;
+};
+
+export type AccountTokens = {
+    tokens: Array<AccountToken>;
+};
+
+export type NewAccountToken = {
+    /**
+     * The token's id, to revoke it
+     */
+    id: string;
+    /**
+     * What it is for
+     */
+    name: string;
+    /**
+     * `read`: only reading requests; `read+write`: everything the account may do
+     */
+    scope: 'read' | 'read+write';
+    /**
+     * When it stops working (ISO 8601)
+     */
+    expires_at: string | null;
+    /**
+     * When it was last used (ISO 8601), or null
+     */
+    last_used: string | null;
+    /**
+     * The token, shown only this once: send it as `Authorization: Bearer <token>` to the REST API
+     */
+    token: string;
+};
+
+export type AccountTokenRequest = {
+    /**
+     * What it is for: one line, 1 to 50 characters
+     */
+    name: string;
+    /**
+     * Default `read+write`
+     */
+    scope?: 'read' | 'read+write';
+    /**
+     * How long it works, 1 to 365 days; default 90
+     */
+    days?: number;
+};
+
 export type ListNotesData = {
     body?: never;
     headers?: {
@@ -748,6 +817,10 @@ export type DeleteNoteErrors = {
      */
     401: Error;
     /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
      * No such note
      */
     404: Error;
@@ -863,6 +936,10 @@ export type PatchNoteErrors = {
      * The instance has a password, or the feed has its own, and it is missing or wrong
      */
     401: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
     /**
      * No such note
      */
@@ -1181,6 +1258,10 @@ export type CreateFeedErrors = {
      */
     402: Error;
     /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
      * The feed exists already (`feed_exists`), or the read id is taken (`taken`)
      */
     409: Error;
@@ -1300,6 +1381,10 @@ export type RemoveFeedImageErrors = {
      * The instance has a password, or the feed has its own, and it is missing or wrong
      */
     401: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
     /**
      * No such feed
      */
@@ -1432,6 +1517,10 @@ export type RemoveFeedPasswordErrors = {
      */
     401: Error;
     /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
      * The feed has no password
      */
     409: Error;
@@ -1488,6 +1577,10 @@ export type ChangeFeedPasswordErrors = {
      */
     402: Error;
     /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
      * No such feed
      */
     404: Error;
@@ -1537,6 +1630,10 @@ export type ClaimFeedErrors = {
      * Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds
      */
     402: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
     /**
      * No such feed
      */
@@ -1741,6 +1838,114 @@ export type ListAccountFeedsResponses = {
 
 export type ListAccountFeedsResponse = ListAccountFeedsResponses[keyof ListAccountFeedsResponses];
 
+export type ListAccountTokensData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/tokens';
+};
+
+export type ListAccountTokensErrors = {
+    /**
+     * No account signed in on this instance's pages
+     */
+    401: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type ListAccountTokensError = ListAccountTokensErrors[keyof ListAccountTokensErrors];
+
+export type ListAccountTokensResponses = {
+    /**
+     * The account's tokens
+     */
+    200: AccountTokens;
+};
+
+export type ListAccountTokensResponse = ListAccountTokensResponses[keyof ListAccountTokensResponses];
+
+export type CreateAccountTokenData = {
+    body: AccountTokenRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/tokens';
+};
+
+export type CreateAccountTokenErrors = {
+    /**
+     * Bad JSON, a name that is not one line of 1 to 50 characters, another scope, or days outside 1 to 365
+     */
+    400: Error;
+    /**
+     * No account signed in on this instance's pages
+     */
+    401: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type CreateAccountTokenError = CreateAccountTokenErrors[keyof CreateAccountTokenErrors];
+
+export type CreateAccountTokenResponses = {
+    /**
+     * Made; the token is in the answer, only this once
+     */
+    201: NewAccountToken;
+};
+
+export type CreateAccountTokenResponse = CreateAccountTokenResponses[keyof CreateAccountTokenResponses];
+
+export type RevokeAccountTokenData = {
+    body?: never;
+    path: {
+        /**
+         * The token's id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/account/tokens/{id}';
+};
+
+export type RevokeAccountTokenErrors = {
+    /**
+     * No account signed in on this instance's pages
+     */
+    401: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
+     * No such token of this account
+     */
+    404: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type RevokeAccountTokenError = RevokeAccountTokenErrors[keyof RevokeAccountTokenErrors];
+
+export type RevokeAccountTokenResponses = {
+    /**
+     * Revoked
+     */
+    204: void;
+};
+
+export type RevokeAccountTokenResponse = RevokeAccountTokenResponses[keyof RevokeAccountTokenResponses];
+
 export type RecoverFeedPasswordData = {
     body: RecoveryJson;
     path: {
@@ -1766,6 +1971,10 @@ export type RecoverFeedPasswordErrors = {
      * The key's license has lapsed, and a new password needs an active one (`license_required`)
      */
     402: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
     /**
      * Licenses are not sold on this instance, or the feed was deleted meanwhile
      */
@@ -1818,6 +2027,10 @@ export type DeleteFeedLicenseErrors = {
      * The instance has a password, or the feed has its own, and it is missing or wrong
      */
     401: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
     /**
      * No such feed, or licenses are not sold on this instance
      */
@@ -1874,6 +2087,10 @@ export type PutFeedLicenseErrors = {
      * The key's license has lapsed (`license_required`)
      */
     402: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
     /**
      * No such feed, or licenses are not sold on this instance
      */

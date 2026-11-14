@@ -5,7 +5,8 @@ import * as z from "zod";
 import { bearerOf, checkBearer, locked } from "./auth";
 import { config } from "./config";
 import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoundError, TooManyAttemptsError, UnsupportedTypeError } from "./errors";
-import { changePassword, checkFeedAccess, recoverPassword } from "./feedlock";
+import { addFeedPassword, changePassword, checkFeedAccess, claimFeed, listFeedPasswords, ownedFeeds, recoverPassword, revokeFeedPassword } from "./feedlock";
+import { createAccountToken, listAccountTokens, revokeAccountToken } from "./accounts/tokens";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson, licensesJson } from "./http/api";
 import { ownerFile } from "./http/files";
@@ -85,6 +86,12 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
 // Every tool declares all four hints, as booleans: directories such as OpenAI's refuse a tool that leaves one out. Only get_licenses
 // reaches beyond this notefeed: its plans come from the payment provider.
 function server(h: Headers): McpServer {
+  // The account an MCP client signed in as (#390): its access token's, else none. Checked again at every refresh of the token.
+  const account = verify("access", bearerOf(h.get("authorization")))?.uid;
+  const needAccount = (): string => {
+    if (!account) throw new AuthError("sign in with an account first: connect this MCP client again and choose your account on the authorize page");
+    return account;
+  };
   const base = publicUrl(h);
   const summary = (feed: string, n: Note) => ({
     id: n.id,
@@ -102,7 +109,7 @@ function server(h: Headers): McpServer {
   // A reserved name must not reach the filesystem lookup, so it is checked first.
   const checkAccess = async (feed: string, password?: string) => {
     assertFeed(feed);
-    await checkFeedAccess(feed, { password }, clientIp(h));
+    await checkFeedAccess(feed, { password, account }, clientIp(h));
   };
   const state = (n: Note) => ({ draft: isDraft(n), scheduled: isScheduled(n), date: n.date.toISOString() });
   const feedGuidance = (f: z.infer<typeof FeedJson>) => ({ readUrl: f.read_url, protected: f.protected, freeTier: f.free_tier });
@@ -115,7 +122,7 @@ function server(h: Headers): McpServer {
     if (!parsed) throw new UnsupportedTypeError();
     const body = Buffer.from(data, "base64");
     if (parsed.type.name === "image" && body.length > config.maxImageBytes()) throw new ImageTooLargeError();
-    return postNote(feed, clientIp(h), async () => ({ ...meta, body, mediaType: parsed.mediaType }), { password }, await sender(h));
+    return postNote(feed, clientIp(h), async () => ({ ...meta, body, mediaType: parsed.mediaType }), { password, account }, await sender(h));
   };
   const fileUrl = (readId: string | null, file: string) => (readId ? base + imagePath(readId, file) : "");
 
@@ -192,7 +199,7 @@ function server(h: Headers): McpServer {
         feed,
         clientIp(h),
         async () => ({ text: markdown, pictures, title, sender: given, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }),
-        { password },
+        { password, account },
         await sender(h),
       );
       const feedUrl = base + feedPath(feed);
@@ -292,9 +299,12 @@ function server(h: Headers): McpServer {
       let note =
         markdown === undefined
           ? undefined
-          : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), { password });
+          : await editContent(feed, id, clientIp(h), async () => ({ body: new TextEncoder().encode(markdown), mediaType: "text/markdown" }), {
+              password,
+              account,
+            });
       if (title !== undefined || given !== undefined || tags !== undefined || date !== undefined || draft !== undefined)
-        note = await editMeta(feed, id, clientIp(h), async () => ({ title, sender: given, tags, date, draft }), { password });
+        note = await editMeta(feed, id, clientIp(h), async () => ({ title, sender: given, tags, date, draft }), { password, account });
       const edited = summary(feed, note!);
       return ok({ ...edited, ...(note!.content !== undefined && { content: note!.content }), guidance: next.afterEdit({ ...state(note!), url: edited.url }) });
     }),
@@ -309,7 +319,7 @@ function server(h: Headers): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, id, password }) => {
-      await deleteNote(feed, id, clientIp(h), { password });
+      await deleteNote(feed, id, clientIp(h), { password, account });
       return ok({ deleted: true as const, guidance: next.afterDeleteNote() });
     }),
   );
@@ -372,6 +382,12 @@ function server(h: Headers): McpServer {
           .describe(
             "A new name for the feed (1 to 64 characters of a-z, 0-9, - and _). Everything goes with it; the old name stops working at once, so use the new one in every later call and tell the user to change it wherever it is configured (NOTEFEED_FEED, CI secrets, scripts, MCP configurations) before those next run: a post to the old name creates a new, empty feed without an error.",
           ),
+        sender_name: z
+          .string()
+          .optional()
+          .describe(
+            "What the owner's own notes show as their sender (posted by the owner's account without a sender of their own); changing it changes it on all of them. One line, at most 100 characters; empty shows none. Only for the feed's owner",
+          ),
         license_key: z
           .string()
           .optional()
@@ -382,20 +398,21 @@ function server(h: Headers): McpServer {
       outputSchema: FeedOut,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, title, description, image, read_id, name, license_key, new_password, password }) => {
-      const settings = title !== undefined || description !== undefined || image !== undefined || read_id !== undefined || name !== undefined;
+    guard(async ({ feed, title, description, image, read_id, name, sender_name, license_key, new_password, password }) => {
+      const settings =
+        title !== undefined || description !== undefined || image !== undefined || read_id !== undefined || name !== undefined || sender_name !== undefined;
       if (!settings && license_key === undefined && new_password === undefined)
         throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, license_key, new_password or several");
       const ip = clientIp(h);
       const readIdBefore = read_id === undefined ? undefined : (await feedJson(feed, h).catch(() => undefined))?.read_url;
       // First, so a key that is refused changes nothing else (#247); the license may be what the new password needs.
-      if (license_key !== undefined) await setLicense(feed, ip, license_key.trim() === "" ? null : license_key, { password });
+      if (license_key !== undefined) await setLicense(feed, ip, license_key.trim() === "" ? null : license_key, { password, account });
       if (new_password !== undefined) {
         assertFeed(feed); // a reserved name must not reach the lookup
         await changePassword(feed, password ?? "", new_password, ip);
       }
       // From here on the feed's password is the new one.
-      const access = { password: new_password ?? password };
+      const access = { password: new_password ?? password, account };
       let now = feed;
       if (settings) {
         now = (
@@ -404,7 +421,7 @@ function server(h: Headers): McpServer {
             ip,
             async () => {
               const stored = await getStoredSettings(feed); // after the password check: what is left out stays
-              return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id, name };
+              return { title: title ?? stored.title, description: description ?? stored.description, image, readId: read_id, name, senderName: sender_name };
             },
             access,
           )
@@ -439,7 +456,7 @@ function server(h: Headers): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, password, license_key, read_id }) => {
-      await createFeed(feed, clientIp(h), { password, licenseKey: license_key, readId: read_id });
+      await createFeed(feed, clientIp(h), { password, licenseKey: license_key, readId: read_id }, account);
       const f = await feedJson(feed, h);
       return ok({ ...f, guidance: next.afterCreate(feedGuidance(f)) });
     }),
@@ -481,7 +498,7 @@ function server(h: Headers): McpServer {
       const body = Buffer.from(data, "base64");
       if (body.length > config.maxImageBytes()) throw new ImageTooLargeError();
       if (!body.length) throw new UnsupportedTypeError("data is empty");
-      await setFeedImage(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType }), { password });
+      await setFeedImage(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType }), { password, account });
       return ok({ ...(await feedJson(feed, h)), guidance: next.afterSetImage() });
     }),
   );
@@ -495,7 +512,7 @@ function server(h: Headers): McpServer {
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     },
     guard(async ({ feed, password }) => {
-      await deleteFeed(feed, clientIp(h), { password });
+      await deleteFeed(feed, clientIp(h), { password, account });
       return ok({ deleted: true as const, guidance: next.afterDeleteFeed() });
     }),
   );
@@ -518,6 +535,140 @@ function server(h: Headers): McpServer {
       const { note, readId } = await postBytes(feed, { type, data, ...meta }, password);
       const url = fileUrl(readId, note.file);
       return ok({ id: note.id, file: note.file, url, ...(note.draft && { draft: true as const }), guidance: next.afterPostFile({ ...state(note), url }) });
+    }),
+  );
+
+  s.registerTool(
+    "list_feeds",
+    {
+      description:
+        "The feeds of the account this client signed in as (its own: it created or claimed them). Needs a client signed in with an account (accounts on).",
+      inputSchema: z.object({}),
+      outputSchema: z.object({ feeds: z.array(z.string()), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    guard(async () => {
+      const feeds = await ownedFeeds(needAccount());
+      return ok({ feeds, guidance: next.afterListFeeds(feeds.length) });
+    }),
+  );
+
+  s.registerTool(
+    "claim_feed",
+    {
+      description:
+        "Make a feed the account's own: then only the account manages its feed passwords, renames and deletes it. A protected feed: give one of its passwords, which keeps working as its first, named 'Feed password'. An open feed: give the password it gets now. A feed with an owner can't be claimed.",
+      inputSchema: z.object({ feed, password: z.string().describe("A protected feed's password, or an open feed's new one") }),
+      outputSchema: z.object({ claimed: z.literal(true), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    guard(async ({ feed: name, password: given }) => {
+      assertFeed(name);
+      await claimFeed(name, needAccount(), given, clientIp(h));
+      return ok({ claimed: true as const, guidance: next.afterClaim() });
+    }),
+  );
+
+  s.registerTool(
+    "list_feed_passwords",
+    {
+      description: "An owned feed's passwords: their names, ids and when they were added, never the passwords. Only for the feed's owner.",
+      inputSchema: z.object({ feed }),
+      outputSchema: z.object({ passwords: z.array(z.object({ id: z.string(), name: z.string(), created: z.string().nullable() })), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    guard(async ({ feed: name }) => {
+      assertFeed(name);
+      const passwords = await listFeedPasswords(name, needAccount());
+      return ok({ passwords, guidance: next.afterListFeedPasswords(passwords.length) });
+    }),
+  );
+
+  s.registerTool(
+    "add_feed_password",
+    {
+      description:
+        'Add a named password to an owned feed, for one person or script ("blog script", "Anna"); it is generated and returned only this once, and revoked on its own. Only for the feed\'s owner; where licenses are sold, the feed needs one.',
+      inputSchema: z.object({ feed, name: z.string().describe("What it is for: one line, 1 to 50 characters") }),
+      outputSchema: z.object({ id: z.string(), name: z.string(), password: z.string(), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    guard(async ({ feed: name, name: label }) => {
+      assertFeed(name);
+      const added = await addFeedPassword(name, needAccount(), label);
+      return ok({ id: added.id, name: added.name, password: added.password, guidance: next.afterAddSecret("feed password") });
+    }),
+  );
+
+  s.registerTool(
+    "revoke_feed_password",
+    {
+      description:
+        "Revoke one of an owned feed's passwords by its id: it, and every browser unlocked with it, stops working at once. Only for the feed's owner.",
+      inputSchema: z.object({ feed, id: z.string().describe("The password's id, from list_feed_passwords") }),
+      outputSchema: z.object({ revoked: z.literal(true), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    },
+    guard(async ({ feed: name, id }) => {
+      assertFeed(name);
+      await revokeFeedPassword(name, needAccount(), id);
+      return ok({ revoked: true as const, guidance: next.afterRevoke("feed password") });
+    }),
+  );
+
+  s.registerTool(
+    "create_account_token",
+    {
+      description:
+        "Make an account token: for a script that acts as the whole account over the REST API (Authorization: Bearer <token>), never over MCP. scope read only reads; read+write (default) does everything the account may. Returned only this once.",
+      inputSchema: z.object({
+        name: z.string().describe("What it is for: one line, 1 to 50 characters"),
+        scope: z.enum(["read", "read+write"]).optional().describe("Default read+write"),
+        days: z.number().int().optional().describe("How long it works, 1 to 365; default 90"),
+      }),
+      outputSchema: z.object({ id: z.string(), token: z.string(), expires_at: z.string().nullable(), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    guard(async ({ name, scope, days }) => {
+      const t = await createAccountToken(needAccount(), name, scope ?? "read+write", days);
+      return ok({ id: t.id, token: t.token, expires_at: t.expiresAt, guidance: next.afterAddSecret("account token") });
+    }),
+  );
+
+  s.registerTool(
+    "list_account_tokens",
+    {
+      description: "The account's tokens: names, scopes, ends and last use, never the tokens.",
+      inputSchema: z.object({}),
+      outputSchema: z.object({
+        tokens: z.array(z.object({ id: z.string(), name: z.string(), scope: z.string(), expires_at: z.string().nullable(), last_used: z.string().nullable() })),
+        guidance: GUIDANCE,
+      }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    },
+    guard(async () => {
+      const tokens = (await listAccountTokens(needAccount())).map((t) => ({
+        id: t.id,
+        name: t.name,
+        scope: t.scope,
+        expires_at: t.expiresAt,
+        last_used: t.lastUsed,
+      }));
+      return ok({ tokens, guidance: next.afterListTokens(tokens.length) });
+    }),
+  );
+
+  s.registerTool(
+    "revoke_account_token",
+    {
+      description: "Revoke one of the account's tokens by its id; it stops working at once.",
+      inputSchema: z.object({ id: z.string().describe("The token's id, from list_account_tokens") }),
+      outputSchema: z.object({ revoked: z.literal(true), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+    },
+    guard(async ({ id }) => {
+      await revokeAccountToken(needAccount(), id);
+      return ok({ revoked: true as const, guidance: next.afterRevoke("account token") });
     }),
   );
   return s;
@@ -544,11 +695,16 @@ function gate(req: Request): Response | AuthInfo | undefined {
     } catch {}
     if (host !== new URL(publicUrl(req.headers)).host) return rpcError(403, "forbidden origin");
   }
-  if (!locked()) return undefined;
   const unauthorized = (message: string, error = "") =>
     rpcError(401, message, { "www-authenticate": `Bearer ${error}resource_metadata="${publicUrl(req.headers)}/.well-known/oauth-protected-resource/mcp"` });
   const authorization = req.headers.get("authorization");
   const token = bearerOf(authorization);
+  // An open instance: anyone may call; an account's client sends its token, which must still be good (#390).
+  if (!locked()) {
+    if (token && verify("access", token, 0) && verify("access", token)?.aud !== mcpResource(req.headers))
+      return unauthorized("invalid token", 'error="invalid_token", ');
+    return undefined;
+  }
   // An access token we signed (now = 0 ignores expiry) is never a password guess: when it has expired or
   // names another resource, invalid_token tells the client to refresh, and no failed attempt is counted.
   if (verify("access", token, 0)) {

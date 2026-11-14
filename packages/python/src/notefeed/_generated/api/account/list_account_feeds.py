@@ -55,10 +55,9 @@ def sync_detailed(
     *,
     client: AuthenticatedClient,
 ) -> Response[AccountFeeds | Error]:
-    """The signed-in account's feeds
+    """The account's feeds
 
-     The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens
-    for scripts follow.
+     The feeds it owns. Needs the account: signed in on this instance's own pages, or its token.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -81,10 +80,9 @@ def sync(
     *,
     client: AuthenticatedClient,
 ) -> AccountFeeds | Error | None:
-    """The signed-in account's feeds
+    """The account's feeds
 
-     The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens
-    for scripts follow.
+     The feeds it owns. Needs the account: signed in on this instance's own pages, or its token.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -103,10 +101,9 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
 ) -> Response[AccountFeeds | Error]:
-    """The signed-in account's feeds
+    """The account's feeds
 
-     The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens
-    for scripts follow.
+     The feeds it owns. Needs the account: signed in on this instance's own pages, or its token.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -127,10 +124,9 @@ async def asyncio(
     *,
     client: AuthenticatedClient,
 ) -> AccountFeeds | Error | None:
-    """The signed-in account's feeds
+    """The account's feeds
 
-     The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens
-    for scripts follow.
+     The feeds it owns. Needs the account: signed in on this instance's own pages, or its token.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

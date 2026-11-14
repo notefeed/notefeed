@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddFeedPasswordData, AddFeedPasswordErrors, AddFeedPasswordResponses, ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, ClaimFeedData, ClaimFeedErrors, ClaimFeedResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListAccountFeedsData, ListAccountFeedsErrors, ListAccountFeedsResponses, ListFeedPasswordsData, ListFeedPasswordsErrors, ListFeedPasswordsResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, RevokeFeedPasswordData, RevokeFeedPasswordErrors, RevokeFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
+import type { AddFeedPasswordData, AddFeedPasswordErrors, AddFeedPasswordResponses, ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, ClaimFeedData, ClaimFeedErrors, ClaimFeedResponses, CreateAccountTokenData, CreateAccountTokenErrors, CreateAccountTokenResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListAccountFeedsData, ListAccountFeedsErrors, ListAccountFeedsResponses, ListAccountTokensData, ListAccountTokensErrors, ListAccountTokensResponses, ListFeedPasswordsData, ListFeedPasswordsErrors, ListFeedPasswordsResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, RevokeAccountTokenData, RevokeAccountTokenErrors, RevokeAccountTokenResponses, RevokeFeedPasswordData, RevokeFeedPasswordErrors, RevokeFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -215,7 +215,7 @@ export const changeFeedPassword = <ThrowOnError extends boolean = false>(options
 /**
  * Claim a feed for the signed-in account
  *
- * The feed becomes the account's own (its owner): only the owner then manages its feed passwords, renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`). Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.
+ * The feed becomes the account's own (its owner): only the owner then manages its feed passwords, renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`). Needs the account: signed in on this instance's own pages, or its token.
  */
 export const claimFeed = <ThrowOnError extends boolean = false>(options: Options<ClaimFeedData, ThrowOnError>): RequestResult<ClaimFeedResponses, ClaimFeedErrors, ThrowOnError> => (options.client ?? client).post<ClaimFeedResponses, ClaimFeedErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -265,13 +265,50 @@ export const revokeFeedPassword = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * The signed-in account's feeds
+ * The account's feeds
  *
- * The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.
+ * The feeds it owns. Needs the account: signed in on this instance's own pages, or its token.
  */
 export const listAccountFeeds = <ThrowOnError extends boolean = false>(options?: Options<ListAccountFeedsData, ThrowOnError>): RequestResult<ListAccountFeedsResponses, ListAccountFeedsErrors, ThrowOnError> => (options?.client ?? client).get<ListAccountFeedsResponses, ListAccountFeedsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/account/feeds',
+    ...options
+});
+
+/**
+ * The signed-in account's tokens
+ *
+ * Their names, scopes and ends, never the tokens. Needs the account signed in on this instance's own pages: a token can't list tokens.
+ */
+export const listAccountTokens = <ThrowOnError extends boolean = false>(options?: Options<ListAccountTokensData, ThrowOnError>): RequestResult<ListAccountTokensResponses, ListAccountTokensErrors, ThrowOnError> => (options?.client ?? client).get<ListAccountTokensResponses, ListAccountTokensErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/account/tokens',
+    ...options
+});
+
+/**
+ * Make an account token
+ *
+ * A token for a script that acts as the whole account over this REST API (never MCP, never a browser): list and create its feeds, post to and manage the ones it owns. Shown only in this answer; stored hashed. `read` tokens may only read. Needs the account signed in on this instance's own pages, or MCP's `create_account_token`.
+ */
+export const createAccountToken = <ThrowOnError extends boolean = false>(options: Options<CreateAccountTokenData, ThrowOnError>): RequestResult<CreateAccountTokenResponses, CreateAccountTokenErrors, ThrowOnError> => (options.client ?? client).post<CreateAccountTokenResponses, CreateAccountTokenErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/account/tokens',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke an account token
+ *
+ * It stops working at once. Needs the account signed in on this instance's own pages.
+ */
+export const revokeAccountToken = <ThrowOnError extends boolean = false>(options: Options<RevokeAccountTokenData, ThrowOnError>): RequestResult<RevokeAccountTokenResponses, RevokeAccountTokenErrors, ThrowOnError> => (options.client ?? client).delete<RevokeAccountTokenResponses, RevokeAccountTokenErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/account/tokens/{id}',
     ...options
 });
 

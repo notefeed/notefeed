@@ -4,7 +4,9 @@
  */
 import { createClient, createConfig } from "./generated/client/index.js";
 import {
+  addFeedPassword,
   changeFeedPassword,
+  claimFeed,
   createFeed,
   deleteFeed,
   deleteFeedLicense,
@@ -15,6 +17,8 @@ import {
   getLicenses,
   getNote,
   getReadNote,
+  listAccountFeeds,
+  listFeedPasswords,
   listNotes,
   listReadNotes,
   patchNote,
@@ -22,10 +26,11 @@ import {
   putFeedLicense,
   recoverFeedPassword,
   removeFeedImage,
+  revokeFeedPassword,
   setFeedImage,
   updateFeed,
 } from "./generated/sdk.gen.js";
-import type { Created, Error as ApiError, Feed, FeedSettings, Licenses, Note, NoteList } from "./generated/types.gen.js";
+import type { Created, Error as ApiError, Feed, FeedPassword, FeedSettings, Licenses, NewFeedPassword, Note, NoteList } from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
 export type ErrorCode = NonNullable<ApiError["code"]>;
@@ -34,7 +39,9 @@ export type { Created, Feed, FeedSettings, Licenses, Note };
 /** A picture posted with a note: `![](name)` in the markdown refers to it. `type` as for post(). */
 export type Attachment = { name: string; content: Uint8Array | Blob; type?: string; alt?: string };
 /** `timeoutMs` (default 10000) limits each whole request, including reading the answer. */
-export type ClientOptions = { url: string; feed?: string; password?: string; feedPassword?: string; timeoutMs?: number };
+/** `password`: the instance password, on an instance that has one. `token`: an account token (`nf_…`) on an instance with accounts: the
+ *  client then acts as that account (its feeds, owner's steps). Never both. */
+export type ClientOptions = { url: string; feed?: string; password?: string; token?: string; feedPassword?: string; timeoutMs?: number };
 
 /** Any failure talking to notefeed. `status` and `code` are null when there was no API answer. */
 export class NotefeedError extends Error {
@@ -155,11 +162,13 @@ export class Client {
 
   /** A notefeed server. The feed set here is the default for every call; each call can override it. */
   constructor(options: ClientOptions) {
-    const { url, feed, password, feedPassword, timeoutMs } = options ?? ({} as Partial<ClientOptions>);
+    const { url, feed, password, token, feedPassword, timeoutMs } = options ?? ({} as Partial<ClientOptions>);
     if (!url) throw new ConfigError("no url given");
     this.url = url.replace(/\/+$/, "");
     this.feed = feed ? checkFeed(feed) : null;
-    const pw = password?.trim() || null;
+    if (password?.trim() && token?.trim()) throw new ConfigError("give a password or an account token, not both");
+    if (token?.trim() && !token.trim().startsWith("nf_")) throw new ConfigError("an account token starts with nf_");
+    const pw = password?.trim() || token?.trim() || null;
     // Never echo the value: it would end up in terminals and CI logs.
     if (pw && /[\x00-\x1f\x7f]/.test(pw)) throw new ConfigError("password contains invalid characters");
     this.feedPassword = checkFeedPassword(feedPassword);
@@ -173,6 +182,7 @@ export class Client {
       url: env.NOTEFEED_URL ?? "",
       feed: env.NOTEFEED_FEED || undefined,
       password: env.NOTEFEED_PASSWORD,
+      token: env.NOTEFEED_TOKEN,
       feedPassword: env.NOTEFEED_FEED_PASSWORD,
     });
   }
@@ -313,6 +323,35 @@ export class Client {
       ...(options.readId ? { read_id: options.readId } : {}),
     };
     return this.call(createFeed({ client: this.api, path: { feed }, body, signal: AbortSignal.timeout(this.timeoutMs) }));
+  }
+
+  /** Claim the feed for the client's account (its token): a protected feed with one of its passwords, which keeps working as its first, named "Feed password"; an open feed with the password it gets now. Then only the account manages its passwords, renames and deletes it. A feed with an owner is refused (409, `owned`). */
+  async claimFeed(password: string, options: { feed?: string } = {}): Promise<void> {
+    const feed = this.feedFor(options.feed);
+    await this.call(claimFeed({ client: this.api, path: { feed }, body: { password }, signal: AbortSignal.timeout(this.timeoutMs) }));
+  }
+
+  /** An owned feed's passwords (names and ids, never the passwords). Only for the feed's owner (the client's account token). */
+  async feedPasswords(options: { feed?: string } = {}): Promise<FeedPassword[]> {
+    const feed = this.feedFor(options.feed);
+    return (await this.call(listFeedPasswords({ client: this.api, path: { feed }, signal: AbortSignal.timeout(this.timeoutMs) }))).passwords;
+  }
+
+  /** A new named password for an owned feed, generated and returned only this once. Only for the feed's owner. */
+  async addFeedPassword(name: string, options: { feed?: string } = {}): Promise<NewFeedPassword> {
+    const feed = this.feedFor(options.feed);
+    return this.call(addFeedPassword({ client: this.api, path: { feed }, body: { name }, signal: AbortSignal.timeout(this.timeoutMs) }));
+  }
+
+  /** Revoke one of an owned feed's passwords by its id; it stops working at once. Only for the feed's owner. */
+  async revokeFeedPassword(id: string, options: { feed?: string } = {}): Promise<void> {
+    const feed = this.feedFor(options.feed);
+    await this.call(revokeFeedPassword({ client: this.api, path: { feed, id }, signal: AbortSignal.timeout(this.timeoutMs) }));
+  }
+
+  /** The names of the feeds the client's account owns (needs an account token). */
+  async accountFeeds(): Promise<string[]> {
+    return (await this.call(listAccountFeeds({ client: this.api, signal: AbortSignal.timeout(this.timeoutMs) }))).feeds;
   }
 
   /** For a lost password, only on an instance that sells licenses: the key of the license on the feed proves ownership instead of the current password. `password` becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. A key that is not the feed's license is refused and counts as a failed attempt. */

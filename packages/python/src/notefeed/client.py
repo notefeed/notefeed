@@ -17,8 +17,11 @@ import truststore
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
+from ._generated.api.account import list_account_feeds
 from ._generated.api.feeds import (
+    add_feed_password,
     change_feed_password,
+    claim_feed,
     create_feed,
     delete_feed,
     delete_feed_license,
@@ -27,24 +30,32 @@ from ._generated.api.feeds import (
     get_feed,
     get_file,
     get_note,
+    list_feed_passwords,
     list_notes,
     patch_note,
     post_note,
     put_feed_license,
     recover_feed_password,
     remove_feed_image,
+    revoke_feed_password,
     set_feed_image,
     update_feed,
 )
 from ._generated.api.licenses import get_licenses
 from ._generated.api.read import get_read_note, list_read_notes
 from ._generated.models import (
+    AccountFeeds,
+    Claim,
     CreateFeedJson,
     Created,
     Feed,
+    FeedPassword,
+    FeedPasswordName,
+    FeedPasswords,
     FeedSettings,
     LicenseKey,
     Licenses,
+    NewFeedPassword,
     Note,
     NoteList,
     NoteMeta,
@@ -212,6 +223,7 @@ class Client:
         password: str | None = None,
         timeout: float = 10.0,
         feed_password: str | None = None,
+        token: str | None = None,
     ):
         if not url:
             raise ConfigError("no url given")
@@ -221,7 +233,12 @@ class Client:
             httpx.URL(self.url)
         except httpx.InvalidURL:
             raise ConfigError("invalid url") from None
-        password = (password or "").strip() or None
+        # `token`: an account token (nf_…) on an instance with accounts; the client then acts as that account. Never with a password.
+        if (password or "").strip() and (token or "").strip():
+            raise ConfigError("give a password or an account token, not both")
+        if (token or "").strip() and not token.strip().startswith("nf_"):
+            raise ConfigError("an account token starts with nf_")
+        password = (password or "").strip() or (token or "").strip() or None
         if password and re.search(r"[\x00-\x1f\x7f]", password):
             # Never echo the value: it would end up in terminals and CI logs.
             raise ConfigError("password contains invalid characters")
@@ -255,6 +272,7 @@ class Client:
             environ.get("NOTEFEED_FEED") or None,
             environ.get("NOTEFEED_PASSWORD"),
             feed_password=environ.get("NOTEFEED_FEED_PASSWORD"),
+            token=environ.get("NOTEFEED_TOKEN"),
         )
 
     def post(
@@ -442,6 +460,26 @@ class Client:
         """Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `read_id` gives it that read link. Where licenses are sold `license_key` is required and goes on the new feed. A feed that exists is refused (409)."""
         body = CreateFeedJson(password=password or UNSET, license_key=license_key or UNSET, read_id=read_id or UNSET)
         return self._parse(Feed, self._call(create_feed._get_kwargs(feed=self._feed_for(feed), body=body)))
+
+    def claim_feed(self, password: str, feed: str | None = None) -> None:
+        """Claim the feed for the client's account (its token): a protected feed with one of its passwords, which keeps working as its first, named "Feed password"; an open feed with the password it gets now. A feed with an owner is refused (409, `owned`)."""
+        self._call(claim_feed._get_kwargs(feed=self._feed_for(feed), body=Claim(password=password)))
+
+    def feed_passwords(self, feed: str | None = None) -> list[FeedPassword]:
+        """An owned feed's passwords (names and ids, never the passwords). Only for the feed's owner."""
+        return self._parse(FeedPasswords, self._call(list_feed_passwords._get_kwargs(feed=self._feed_for(feed)))).passwords
+
+    def add_feed_password(self, name: str, feed: str | None = None) -> NewFeedPassword:
+        """A new named password for an owned feed, generated and returned only this once. Only for the feed's owner."""
+        return self._parse(NewFeedPassword, self._call(add_feed_password._get_kwargs(feed=self._feed_for(feed), body=FeedPasswordName(name=name))))
+
+    def revoke_feed_password(self, id: str, feed: str | None = None) -> None:
+        """Revoke one of an owned feed's passwords by its id; it stops working at once. Only for the feed's owner."""
+        self._call(revoke_feed_password._get_kwargs(feed=self._feed_for(feed), id=id))
+
+    def account_feeds(self) -> list[str]:
+        """The names of the feeds the client's account owns (needs an account token)."""
+        return self._parse(AccountFeeds, self._call(list_account_feeds._get_kwargs())).feeds
 
     def recover_feed_password(self, key: str, password: str = "", feed: str | None = None) -> None:
         """For a lost password, only on an instance that sells licenses: the key of the license on the feed proves ownership instead of the current password. `password` becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. A key that is not the feed's license is refused and counts as a failed attempt."""

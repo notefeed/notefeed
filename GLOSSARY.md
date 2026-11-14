@@ -150,6 +150,10 @@ _Avoid_: Username, account id
 The generated secret that goes with an account number, kept by the account's holder in their password manager.
 _Avoid_: Account password, master password
 
+**Account token**:
+A secret that lets a script act as a whole account over the REST API: made, named and revoked by the account, never accepted on MCP or as a browser's sign-in.
+_Avoid_: API key, personal access token
+
 **Owner**:
 The account a feed belongs to: the one that created it while signed in, or claimed it. Only the owner manages its feed passwords, renames or deletes the feed and puts it under its license.
 _Avoid_: Admin, creator

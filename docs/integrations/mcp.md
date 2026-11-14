@@ -15,6 +15,10 @@ notefeed has an [MCP](https://modelcontextprotocol.io) endpoint at `/mcp`, so AI
 | `recover_feed_password` | A lost password, on notefeed.me: the key of the license on the feed sets a new password (`new_password`) or, left out, removes it. A wrong key counts as a wrong password. |
 | `get_licenses` | On notefeed.me: what a license costs, the license page to buy one (`buy_url`), and where buyers manage their purchases (`manage_url`): cancelling, the payment method, invoices and keys are at the payment provider, signed in with the e-mail address bought with. No license key opens it. |
 | `post_file` | Posts a file as a note, as base64: `feed`, `type` (markdown or a picture type) and `data`, optionally `title`, `sender`, `alt`, `name`, `tags`, `date` and `draft`, as for a REST post. |
+| `list_feeds` | The feeds of the [account](#as-an-account) the client signed in as. |
+| `claim_feed` | Makes a feed the account's own: a protected one with its `password`, an open one with the password it gets now. |
+| `list_feed_passwords`, `add_feed_password`, `revoke_feed_password` | An owned feed's [named passwords](../using/feed-passwords.md#a-feed-with-an-owner): list them, add one (`name`; the password comes back once), revoke one by its `id`. Only for the feed's owner. |
+| `create_account_token`, `list_account_tokens`, `revoke_account_token` | The account's [tokens](../self-hosting/accounts.md#account-tokens) for scripts: make one (`name`, `scope` `read` or `read+write`, `days`; shown once), list them, revoke one. |
 
 Every tool's answer carries `guidance`, a short list of what to tell you or do next, worked out from what the call did: that a post is a draft and how to publish it, that a renamed feed's old name must change in scripts, that an old read link stops working. The assistant sees it even when its client leaves out the tool descriptions.
 
@@ -33,6 +37,10 @@ claude mcp add notefeed --transport http https://notes.example.com/mcp --header 
 Add a custom connector with the URL `https://notes.example.com/mcp`. On a locked instance the connector opens notefeed's login page: check that it names the client, enter the instance password and press **Allow**; with [sign-in](../self-hosting/sign-in/index.md#mcp) on, there is also a **Sign in with** button per provider. See [OAuth for MCP clients](../self-hosting/access.md#oauth-for-mcp-clients). It needs the instance's public `https://` address in `PUBLIC_URL`. A client whose callback has its own scheme, such as `cursor://`, can't log in through OAuth: give it the password as a `Bearer` header, as for Claude Code.
 
 For writing a note with a review step before it is posted, see the [agent skills](skills.md).
+
+## As an account
+
+On an instance with [accounts](../self-hosting/accounts.md), the authorize page an MCP client opens has **Allow as your account** once you are signed in on that instance (or **Sign in to your account first**). The client then acts as the account: feeds it creates are the account's, its notes carry [the owner's name](../using/posting.md#sender), and the account tools above work. Like a browser's sign-in, it is checked again at every token refresh and lasts 90 days at most; an account token is never accepted on MCP.
 
 ## Feeds with a password
 

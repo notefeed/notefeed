@@ -299,6 +299,33 @@ describe("feed settings and deletion", () => {
     expect(open.headers["x-feed-password"]).toBeUndefined();
     expect([JSON.parse(change.body.toString()), change.headers["x-feed-password"]]).toEqual([{ password: "Other!pass1" }, "N3wPassw0rd!"]);
   });
+  test("an account token is sent as the bearer; with a password too, or without its prefix, the client refuses", async () => {
+    server.reply(200, { feeds: ["a", "b"] });
+    const c = new Client({ url: server.url, token: "nf_abc" });
+    expect(await c.accountFeeds()).toEqual(["a", "b"]);
+    expect([server.requests[0].path, server.requests[0].headers.authorization]).toEqual(["/api/v1/account/feeds", "Bearer nf_abc"]);
+    expect(() => new Client({ url: server.url, token: "nf_abc", password: "pw" })).toThrow(ConfigError);
+    expect(() => new Client({ url: server.url, token: "abc" })).toThrow(ConfigError);
+  });
+  test("claimFeed, feedPasswords, addFeedPassword and revokeFeedPassword hit the owner's routes", async () => {
+    server.reply(204, "", "text/plain");
+    server.reply(200, { passwords: [{ id: "p1", name: "Feed password", created: null }] });
+    server.reply(201, { id: "p2", name: "blog", created: "2026-11-14T00:00:00.000Z", password: "x".repeat(24) });
+    server.reply(204, "", "text/plain");
+    const c = new Client({ url: server.url, feed: "inbox", token: "nf_abc" });
+    await c.claimFeed("old-password");
+    expect(await c.feedPasswords()).toEqual([{ id: "p1", name: "Feed password", created: null }]);
+    expect((await c.addFeedPassword("blog")).password).toBe("x".repeat(24));
+    await c.revokeFeedPassword("p2");
+    expect(server.requests.map((r) => [r.method, r.path])).toEqual([
+      ["POST", "/api/v1/feeds/inbox/claim"],
+      ["GET", "/api/v1/feeds/inbox/passwords"],
+      ["POST", "/api/v1/feeds/inbox/passwords"],
+      ["DELETE", "/api/v1/feeds/inbox/passwords/p2"],
+    ]);
+    expect(JSON.parse(server.requests[0].body.toString())).toEqual({ password: "old-password" });
+    expect(JSON.parse(server.requests[2].body.toString())).toEqual({ name: "blog" });
+  });
   test("createFeed POSTs the feed's protection and returns the feed, without a feed password", async () => {
     server.reply(201, FEED);
     server.reply(201, FEED);

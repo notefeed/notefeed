@@ -24,6 +24,10 @@
       "description": "By the feed's read id. Public and read-only."
     },
     {
+      "name": "Account",
+      "description": "Where accounts are on: what the account signed in on this instance's pages owns, and its tokens. A request with an account token (`Authorization: Bearer nf_…`) acts as its account on every Feeds operation."
+    },
+    {
       "name": "Licenses",
       "description": "Where licenses are sold: what they cost, where to buy them and where buyers manage them. Public."
     },
@@ -947,6 +951,16 @@
               }
             }
           },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No such note",
             "content": {
@@ -1085,6 +1099,16 @@
           },
           "401": {
             "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1348,6 +1372,16 @@
           },
           "402": {
             "description": "A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2069,6 +2103,16 @@
               }
             }
           },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No such feed",
             "content": {
@@ -2197,6 +2241,16 @@
               }
             }
           },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No such feed",
             "content": {
@@ -2303,6 +2357,16 @@
               }
             }
           },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "409": {
             "description": "The feed has no password",
             "content": {
@@ -2356,7 +2420,7 @@
       "post": {
         "operationId": "claimFeed",
         "summary": "Claim a feed for the signed-in account",
-        "description": "The feed becomes the account's own (its owner): only the owner then manages its feed passwords, renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`). Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.",
+        "description": "The feed becomes the account's own (its owner): only the owner then manages its feed passwords, renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`). Needs the account: signed in on this instance's own pages, or its token.",
         "tags": [
           "Feeds"
         ],
@@ -2414,6 +2478,16 @@
           },
           "402": {
             "description": "Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2798,10 +2872,10 @@
     "/api/v1/account/feeds": {
       "get": {
         "operationId": "listAccountFeeds",
-        "summary": "The signed-in account's feeds",
-        "description": "The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.",
+        "summary": "The account's feeds",
+        "description": "The feeds it owns. Needs the account: signed in on this instance's own pages, or its token.",
         "tags": [
-          "Feeds"
+          "Account"
         ],
         "security": [
           {},
@@ -2822,6 +2896,226 @@
           },
           "401": {
             "description": "No signed-in account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/tokens": {
+      "get": {
+        "operationId": "listAccountTokens",
+        "summary": "The signed-in account's tokens",
+        "description": "Their names, scopes and ends, never the tokens. Needs the account signed in on this instance's own pages: a token can't list tokens.",
+        "tags": [
+          "Account"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's tokens",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountTokens"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No account signed in on this instance's pages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createAccountToken",
+        "summary": "Make an account token",
+        "description": "A token for a script that acts as the whole account over this REST API (never MCP, never a browser): list and create its feeds, post to and manage the ones it owns. Shown only in this answer; stored hashed. `read` tokens may only read. Needs the account signed in on this instance's own pages, or MCP's `create_account_token`.",
+        "tags": [
+          "Account"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Made; the token is in the answer, only this once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAccountToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad JSON, a name that is not one line of 1 to 50 characters, another scope, or days outside 1 to 365",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No account signed in on this instance's pages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/tokens/{id}": {
+      "delete": {
+        "operationId": "revokeAccountToken",
+        "summary": "Revoke an account token",
+        "description": "It stops working at once. Needs the account signed in on this instance's own pages.",
+        "tags": [
+          "Account"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The token's id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "401": {
+            "description": "No account signed in on this instance's pages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such token of this account",
             "content": {
               "application/json": {
                 "schema": {
@@ -2913,6 +3207,16 @@
           },
           "402": {
             "description": "The key's license has lapsed, and a new password needs an active one (`license_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3056,6 +3360,16 @@
               }
             }
           },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No such feed, or licenses are not sold on this instance",
             "content": {
@@ -3161,6 +3475,16 @@
           },
           "401": {
             "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4011,7 +4335,8 @@
               "unavailable",
               "busy",
               "owner_only",
-              "owned"
+              "owned",
+              "read_only"
             ]
           }
         },
@@ -4497,13 +4822,146 @@
           "feeds"
         ],
         "additionalProperties": false
+      },
+      "AccountToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The token's id, to revoke it"
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is for"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "read",
+              "read+write"
+            ],
+            "description": "`read`: only reading requests; `read+write`: everything the account may do"
+          },
+          "expires_at": {
+            "description": "When it stops working (ISO 8601)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_used": {
+            "description": "When it was last used (ISO 8601), or null",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "expires_at",
+          "last_used"
+        ],
+        "additionalProperties": false
+      },
+      "AccountTokens": {
+        "type": "object",
+        "properties": {
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountToken"
+            }
+          }
+        },
+        "required": [
+          "tokens"
+        ],
+        "additionalProperties": false
+      },
+      "NewAccountToken": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The token's id, to revoke it"
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is for"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "read",
+              "read+write"
+            ],
+            "description": "`read`: only reading requests; `read+write`: everything the account may do"
+          },
+          "expires_at": {
+            "description": "When it stops working (ISO 8601)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_used": {
+            "description": "When it was last used (ISO 8601), or null",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "description": "The token, shown only this once: send it as `Authorization: Bearer <token>` to the REST API"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scope",
+          "expires_at",
+          "last_used",
+          "token"
+        ],
+        "additionalProperties": false
+      },
+      "AccountTokenRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What it is for: one line, 1 to 50 characters"
+          },
+          "scope": {
+            "description": "Default `read+write`",
+            "type": "string",
+            "enum": [
+              "read",
+              "read+write"
+            ]
+          },
+          "days": {
+            "description": "How long it works, 1 to 365 days; default 90",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
       "password": {
         "type": "http",
         "scheme": "bearer",
-        "description": "The instance password (NOTEFEED_PASSWORD), when one is set"
+        "description": "The instance password (NOTEFEED_PASSWORD), when one is set; on an instance with accounts, an account token (`nf_…`) instead"
       }
     }
   }

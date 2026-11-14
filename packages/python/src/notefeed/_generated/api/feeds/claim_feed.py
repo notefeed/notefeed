@@ -53,6 +53,11 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 
         return response_402
 
+    if response.status_code == 403:
+        response_403 = Error.from_dict(response.json())
+
+        return response_403
+
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
 
@@ -100,8 +105,7 @@ def sync_detailed(
     renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its
     first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a
     password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`).
-    Needs a signed-in account: from this instance's own pages for now; account tokens for scripts
-    follow.
+    Needs the account: signed in on this instance's own pages, or its token.
 
     Args:
         feed (str):
@@ -139,8 +143,7 @@ def sync(
     renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its
     first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a
     password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`).
-    Needs a signed-in account: from this instance's own pages for now; account tokens for scripts
-    follow.
+    Needs the account: signed in on this instance's own pages, or its token.
 
     Args:
         feed (str):
@@ -173,8 +176,7 @@ async def asyncio_detailed(
     renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its
     first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a
     password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`).
-    Needs a signed-in account: from this instance's own pages for now; account tokens for scripts
-    follow.
+    Needs the account: signed in on this instance's own pages, or its token.
 
     Args:
         feed (str):
@@ -210,8 +212,7 @@ async def asyncio(
     renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its
     first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a
     password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`).
-    Needs a signed-in account: from this instance's own pages for now; account tokens for scripts
-    follow.
+    Needs the account: signed in on this instance's own pages, or its token.
 
     Args:
         feed (str):

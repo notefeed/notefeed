@@ -26,8 +26,8 @@ export class ReservedFeedError extends NotefeedError {
 }
 
 export class AuthError extends NotefeedError {
-  constructor() {
-    super("auth", "missing or wrong password");
+  constructor(message = "missing or wrong password") {
+    super("auth", message);
   }
 }
 
@@ -98,6 +98,13 @@ export class LicenseRequiredError extends NotefeedError {
 export class OwnerOnlyError extends NotefeedError {
   constructor(message = "only the feed's owner may do this") {
     super("owner_only", message);
+  }
+}
+
+/** An account token that may only read, on a request that writes (#390). */
+export class ReadOnlyTokenError extends NotefeedError {
+  constructor(message = "this account token may only read") {
+    super("read_only", message);
   }
 }
 

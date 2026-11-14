@@ -1,6 +1,7 @@
 // The public REST API, /api/v1, defined in code: this table is the single source. `dispatch` serves
 // requests through it, and openApiDocument() generates the OpenAPI 3.1 description the clients are
 // generated from. Each handler is typed from its own declared responses (see op() in dispatch.ts).
+import { type AccountToken, createAccountToken, listAccountTokens, revokeAccountToken } from "../accounts/tokens";
 import * as z from "zod";
 import { noteHeaderSchemas } from "../notefields";
 import { config } from "../config";
@@ -32,7 +33,7 @@ import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch"
 import { MAX_ATTACHMENTS, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
 import { ownerFile } from "./files";
 import { MULTIPART_SLACK, createdOf, handlePostNote, readContent, readMetaPatch, readMultipart } from "./notes";
-import { authorize, feedAccess, mediaType, readCapped, sender, requestAccount } from "./request";
+import { authorize, feedAccess, mediaType, readCapped, sender, requestAccount, sessionAccount } from "./request";
 import {
   COMPONENTS,
   CurrentPasswordHeader,
@@ -65,6 +66,9 @@ import {
   FeedPasswordsJson,
   FeedPasswordNameJson,
   NewFeedPasswordJson,
+  AccountTokensJson,
+  AccountTokenRequestJson,
+  NewAccountTokenJson,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -709,7 +713,7 @@ const OPS: AnyOp[] = [
       "The feed becomes the account's own (its owner): only the owner then manages its feed passwords, renames and deletes it. " +
       "A protected feed is claimed with one of its passwords, which stays as its first, named `Feed password`, so scripts keep working. " +
       "An open feed is claimed by giving it a password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`). " +
-      "Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.",
+      "Needs the account: signed in on this instance's own pages, or its token.",
     tags: ["Feeds"],
     password: true,
     params: { feed: FeedParam },
@@ -809,9 +813,9 @@ const OPS: AnyOp[] = [
     method: "GET",
     path: `${API_PREFIX}/account/feeds`,
     operationId: "listAccountFeeds",
-    summary: "The signed-in account's feeds",
-    description: "The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.",
-    tags: ["Feeds"],
+    summary: "The account's feeds",
+    description: "The feeds it owns. Needs the account: signed in on this instance's own pages, or its token.",
+    tags: ["Account"],
     password: true,
     params: {},
     responses: {
@@ -821,6 +825,71 @@ const OPS: AnyOp[] = [
     },
     before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
   }).handle(async ({ req }) => ({ status: 200, body: { feeds: await ownedFeeds(await signedInAccount(req.headers)) } })),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/account/tokens`,
+    operationId: "listAccountTokens",
+    summary: "The signed-in account's tokens",
+    description: "Their names, scopes and ends, never the tokens. Needs the account signed in on this instance's own pages: a token can't list tokens.",
+    tags: ["Account"],
+    password: true,
+    params: {},
+    responses: {
+      200: { description: "The account's tokens", schema: AccountTokensJson },
+      401: err("No account signed in on this instance's pages"),
+      503: UNAVAILABLE,
+    },
+    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+  }).handle(async ({ req }) => ({ status: 200, body: { tokens: (await listAccountTokens(await sessionOnly(req.headers))).map(tokenJson) } })),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/account/tokens`,
+    operationId: "createAccountToken",
+    summary: "Make an account token",
+    description:
+      "A token for a script that acts as the whole account over this REST API (never MCP, never a browser): list and create its feeds, post to and manage the ones it owns. " +
+      "Shown only in this answer; stored hashed. `read` tokens may only read. Needs the account signed in on this instance's own pages, or MCP's `create_account_token`.",
+    tags: ["Account"],
+    password: true,
+    params: {},
+    body: { "application/json": AccountTokenRequestJson },
+    responses: {
+      201: { description: "Made; the token is in the answer, only this once", schema: NewAccountTokenJson },
+      400: err("Bad JSON, a name that is not one line of 1 to 50 characters, another scope, or days outside 1 to 365"),
+      401: err("No account signed in on this instance's pages"),
+      503: UNAVAILABLE,
+    },
+    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+  }).handle(async ({ req }) => {
+    const account = await sessionOnly(req.headers);
+    const body = AccountTokenRequestJson.safeParse(await jsonBody(req));
+    if (!body.success) throw new InvalidBodyError('JSON needs a "name" string');
+    const t = await createAccountToken(account, body.data.name, body.data.scope ?? "read+write", body.data.days);
+    return { status: 201, body: { ...tokenJson(t), token: t.token } };
+  }),
+
+  op({
+    method: "DELETE",
+    path: `${API_PREFIX}/account/tokens/{id}`,
+    operationId: "revokeAccountToken",
+    summary: "Revoke an account token",
+    description: "It stops working at once. Needs the account signed in on this instance's own pages.",
+    tags: ["Account"],
+    password: true,
+    params: { id: z.string().describe("The token's id") },
+    responses: {
+      204: { description: "Revoked" },
+      401: err("No account signed in on this instance's pages"),
+      404: err("No such token of this account"),
+      503: UNAVAILABLE,
+    },
+    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+  }).handle(async ({ req, params }) => {
+    await revokeAccountToken(await sessionOnly(req.headers), params.id);
+    return { status: 204, body: undefined };
+  }),
 
   op({
     method: "DELETE",
@@ -1136,6 +1205,11 @@ export function openApiDocument(serverUrl: string): Json {
     tags: [
       { name: "Feeds", description: "By the feed's name, the write key. Need the instance password when one is set." },
       { name: "Read", description: "By the feed's read id. Public and read-only." },
+      {
+        name: "Account",
+        description:
+          "Where accounts are on: what the account signed in on this instance's pages owns, and its tokens. A request with an account token (`Authorization: Bearer nf_…`) acts as its account on every Feeds operation.",
+      },
       { name: "Licenses", description: "Where licenses are sold: what they cost, where to buy them and where buyers manage them. Public." },
       { name: "Meta", description: "About the API itself." },
     ],
@@ -1143,7 +1217,11 @@ export function openApiDocument(serverUrl: string): Json {
     components: {
       schemas,
       securitySchemes: {
-        password: { type: "http", scheme: "bearer", description: "The instance password (NOTEFEED_PASSWORD), when one is set" },
+        password: {
+          type: "http",
+          scheme: "bearer",
+          description: "The instance password (NOTEFEED_PASSWORD), when one is set; on an instance with accounts, an account token (`nf_…`) instead",
+        },
       },
     },
   };
@@ -1165,3 +1243,12 @@ async function jsonBody(req: Request): Promise<unknown> {
     return undefined;
   }
 }
+
+// The account signed in on this instance's pages, never a token, or AuthError: tokens don't make or list tokens.
+async function sessionOnly(h: Headers): Promise<string> {
+  const account = await sessionAccount(h);
+  if (!account) throw new AuthError();
+  return account;
+}
+
+const tokenJson = (t: AccountToken) => ({ id: t.id, name: t.name, scope: t.scope, expires_at: t.expiresAt, last_used: t.lastUsed });

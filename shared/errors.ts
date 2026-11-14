@@ -27,6 +27,7 @@ export const ERROR_CODES = [
   "busy",
   "owner_only",
   "owned",
+  "read_only",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

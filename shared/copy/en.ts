@@ -38,6 +38,7 @@ export const en = {
       busy: "notefeed is busy with other pictures. Try again in {retry} seconds.",
       owner_only: "Only the feed's owner can do that. Sign in to its account.",
       owned: "This feed has an owner already, so it can't be claimed.",
+      read_only: "This account token may only read.",
       sign_in_failed: "Sign-in didn't work. Try again.",
     },
     feed: {
@@ -512,6 +513,10 @@ export const en = {
     connect: (client: string) => `Connect ${client}`,
     sentTo: (host: string) => `After login you'll be sent to ${host}.`,
     allow: "Allow",
+    allowAccount: "Allow as your account",
+    asAccount: (number: string) => `It will act as account ${number}: post to and manage the feeds it owns.`,
+    asYou: "It will act as you: post to and manage the feeds your account owns.",
+    signInFirst: "Sign in to your account first",
     accountNumber: "Account number",
     recoveryKey: "Recovery key",
     signInWithKey: "Sign in",
@@ -555,6 +560,18 @@ export const en = {
     delete: "Delete account",
     confirmWrong: "That isn't this account's number.",
     signInAgain: "For this, log out and sign in again first: your sign-in is more than a day old.",
+    tokens: "Account tokens",
+    tokensIntro:
+      "For a script that acts as this account over the REST API: lists and creates its feeds, posts to and manages the ones it owns. Never for MCP; for one feed only, give the script a feed password instead.",
+    tokenName: "What it's for",
+    tokenScope: "It may",
+    scopeRead: "only read",
+    scopeWrite: "read and write",
+    makeToken: "Make a token",
+    tokenShown: "The token, shown only this once. Send it as Authorization: Bearer <token>:",
+    tokenEnds: (date: string) => `ends ${date}`,
+    noTokens: "No tokens yet.",
+    revokeToken: "Revoke",
   },
   // The start page (app/[lang]/(site)/page.tsx).
   home: {

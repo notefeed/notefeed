@@ -19,6 +19,7 @@ class ErrorCode(StrEnum):
     OWNED = "owned"
     OWNER_ONLY = "owner_only"
     RATE_LIMITED = "rate_limited"
+    READ_ONLY = "read_only"
     REMOVED = "removed"
     RESERVED_FEED = "reserved_feed"
     TAKEN = "taken"

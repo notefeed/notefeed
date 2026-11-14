@@ -51,7 +51,7 @@ With an [account](../self-hosting/accounts.md), a feed can belong to it: its **o
 
 An owned feed has as many passwords as its owner gives it, each with a name ("blog script", "Anna") and revoked on its own. On the settings page the owner sees them under **Feed passwords**. **Add a password** generates one and shows it only once; **Revoke** stops it, and every browser unlocked with it, at once. The password a protected feed had when it was claimed stays as its first, named "Feed password", so scripts keep working. Each password does what a feed password does: post, edit and delete notes, change the settings. Only the owner renames or deletes the feed, and the owner's own account opens it without a password.
 
-In the API, with the account signed in on this instance's own pages:
+In the API, with the account signed in on this instance's own pages or its [account token](../self-hosting/accounts.md#account-tokens), and over [MCP](../integrations/mcp.md#as-an-account):
 
 | Request | What it does |
 |---|---|
