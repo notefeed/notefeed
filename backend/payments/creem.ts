@@ -1,8 +1,7 @@
 // Creem (a merchant of record; https://docs.creem.io), ADR 0029, through Creem's own packages (#339): the `creem` SDK for the API,
 // `@creem_io/webhook-types` for the signature and the deliveries. What stays here is what a delivery means for a license. A key
-// starting `creem_test_` talks to the sandbox. The products carry Creem's license key feature: Creem makes the key, puts it in the
-// receipt e-mail and the customer portal, and hands it over in the completed checkout. The same delivery can arrive more than
-// once. A refund leaves the subscription running at Creem (seen in the sandbox), which is why licenseflow cancels it.
+// starting `creem_test_` talks to the sandbox. A checkout buys `units` of one product for the account in its `request_id` (ADR 0061);
+// the units are the subscription's item's. The same delivery can arrive more than once. A refund leaves the subscription running at Creem (seen in the sandbox), which is why licenseflow cancels it.
 //
 // Not `@creem_io/nextjs`: its webhook handler writes every completed checkout, the buyer's e-mail address and license key included,
 // to the console (V2), and compares the signature in variable time.
@@ -105,7 +104,8 @@ export function createCreem({ apiKey, productId, yearlyProductId = "", webhookSe
       const item = current.items?.[0];
       if (!item) throw new Error("creem: the subscription has no item to change");
       await creem.subscriptions.update(providerRef, {
-        items: [{ id: item.id, units }],
+        // Creem finds the item by its product and price too: the id alone is answered 404 "Could not find product or price" (sandbox, 2026-11-14).
+        items: [{ id: item.id, productId: item.productId, priceId: item.priceId, units }],
         updateBehavior: how === "raise" ? "proration-charge-immediately" : "proration-none",
       });
     },

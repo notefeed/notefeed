@@ -59,7 +59,7 @@ describe("Creem", () => {
     mode: "test",
     product: "prod_1",
     customer: "cust_1",
-    items: [{ id: "sitem_1", object: "subscription_item", mode: "test", product_id: "prod_1", units: 2 }],
+    items: [{ id: "sitem_1", object: "subscription_item", mode: "test", product_id: "prod_1", price_id: "pprice_1", units: 2 }],
     collection_method: "charge_automatically",
     status: "active",
     current_period_start_date: AT,
@@ -70,13 +70,13 @@ describe("Creem", () => {
     ...o,
   });
 
-  test("units change on the subscription's item: raising charges the difference now, lowering doesn't refund", async () => {
+  test("units change on the subscription's item, named with its product and price: raising charges the difference now, lowering doesn't refund", async () => {
     const fetch = vi.fn(async () => Response.json(subscriptionAnswer()));
     await creem(fetch as never).changeUnits("sub_1", 3, "raise");
     expect(await sent(fetch, 1)).toMatchObject({
       method: "POST",
       url: "https://test-api.creem.io/v1/subscriptions/sub_1",
-      body: { items: [{ id: "sitem_1", units: 3 }], update_behavior: "proration-charge-immediately" },
+      body: { items: [{ id: "sitem_1", product_id: "prod_1", price_id: "pprice_1", units: 3 }], update_behavior: "proration-charge-immediately" },
     });
     await creem(fetch as never).changeUnits("sub_1", 1, "lower");
     expect((await sent(fetch, 3)).body).toMatchObject({ update_behavior: "proration-none" });

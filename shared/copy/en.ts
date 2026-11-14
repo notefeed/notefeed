@@ -516,7 +516,8 @@ export const en = {
     newKeyIntro: "The old key stops working at once.",
     newKeyShown: "Your new recovery key. Save it now: it is shown only this once.",
     deleteTitle: "Delete the account",
-    deleteIntro: "This deletes the account with its passkeys. Take your notes along first: download them from each feed.",
+    deleteIntro:
+      "This deletes the account with its passkeys and the feeds it owns, and cancels its license at the payment provider. Take your notes along first: download them from each feed.",
     confirmNumber: "Type your account number to confirm",
     confirmWord: "Type delete to confirm",
     delete: "Delete account",
