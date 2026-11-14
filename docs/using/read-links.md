@@ -32,7 +32,7 @@ A read link that belongs to no feed answers with an empty feed, not an error, so
 
 ## The read-only view
 
-`/r/<read id>` shows the notes without the compose box, under the feed's title, description and title image, with a **Subscribe** button for the RSS feed. Each note opens at `/r/<read id>/<id>`, which is also its link in RSS. With [sign-in](../self-hosting/sign-in/index.md) on, it shows who posted, unless the feed's **Show who posted** setting is off.
+`/r/<read id>` shows the notes without the compose box, under the feed's title, description and title image, with a **Subscribe** button for the RSS feed. Each note opens at `/r/<read id>/<id>`, which is also its link in RSS. A note with a [sender](posting.md#sender) shows who posted it, unless the feed's **Show who posted** setting is off.
 
 ## Files by name
 

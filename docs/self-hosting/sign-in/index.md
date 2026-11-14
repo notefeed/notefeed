@@ -1,7 +1,7 @@
 # Sign-in and sender
 
 !!! info "notefeed is private by default"
-    notefeed stores nothing about a person: no accounts, no profiles. Sign-in is **opt-in**, switched on only by the `NOTEFEED_OIDC_*` variables (see [Setup](setup.md)).
+    notefeed stores nothing about a person until you switch sign-in on: it is **opt-in**, switched on only by the `NOTEFEED_OIDC_*` variables (see [Setup](setup.md)). Then it keeps the signed-in people in `accounts.sqlite` (see [The sender](#the-sender)), and nothing else.
 
 With sign-in on, people log in through your own OpenID Connect provider (Authentik, Keycloak, Google and the like, one or several) instead of sharing the instance password, and the notes they post carry their name as a **sender**. Read links, RSS, feed passwords and scripts work as before. You want it when a team shares one instance and wants to see who posted what, or when each person should authorise [MCP](../../integrations/mcp.md) clients with their own account. A single person, or scripts, need nothing from it.
 
