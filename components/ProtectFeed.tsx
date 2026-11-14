@@ -6,14 +6,15 @@ import { CreateFeedButton } from "@/components/CreateFeedButton";
 import { card, field, sectionLabel } from "@/components/styles";
 import { PASSWORD_PATTERN } from "@/shared/password";
 
-// "Protect this feed": the password (and, where the instance sells licenses, the license key) of a feed that doesn't exist
+// "Protect this feed": the password of a feed that doesn't exist
 // yet, in the feed's details under its card (issue #205). They are the feed's, set once, not options of a note, but the first
 // note creates the feed with them: the fields belong to the compose box's form (COMPOSE_FORM, components/Compose.tsx), which reads
 // them on posting and checks the password's pattern with its own fields.
 export const COMPOSE_FORM = "compose";
 
 // `licensePage`: /license exists (ADR 0035), so the hint links to it. *Create feed without a note* makes the feed with these fields
-// right away (#295); where licenses are sold that needs the key. `error`: why the last try was refused.
+// right away (#295); where licenses are sold, a password, pictures or a feed without a note need the signed-in account's license with a
+// unit free (ADR 0061), and the new feed goes under it. `error`: why the last try was refused.
 export function ProtectFeed({
   t: all,
   feed,
@@ -55,39 +56,17 @@ export function ProtectFeed({
         {PASSWORD_HINT}
       </p>
       {licensing && (
-        <>
-          <label htmlFor="new-feed-license-key" className="mb-1 mt-3 block text-muted">
-            {t.licenseKey}
-          </label>
-          <input
-            id="new-feed-license-key"
-            form={COMPOSE_FORM}
-            name="license_key"
-            type="text"
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={64}
-            aria-describedby="new-feed-license-key-hint"
-            className={`${field} font-mono`}
-          />
-          <p id="new-feed-license-key-hint" className="mt-1 text-[13px] text-muted">
-            {t.keyHint}{" "}
-            {licensePage ? (
-              <>
-                <Link href="/license" className="text-carbon underline">
-                  {t.buyLicense}
-                </Link>{" "}
-                {t.andEnterKey}
-              </>
-            ) : (
-              t.enterKey
-            )}
-            {t.keyHintEnd}
-          </p>
-        </>
+        <p className="mt-2 text-[13px] text-muted">
+          {t.needsAccountLicense}{" "}
+          {licensePage && (
+            <Link href="/license" className="text-carbon underline">
+              {t.buyLicense}
+            </Link>
+          )}
+        </p>
       )}
       <CreateFeedButton feed={feed} />
-      {licensing && <p className="mt-1 text-[13px] text-muted">{t.withoutNoteNeedsKey}</p>}
+      {licensing && <p className="mt-1 text-[13px] text-muted">{t.withoutNoteNeedsLicense}</p>}
       <p role="alert" className="mt-2 text-[13px] text-error empty:hidden">
         {error}
       </p>

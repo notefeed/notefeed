@@ -205,16 +205,13 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
           </>
         }
       >
-        {licensingOn() && <LicenseSection feed={feed} freeTier={await freeTier(feed)} licensePage={await licensePageOn()} />}
+        {licensingOn() && (
+          <LicenseSection feed={feed} freeTier={await freeTier(feed)} licensePage={await licensePageOn()} yours={ownership === "yours"} />
+        )}
         {ownership === "yours" && <FeedPasswords feed={feed} passwords={await listFeedPasswords(feed, account)} />}
         {ownership === "others" && <p className="text-sm text-muted">{all.owner.someoneElses}</p>}
         {ownership === "unowned" && access === "unlocked" && (
-          <FeedSettings
-            feed={feed}
-            error={passwordError ? feedErrorMessage(error, retry) : undefined}
-            notice={passwordNotice(saved)}
-            recover={licensingOn() ? { open: recoverForm, error: recoverForm ? recoverErrorMessage(error, retry) : undefined } : undefined}
-          />
+          <FeedSettings feed={feed} error={passwordError ? feedErrorMessage(error, retry) : undefined} notice={passwordNotice(saved)} />
         )}
         {ownership === "unowned" && access === "open" && <ProtectFeed feed={feed} error={form === "protect" ? protectErrorMessage(error, retry) : undefined} />}
         {ownership === "unowned" && account && <ClaimFeed feed={feed} isProtected={access === "unlocked"} />}

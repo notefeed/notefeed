@@ -8,13 +8,21 @@ import { processState } from "./state";
 import { PASSWORD_PATTERN, PASSWORD_RULE } from "../shared/password";
 import { storage } from "./storage";
 import { FeedGoneError } from "./storage/types";
-import { AuthError, FeedExistsError, FeedOwnedError, InvalidBodyError, NotFoundError, OwnerOnlyError, TooManyAttemptsError } from "./errors";
+import {
+  AuthError,
+  FeedExistsError,
+  FeedOwnedError,
+  InvalidBodyError,
+  NotFoundError,
+  OwnerOnlyError,
+  TooManyAttemptsError,
+  LicenseRequiredError,
+} from "./errors";
 import { type FeedPassword, type FeedRecord, isProtected, LEGACY_ID, LEGACY_NAME, parseRecord, serializeRecord } from "./feedrecord";
 import { cleanLine } from "../shared/links";
 import { checkFeed, createProtectedFeed, hasFeed, secret } from "./feeds";
 import { authAttempt } from "./limits";
-import { licenses, licensingOn, requireLicense } from "./licensing";
-import { hashKey } from "./licenseflow";
+import { licensingOn, requireLicense } from "./licensing";
 
 // An empty password means none, wherever it comes from (header, body field, MCP argument). `account`: the signed-in account behind the
 // request, if any (a session from this instance's own pages; later an account token): the owner's passes without a password.
@@ -189,29 +197,6 @@ export async function removePassword(feed: string, current: string, ip: string):
   await writeRecord(feed, { entries: [] });
 }
 
-// A lost password (ADR 0037). With no accounts, the license key on the feed is the only proof of owning it; the buyer finds it
-// again in the provider's receipt and portal. A wrong key is a failed attempt, as a wrong password is. With `next`, the feed
-// gets that password and the cookie for it comes back, which needs an active license like any change; without, the password is
-// removed, which a lapsed license's key may do too. An owned feed's passwords are its owner's: the key recovers nothing there.
-export async function recoverPassword(feed: string, key: string, next: string, ip: string): Promise<string | null> {
-  if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
-  if (next) checkNewPassword(next);
-  const rec = await feedRecord(feed);
-  if (!key || !isProtected(rec)) throw new AuthError(); // nothing to prove, or nothing to recover
-  refuseOwned(rec);
-  const attempt = authAttempt(ip);
-  if (typeof attempt === "number") throw new TooManyAttemptsError(attempt);
-  // Found by its hash, as everywhere; a key that is someone's but on another feed (or on none) proves nothing here.
-  if ((await licenses().byKeyHash(hashKey(key)))?.feed !== feed) throw new AuthError();
-  attempt();
-  if (!next) {
-    await writeRecord(feed, { entries: [] });
-    return null;
-  }
-  await requireLicense(feed);
-  return writeNewHash(feed, next);
-}
-
 async function writeNewHash(feed: string, next: string): Promise<string> {
   const hash = await hashPassword(next);
   // ponytail: checked, not locked. The write is by path after the scrypt wait, so a feed deleted and re-created meanwhile (same
@@ -302,6 +287,27 @@ export async function setFeedOwner(feed: string, account: string | undefined): P
   const rec = await feedRecord(feed);
   if (rec === null && !(await hasFeed(feed))) throw new NotFoundError("no such feed");
   await writeRecord(feed, { ...(rec ?? { entries: [] }), owner: account });
+}
+
+// ---- The license on the account (#391, ADR 0061) ----
+
+// The owner's feeds under its license, in the order they were put there (then by name): the license covers the first as many as its
+// units, so a lapse or a lower number takes the latest ones off first, and nothing is uncovered by guessing.
+export async function coveredFeeds(account: string): Promise<string[]> {
+  const feeds = await Promise.all((await ownedFeeds(account)).map(async (f) => ({ f, at: (await feedRecord(f))?.covered })));
+  return feeds
+    .filter((x): x is { f: string; at: number } => x.at !== undefined)
+    .sort((a, b) => a.at - b.at || (a.f < b.f ? -1 : 1))
+    .map((x) => x.f);
+}
+
+// Puts the owner's feed under its license (or takes it off): refused past the license's units (LicenseRequiredError).
+export async function setCovered(feed: string, account: string | undefined, covered: boolean, units: number): Promise<void> {
+  const rec = await ownersRecord(feed, account);
+  if (covered === (rec.covered !== undefined)) return;
+  if (covered && (await coveredFeeds(account!)).length >= units)
+    throw new LicenseRequiredError("the account's license covers no more feeds: raise its number first");
+  await writeRecord(feed, { ...rec, covered: covered ? Date.now() : undefined });
 }
 
 // ---- Which feeds an account owns ----

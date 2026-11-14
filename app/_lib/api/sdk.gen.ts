@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddFeedPasswordData, AddFeedPasswordErrors, AddFeedPasswordResponses, ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, ClaimFeedData, ClaimFeedErrors, ClaimFeedResponses, CreateAccountTokenData, CreateAccountTokenErrors, CreateAccountTokenResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListAccountFeedsData, ListAccountFeedsErrors, ListAccountFeedsResponses, ListAccountTokensData, ListAccountTokensErrors, ListAccountTokensResponses, ListFeedPasswordsData, ListFeedPasswordsErrors, ListFeedPasswordsResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, RevokeAccountTokenData, RevokeAccountTokenErrors, RevokeAccountTokenResponses, RevokeFeedPasswordData, RevokeFeedPasswordErrors, RevokeFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
+import type { AddFeedPasswordData, AddFeedPasswordErrors, AddFeedPasswordResponses, BuyLicenseData, BuyLicenseErrors, BuyLicenseResponses, ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, ChangeLicenseUnitsData, ChangeLicenseUnitsErrors, ChangeLicenseUnitsResponses, ClaimFeedData, ClaimFeedErrors, ClaimFeedResponses, CreateAccountTokenData, CreateAccountTokenErrors, CreateAccountTokenResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetAccountLicenseData, GetAccountLicenseErrors, GetAccountLicenseResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensePortalData, GetLicensePortalErrors, GetLicensePortalResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListAccountFeedsData, ListAccountFeedsErrors, ListAccountFeedsResponses, ListAccountTokensData, ListAccountTokensErrors, ListAccountTokensResponses, ListFeedPasswordsData, ListFeedPasswordsErrors, ListFeedPasswordsResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, RevokeAccountTokenData, RevokeAccountTokenErrors, RevokeAccountTokenResponses, RevokeFeedPasswordData, RevokeFeedPasswordErrors, RevokeFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -32,7 +32,7 @@ export const listNotes = <ThrowOnError extends boolean = false>(options: Options
 /**
  * Post a note
  *
- * The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most 102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). Markdown is stored byte for byte. An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`. Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it), `X-Note-Draft` (`true`: a draft, which readers do not see until it is published). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is 400. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. A refused multipart post that would have created a protected feed creates nothing.
+ * The body is the note, a file, and `Content-Type` says which kind: `text/markdown` (UTF-8, at most 102400 bytes), or an image, `image/png`, `image/jpeg`, `image/gif` or `image/webp` (at most NOTEFEED_MAX_IMAGE_BYTES as sent, default 10 MiB). Nothing is guessed: any other type, or none, is `415`, and so is a body that is not what the type says (an image is recognized by its first bytes; SVG is refused). Markdown is stored byte for byte. An image is stored processed, not as sent: turned the way its EXIF orientation says, scaled to at most 2560 px on its long side, encoded again in its own format (JPEG and WebP at quality 85, PNG lossless, an animated GIF or WebP keeps its frames), and without metadata (EXIF, GPS position, XMP, comments). Send it full size; one of more than 100 megapixels is `413`, and a body that does not decode as the image it declares is `415`. Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; 1 to 256 printable ASCII characters, with no space at the start or end) and with the read id in `X-Read-Id`; both are only used by the post that creates the feed. Where licenses are sold, a post that creates a feed with a password, or with pictures, needs an account (its token, or signed in on this instance's pages) whose license covers one more feed: the new feed goes under it; else `402`. Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). Metadata goes in headers: `X-Note-Title`, `X-Note-Tags` (at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed), `X-Note-Alt` (images), `X-Note-Name` (the original file name), `X-Note-Date` (where it is placed in the feed: a past date backdates it, a future one schedules it), `X-Note-Draft` (`true`: a draft, which readers do not see until it is published). A markdown note with its pictures is one `multipart/form-data` request: a `text` part (the markdown, a field or a file part; a file part keeps its line breaks, a field's are sent as CRLF), `file` parts (up to 10 pictures, each with its file name and image `Content-Type`) and `alt.<file name>` fields. The pictures are stored first, each as its own note named by its file name, then the text with its references to them (`![](chart.png)`, `[x]: chart.png`, as written or percent-decoded) swapped for the stored files; a picture it never refers to is appended as `![](file)`. Several pictures may have the same file name (a phone calls every photo `image.jpg`): each is stored, and they are appended, but a text that refers to such a name is 400. Everything is checked before the first write, and a failed write removes what the request stored: all or nothing. `X-Note-Alt` and `X-Note-Name` are 400. The answer has `attachments`, the stored pictures in the order of the `file` parts. The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. A refused multipart post that would have created a protected feed creates nothing.
  */
 export const postNote = <ThrowOnError extends boolean = false>(options: Options<PostNoteData, ThrowOnError>): RequestResult<PostNoteResponses, PostNoteErrors, ThrowOnError> => (options.client ?? client).post<PostNoteResponses, PostNoteErrors, ThrowOnError>({
     bodySerializer: null,
@@ -132,7 +132,7 @@ export const getFeed = <ThrowOnError extends boolean = false>(options: Options<G
 /**
  * Create a feed without posting a note
  *
- * Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. Where licenses are sold a license key is required and goes on the new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.
+ * Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. Where licenses are sold it needs an account (its token, or signed in on this instance's pages) whose license covers one more feed, and the new feed goes under it; free feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.
  */
 export const createFeed = <ThrowOnError extends boolean = false>(options: Options<CreateFeedData, ThrowOnError>): RequestResult<CreateFeedResponses, CreateFeedErrors, ThrowOnError> => (options.client ?? client).post<CreateFeedResponses, CreateFeedErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -313,24 +313,9 @@ export const revokeAccountToken = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * Recover a feed's password with its license key
+ * Take a feed off its owner's license
  *
- * Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license on this feed proves ownership instead of the current password (ADR 0037). With a new password the feed gets it (needs an active license, like any password change); with none, or an empty one, the password is removed, which a lapsed license's key may do too. A key that is not this feed's license is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before the key is tried.
- */
-export const recoverFeedPassword = <ThrowOnError extends boolean = false>(options: Options<RecoverFeedPasswordData, ThrowOnError>): RequestResult<RecoverFeedPasswordResponses, RecoverFeedPasswordErrors, ThrowOnError> => (options.client ?? client).post<RecoverFeedPasswordResponses, RecoverFeedPasswordErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/v1/feeds/{feed}/password/recover',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Take a feed's license off
- *
- * Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the key can be put on another feed; the subscription runs on. A feed without a license answers the same. Needs the feed's password if it has one, and counts against the post rate limit.
+ * Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the unit can cover another of the account's feeds; the subscription runs on. A feed not under it answers the same. Only for the feed's owner.
  */
 export const deleteFeedLicense = <ThrowOnError extends boolean = false>(options: Options<DeleteFeedLicenseData, ThrowOnError>): RequestResult<DeleteFeedLicenseResponses, DeleteFeedLicenseErrors, ThrowOnError> => (options.client ?? client).delete<DeleteFeedLicenseResponses, DeleteFeedLicenseErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -339,18 +324,66 @@ export const deleteFeedLicense = <ThrowOnError extends boolean = false>(options:
 });
 
 /**
- * Put a license on a feed
+ * Put a feed under its owner's license
  *
- * Only on an instance that sells licenses (404 elsewhere). Puts the license the key names on the feed, taking it off the feed it was on; a feed that has an active license already answers 400 (take it off first). A feed needs no password for a license. A key notefeed doesn't know is 400 and counts as a failed attempt, like a wrong password. Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed that exists: it is created by its first note, which can bring the key in `X-License-Key`.
+ * Only on an instance that sells licenses (404 elsewhere). The license belongs to the feed's owner, an account: its subscriptions' units say how many of its feeds it covers. This puts one more under it (402 `license_required` when it covers as many as its units already: raise them first). Only for the feed's owner (403 `owner_only`).
  */
 export const putFeedLicense = <ThrowOnError extends boolean = false>(options: Options<PutFeedLicenseData, ThrowOnError>): RequestResult<PutFeedLicenseResponses, PutFeedLicenseErrors, ThrowOnError> => (options.client ?? client).put<PutFeedLicenseResponses, PutFeedLicenseErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/feeds/{feed}/license',
+    ...options
+});
+
+/**
+ * The account's license
+ *
+ * Its subscriptions (each with its units, period and end), how many feeds they cover together now (`units`), the feeds put under it in that order (`covered`) and those it covers (`licensed`: the first `units` of them). Only where licenses are sold.
+ */
+export const getAccountLicense = <ThrowOnError extends boolean = false>(options?: Options<GetAccountLicenseData, ThrowOnError>): RequestResult<GetAccountLicenseResponses, GetAccountLicenseErrors, ThrowOnError> => (options?.client ?? client).get<GetAccountLicenseResponses, GetAccountLicenseErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/account/license',
+    ...options
+});
+
+/**
+ * Buy a license for the account
+ *
+ * The payment provider's checkout for `units` feeds (1 to 100), per `period` (`month`, or `year` where sold). Send the buyer to `url`; once paid, a new subscription is on the account, and they come back to the account page. Buying more later adds a subscription; change one's units with `changeLicenseUnits`.
+ */
+export const buyLicense = <ThrowOnError extends boolean = false>(options: Options<BuyLicenseData, ThrowOnError>): RequestResult<BuyLicenseResponses, BuyLicenseErrors, ThrowOnError> => (options.client ?? client).post<BuyLicenseResponses, BuyLicenseErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/account/license/checkout',
     ...options,
     headers: {
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Change how many feeds one of the account's subscriptions covers
+ *
+ * Raising charges the difference now; lowering takes effect without a refund, and goes no lower than the feeds under the license allow (400: take a feed off first, so notefeed never guesses which loses its cover).
+ */
+export const changeLicenseUnits = <ThrowOnError extends boolean = false>(options: Options<ChangeLicenseUnitsData, ThrowOnError>): RequestResult<ChangeLicenseUnitsResponses, ChangeLicenseUnitsErrors, ThrowOnError> => (options.client ?? client).put<ChangeLicenseUnitsResponses, ChangeLicenseUnitsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/account/license/subscriptions/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The payment provider's customer portal for the account
+ *
+ * Where the account's holder cancels a subscription, changes the payment method and gets invoices. Only for the account that bought.
+ */
+export const getLicensePortal = <ThrowOnError extends boolean = false>(options?: Options<GetLicensePortalData, ThrowOnError>): RequestResult<GetLicensePortalResponses, GetLicensePortalErrors, ThrowOnError> => (options?.client ?? client).get<GetLicensePortalResponses, GetLicensePortalErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/account/license/portal',
+    ...options
 });
 
 /**

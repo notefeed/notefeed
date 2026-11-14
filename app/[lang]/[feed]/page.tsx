@@ -84,12 +84,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
   if (access === "locked") {
     return (
       <AppShell feed={feed}>
-        <UnlockForm
-          feed={feed}
-          share={shareQuery(sp)}
-          error={form === "recover" ? undefined : feedErrorMessage(error, retry)}
-          recover={licensingOn() ? { open: form === "recover", error: form === "recover" ? recoverErrorMessage(error, retry) : undefined } : undefined}
-        />
+        <UnlockForm feed={feed} share={shareQuery(sp)} error={form === "recover" ? undefined : feedErrorMessage(error, retry)} />
       </AppShell>
     );
   }

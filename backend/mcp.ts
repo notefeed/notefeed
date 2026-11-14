@@ -1,11 +1,14 @@
 // The MCP endpoint: POST /mcp, protocol 2026-07-28 only, nine tools over the same backend the HTTP API uses.
+import { changeUnits, licenseOf, startCheckout } from "./licenseflow";
+import { licensingOn } from "./licensing";
+import { AccountLicenseJson } from "./http/schemas";
 import { checkNoteMeta, noteFieldSchemas, type NoteMeta } from "./notefields";
 import { McpServer, createMcpHandler, type AuthInfo } from "@modelcontextprotocol/server";
 import * as z from "zod";
 import { bearerOf, checkBearer, locked } from "./auth";
 import { config } from "./config";
 import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoundError, TooManyAttemptsError, UnsupportedTypeError } from "./errors";
-import { addFeedPassword, changePassword, checkFeedAccess, claimFeed, listFeedPasswords, ownedFeeds, recoverPassword, revokeFeedPassword } from "./feedlock";
+import { addFeedPassword, changePassword, checkFeedAccess, claimFeed, listFeedPasswords, ownedFeeds, revokeFeedPassword } from "./feedlock";
 import { createAccountToken, listAccountTokens, revokeAccountToken } from "./accounts/tokens";
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson, licensesJson } from "./http/api";
@@ -22,7 +25,7 @@ import { getNote, isDraft, isScheduled, listNotes, refuseRemovedNote, type Note 
 import { verify } from "./oauth/tokens";
 import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
-import { createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
+import { createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setFeedCovered, updateFeed } from "./posting";
 import { getStoredSettings } from "./feedsettings";
 import { atomPath, feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
@@ -141,12 +144,6 @@ function server(h: Headers): McpServer {
           .describe(
             "Only when this post creates the feed: its read id (3 to 64 characters of a-z, 0-9, - and _), random when left out. A short readable one is guessable. Fails if taken.",
           ),
-        license_key: z
-          .string()
-          .optional()
-          .describe(
-            "Only on an instance that sells licenses, when this post creates the feed: the key of the license to put on it, with or without a password (a feed password is for licensed feeds; with a password and no key the post fails with license_required). A key that is none or has lapsed creates nothing. Ignored on an existing feed: use update_feed's license_key.",
-          ),
         attachments: z
           .array(
             z.object({
@@ -181,7 +178,7 @@ function server(h: Headers): McpServer {
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    guard(async ({ feed, markdown, title, sender: given, name, password, tags, date, draft, read_id, license_key, attachments = [] }) => {
+    guard(async ({ feed, markdown, title, sender: given, name, password, tags, date, draft, read_id, attachments = [] }) => {
       // Buffer.from skips what is not base64, so the data is checked here; the rest of the checks are postWithPictures's.
       const pictures = attachments.map((a) => {
         const clean = a.data.replace(/\s/g, "");
@@ -198,7 +195,7 @@ function server(h: Headers): McpServer {
       } = await postWithPictures(
         feed,
         clientIp(h),
-        async () => ({ text: markdown, pictures, title, sender: given, name, tags, date, draft, password, readId: read_id, licenseKey: license_key }),
+        async () => ({ text: markdown, pictures, title, sender: given, name, tags, date, draft, password, readId: read_id }),
         { password, account },
         await sender(h),
       );
@@ -355,7 +352,7 @@ function server(h: Headers): McpServer {
     "get_licenses",
     {
       description:
-        "Only on an instance that sells licenses. What a license costs (plans, amounts in cents), where a person buys one (buy_url, the license page: the key comes after paying) and where buyers manage their purchases: cancelling, the payment method, invoices and their keys are at the payment provider (manage_url), signed in with the e-mail address they bought with. No license key opens that page. A key goes on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.",
+        "Only on an instance that sells licenses. What a license costs (plans, amounts in cents, per feed), the license page (buy_url) and where an account manages its license (manage_url, the account page). A license belongs to an account: buy_license buys one for this client's account, get_license shows it, update_feed's licensed puts one of its feeds under it.",
       inputSchema: z.object({}),
       outputSchema: z.object({ ...LicensesJson.shape, guidance: GUIDANCE }),
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
@@ -369,7 +366,7 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "update_feed",
     {
-      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. name renames the feed, last: everything goes with it, the answer is the feed under its new name, and the old name stops working at once (a later post to it creates a new feed); a reserved feed keeps its name. license_key, only on an instance that sells licenses: puts that license on the feed (moving it from the feed it was on; no feed password needed), empty takes the feed's license off; it is applied first. new_password sets the feed's password: on a protected feed it changes it (password is the current one); an open feed takes it without one, which claims the feed (its name was all that protected it). From then on every call for the feed needs the new password; the read link stays open. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Change a feed's settings; whatever is left out stays as it is, and at least one is needed. title (at most 100 characters) and description (at most 500) are one line each (control and text-direction override characters are refused); an empty title shows the feed's name. image is the file name upload_image returned for this feed (the title image), empty to remove it. read_id gives the feed another read link (3 to 64 characters of a-z, 0-9, - and _; empty for a random one): the old link stops showing this feed and may later show another one, relative image links in notes follow, full URLs do not. name renames the feed, last: everything goes with it, the answer is the feed under its new name, and the old name stops working at once (a later post to it creates a new feed); a reserved feed keeps its name. licensed, only on an instance that sells licenses and for the feed's owner: puts the feed under the account's license (true) or takes it off (false); it is applied first. new_password sets the feed's password: on a protected feed it changes it (password is the current one); an open feed takes it without one, which claims the feed (its name was all that protected it). From then on every call for the feed needs the new password; the read link stays open. The feed must exist. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         title: z.string().optional(),
@@ -388,25 +385,27 @@ function server(h: Headers): McpServer {
           .describe(
             "What the owner's own notes show as their sender (posted by the owner's account without a sender of their own); changing it changes it on all of them. One line, at most 100 characters; empty shows none. Only for the feed's owner",
           ),
-        license_key: z
-          .string()
+        licensed: z
+          .boolean()
           .optional()
-          .describe("A license key to put on the feed; empty takes its license off. A wrong key counts as a failed attempt, like a wrong password."),
+          .describe(
+            "Only on an instance that sells licenses, for the feed's owner: true puts it under the account's license (needs a unit free), false takes it off.",
+          ),
         new_password: z.string().optional().describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end."),
         password,
       }),
       outputSchema: FeedOut,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, title, description, image, read_id, name, sender_name, license_key, new_password, password }) => {
+    guard(async ({ feed, title, description, image, read_id, name, sender_name, licensed, new_password, password }) => {
       const settings =
         title !== undefined || description !== undefined || image !== undefined || read_id !== undefined || name !== undefined || sender_name !== undefined;
-      if (!settings && license_key === undefined && new_password === undefined)
-        throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, license_key, new_password or several");
+      if (!settings && licensed === undefined && new_password === undefined)
+        throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, sender_name, licensed, new_password or several");
       const ip = clientIp(h);
       const readIdBefore = read_id === undefined ? undefined : (await feedJson(feed, h).catch(() => undefined))?.read_url;
       // First, so a key that is refused changes nothing else (#247); the license may be what the new password needs.
-      if (license_key !== undefined) await setLicense(feed, ip, license_key.trim() === "" ? null : license_key, { password, account });
+      if (licensed !== undefined) await setFeedCovered(feed, ip, licensed, { password, account });
       if (new_password !== undefined) {
         assertFeed(feed); // a reserved name must not reach the lookup
         await changePassword(feed, password ?? "", new_password, ip);
@@ -433,7 +432,7 @@ function server(h: Headers): McpServer {
         name: now !== feed ? now : undefined,
         readIdChanged: read_id !== undefined && f.read_url !== readIdBefore,
         newPassword: new_password !== undefined,
-        license: license_key === undefined ? undefined : license_key.trim() === "" ? "off" : "on",
+        license: licensed === undefined ? undefined : licensed ? "on" : "off",
       });
       return ok({ ...f, guidance });
     }),
@@ -442,45 +441,71 @@ function server(h: Headers): McpServer {
   s.registerTool(
     "create_feed",
     {
-      description: `Create a feed without posting a note, to reserve its name (feeds are otherwise created by their first note). password protects it from its first moment; read_id gives it that read link. Where licenses are sold, license_key is required and goes on the new feed. A feed that exists is refused. Set its title and description afterwards with update_feed. ${SECRET_NOTE}`,
+      description: `Create a feed without posting a note, to reserve its name (feeds are otherwise created by their first note). password protects it from its first moment; read_id gives it that read link. Where licenses are sold, it needs this client's account with a unit of its license free, and goes under it. A feed that exists is refused. Set its title and description afterwards with update_feed. ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         password: z
           .string()
           .optional()
           .describe("A password for the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Left out: an open feed."),
-        license_key: z.string().optional().describe("The key of the license to put on the new feed; required where licenses are sold."),
         read_id: z.string().optional().describe("The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one."),
       }),
       outputSchema: FeedOut,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    guard(async ({ feed, password, license_key, read_id }) => {
-      await createFeed(feed, clientIp(h), { password, licenseKey: license_key, readId: read_id }, account);
+    guard(async ({ feed, password, read_id }) => {
+      await createFeed(feed, clientIp(h), { password, readId: read_id }, account);
       const f = await feedJson(feed, h);
       return ok({ ...f, guidance: next.afterCreate(feedGuidance(f)) });
     }),
   );
 
   s.registerTool(
-    "recover_feed_password",
+    "get_license",
     {
-      description: `For a lost feed password, only on an instance that sells licenses: the key of the license on this feed proves ownership instead of the current password. new_password becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. From then on every call for the feed needs the new password; the read link stays open. A key that is not this feed's license is refused and counts as a failed attempt, like a wrong password. To change a password you know, use update_feed's new_password. ${SECRET_NOTE}`,
-      inputSchema: z.object({
-        feed,
-        license_key: z.string().describe("The key of the license on this feed, from the receipt or the provider's portal."),
-        new_password: z
-          .string()
-          .optional()
-          .describe("The feed's new password: 1 to 256 printable ASCII characters, with no space at the start or end. Left out or empty removes the password."),
-      }),
-      outputSchema: FeedOut,
-      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      description:
+        "Only on an instance that sells licenses: the license of the account this client signed in as. Its subscriptions (units, period, end), how many feeds they cover together, the feeds put under it and those it covers now.",
+      inputSchema: z.object({}),
+      outputSchema: z.object({ ...AccountLicenseJson.shape, guidance: GUIDANCE }),
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, license_key, new_password }) => {
-      assertFeed(feed); // a reserved name must not reach the lookup
-      await recoverPassword(feed, license_key.trim(), new_password ?? "", clientIp(h));
-      return ok({ ...(await feedJson(feed, h)), guidance: next.afterRecover(!new_password) });
+    guard(async () => {
+      if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+      const l = await licenseOf(needAccount());
+      return ok({ ...l, guidance: next.afterLicense(l) });
+    }),
+  );
+
+  s.registerTool(
+    "buy_license",
+    {
+      description:
+        "Only on an instance that sells licenses: a checkout at the payment provider for units feeds (1 to 100) per period (month, or year where sold), for this client's account. Returns the URL for the person to open and pay at; a new subscription is on the account once paid.",
+      inputSchema: z.object({
+        period: z.enum(["month", "year"]).optional().describe("Default month"),
+        units: z.number().int().optional().describe("How many feeds, 1 to 100; default 1"),
+      }),
+      outputSchema: z.object({ url: z.string(), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    },
+    guard(async ({ period, units }) => {
+      const { url } = await startCheckout(needAccount(), period ?? "month", units ?? 1);
+      return ok({ url, guidance: next.afterCheckout() });
+    }),
+  );
+
+  s.registerTool(
+    "change_license_units",
+    {
+      description:
+        "Change how many feeds one of the account's subscriptions covers (its id from get_license): raising charges the difference now; lowering takes effect without a refund and goes no lower than the feeds under the license allow (take one off with update_feed's licensed false first).",
+      inputSchema: z.object({ id: z.string().describe("The subscription's id"), units: z.number().int().describe("The new number, 1 to 100") }),
+      outputSchema: z.object({ changed: z.literal(true), guidance: GUIDANCE }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    },
+    guard(async ({ id, units }) => {
+      await changeUnits(needAccount(), id, units);
+      return ok({ changed: true as const, guidance: next.afterUnits() });
     }),
   );
 

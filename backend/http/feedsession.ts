@@ -3,7 +3,7 @@
 // Always answers with a redirect back to the feed page (unlock, lock) or the settings page (change, remove); the cookie is the feed's unlock cookie.
 import { AuthError, InvalidRequestError, NotefeedError } from "../errors";
 import { createFeed } from "../posting";
-import { changePassword, feedCookieName, protectedFeed, recoverPassword, removePassword, unlock } from "../feedlock";
+import { changePassword, feedCookieName, protectedFeed, removePassword, unlock } from "../feedlock";
 import { assertFeed } from "../feeds";
 import { clientIp } from "../limits";
 import { API_PREFIX, feedPath, publicUrl, settingsPath } from "../urls";
@@ -58,14 +58,10 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
     if (action === "create") {
       await authorize(h, clientIp(h)); // a locked instance's own password (or session) first, as every other way to create a feed needs it
       const password = field("password");
-      await createFeed(feed, clientIp(h), { password, licenseKey: field("key") }, await requestAccount(h));
+      await createFeed(feed, clientIp(h), { password }, await requestAccount(h));
       return password ? seeOther(`${page}?created=1`, set(await unlock(feed, password, clientIp(h)))) : seeOther(`${page}?created=1`);
     }
     if (action === "protect") return seeOther(saved(feed, "set"), set(await changePassword(feed, "", field("next"), clientIp(h))));
-    if (action === "recover") {
-      const cookie = await recoverPassword(feed, field("key").trim(), field("next"), clientIp(h));
-      return cookie === null ? seeOther(page, clear()) : seeOther(saved(feed, "recovered"), set(cookie));
-    }
     if (action === "remove") {
       await removePassword(feed, field("current"), clientIp(h));
       return seeOther(page, clear()); // the feed is open now: its settings page would redirect anyway

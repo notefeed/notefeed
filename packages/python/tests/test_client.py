@@ -86,10 +86,10 @@ def test_bytes_are_a_file_of_the_given_type_and_need_one(server):
 
 
 def test_title_tags_alt_name_and_read_id_go_as_headers_and_nothing_is_sent_for_what_is_left_out(server):
-    Client(server.url, "inbox").post("x", title="T", tags=["ci", "deploy"], read_id="my-feed", license_key="k" * 22)
+    Client(server.url, "inbox").post("x", title="T", tags=["ci", "deploy"], read_id="my-feed")
     Client(server.url, "inbox").post("x", tags=[])
     h = server.requests[0]["headers"]
-    assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Read-Id"], h["X-License-Key"]) == ("T", "ci,deploy", "my-feed", "k" * 22)
+    assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Read-Id"]) == ("T", "ci,deploy", "my-feed")
     for k in ("X-Note-Title", "X-Note-Tags", "X-Note-Alt", "X-Note-Name", "X-Note-Date", "X-Read-Id", "X-License-Key"):
         assert k not in server.requests[1]["headers"]
 
@@ -496,20 +496,27 @@ def test_update_feed_puts_title_and_description(server):
         assert server.requests[1]["headers"]["X-Feed-Password"] == "o"
 
 
-def test_attach_license_puts_the_key_and_detach_license_deletes_it(server):
+def test_set_feed_licensed_and_the_accounts_license(server):
     server.reply(200, FEED)
     server.reply(200, FEED)
-    with Client(server.url, "inbox", feed_password="fp") as c:
-        assert c.attach_license("k" * 22).name == "inbox"
-        assert c.detach_license(feed="other").name == "inbox"
-    put, delete = server.requests
-    assert (put["method"], put["path"], json.loads(put["body"]), put["headers"]["X-Feed-Password"]) == (
-        "PUT",
-        "/api/v1/feeds/inbox/license",
-        {"key": "k" * 22},
-        "fp",
-    )
-    assert (delete["method"], delete["path"]) == ("DELETE", "/api/v1/feeds/other/license")
+    server.reply(200, {"subscriptions": [], "units": 0, "covered": [], "licensed": []})
+    server.reply(200, {"url": "https://pay.test/checkout"})
+    server.reply(204, "")
+    with Client(server.url, "inbox", token="nf_abc") as c:
+        assert c.set_feed_licensed(True).name == "inbox"
+        assert c.set_feed_licensed(False, feed="other").name == "inbox"
+        assert c.license().units == 0
+        assert c.buy_license("year", 3) == "https://pay.test/checkout"
+        c.change_license_units("sub_1", 2)
+    assert [(r["method"], r["path"]) for r in server.requests] == [
+        ("PUT", "/api/v1/feeds/inbox/license"),
+        ("DELETE", "/api/v1/feeds/other/license"),
+        ("GET", "/api/v1/account/license"),
+        ("POST", "/api/v1/account/license/checkout"),
+        ("PUT", "/api/v1/account/license/subscriptions/sub_1"),
+    ]
+    assert json.loads(server.requests[3]["body"]) == {"period": "year", "units": 3}
+    assert json.loads(server.requests[4]["body"]) == {"units": 2}
 
 
 def test_set_feed_password_puts_it_with_the_current_one_for_a_protected_feed(server):
@@ -528,13 +535,13 @@ def test_create_feed_posts_the_protection_and_returns_the_feed(server):
     server.reply(201, FEED)
     server.reply(201, FEED)
     c = Client(server.url, "inbox", feed_password="fp")
-    assert c.create_feed(password="N3wPassw0rd!", license_key="k" * 22, read_id="my-read").name == "inbox"
+    assert c.create_feed(password="N3wPassw0rd!", read_id="my-read").name == "inbox"
     c.create_feed(feed="other")
     made, bare = server.requests
     assert (made["method"], made["path"], json.loads(made["body"])) == (
         "POST",
         "/api/v1/feeds/inbox",
-        {"password": "N3wPassw0rd!", "license_key": "k" * 22, "read_id": "my-read"},
+        {"password": "N3wPassw0rd!", "read_id": "my-read"},
     )
     assert "X-Feed-Password" not in made["headers"]
     assert (bare["path"], json.loads(bare["body"])) == ("/api/v1/feeds/other", {})
@@ -557,22 +564,6 @@ def test_licenses_gets_what_is_sold_and_where_buyers_manage_it_without_a_feed_pa
     (req,) = server.requests
     assert (req["method"], req["path"]) == ("GET", "/api/v1/licenses")
     assert "X-Feed-Password" not in req["headers"]
-
-
-def test_recover_feed_password_posts_the_key_and_the_new_password_without_a_feed_password(server):
-    server.reply(204, "")
-    server.reply(204, "")
-    c = Client(server.url, "inbox", feed_password="forgotten")
-    assert c.recover_feed_password("k" * 22, "N3wPassw0rd!") is None
-    c.recover_feed_password("k" * 22, feed="other")
-    set_, removed = server.requests
-    assert (set_["method"], set_["path"], json.loads(set_["body"])) == (
-        "POST",
-        "/api/v1/feeds/inbox/password/recover",
-        {"key": "k" * 22, "password": "N3wPassw0rd!"},
-    )
-    assert "X-Feed-Password" not in set_["headers"]
-    assert (removed["path"], json.loads(removed["body"])) == ("/api/v1/feeds/other/password/recover", {"key": "k" * 22, "password": ""})
 
 
 def test_set_feed_image_puts_the_image_with_its_type_and_remove_deletes_it(server):
@@ -737,14 +728,13 @@ def test_attachments_go_in_one_multipart_request(server):
         title="T",
         tags=["x"],
         read_id="my-read",
-        license_key="k" * 22,
         attachments=[Attachment("a.png", PNG, "image/png", alt="A"), Attachment("b.png", PNG, "image/png")],
     )
     assert len(server.requests) == 1
     q = server.requests[0]
     h = q["headers"]
     assert h["Content-Type"].startswith("multipart/form-data; boundary=")
-    assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Feed-Password"], h["X-Read-Id"], h["X-License-Key"]) == ("T", "x", "pw", "my-read", "k" * 22)
+    assert (h["X-Note-Title"], h["X-Note-Tags"], h["X-Feed-Password"], h["X-Read-Id"]) == ("T", "x", "pw", "my-read")
     assert "X-Note-Alt" not in h and "X-Note-Name" not in h
     assert parts(q) == [
         ("alt.a.png", None, None, b"A"),  # httpx writes the fields first

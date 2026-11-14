@@ -18,6 +18,9 @@
 //     PUT     {"number": "<account number>" | null}: gives the feed to that account, or takes its owner away; for a feed whose
 //             owner's account is gone, or reserved feeds. Its passwords stay
 //     DELETE  the feed with everything in it, owned or not
+//   /api/operator/subscriptions (#391, ADR 0061)
+//     POST    {"number": "<account number>", "subscription": "<the provider's subscription id>"}: puts a subscription the provider
+//             already has on that account, read from the provider (units, end): how a license bought before accounts moves to one
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { config } from "../config";
@@ -261,5 +264,25 @@ export async function operatorFeedDeleteRoute(req: Request): Promise<Response> {
   if (feed instanceof Response) return feed;
   if (!(await removeFeedAndLicense(feed))) return json({ error: "no such feed" }, 404);
   log.info("feed deleted by the operator"); // never its name
+  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+}
+
+// POST /api/operator/subscriptions: puts a subscription the provider already has on an account.
+export async function operatorSubscriptionsRoute(req: Request): Promise<Response> {
+  const refused = gate(req);
+  if (refused) return refused;
+  const body = (await req.json().catch(() => null)) as { number?: unknown; subscription?: unknown } | null;
+  if (typeof body?.number !== "string" || typeof body.subscription !== "string" || !body.subscription)
+    return json({ error: 'JSON needs "number" (an account number) and "subscription" (the provider\'s id)' }, 400);
+  const account = await accountIdOf(body.number);
+  if (!account) return json({ error: "no such account" }, 404);
+  const { attachSubscription } = await import("../licenseflow");
+  try {
+    await attachSubscription(account, body.subscription);
+  } catch (e) {
+    if (e instanceof NotefeedError) return json({ error: e.message, code: e.code }, statusOf(e));
+    throw e;
+  }
+  log.info("subscription put on an account by the operator"); // never which
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }

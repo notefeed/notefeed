@@ -19,7 +19,6 @@ import { resetRateLimitsForTests } from "./limits";
 import { logsOf } from "./log";
 import * as notes from "./notes";
 import { countNotes, createImageNote, createNote, getNote, isScheduled, listNotes, MarkdownNote } from "./notes";
-import { resetLicensesForTests } from "./licensing";
 import { planInWorker } from "./place";
 import {
   createFeed,
@@ -336,7 +335,7 @@ describe("dated posts", () => {
       expect(await getNote("f", old.id)).toBeNull();
       expect(await getNote("f", later.id)).not.toBeNull();
     } finally {
-      await resetLicensesForTests();
+      // nothing to reset: licenses are on accounts
     }
   });
 });

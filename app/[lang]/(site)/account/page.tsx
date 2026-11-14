@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { accountOf, accountsOn, listAccountTokens } from "@/backend";
-import { AccountTokens, NewRecoveryKey, Passkeys } from "@/components/AccountSettings";
+import { accountLicense, accountOf, accountsOn, licensePageOn, licensingOn, listAccountTokens } from "@/backend";
+import { AccountLicense, AccountTokens, NewRecoveryKey, Passkeys } from "@/components/AccountSettings";
 import { copyFor } from "@/shared/copy";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
   if (!accountsOn()) notFound();
   const account = await accountOf(await headers());
   if (!account) redirect("/login?next=/account");
-  const { error } = await searchParams;
+  const { error, bought } = await searchParams;
   return (
     <main>
       <h1 className="mb-4 text-xl font-bold tracking-tight">{t.title}</h1>
@@ -32,6 +32,13 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
           {copy.shell.logOut}
         </button>
       </form>
+
+      {licensingOn() && (
+        <section className={section}>
+          <h2 className="mb-1 font-bold">{t.license}</h2>
+          <AccountLicense license={await accountLicense(account.userId)} bought={bought === "1"} licensePage={await licensePageOn()} />
+        </section>
+      )}
 
       <section className={section}>
         <h2 className="mb-1 font-bold">{t.passkeys}</h2>

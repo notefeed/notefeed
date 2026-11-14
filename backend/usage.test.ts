@@ -2,8 +2,8 @@ import { rm } from "node:fs/promises";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
-import { hashKey } from "./licenseflow";
-import { licenses, resetLicensesForTests } from "./licensing";
+import { licensedAccount, stubLicensing } from "./accounts/license.testkit";
+import { putSubscription } from "./accounts/subscriptions";
 import { renderMetrics, resetMetricsForTest } from "./metrics";
 import { changeMeta, createImageNote, createNote, removeNote } from "./notes";
 import { deleteFeed, postNote } from "./posting";
@@ -26,7 +26,6 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   resetMetricsForTest();
-  await resetLicensesForTests();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
   resetFeedsForTests();
@@ -159,20 +158,18 @@ test("the events count by kind and reason, and nothing in /metrics names a feed"
   expect(body).not.toContain(readId!);
 });
 
-test.skipIf(!supported)("with licensing on: licenses by state, and the feeds against the free cap", async () => {
-  vi.stubEnv("NOTEFEED_PAYMENT_PROVIDER", "fake");
-  vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
+test.skipIf(!supported)("with licensing on: subscriptions by state, and the feeds against the free cap", async () => {
+  await stubLicensing();
   vi.stubEnv("NOTEFEED_FREE_NOTE_CAP", "5");
   const post = (feed: string, body: string) => postNote(feed, "ip", async () => ({ body: new TextEncoder().encode(body), mediaType: "text/markdown" }), {});
   for (let i = 0; i < 4; i++) await post("near", `n${i}`);
   for (let i = 0; i < 6; i++) await post("capped", `n${i}`); // trimmed to the cap as it goes
-  await licenses().createLicense({ keyHash: hashKey("k".repeat(22)), providerRef: "sub_1", validUntil: null });
-  await licenses().attach(hashKey("k".repeat(22)), "near");
-  await licenses().createLicense({ keyHash: hashKey("j".repeat(22)), providerRef: "sub_2", validUntil: null });
+  const { userId } = await licensedAccount(1);
+  await putSubscription({ providerRef: "sub_old", account: userId, customerRef: null, period: "month", units: 2, validUntil: Date.now() - 1000 });
   await refreshUsage();
   expect(await sample("notefeed_licenses", { state: "active" })).toBe(1);
-  expect(await sample("notefeed_licenses", { state: "unattached" })).toBe(1);
-  expect(await sample("notefeed_licenses", { state: "lapsed" })).toBe(0);
+  expect(await sample("notefeed_licenses", { state: "unattached" })).toBe(0);
+  expect(await sample("notefeed_licenses", { state: "lapsed" })).toBe(1);
   expect(await sample("notefeed_feeds_free_cap", { notes: "near" })).toBe(1);
   expect(await sample("notefeed_feeds_free_cap", { notes: "at" })).toBe(1);
   expect(await sample("notefeed_notes_deleted_total", { kind: "markdown", reason: "free_cap" })).toBe(1);

@@ -143,9 +143,11 @@ test("a report that fails before the migration does not skip it", async () => {
     NOTEFEED_PAYMENT_PROVIDER: "fake",
     NOTEFEED_FAKE_WEBHOOK_SECRET: "s",
     NOTEFEED_LICENSE_FILE: join(dir, "license.md"),
-    NOTEFEED_LICENSE_DB: join(dir, "file", "licenses.db"),
+    NOTEFEED_ACCOUNTS: "open",
+    PUBLIC_URL: "http://localhost:3000",
+    NOTEFEED_ACCOUNTS_DB: join(dir, "file", "accounts.sqlite"),
   });
-  const logs = await logsOf(logStartup); // the license store cannot be opened: a file where its folder should be
+  const logs = await logsOf(logStartup); // the accounts' file cannot be opened: a file where its folder should be
   expect(logs).toContainEqual(expect.objectContaining({ level: "error", msg: "startup report failed" }));
   expect((await storage().listNoteRefs("one")).map((r) => r.id)).toEqual([migratedId("one", OLD)]);
 });
@@ -246,23 +248,6 @@ test("an encrypted database without its key, or a short key, keeps logStartup fr
   await expect(logStartup()).rejects.toThrow("NOTEFEED_ENCRYPTION_KEY must be at least 32 bytes");
   stub({ NOTEFEED_ENCRYPTION_KEY: "a".repeat(64), NOTEFEED_ENCRYPTION_OLD_KEYS: "short" });
   await expect(logStartup()).rejects.toThrow("NOTEFEED_ENCRYPTION_OLD_KEYS must be at least 32 bytes");
-  resetStorageForTests();
-});
-
-test("the start after a key change re-wraps the licenses database too", async () => {
-  const { resetStorageForTests } = await import("./storage");
-  const { licenses } = await import("./licensing");
-  const [a, b] = ["a".repeat(64), "b".repeat(64)];
-  stub({ NOTEFEED_STORAGE: "sqlite", NOTEFEED_PAYMENT_PROVIDER: "fake", NOTEFEED_FAKE_WEBHOOK_SECRET: "whsec", NOTEFEED_ENCRYPTION_KEY: a });
-  resetStorageForTests();
-  await licenses().createLicense({ keyHash: "h1", providerRef: "sub_1", validUntil: null });
-  stub({ NOTEFEED_ENCRYPTION_KEY: b, NOTEFEED_ENCRYPTION_OLD_KEYS: a, NOTEFEED_LICENSE_FILE: join(dir, "license.md") });
-  await writeFile(join(dir, "license.md"), VALID_LICENSE); // selling licenses needs the license page
-  resetStorageForTests();
-  await logStartup(); // no license call of its own: the start alone must re-wrap
-  stub({ NOTEFEED_ENCRYPTION_OLD_KEYS: "" });
-  resetStorageForTests();
-  expect((await licenses().byKeyHash("h1"))?.providerRef).toBe("sub_1");
   resetStorageForTests();
 });
 

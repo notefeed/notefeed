@@ -5,26 +5,26 @@ from typing import Any, Self, TypeVar
 
 from attrs import define as _attrs_define
 
-T = TypeVar("T", bound="LicenseKey")
+T = TypeVar("T", bound="Checkout")
 
 
 @_attrs_define
-class LicenseKey:
+class Checkout:
     """
     Attributes:
-        key (str): The license key, as the checkout or the receipt gave it
+        url (str): Where to send the browser
     """
 
-    key: str
+    url: str
 
     def to_dict(self) -> dict[str, Any]:
-        key = self.key
+        url = self.url
 
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
             {
-                "key": key,
+                "url": url,
             }
         )
 
@@ -33,10 +33,10 @@ class LicenseKey:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        key = d.pop("key")
+        url = d.pop("url")
 
-        license_key = cls(
-            key=key,
+        checkout = cls(
+            url=url,
         )
 
-        return license_key
+        return checkout

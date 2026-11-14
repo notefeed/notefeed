@@ -83,7 +83,7 @@ describe("post", () => {
   test("title, tags, alt, name and read id go as headers, and nothing is sent for what is left out", async () => {
     server.reply(201, CREATED);
     const c = new Client({ url: server.url, feed: "inbox" });
-    await c.post("x", { title: "T", tags: ["ci", "deploy"], date: "2025-03-01", readId: "my-feed", licenseKey: "k".repeat(22) });
+    await c.post("x", { title: "T", tags: ["ci", "deploy"], date: "2025-03-01", readId: "my-feed" });
     await c.post("x", { tags: [] });
     await c.post("x", { date: new Date("2025-03-01T08:00:00+02:00") });
     expect(server.requests[0].headers).toMatchObject({
@@ -91,7 +91,6 @@ describe("post", () => {
       "x-note-tags": "ci,deploy",
       "x-note-date": "2025-03-01",
       "x-read-id": "my-feed",
-      "x-license-key": "k".repeat(22),
     });
     expect(server.requests[2].headers["x-note-date"]).toBe("2025-03-01T06:00:00.000Z");
     for (const h of ["x-note-title", "x-note-tags", "x-note-alt", "x-note-name", "x-note-date", "x-read-id", "x-license-key"])
@@ -273,20 +272,27 @@ describe("feed settings and deletion", () => {
     expect(c.feed).toBe("renamed"); // another feed's rename leaves the client's own as it is
     await expect(c.updateFeed({ title: "t", description: "d", name: "Bad Name" })).rejects.toBeInstanceOf(ConfigError);
   });
-  test("attachLicense PUTs the key, detachLicense DELETEs it; both return the feed", async () => {
+  test("setFeedLicensed PUTs or DELETEs the feed's place under the license; license, buyLicense and changeLicenseUnits are the account's", async () => {
     server.reply(200, FEED);
     server.reply(200, FEED);
-    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
-    expect(await c.attachLicense("k".repeat(22))).toEqual(FEED);
-    expect(await c.detachLicense({ feed: "other" })).toEqual(FEED);
-    const [put, del] = server.requests;
-    expect([put.method, put.path, JSON.parse(put.body.toString()), put.headers["x-feed-password"]]).toEqual([
-      "PUT",
-      "/api/v1/feeds/inbox/license",
-      { key: "k".repeat(22) },
-      "fp",
+    server.reply(200, { subscriptions: [], units: 0, covered: [], licensed: [] });
+    server.reply(200, { url: "https://pay.test/checkout" });
+    server.reply(204, "", "text/plain");
+    const c = new Client({ url: server.url, feed: "inbox", token: "nf_abc" });
+    expect(await c.setFeedLicensed(true)).toEqual(FEED);
+    expect(await c.setFeedLicensed(false, { feed: "other" })).toEqual(FEED);
+    expect((await c.license()).units).toBe(0);
+    expect(await c.buyLicense({ period: "year", units: 3 })).toBe("https://pay.test/checkout");
+    await c.changeLicenseUnits("sub_1", 2);
+    expect(server.requests.map((r) => [r.method, r.path])).toEqual([
+      ["PUT", "/api/v1/feeds/inbox/license"],
+      ["DELETE", "/api/v1/feeds/other/license"],
+      ["GET", "/api/v1/account/license"],
+      ["POST", "/api/v1/account/license/checkout"],
+      ["PUT", "/api/v1/account/license/subscriptions/sub_1"],
     ]);
-    expect([del.method, del.path]).toEqual(["DELETE", "/api/v1/feeds/other/license"]);
+    expect(JSON.parse(server.requests[3].body.toString())).toEqual({ period: "year", units: 3 });
+    expect(JSON.parse(server.requests[4].body.toString())).toEqual({ units: 2 });
   });
   test("setFeedPassword PUTs the new password, with the current one for a protected feed", async () => {
     server.reply(204, "", "text/plain");
@@ -330,13 +336,13 @@ describe("feed settings and deletion", () => {
     server.reply(201, FEED);
     server.reply(201, FEED);
     const c = new Client({ url: server.url, feed: "inbox", feedPassword: "fp" });
-    expect(await c.createFeed({ password: "N3wPassw0rd!", licenseKey: "k".repeat(22), readId: "my-read" })).toEqual(FEED);
+    expect(await c.createFeed({ password: "N3wPassw0rd!", readId: "my-read" })).toEqual(FEED);
     await c.createFeed({ feed: "other" });
     const [made, bare] = server.requests;
     expect([made.method, made.path, JSON.parse(made.body.toString())]).toEqual([
       "POST",
       "/api/v1/feeds/inbox",
-      { password: "N3wPassw0rd!", license_key: "k".repeat(22), read_id: "my-read" },
+      { password: "N3wPassw0rd!", read_id: "my-read" },
     ]);
     expect(made.headers["x-feed-password"]).toBeUndefined();
     expect([bare.path, JSON.parse(bare.body.toString())]).toEqual(["/api/v1/feeds/other", {}]);
@@ -353,21 +359,6 @@ describe("feed settings and deletion", () => {
     expect(await c.licenses()).toEqual(LICENSES);
     const [got] = server.requests;
     expect([got.method, got.path, got.headers["x-feed-password"]]).toEqual(["GET", "/api/v1/licenses", undefined]);
-  });
-  test("recoverFeedPassword POSTs the key and the new password, without a feed password", async () => {
-    server.reply(204, "", "text/plain");
-    server.reply(204, "", "text/plain");
-    const c = new Client({ url: server.url, feed: "inbox", feedPassword: "forgotten" });
-    expect(await c.recoverFeedPassword("k".repeat(22), "N3wPassw0rd!")).toBeUndefined();
-    await c.recoverFeedPassword("k".repeat(22), undefined, { feed: "other" });
-    const [set, removed] = server.requests;
-    expect([set.method, set.path, JSON.parse(set.body.toString())]).toEqual([
-      "POST",
-      "/api/v1/feeds/inbox/password/recover",
-      { key: "k".repeat(22), password: "N3wPassw0rd!" },
-    ]);
-    expect(set.headers["x-feed-password"]).toBeUndefined();
-    expect([removed.path, JSON.parse(removed.body.toString())]).toEqual(["/api/v1/feeds/other/password/recover", { key: "k".repeat(22), password: "" }]);
   });
   test("setFeedImage PUTs the image with its type, removeFeedImage DELETEs it; both return the feed", async () => {
     server.reply(200, FEED);
@@ -635,7 +626,6 @@ describe("post with attachments", () => {
       tags: ["x"],
       feedPassword: "pw",
       readId: "my-read",
-      licenseKey: "k".repeat(22),
     });
     expect(server.requests).toHaveLength(1);
     const q = server.requests[0];
@@ -645,7 +635,6 @@ describe("post with attachments", () => {
       "x-note-tags": "x",
       "x-feed-password": "pw",
       "x-read-id": "my-read",
-      "x-license-key": "k".repeat(22),
     });
     expect(q.headers["x-note-alt"]).toBeUndefined();
     expect(q.headers["x-note-name"]).toBeUndefined();

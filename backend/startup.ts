@@ -10,7 +10,7 @@ import { logger } from "./log";
 import { migrateAccounts } from "./accounts/auth";
 import { migrateNoteIds } from "./notemigration";
 import { missingVars, providers } from "./oidc/config";
-import { licensingOn, openLicenses } from "./licensing";
+import { licensingOn } from "./licensing";
 import { storage } from "./storage";
 import { KeyringError } from "./storage/sql/keyring";
 
@@ -141,8 +141,6 @@ export async function logStartup(): Promise<void> {
     const { fields, warnings } = startupReport();
     logger("startup").info(fields, "notefeed started");
     warn(warnings);
-    // The license store comes to the main key now too: a key change re-wraps it in this start, not at its first use.
-    await openLicenses();
     // Sign-in's own file (backend/accounts): its tables made or brought up to date before the first sign-in.
     await migrateAccounts();
     startAccountCleanup(); // accounts made and left without a feed, after 30 days (#389)

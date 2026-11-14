@@ -8,24 +8,14 @@ import { PASSWORD_PATTERN } from "@/shared/password";
 // Shown on a protected feed once unlocked: plain forms to POST /<feed>/access. `error`, `notice` (what a change just did, #296) and an
 // open `recover` open the password row. `recover` is set where licenses are sold: a browser that is still unlocked but whose owner
 // lost the password resets it with the feed's license key (ADR 0037, #297).
-export async function FeedSettings({
-  feed,
-  error,
-  notice,
-  recover,
-}: {
-  feed: string;
-  error?: string;
-  notice?: string;
-  recover?: { open: boolean; error?: string };
-}) {
+export async function FeedSettings({ feed, error, notice }: { feed: string; error?: string; notice?: string }) {
   const action = `/${feed}/access`;
   const all = await serverCopy();
   const t = all.access;
   const { PASSWORD_HINT } = messagesFor(all);
   return (
     <Group id="access" label={t.title}>
-      <DisclosureRow icon={<FeedPasswordIcon />} label={t.feedPassword} value={t.on} open={!!error || !!notice || !!recover?.open}>
+      <DisclosureRow icon={<FeedPasswordIcon />} label={t.feedPassword} value={t.on} open={!!error || !!notice}>
         {notice && (
           <p role="status" className="mb-3 max-w-sm rounded-xl bg-carbon-soft px-3 py-2 text-carbon">
             {notice}
@@ -67,49 +57,6 @@ export async function FeedSettings({
           </div>
           <p className="mt-2 text-muted">{t.removeNeedsCurrent}</p>
         </form>
-        {recover && (
-          <details className="mt-4 max-w-sm" open={recover.open}>
-            <summary className="cursor-pointer text-muted">{t.forgotCurrent}</summary>
-            <form method="post" action={action} className="mt-3">
-              <input type="hidden" name="action" value="recover" />
-              <input type="hidden" name="from" value="settings" />
-              <p className="mb-3 text-muted">{t.recoverIntro}</p>
-              <label htmlFor="settings-recover-key" className="mb-1 block text-muted">
-                {t.feedKey}
-              </label>
-              <input
-                id="settings-recover-key"
-                name="key"
-                required
-                autoComplete="off"
-                spellCheck={false}
-                maxLength={64}
-                className={`${field} mb-3 w-full font-mono`}
-              />
-              <label htmlFor="settings-recover-next" className="mb-1 block text-muted">
-                {t.newPasswordEmpty}
-              </label>
-              <input
-                id="settings-recover-next"
-                name="next"
-                type="password"
-                autoComplete="new-password"
-                pattern={PASSWORD_PATTERN}
-                title={PASSWORD_HINT}
-                maxLength={256}
-                aria-describedby="settings-recover-error"
-                aria-invalid={recover.error ? true : undefined}
-                className={`${field} mb-3 w-full`}
-              />
-              <button type="submit" className={secondary}>
-                {t.resetWithKey}
-              </button>
-              <p id="settings-recover-error" role="alert" className="mt-2 text-error empty:hidden">
-                {recover.error}
-              </p>
-            </form>
-          </details>
-        )}
       </DisclosureRow>
       <Row icon={<LockedIcon />} label={t.thisBrowser} hint={t.asksAgain}>
         <form method="post" action={action}>

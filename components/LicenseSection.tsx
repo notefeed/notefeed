@@ -8,38 +8,32 @@ import { messagesFor } from "@/app/_lib/messages";
 import { useCopy } from "@/components/CopyProvider";
 import { FreeTierBar, type FreeTierUsage } from "@/components/FreeTier";
 import { DisclosureRow, Group } from "@/components/SettingsRows";
-import { field, primary, secondary } from "@/components/styles";
+import { primary, secondary } from "@/components/styles";
 
-// On a feed's settings page while the instance sells licenses (ADR 0029): the feed's tier (a free one with its notes against the cap,
-// issue #183), a field for a key, and a way to take it off. `freeTier` is null for a licensed feed. `licensePage`: /license exists
-// (ADR 0035), so the texts link to it.
-export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; freeTier: FreeTierUsage | null; licensePage: boolean }) {
+// On a feed's settings page while the instance sells licenses (ADR 0029, ADR 0061): the feed's tier (a free one with its notes against
+// the cap, issue #183), and, for the feed's owner, a way to put it under the account's license or take it off. `freeTier` is null for a
+// licensed feed. `yours`: the signed-in account owns the feed; anyone else is told that a license is an account's. `licensePage`:
+// /license exists (ADR 0035), so the texts link to it.
+export function LicenseSection({ feed, freeTier, licensePage, yours }: { feed: string; freeTier: FreeTierUsage | null; licensePage: boolean; yours: boolean }) {
   const licensed = freeTier === null;
   const all = useCopy();
   const t = all.licenseSection;
   const { errorMessage } = messagesFor(all);
   const router = useRouter();
-  const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
 
-  async function send(method: "POST" | "DELETE") {
+  async function send(method: "PUT" | "DELETE") {
     setError("");
     setDone("");
-    // Under the feed's path, where a protected feed's unlock cookie is sent.
-    const res = await fetch(`/${encodeURIComponent(feed)}/license`, { method, headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) });
-    if (res.ok) {
-      setKey("");
-      setDone(method === "POST" ? t.on : t.off);
+    const res = await fetch(`/api/v1/feeds/${encodeURIComponent(feed)}/license`, { method }).catch(() => null);
+    if (res?.ok) {
+      setDone(method === "PUT" ? t.on : t.off);
       router.refresh();
       return;
     }
-    const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-    setError(
-      body.error && body.code === "invalid_body"
-        ? `${body.error[0].toUpperCase()}${body.error.slice(1)}.`
-        : (errorMessage(body.code) ?? all.errors.somethingWrong),
-    );
+    const body = (await res?.json().catch(() => ({}))) as { code?: string } | undefined;
+    setError(errorMessage(body?.code) ?? all.errors.somethingWrong);
   }
 
   return (
@@ -58,64 +52,33 @@ export function LicenseSection({ feed, freeTier, licensePage }: { feed: string; 
         {licensed ? (
           <>
             <p className="text-muted">
-              {t.hasLicense}
-              {licensePage && (
-                <>
-                  {" "}
-                  {t.manageBefore}{" "}
-                  <Link href="/license" className="text-carbon underline">
-                    {t.managePage}
-                  </Link>{" "}
-                  {t.manageAfter}
-                </>
-              )}
+              {t.hasLicense}{" "}
+              <Link href="/account" className="text-carbon underline">
+                {t.manage}
+              </Link>
             </p>
-            <button type="button" onClick={() => send("DELETE")} className={`${secondary} mt-3`}>
-              {t.takeOff}
-            </button>
+            {yours && (
+              <button type="button" onClick={() => send("DELETE")} className={`${secondary} mt-3`}>
+                {t.takeOff}
+              </button>
+            )}
           </>
         ) : (
           <>
             <FreeTierBar t={all} usage={freeTier} />
             <p className="mt-3 text-muted">
-              {t.freeIntro(freeTier.cap)}{" "}
-              {licensePage ? (
-                <>
-                  <Link href="/license" className="text-carbon underline">
-                    {t.buy}
-                  </Link>
-                  {t.thenEnter}
-                </>
-              ) : (
-                t.enterToLift
+              {t.freeIntro(freeTier.cap)} {yours ? t.yoursIntro : t.notYours}{" "}
+              {licensePage && (
+                <Link href="/license" className="text-carbon underline">
+                  {t.buy}
+                </Link>
               )}
             </p>
-            <form
-              className="mt-3 flex max-w-xl gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void send("POST");
-              }}
-            >
-              <label htmlFor="license-key" className="sr-only">
-                {t.key}
-              </label>
-              <input
-                id="license-key"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                required
-                maxLength={64}
-                autoComplete="off"
-                spellCheck={false}
-                aria-describedby="license-error"
-                placeholder={t.key}
-                className={`${field} font-mono`}
-              />
-              <button type="submit" className={primary}>
-                {t.use}
+            {yours && (
+              <button type="button" onClick={() => send("PUT")} className={`${primary} mt-3`}>
+                {t.putOn}
               </button>
-            </form>
+            )}
           </>
         )}
         <p role="status" className="mt-2 font-bold text-ink empty:hidden">

@@ -49,8 +49,8 @@ import {
   renameFeed,
   setReadId,
 } from "./feeds";
-import { attachLicense, checkLicenseKey, countingKeys, detachLicense } from "./licenseflow";
-import { hasActiveLicense, licensingOn, moveLicense, releaseLicense, requireLicense, trimToFreeCap } from "./licensing";
+import { isLicensed, licensingOn, requireLicense, trimToFreeCap } from "./licensing";
+import { activeUnits } from "./accounts/subscriptions";
 import { isBlockedImage } from "./takedown";
 import { processImage } from "./imageprocess";
 import type { ImageType } from "../shared/images";
@@ -91,7 +91,7 @@ async function admit(feed: string, ip: string, access: FeedAccess): Promise<bool
   assertFeed(feed);
   if (await isRemovedFeed(feed)) throw new RemovedFeedError(); // the operator took the name out of use (issue #155): before any password is looked at
   const proved = await checkFeedAccess(feed, access, ip);
-  if (licensingOn() && (await hasActiveLicense(feed))) return proved;
+  if (licensingOn() && (await isLicensed(feed))) return proved;
   const wait = rateLimit(ip);
   if (wait !== null) throw new RateLimitedError(wait);
   return proved;
@@ -123,10 +123,8 @@ async function feedCapped(feed: string): Promise<boolean> {
 
 // After every check, before the first write: the post that creates the feed with a password creates it protected
 // (true: this post did). A password (the feed's `X-Feed-Password`) is set only by the post that creates the feed.
-// On an instance that sells licenses, a password at creation is for licensed feeds (ADR 0029), and a new feed has no license yet:
-// the post brings the key (`X-License-Key`, issue #193), which is checked before the feed is made and put on it right after.
-// `created`: the feed was created protected here. `licenseKey`: the key the post that creates an open feed brought, checked already,
-// for licenseNewFeed to put on the feed once its first note made it exist.
+// On an instance that sells licenses, a password at creation is for licensed feeds (ADR 0029): the feed it creates goes under the
+// posting account's license (ADR 0061), which needs a unit free. `created`: the feed was created protected here.
 async function protect(
   feed: string,
   ip: string,
@@ -135,33 +133,37 @@ async function protect(
   exists: boolean,
   given: string | undefined,
   wantedReadId: string | undefined,
-  licenseKey: string | undefined,
-): Promise<{ created: boolean; licenseKey?: string }> {
+): Promise<{ created: boolean }> {
   const password = (access.password ?? given) || undefined; // empty means none
-  const key = newFeedKey(proved, exists, licenseKey);
   // A protected feed was already unlocked above; an open existing one can't be claimed.
   if (!proved && password !== undefined) {
     if (exists) throw new FeedExistsError();
-    if (key) await countingKeys(ip, () => checkLicenseKey(key));
-    else await requireLicense(feed);
+    await requireRoom(access.account);
     await createProtected(feed, password, wantedReadId, access.account);
-    // The feed exists now, protected by a password only its creator knows, so nobody else can take the license meanwhile.
-    // ponytail: should the store fail here, the feed stays protected and unlicensed; its owner enters the key in the settings.
-    if (key) await attachLicense(feed, key);
+    await coverNewFeed(feed, access.account);
     return { created: true };
   }
-  // A license without a password (#247): the key is checked before anything is stored, so a bad one creates nothing.
-  if (key) await countingKeys(ip, () => checkLicenseKey(key));
   // The sender decides how long read() takes, and the feed may have been created protected meanwhile:
   // a post that proved nothing above is checked again, with nothing to show.
   await recheck(feed, ip, access, proved, given);
-  return { created: false, licenseKey: key };
+  return { created: false };
 }
 
-// The open feed a post just created gets the license its key names (#247). ponytail: should the store fail here, the feed stays
-// unlicensed, with its first note; its owner enters the key in the settings.
-async function licenseNewFeed(feed: string, key: string | undefined): Promise<void> {
-  if (key) await attachLicense(feed, key);
+// A new feed that needs a license from the start (a password, pictures, or made without a note where licenses are sold): the posting
+// account must have a unit of its license free. Nothing where licenses aren't sold. LicenseRequiredError otherwise.
+async function requireRoom(account: string | undefined): Promise<void> {
+  if (!licensingOn()) return;
+  if (!account) throw new LicenseRequiredError("this needs a license: sign in with an account that has one");
+  const { coveredFeeds } = await import("./feedlock");
+  if ((await coveredFeeds(account)).length >= (await activeUnits(account)))
+    throw new LicenseRequiredError("the account's license covers no more feeds: raise its number first");
+}
+
+// Puts a feed this request just made under the account's license, where licenses are sold (requireRoom checked there is room).
+async function coverNewFeed(feed: string, account: string | undefined): Promise<void> {
+  if (!licensingOn() || !account) return;
+  const { setCovered } = await import("./feedlock");
+  await setCovered(feed, account, true, await activeUnits(account));
 }
 
 // The second access check: a post that proved nothing and brings no password is checked again once its body is read, because the
@@ -177,20 +179,12 @@ function refuseImages(images: boolean): void {
   if (images && !config.imageUploads()) throw new ImagesOffError();
 }
 
-// The license key this post brings for the feed it creates protected (issue #193): none when it creates no protected feed, or the
-// instance sells no licenses (then every feature is open and a key means nothing).
-function newFeedKey(proved: boolean, exists: boolean, licenseKey: string | undefined): string | undefined {
-  if (proved || exists || !licensingOn()) return undefined;
-  return licenseKey?.trim() || undefined;
-}
-
-// On an instance with a payment provider, an image needs a licensed feed (ADR 0029); after refuseImages, so "off" is said first.
-// The post that creates the feed with a license key is judged by the key, checked here: the license goes on the feed as it is made
-// (protect() for a protected one, licenseNewFeed() once an open one's first note is stored).
-async function licenseForImages(feed: string, images: boolean, key: string | undefined, ip: string): Promise<void> {
-  if (!images) return;
-  if (key) await countingKeys(ip, () => checkLicenseKey(key));
-  else await requireLicense(feed);
+// On an instance with a payment provider, an image needs a licensed feed (ADR 0029); after refuseImages, so "off" is said first. A post
+// that creates the feed with pictures needs room in the posting account's license, and the feed goes under it.
+async function licenseForImages(feed: string, images: boolean, exists: boolean, access: FeedAccess): Promise<void> {
+  if (!images || !licensingOn()) return;
+  if (exists) await requireLicense(feed);
+  else await requireRoom(access.account);
 }
 
 // The notes limit counts every note of the feed (texts, images, the operator's marks); images have a limit of their own as well.
@@ -203,8 +197,7 @@ async function checkCaps(feed: string, adding: { notes: number; images: number }
 }
 
 // What a post carries: the file (`body`) and the type the poster declared for it (`mediaType`, a Content-Type), with the optional
-// metadata (`name` is the file name it came with) and, for the post that creates the feed, a password, a read id and the key of the
-// license the password needs (`licenseKey`). `date`: where the note is placed in the feed, if not now (X-Note-Date, read by checkDate).
+// metadata (`name` is the file name it came with) and, for the post that creates the feed, a password and a read id. `date`: where the note is placed in the feed, if not now (X-Note-Date, read by checkDate).
 // `draft`: stored as a draft, which readers do not see until it is published (X-Note-Draft, #265).
 export type PostInput = {
   body: Uint8Array;
@@ -218,14 +211,12 @@ export type PostInput = {
   draft?: boolean;
   password?: string;
   readId?: string;
-  licenseKey?: string;
 };
 
 // `read` runs only once the post is admitted, so a refused request never has its body read.
 // A password (the feed's `X-Feed-Password`) is set only by the post that creates the feed.
 // `created`: this post created the feed protected, so its sender is the one who chose the password.
 // `readId` (in what `read` gives): the read id the new feed should get; ignored when the feed exists, random when empty or left out.
-// `licenseKey`: put on the feed this post creates protected; ignored otherwise.
 // `readId` (in the result): the read id of the feed the note went into; null when that feed has no read link.
 export async function postNote(
   feed: string,
@@ -241,7 +232,7 @@ export async function postNote(
   if (!parsed) throw new UnsupportedTypeError();
   const { type, ext } = parsed;
   refuseImages(type.name === "image");
-  await licenseForImages(feed, type.name === "image", newFeedKey(proved, exists, input.licenseKey), ip);
+  await licenseForImages(feed, type.name === "image", exists, access);
   if (exists) await checkCaps(feed, { notes: 1, images: type.name === "image" ? 1 : 0 });
   // Before createProtected: a refused note must not leave a protected, empty feed.
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
@@ -254,7 +245,7 @@ export async function postNote(
   const at = meta.date;
   const body = type.name === "image" ? await prepareImage(input.body, ext) : input.body;
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
-  const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
+  const { created } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId);
   // ponytail: checked, not locked. A protected creation can still complete in the few microseconds between
   // this check and createNoteOf's ensureFeed, which then finds the feed and writes into it: this one note is
   // then in the protected feed. A lock around creation, per feed, would close it.
@@ -266,8 +257,8 @@ export async function postNote(
     { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId, draft: input.draft, byOwner },
     at,
   );
-  await licenseNewFeed(feed, licenseKey);
   if (!exists) await ownNewFeed(feed, access.account); // a feed an account's post made is that account's (ADR 0059)
+  if (!exists && !created && type.name === "image") await coverNewFeed(feed, access.account); // pictures need its license from the start
   await trimToFreeCap(feed);
   return { ...made, created };
 }
@@ -285,15 +276,11 @@ const senderOf = (given: string | undefined, checked: string | undefined, signed
   given === undefined ? signedIn : checked || undefined;
 
 // A feed without a note (#295, ADR 0047): reserved now, with a password and a read id if given, as a first post would create it.
-// Where licenses are sold it needs a license key, which goes on the new feed (free feeds still start with their first note). It counts
+// Where licenses are sold it needs a signed-in account with room in its license, and goes under it (free feeds still start with their
+// first note; ADR 0061). It counts
 // as a post against the rate limit, and against NOTEFEED_MAX_FEEDS. A feed that exists is refused (409), whatever it holds.
 // `account`: the signed-in account creating it, whose feed it then is (ADR 0059).
-export async function createFeed(
-  feed: string,
-  ip: string,
-  input: { password?: string; licenseKey?: string; readId?: string },
-  account?: string,
-): Promise<void> {
+export async function createFeed(feed: string, ip: string, input: { password?: string; readId?: string }, account?: string): Promise<void> {
   assertFeed(feed);
   if (isHeldBack(feed)) throw new ReservedFeedError();
   if (await isRemovedFeed(feed)) throw new RemovedFeedError();
@@ -301,10 +288,8 @@ export async function createFeed(
   if (wait !== null) throw new RateLimitedError(wait);
   if (await feedCapped(feed)) throw new FeedExistsError("feed already exists");
   const password = input.password || undefined; // empty means none
-  if (password !== undefined) checkNewPassword(password); // before the key is tried, as recovery does
-  const key = licensingOn() ? input.licenseKey?.trim() || undefined : undefined;
-  if (licensingOn() && !key) throw new LicenseRequiredError();
-  if (key) await countingKeys(ip, () => checkLicenseKey(key));
+  if (password !== undefined) checkNewPassword(password);
+  await requireRoom(account);
   const readId = input.readId?.trim() || undefined;
   if (password !== undefined) {
     await createProtected(feed, password, readId, account).catch((e) => {
@@ -312,7 +297,7 @@ export async function createFeed(
     });
   } else if (!(await createOpenFeed(feed, readId))) throw new FeedExistsError("feed already exists");
   else await ownNewFeed(feed, account);
-  if (key) await attachLicense(feed, key);
+  await coverNewFeed(feed, account);
 }
 
 // Replacing a note's content, and changing its title or alt text: the same gate as posting, minus the caps.
@@ -328,7 +313,7 @@ export async function editContent(
   const current = await getNote(feed, id);
   if (!current) throw new NotFoundError("no such note"); // before the body is read: a missing note is 404 whatever the body
   refuseImages(current.type.startsWith("image/")); // replacing a picture's bytes is an upload too
-  await licenseForImages(feed, current.type.startsWith("image/"), undefined, ip);
+  await licenseForImages(feed, current.type.startsWith("image/"), true, {});
   const { body, mediaType } = await read();
   const parsed = parseMediaType(mediaType);
   // A body of another type than the note's is refused by replaceContent, without being processed first.
@@ -428,16 +413,8 @@ function assertNewName(to: string): void {
   }
 }
 
-// The feed's license goes with it. Should moving it fail, the feed gets its old name back, so a license is never left on a name no feed has.
-async function renameWithLicense(feed: string, to: string): Promise<void> {
-  await renameFeed(feed, to);
-  try {
-    await moveLicense(feed, to);
-  } catch (e) {
-    await renameFeed(to, feed).catch((err) => log.error({ err }, "a renamed feed could not get its old name back after its license failed to move"));
-    throw e;
-  }
-}
+// The feed's license goes with it: it is in its record (ADR 0061), which renaming keeps.
+const renameWithLicense = (feed: string, to: string) => renameFeed(feed, to);
 
 // The feed's own title image (#310): uploaded as the title image, it is stored as an image note but marked in the settings, so it is
 // in no list and was never a post. Every check of posting a picture applies (access, rate limit, a license for images, caps, the
@@ -475,14 +452,14 @@ async function removeOwnImage(feed: string, file: string): Promise<void> {
   if (m) await removeNote(feed, m[1]);
 }
 
-// A feed's license, entered (a key) or taken off (null) by whoever may write to the feed (#247): the gate of its settings. Entering
-// a key moves its license from the feed it was on. NotFoundError while licenses are not sold here.
-export async function setLicense(feed: string, ip: string, key: string | null, access: FeedAccess): Promise<void> {
+// Puts the owner's feed under its account's license, or takes it off (ADR 0061): only the owner, and no more feeds than the license's
+// units. NotFoundError while licenses are not sold here.
+export async function setFeedCovered(feed: string, ip: string, covered: boolean, access: FeedAccess): Promise<void> {
   if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
   await admit(feed, ip, access);
   if (!(await hasFeed(feed))) throw new NotFoundError("no such feed");
-  if (key === null) await detachLicense(feed);
-  else await countingKeys(ip, () => attachLicense(feed, key.trim()));
+  const { setCovered } = await import("./feedlock");
+  await setCovered(feed, access.account, covered, access.account ? await activeUnits(access.account) : 0);
 }
 
 export async function deleteFeed(feed: string, ip: string, access: FeedAccess): Promise<void> {
@@ -490,14 +467,12 @@ export async function deleteFeed(feed: string, ip: string, access: FeedAccess): 
   await requireOwnerIfOwned(feed, access.account); // an owned feed is deleted by its owner only (ADR 0059)
   if (!(await removeWholeFeed(feed))) throw new NotFoundError("no such feed");
   ownersChanged();
-  await releaseLicense(feed);
 }
 
 // A feed with everything in it, and its license given back: the operator's, and an account's own when the account goes.
 export async function removeFeedAndLicense(feed: string): Promise<boolean> {
   if (!(await removeWholeFeed(feed))) return false;
   ownersChanged();
-  await releaseLicense(feed);
   return true;
 }
 
@@ -506,6 +481,8 @@ export async function removeFeedAndLicense(feed: string): Promise<boolean> {
 // the operator decides about (/api/operator/feeds).
 export async function deleteAccountWithFeeds(userId: string): Promise<void> {
   for (const feed of await ownedFeeds(userId)) await removeFeedAndLicense(feed);
+  // Its subscriptions end at the provider, so nothing is charged again (ADR 0061).
+  await (await import("./licenseflow")).endSubscriptionsOf(userId);
   const { deleteAccount } = await import("./accounts/numbers");
   await deleteAccount(userId);
 }
@@ -514,7 +491,7 @@ export { MAX_ATTACHMENTS }; // defined in shared/links.ts: the web box holds to 
 
 // A picture sent with a markdown text: `name` is the file name the text refers to it by (`![](name)`), kept with the stored note.
 export type Picture = { name: string; body: Uint8Array; mediaType: string; alt?: string };
-// A post of a text and its pictures. No `text`: just the pictures, each with the title. `date`, `password`, `readId` and `licenseKey` as in PostInput.
+// A post of a text and its pictures. No `text`: just the pictures, each with the title. `date`, `password` and `readId` as in PostInput.
 export type PostBundle = {
   text?: string;
   pictures: Picture[];
@@ -525,7 +502,6 @@ export type PostBundle = {
   draft?: boolean;
   password?: string;
   readId?: string;
-  licenseKey?: string;
   name?: string;
 };
 
@@ -628,7 +604,7 @@ export async function postWithPictures(
   const exists = await feedCapped(feed);
   const { text, title, ...input } = await read();
   const pictures = checkPictures(input.pictures);
-  await licenseForImages(feed, pictures.length > 0, newFeedKey(proved, exists, input.licenseKey), ip);
+  await licenseForImages(feed, pictures.length > 0, exists, access);
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
   const meta = checkNoteMeta({ title, sender: input.sender, tags: input.tags, date: input.date });
@@ -640,18 +616,15 @@ export async function postWithPictures(
   await checkCaps(feed, { notes: (text === undefined ? 0 : 1) + pictures.length, images: pictures.length });
   for (const p of pictures) p.body = await prepareImage(p.body, p.ext); // one at a time: a post never fills the queue alone
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
-  const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
+  const { created } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId);
   const opts = { sender, tags, wantedReadId, draft: input.draft, byOwner };
   const id = text === undefined ? undefined : newNoteId();
   const dateOf = (i: number) => new Date(Math.max(0, at.getTime() - pictures.length + i)); // never before 1970
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined, of: id }, dateOf, async (stored, sent, readId) => {
     if (!exists) await ownNewFeed(feed, access.account);
-    if (text === undefined) {
-      await licenseNewFeed(feed, licenseKey);
-      return { note: stored[0], created, readId, pictures: stored };
-    }
+    if (!exists && !created && pictures.length) await coverNewFeed(feed, access.account); // pictures need its license from the start
+    if (text === undefined) return { note: stored[0], created, readId, pictures: stored };
     const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title, id, name: input.name }, at);
-    await licenseNewFeed(feed, licenseKey);
     await trimToFreeCap(feed);
     return { ...made, created, pictures: stored };
   });
@@ -676,7 +649,7 @@ export async function editWithPictures(
   if (note.type !== MARKDOWN_TYPE) throw new UnsupportedTypeError(`this note is ${note.type}: send that Content-Type`);
   const input = await read();
   const pictures = checkPictures(input.pictures);
-  await licenseForImages(feed, pictures.length > 0, undefined, ip); // an edit's feed exists
+  await licenseForImages(feed, pictures.length > 0, true, {}); // an edit's feed exists
   const plan = await checkText(input.text, pictures);
   const tags = checkTags(input.tags);
   await checkCaps(feed, { notes: pictures.length, images: pictures.length });

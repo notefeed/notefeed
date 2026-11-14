@@ -6,6 +6,7 @@ import * as z from "zod";
 import { noteHeaderSchemas } from "../notefields";
 import { config } from "../config";
 import { ImageTooLargeError, InvalidBodyError, NotFoundError, RemovedFeedError, UnsupportedTypeError, AuthError } from "../errors";
+import { changeUnits, licenseOf, portalOf, startCheckout } from "../licenseflow";
 import {
   addFeedPassword,
   changePassword,
@@ -15,7 +16,6 @@ import {
   listFeedPasswords,
   ownedFeeds,
   protectedFeed,
-  recoverPassword,
   removePassword,
   revokeFeedPassword,
 } from "../feedlock";
@@ -23,14 +23,25 @@ import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
 import { MAX_BYTES, countNotes, getNote, isDraft, isScheduled, listNotes, refuseRemovedNote, type Note } from "../notes";
-import { freeTier, licenseAccountUrl, licensePlans } from "../licensing";
+import { freeTier, licensePlans, licensingOn } from "../licensing";
 import { MANAGE_PURCHASES } from "../../shared/plans";
 import { PASSWORD_RULE } from "../../shared/password";
 import { TAG_RULE } from "../tags";
 import { API_PREFIX, atomPath, feedPath, imagePath, publicUrl, readPath, rssPath, SHORTCUT_PATH } from "../urls";
 import { MEDIA_TYPES } from "../note/media";
 import { createDispatcher, op, type AnyOp, type ResponseSpec } from "./dispatch";
-import { MAX_ATTACHMENTS, createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, editWithPictures, setLicense, updateFeed } from "../posting";
+import {
+  MAX_ATTACHMENTS,
+  createFeed,
+  deleteFeed,
+  setFeedImage,
+  deleteNote,
+  editContent,
+  editMeta,
+  editWithPictures,
+  setFeedCovered,
+  updateFeed,
+} from "../posting";
 import { ownerFile } from "./files";
 import { MULTIPART_SLACK, createdOf, handlePostNote, readContent, readMetaPatch, readMultipart } from "./notes";
 import { authorize, feedAccess, mediaType, readCapped, sender, requestAccount, sessionAccount } from "./request";
@@ -42,7 +53,6 @@ import {
   LicensesJson,
   FeedParam,
   FeedPasswordHeader,
-  LicenseKeyHeader,
   FeedSettingsJson,
   FileBody,
   MetaJson,
@@ -54,10 +64,8 @@ import {
   NoteJson,
   NoteList,
   PageQuery,
-  LicenseKeyJson,
   PasswordJson,
   CreateFeedJson,
-  RecoveryJson,
   Posted,
   ReadFeedJson,
   ReadIdParam,
@@ -69,6 +77,10 @@ import {
   AccountTokensJson,
   AccountTokenRequestJson,
   NewAccountTokenJson,
+  AccountLicenseJson,
+  CheckoutJson,
+  CheckoutRequestJson,
+  UnitsJson,
 } from "./schemas";
 
 export { API_PREFIX };
@@ -177,8 +189,9 @@ async function page(
 /** What licenses are sold, where to buy them and where buyers manage them (ADR 0050), for the API and MCP alike.
  *  NotFoundError where no licenses are sold. */
 export async function licensesJson(headers: Headers): Promise<z.infer<typeof LicensesJson>> {
-  const manage = licenseAccountUrl();
-  if (!manage) throw new NotFoundError("licenses are not sold on this instance");
+  if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+  // A license is the account's (ADR 0061): its holder manages it on the account page, which opens the provider's portal for it.
+  const manage = `${publicUrl(headers)}/account`;
   const plans = (await licensePlans()).map(({ taxIncluded, ...p }) => ({ ...p, tax_included: taxIncluded }));
   return { plans, buy_url: `${publicUrl(headers)}/license`, manage_url: manage, manage: MANAGE_PURCHASES };
 }
@@ -218,7 +231,7 @@ const OPS: AnyOp[] = [
       PROCESSED +
       "Creates the feed with its first note, optionally protected by its own password (`X-Feed-Password`; " +
       `${PASSWORD_RULE}) and with the read id in \`X-Read-Id\`; both are only used by the post that creates the feed. ` +
-      "Where licenses are sold, the post that creates the feed can bring a license key in `X-License-Key`, with or without a password; a feed password needs one, or the post is refused with `402`. " +
+      "Where licenses are sold, a post that creates a feed with a password, or with pictures, needs an account (its token, or signed in on this instance's pages) whose license covers one more feed: the new feed goes under it; else `402`. " +
       "Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. " +
       "The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). " +
       `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Date\` (where it is placed in the feed: a past date backdates it, a future one schedules it), \`X-Note-Draft\` (\`true\`: a draft, which readers do not see until it is published). ` +
@@ -231,7 +244,6 @@ const OPS: AnyOp[] = [
     headers: {
       "X-Feed-Password": FeedPasswordHeader,
       "X-Read-Id": ReadIdHeader,
-      "X-License-Key": LicenseKeyHeader,
       ...noteHeaderSchemas(["title", "sender", "tags", "alt", "name", "date", "draft"]),
     },
     body: { ...Object.fromEntries(MEDIA_TYPES.map((m) => [m.mediaType, FileBody])), "multipart/form-data": MultipartNote },
@@ -472,7 +484,7 @@ const OPS: AnyOp[] = [
     summary: "Create a feed without posting a note",
     description:
       "Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a read id it gets that read link. " +
-      "Where licenses are sold a license key is required and goes on the new feed; free feeds start with their first note. A feed that exists is 409. " +
+      "Where licenses are sold it needs an account (its token, or signed in on this instance's pages) whose license covers one more feed, and the new feed goes under it; free feeds start with their first note. A feed that exists is 409. " +
       "Counts against the post rate limit and the instance's feed cap, like a first post. After it, change the title and description with updateFeed.",
     tags: ["Feeds"],
     password: true,
@@ -481,7 +493,7 @@ const OPS: AnyOp[] = [
     responses: {
       201: { description: "The new feed", schema: FeedJson },
       400: err(`Invalid or reserved feed name, bad JSON, a password that is not ${PASSWORD_RULE}, a read id that is invalid, or a key that is none`),
-      402: err("A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)"),
+      402: err("An account whose license covers one more feed is needed to create a feed without a note here (`license_required`)"),
       409: err("The feed exists already (`feed_exists`), or the read id is taken (`taken`)"),
       410: REMOVED,
       429: { ...err("Too many posts, or wrong keys, from this client"), headers: RETRY },
@@ -495,13 +507,8 @@ const OPS: AnyOp[] = [
     try {
       body = CreateFeedJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes?.length ? bytes : new TextEncoder().encode("{}"))));
     } catch {}
-    if (!body?.success) throw new InvalidBodyError('JSON with optional "password", "license_key" and "read_id" strings');
-    await createFeed(
-      params.feed,
-      clientIp(req.headers),
-      { password: body.data.password, licenseKey: body.data.license_key, readId: body.data.read_id },
-      await requestAccount(req.headers),
-    );
+    if (!body?.success) throw new InvalidBodyError('JSON with optional "password" and "read_id" strings');
+    await createFeed(params.feed, clientIp(req.headers), { password: body.data.password, readId: body.data.read_id }, await requestAccount(req.headers));
     return { status: 201, body: await feedJson(params.feed, req.headers) };
   }),
 
@@ -918,71 +925,29 @@ const OPS: AnyOp[] = [
   }),
 
   op({
-    method: "POST",
-    path: `${API_PREFIX}/feeds/{feed}/password/recover`,
-    operationId: "recoverFeedPassword",
-    summary: "Recover a feed's password with its license key",
-    description:
-      "Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license on this feed proves ownership instead of the current password (ADR 0037). " +
-      "With a new password the feed gets it (needs an active license, like any password change); with none, or an empty one, the password is removed, which a lapsed license's key may do too. " +
-      "A key that is not this feed's license is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before the key is tried.",
-    tags: ["Feeds"],
-    password: true,
-    params: { feed: FeedParam },
-    body: { "application/json": RecoveryJson },
-    responses: {
-      204: { description: "Set or removed; the old password and unlock cookies stop working" },
-      400: err(`Invalid or reserved feed name, bad JSON, or a new password that is not ${PASSWORD_RULE}`),
-      401: err("The key is not this feed's license, or the feed has no password"),
-      402: err("The key's license has lapsed, and a new password needs an active one (`license_required`)"),
-      404: err("Licenses are not sold on this instance, or the feed was deleted meanwhile"),
-      429: { ...err("Too many wrong passwords or keys from this client"), headers: RETRY },
-      503: UNAVAILABLE,
-    },
-    before: passwordAndFeed,
-  }).handle(async ({ req, params }) => {
-    const bytes = await readCapped(req, 4096);
-    let body: ReturnType<typeof RecoveryJson.safeParse> | undefined;
-    try {
-      body = RecoveryJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array())));
-    } catch {}
-    if (!body?.success) throw new InvalidBodyError('JSON needs a "key" string, and optionally a "password" string');
-    await recoverPassword(params.feed, body.data.key.trim(), body.data.password ?? "", clientIp(req.headers));
-    return { status: 204, body: undefined };
-  }),
-
-  op({
     method: "PUT",
     path: `${API_PREFIX}/feeds/{feed}/license`,
     operationId: "putFeedLicense",
-    summary: "Put a license on a feed",
+    summary: "Put a feed under its owner's license",
     description:
-      "Only on an instance that sells licenses (404 elsewhere). Puts the license the key names on the feed, taking it off the feed it was on; a feed that has an active license already answers 400 (take it off first). " +
-      "A feed needs no password for a license. A key notefeed doesn't know is 400 and counts as a failed attempt, like a wrong password. " +
-      "Needs the feed's password if it has one, and counts against the post rate limit. Only on a feed that exists: it is created by its first note, which can bring the key in `X-License-Key`.",
+      "Only on an instance that sells licenses (404 elsewhere). The license belongs to the feed's owner, an account: its subscriptions' units say how many of its feeds it covers. " +
+      "This puts one more under it (402 `license_required` when it covers as many as its units already: raise them first). Only for the feed's owner (403 `owner_only`).",
     tags: ["Feeds"],
     password: true,
     params: { feed: FeedParam },
-    headers: { "X-Feed-Password": FeedPasswordHeader },
-    body: { "application/json": LicenseKeyJson },
     responses: {
       200: { description: "The feed as it is now: `free_tier` is null", schema: FeedJson },
-      400: err("Invalid or reserved feed name, bad JSON, a key that is none, or a feed with an active license already"),
+      400: err("Invalid or reserved feed name"),
       401: UNAUTHORIZED,
-      402: err("The key's license has lapsed (`license_required`)"),
+      402: err("The owner's license covers no more feeds (`license_required`)"),
+      403: err("Not the feed's owner (`owner_only`)"),
       404: err("No such feed, or licenses are not sold on this instance"),
-      429: { ...err("Too many posts, edits and deletes, or wrong passwords and keys, from this client"), headers: RETRY },
+      429: { ...err("Too many posts, edits and deletes from this client"), headers: RETRY },
       503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
-    const bytes = await readCapped(req, 4096);
-    let body: ReturnType<typeof LicenseKeyJson.safeParse> | undefined;
-    try {
-      body = LicenseKeyJson.safeParse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array())));
-    } catch {}
-    if (!body?.success) throw new InvalidBodyError('JSON needs a "key" string');
-    await setLicense(params.feed, clientIp(req.headers), body.data.key, await feedAccess(req.headers, params.feed));
+    await setFeedCovered(params.feed, clientIp(req.headers), true, await feedAccess(req.headers, params.feed));
     return { status: 200, body: await feedJson(params.feed, req.headers) };
   }),
 
@@ -990,27 +955,120 @@ const OPS: AnyOp[] = [
     method: "DELETE",
     path: `${API_PREFIX}/feeds/{feed}/license`,
     operationId: "deleteFeedLicense",
-    summary: "Take a feed's license off",
+    summary: "Take a feed off its owner's license",
     description:
-      "Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the key can be put on another feed; the subscription runs on. " +
-      "A feed without a license answers the same. Needs the feed's password if it has one, and counts against the post rate limit.",
+      "Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the unit can cover another of the account's feeds; the subscription runs on. " +
+      "A feed not under it answers the same. Only for the feed's owner.",
     tags: ["Feeds"],
     password: true,
     params: { feed: FeedParam },
-    headers: { "X-Feed-Password": FeedPasswordHeader },
     responses: {
       200: { description: "The feed as it is now", schema: FeedJson },
       400: err("Invalid or reserved feed name"),
       401: UNAUTHORIZED,
+      403: err("Not the feed's owner (`owner_only`)"),
       404: err("No such feed, or licenses are not sold on this instance"),
-      429: { ...err("Too many posts, edits and deletes, or wrong passwords, from this client"), headers: RETRY },
+      429: { ...err("Too many posts, edits and deletes from this client"), headers: RETRY },
       503: UNAVAILABLE,
     },
     before: passwordAndFeed,
   }).handle(async ({ req, params }) => {
-    await setLicense(params.feed, clientIp(req.headers), null, await feedAccess(req.headers, params.feed));
+    await setFeedCovered(params.feed, clientIp(req.headers), false, await feedAccess(req.headers, params.feed));
     return { status: 200, body: await feedJson(params.feed, req.headers) };
   }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/account/license`,
+    operationId: "getAccountLicense",
+    summary: "The account's license",
+    description:
+      "Its subscriptions (each with its units, period and end), how many feeds they cover together now (`units`), the feeds put under it in that order (`covered`) and those it covers (`licensed`: the first `units` of them). Only where licenses are sold.",
+    tags: ["Account"],
+    password: true,
+    params: {},
+    responses: {
+      200: { description: "The account's license", schema: AccountLicenseJson },
+      401: err("No account: signed in on this instance's pages, or its token"),
+      404: err("Licenses are not sold on this instance"),
+      503: UNAVAILABLE,
+    },
+    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+  }).handle(async ({ req }) => {
+    if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+    return { status: 200, body: await licenseOf(await signedInAccount(req.headers)) };
+  }),
+
+  op({
+    method: "POST",
+    path: `${API_PREFIX}/account/license/checkout`,
+    operationId: "buyLicense",
+    summary: "Buy a license for the account",
+    description:
+      "The payment provider's checkout for `units` feeds (1 to 100), per `period` (`month`, or `year` where sold). Send the buyer to `url`; once paid, a new subscription is on the account, and they come back to the account page. Buying more later adds a subscription; change one's units with `changeLicenseUnits`.",
+    tags: ["Account"],
+    password: true,
+    params: {},
+    body: { "application/json": CheckoutRequestJson },
+    responses: {
+      200: { description: "Where to send the buyer", schema: CheckoutJson },
+      400: err("Bad JSON, a period that is not sold, or units outside 1 to 100"),
+      401: err("No account: signed in on this instance's pages, or its token"),
+      404: err("Licenses are not sold on this instance"),
+      503: UNAVAILABLE,
+    },
+    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+  }).handle(async ({ req }) => {
+    const account = await signedInAccount(req.headers);
+    const body = CheckoutRequestJson.safeParse((await jsonBody(req)) ?? {});
+    if (!body.success) throw new InvalidBodyError('JSON with optional "period" ("month" or "year") and "units" (1 to 100)');
+    return { status: 200, body: await startCheckout(account, body.data.period ?? "month", body.data.units ?? 1) };
+  }),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/account/license/subscriptions/{id}`,
+    operationId: "changeLicenseUnits",
+    summary: "Change how many feeds one of the account's subscriptions covers",
+    description:
+      "Raising charges the difference now; lowering takes effect without a refund, and goes no lower than the feeds under the license allow (400: take a feed off first, so notefeed never guesses which loses its cover).",
+    tags: ["Account"],
+    password: true,
+    params: { id: z.string().describe("The subscription's id, from getAccountLicense") },
+    body: { "application/json": UnitsJson },
+    responses: {
+      204: { description: "Changed" },
+      400: err("Bad JSON, units outside 1 to 100, or fewer than the feeds under the license"),
+      401: err("No account: signed in on this instance's pages, or its token"),
+      404: err("No such active subscription on this account, or licenses are not sold here"),
+      503: UNAVAILABLE,
+    },
+    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+  }).handle(async ({ req, params }) => {
+    const account = await signedInAccount(req.headers);
+    const body = UnitsJson.safeParse(await jsonBody(req));
+    if (!body.success) throw new InvalidBodyError('JSON needs "units", a whole number');
+    await changeUnits(account, params.id, body.data.units);
+    return { status: 204, body: undefined };
+  }),
+
+  op({
+    method: "GET",
+    path: `${API_PREFIX}/account/license/portal`,
+    operationId: "getLicensePortal",
+    summary: "The payment provider's customer portal for the account",
+    description: "Where the account's holder cancels a subscription, changes the payment method and gets invoices. Only for the account that bought.",
+    tags: ["Account"],
+    password: true,
+    params: {},
+    responses: {
+      200: { description: "The portal's URL", schema: CheckoutJson },
+      401: err("No account: signed in on this instance's pages, or its token"),
+      404: err("The account has bought no license, or licenses are not sold here"),
+      503: UNAVAILABLE,
+    },
+    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+  }).handle(async ({ req }) => ({ status: 200, body: await portalOf(await signedInAccount(req.headers)) })),
 
   op({
     method: "GET",

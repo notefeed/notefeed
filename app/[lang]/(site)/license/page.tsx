@@ -3,7 +3,8 @@ import { copyFor } from "@/shared/copy";
 import { notFound } from "next/navigation";
 import { BuyLicense } from "@/components/BuyLicense";
 import { NoteView } from "@/components/NoteView";
-import { freeNoteCap, licenseAccountUrl, licensePlans, licensingOn, readLicensePage } from "@/backend";
+import { headers } from "next/headers";
+import { accountOf, freeNoteCap, licensePlans, licensingOn, readLicensePage } from "@/backend";
 
 export const generateMetadata = async ({ params }: PageProps<"/[lang]/license">): Promise<Metadata> => ({
   title: copyFor((await params).lang).pages.license,
@@ -25,7 +26,7 @@ export default async function LicensePage({ params }: PageProps<"/[lang]/license
         fineprint={text.fineprint && <NoteView markdown={text.fineprint} />}
         plans={await licensePlans()}
         cap={freeNoteCap()}
-        account={licenseAccountUrl() ?? ""}
+        signedIn={(await accountOf(await headers())) !== undefined}
       />
     </main>
   );

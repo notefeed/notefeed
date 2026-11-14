@@ -111,3 +111,19 @@ export const afterAddSecret = (what: "feed password" | "account token"): string[
 export const afterRevoke = (what: "feed password" | "account token"): string[] => [`The ${what} stops working at once.`];
 export const afterListTokens = (n: number): string[] =>
   n ? ["revoke_account_token stops one by its id."] : ["The account has no tokens: create_account_token makes one for a script."];
+
+// The license on the account (#391).
+export const afterLicense = (l: { units: number; covered: string[]; licensed: string[] }): string[] => {
+  const parts = [`The license covers ${l.units} feed${l.units === 1 ? "" : "s"}; ${l.licensed.length} are under it now.`];
+  const over = l.covered.filter((f) => !l.licensed.includes(f));
+  if (over.length)
+    parts.push(
+      `More feeds are under it than it covers: ${over.join(", ")} are on the free tier until the units are raised (change_license_units) or another is taken off.`,
+    );
+  if (!l.units) parts.push("buy_license buys one for this account.");
+  return parts;
+};
+export const afterCheckout = (): string[] => [
+  "Give the person this URL to open and pay at; nothing is charged before they do. Once paid, the subscription is on the account (get_license shows it), and update_feed's licensed true puts a feed under it.",
+];
+export const afterUnits = (): string[] => ["Changed. get_license shows the license as it is now."];

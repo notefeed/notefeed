@@ -1,6 +1,8 @@
-// What a license changes on the SaaS (ADR 0029, issue #42). With no payment provider configured (NOTEFEED_PAYMENT_PROVIDER) none of
-// it applies: every feature is open and no free-tier cap is kept, as on a self-hosted instance. With one, a feed without an active
-// license is on the free tier: it keeps its newest notes (config.freeNoteCap), and has no images and no new feed password.
+// What a license changes on the SaaS (ADR 0029, ADR 0061). With no payment provider configured (NOTEFEED_PAYMENT_PROVIDER) none of
+// it applies: every feature is open and no free-tier cap is kept, as on a self-hosted instance. With one, a feed its owner's license
+// doesn't cover is on the free tier: it keeps its newest notes (config.freeNoteCap), and has no images and no new feed password.
+// A license belongs to an account (#391): its subscriptions' units (accounts/subscriptions.ts) say how many of the account's feeds it
+// covers, the owner says which (feedlock.ts setCovered), and the first ones covered count when there are more than the units.
 // A lapsed license changes nothing already stored: the notes stay, images are still served, and a password keeps protecting the feed.
 import { config } from "./config";
 import { LicenseRequiredError } from "./errors";
@@ -8,71 +10,34 @@ import { isHeldBack } from "./feednames";
 import { logger } from "./log";
 import { countNotes, idsBeyond, removeNote } from "./notes";
 import { paymentProvider, type Plan } from "./payments";
-import { processState } from "./state";
-import type { LicenseStore } from "./storage/licenses";
-import { createLicenseDb, type LicenseDb } from "./storage/licensedb";
-import { encryptionKeys, wrapperFromConfig } from "./storage/wrapper";
 
 const log = logger("licensing");
 
 export const licensingOn = (): boolean => config.paymentProvider() !== "";
 export const freeNoteCap = config.freeNoteCap;
-/** The plans for sale, as the provider holds them (ADR 0035); none without a provider. */
+/** The plans sold, from the payment provider; none with no provider. */
 export const licensePlans = async (): Promise<Plan[]> => (await paymentProvider()?.plans()) ?? [];
-// Where buyers manage their purchases themselves, at the provider, by the e-mail address they bought with; null where no
-// licenses are sold. A key never leads there: the provider's pages show the buyer and all their licenses, keys included (#316).
-export const licenseAccountUrl = (): string | null => paymentProvider()?.accountUrl ?? null;
 
-const state = processState("licenses", () => ({}) as { file?: string; keys?: string; db?: LicenseDb });
-
-/** The license store: a SQLite file of its own (config.licenseDb), apart from the feeds. One per file; processState because Next may bundle this module once per route. */
-export function licenses(): LicenseStore {
-  const file = config.licenseDb();
-  const keys = encryptionKeys();
-  if (state.db && state.file === file && state.keys === keys) return state.db;
-  void state.db?.close();
-  state.file = file;
-  state.keys = keys;
-  return (state.db = createLicenseDb(file, wrapperFromConfig()));
+/** The feeds of `account` its license covers now: its covered feeds, as many as its active units, oldest cover first. */
+export async function licensedFeedsOf(account: string): Promise<string[]> {
+  const { coveredFeeds } = await import("./feedlock"); // feedlock imports this file
+  const { activeUnits } = await import("./accounts/subscriptions");
+  const units = await activeUnits(account);
+  return units > 0 ? (await coveredFeeds(account)).slice(0, units) : [];
 }
 
-export async function resetLicensesForTests(): Promise<void> {
-  await state.db?.close();
-  state.db = undefined;
-  state.file = undefined;
-}
-
-/** The feed is gone (deleted, or taken down): its license is not lost, it is free to be entered on another feed. */
-/** Opens the license store at start, when there is one (see LicenseDb.ready). */
-export async function openLicenses(): Promise<void> {
-  if (licensingOn()) await (licenses() as LicenseDb).ready();
-}
-
-/** The feed was renamed (#350): its license goes with it. */
-export async function moveLicense(from: string, to: string): Promise<void> {
-  if (licensingOn()) await licenses().moveFeed(from, to);
-}
-
-export async function releaseLicense(feed: string): Promise<void> {
-  if (licensingOn()) await licenses().detach(feed);
-}
-
-/** Whether the feed has what a license unlocks: always, with no provider; else an active license attached to it. */
+/** Whether the feed has what a license unlocks: always, with no provider; else when its owner's license covers it. */
 export async function isLicensed(feed: string): Promise<boolean> {
   if (!licensingOn()) return true;
   // The operator's reserved feeds (ADR 0012) are never on the free tier: only the operator posts there (#242).
   if (isHeldBack(feed)) return true;
-  return hasActiveLicense(feed);
+  const { feedRecord } = await import("./feedlock");
+  const rec = await feedRecord(feed);
+  if (!rec?.owner || rec.covered === undefined) return false;
+  return (await licensedFeedsOf(rec.owner)).includes(feed);
 }
 
-/** Whether a license on the feed is active now, whatever else would make the feed licensed. */
-export async function hasActiveLicense(feed: string): Promise<boolean> {
-  const license = await licenses().byFeed(feed);
-  // A lapsed period counts even if the provider's webhook for it never came.
-  return license?.status === "active" && (license.validUntil === null || license.validUntil > Date.now());
-}
-
-/** For images and for setting or changing a feed password. Throws LicenseRequiredError. */
+/** For images and for setting a feed password. Throws LicenseRequiredError. */
 export async function requireLicense(feed: string): Promise<void> {
   if (!(await isLicensed(feed))) throw new LicenseRequiredError();
 }

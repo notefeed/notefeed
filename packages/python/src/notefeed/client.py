@@ -17,7 +17,7 @@ import truststore
 
 from ._generated import AuthenticatedClient
 from ._generated import Client as _GeneratedClient
-from ._generated.api.account import list_account_feeds
+from ._generated.api.account import buy_license, change_license_units, get_account_license, list_account_feeds
 from ._generated.api.feeds import (
     add_feed_password,
     change_feed_password,
@@ -35,7 +35,6 @@ from ._generated.api.feeds import (
     patch_note,
     post_note,
     put_feed_license,
-    recover_feed_password,
     remove_feed_image,
     revoke_feed_password,
     set_feed_image,
@@ -45,6 +44,10 @@ from ._generated.api.licenses import get_licenses
 from ._generated.api.read import get_read_note, list_read_notes
 from ._generated.models import (
     AccountFeeds,
+    AccountLicense,
+    Checkout,
+    CheckoutRequest,
+    CheckoutRequestPeriod,
     Claim,
     CreateFeedJson,
     Created,
@@ -53,7 +56,6 @@ from ._generated.models import (
     FeedPasswordName,
     FeedPasswords,
     FeedSettings,
-    LicenseKey,
     Licenses,
     NewFeedPassword,
     Note,
@@ -61,7 +63,7 @@ from ._generated.models import (
     NoteMeta,
     PasswordJson,
     PostNoteXNoteDraft,
-    RecoveryJson,
+    Units,
 )
 from ._generated.types import UNSET, File
 
@@ -183,11 +185,10 @@ def _as_file(content: str | bytes, type: str | None) -> tuple[bytes, str]:
     return content, type
 
 
-def _post_headers(title, sender, tags, created, drafted, read_id, license_key) -> dict[str, Any]:
+def _post_headers(title, sender, tags, created, drafted, read_id) -> dict[str, Any]:
     """The headers of a post's metadata, for a single file and for a note with its pictures; what is left out sends nothing."""
     return {
         "x_read_id": read_id or UNSET,
-        "x_license_key": license_key or UNSET,
         "x_note_title": _header_value(title) if title else UNSET,
         "x_note_sender": _header_value(sender) if sender else UNSET,
         "x_note_tags": ",".join(tags) if tags else UNSET,
@@ -287,7 +288,6 @@ class Client:
         name: str | None = None,
         read_id: str | None = None,
         attachments: list[Attachment] | None = None,
-        license_key: str | None = None,
         date: str | date | None = None,
         draft: bool = False,
         sender: str | None = None,
@@ -305,9 +305,8 @@ class Client:
         (midnight UTC) or an ISO 8601 string (`2026-10-01T09:30:00Z`, `2026-10-01`), from 1970 to 9999; a future date schedules the note: readers see it from then on. `draft` posts it, and its attachments, as a
         draft: only whoever can post to the feed sees it, readers do not until update() publishes it with `draft=False`. `read_id` is the read id the feed gets when this post creates it (3 to 64 characters of
         `a-z`, `0-9`, `-`, `_`; random when left out; ignored for a feed that exists; a `taken` error when another feed has it).
-        `license_key` goes with `feed_password` on the post that creates the feed, on an instance that sells licenses: a feed
-        password is for licensed feeds, and the new feed gets the license (a `license_required` error without the key; ignored
-        on an existing feed).
+        On an instance that sells licenses, a post that creates a feed with `feed_password` or pictures needs the client's account (its
+        token) with a unit of its license free; the new feed goes under it (a `license_required` error otherwise).
 
         `attachments` (pictures, at most 10 by the server) go in the same request as the markdown, one note each: `![](name)` in the
         markdown shows one by its `name`, and `.attachments` of the result lists them. `content` may then be None: there is no text
@@ -322,9 +321,7 @@ class Client:
             if content is None:
                 raise ConfigError("no content given")
             return Posted(
-                **attrs.asdict(
-                    self._post_one(content, feed, feed_password, type, title, sender, tags, alt, name, read_id, license_key, created, drafted), recurse=False
-                )
+                **attrs.asdict(self._post_one(content, feed, feed_password, type, title, sender, tags, alt, name, read_id, created, drafted), recurse=False)
             )
         if (content is not None and not isinstance(content, str)) or (type or "text/markdown") != "text/markdown":
             raise ConfigError("attachments go with a markdown string")
@@ -349,7 +346,7 @@ class Client:
             feed=self._feed_for(feed),
             body=File(payload=b""),
             x_feed_password=self._fp(feed_password),
-            **_post_headers(title, sender, tags, created, drafted, read_id, license_key),
+            **_post_headers(title, sender, tags, created, drafted, read_id),
         )
         del kwargs["content"], kwargs["headers"]["Content-Type"]  # httpx writes the multipart body and its boundary
         kwargs["files"], kwargs["data"] = files, fields
@@ -361,13 +358,13 @@ class Client:
             raise NotefeedError(f"unexpected response from {self.url} (not a notefeed server?)") from None
         return Posted(**attrs.asdict(done, recurse=False), attachments=extra)
 
-    def _post_one(self, content, feed, feed_password, type, title, sender, tags, alt, name, read_id, license_key, created, drafted) -> Created:
+    def _post_one(self, content, feed, feed_password, type, title, sender, tags, alt, name, read_id, created, drafted) -> Created:
         payload, media = _as_file(content, type)
         kwargs = post_note._get_kwargs(
             feed=self._feed_for(feed),
             body=File(payload=payload),
             x_feed_password=self._fp(feed_password),
-            **_post_headers(title, sender, tags, created, drafted, read_id, license_key),
+            **_post_headers(title, sender, tags, created, drafted, read_id),
             x_note_alt=_header_value(alt) if alt else UNSET,
             x_note_name=_header_value(name) if name else UNSET,
         )
@@ -441,24 +438,32 @@ class Client:
             self.feed = updated.name
         return updated
 
-    def attach_license(self, key: str, feed: str | None = None, feed_password: str | None = None) -> Feed:
-        """Put the license the key names on the feed, taking it off the feed it was on; a feed needs no password for it. Only on an instance that sells licenses. Same options as post()."""
-        kwargs = put_feed_license._get_kwargs(feed=self._feed_for(feed), body=LicenseKey(key=key), x_feed_password=self._fp(feed_password))
-        return self._parse(Feed, self._call(kwargs))
+    def set_feed_licensed(self, licensed: bool, feed: str | None = None) -> Feed:
+        """Put the feed under its owner's license (the client's account token), or take it off with False: a license covers as many of the account's feeds as its units. Only on an instance that sells licenses, for the feed's owner."""
+        op = put_feed_license if licensed else delete_feed_license
+        return self._parse(Feed, self._call(op._get_kwargs(feed=self._feed_for(feed))))
 
-    def detach_license(self, feed: str | None = None, feed_password: str | None = None) -> Feed:
-        """Take the feed's license off: it is a free feed again, and the key can go on another feed. Same options as post()."""
-        kwargs = delete_feed_license._get_kwargs(feed=self._feed_for(feed), x_feed_password=self._fp(feed_password))
-        return self._parse(Feed, self._call(kwargs))
+    def license(self) -> AccountLicense:
+        """The client's account's license: its subscriptions, how many feeds they cover (`units`), the feeds put under it (`covered`) and those it covers now (`licensed`)."""
+        return self._parse(AccountLicense, self._call(get_account_license._get_kwargs()))
+
+    def buy_license(self, period: str = "month", units: int = 1) -> str:
+        """A checkout at the payment provider for `units` feeds (1 to 100) per month or year, for the client's account: the URL for a person to pay at."""
+        body = CheckoutRequest(period=CheckoutRequestPeriod(period), units=units)
+        return self._parse(Checkout, self._call(buy_license._get_kwargs(body=body))).url
+
+    def change_license_units(self, subscription: str, units: int) -> None:
+        """Change how many feeds one of the account's subscriptions covers (its id from license()): raising charges the difference now, lowering takes effect without a refund."""
+        self._call(change_license_units._get_kwargs(id=subscription, body=Units(units=units)))
 
     def set_feed_password(self, password: str, feed: str | None = None, feed_password: str | None = None) -> None:
         """Set the feed's password. On a protected feed it changes it: `feed_password` (or the client's) is the current one. An open feed takes one without, which claims it: its name was all that protected it. Every request for the feed then needs the new password; its read link stays open. Same options as post()."""
         body = PasswordJson(password=password)
         self._call(change_feed_password._get_kwargs(feed=self._feed_for(feed), body=body, x_feed_password=self._fp(feed_password)))
 
-    def create_feed(self, feed: str | None = None, password: str | None = None, license_key: str | None = None, read_id: str | None = None) -> Feed:
-        """Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `read_id` gives it that read link. Where licenses are sold `license_key` is required and goes on the new feed. A feed that exists is refused (409)."""
-        body = CreateFeedJson(password=password or UNSET, license_key=license_key or UNSET, read_id=read_id or UNSET)
+    def create_feed(self, feed: str | None = None, password: str | None = None, read_id: str | None = None) -> Feed:
+        """Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `read_id` gives it that read link. Where licenses are sold it needs the client's account (its token) with a unit of its license free, and goes under it. A feed that exists is refused (409)."""
+        body = CreateFeedJson(password=password or UNSET, read_id=read_id or UNSET)
         return self._parse(Feed, self._call(create_feed._get_kwargs(feed=self._feed_for(feed), body=body)))
 
     def claim_feed(self, password: str, feed: str | None = None) -> None:
@@ -480,11 +485,6 @@ class Client:
     def account_feeds(self) -> list[str]:
         """The names of the feeds the client's account owns (needs an account token)."""
         return self._parse(AccountFeeds, self._call(list_account_feeds._get_kwargs())).feeds
-
-    def recover_feed_password(self, key: str, password: str = "", feed: str | None = None) -> None:
-        """For a lost password, only on an instance that sells licenses: the key of the license on the feed proves ownership instead of the current password. `password` becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. A key that is not the feed's license is refused and counts as a failed attempt."""
-        body = RecoveryJson(key=key, password=password)
-        self._call(recover_feed_password._get_kwargs(feed=self._feed_for(feed), body=body))
 
     def set_feed_image(self, content: bytes, type: str, feed: str | None = None, feed_password: str | None = None) -> Feed:
         """Set the feed's title image: `content` the image's bytes, `type` its media type (image/png, image/jpeg, image/gif, image/webp). It is the feed's own image, in no list, so no post; a previous one set this way is deleted. Same options as post()."""

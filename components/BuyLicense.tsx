@@ -1,16 +1,13 @@
 "use client";
 
 import { openCheckout } from "@creem_io/embed";
-import { IncludedIcon, LicenseKeyIcon, NotIncludedIcon, PurchasesIcon } from "@/components/icons";
-import { useEffect, useState, type ReactNode } from "react";
+import { IncludedIcon, NotIncludedIcon, PurchasesIcon } from "@/components/icons";
+import { useState, type ReactNode } from "react";
 import { messagesFor } from "@/app/_lib/messages";
 import { useCopy } from "@/components/CopyProvider";
 import type { Copy } from "@/shared/copy";
-import { CopyButton } from "@/components/CopyButton";
 import { card, primary, secondary } from "@/components/styles";
 import { formatPrice, freePrice, saving, type LicenseFeature, type LicenseText, type Plan as Sold } from "@/shared/plans";
-
-const KEY = /^[A-Za-z0-9_-]{22,64}$/;
 
 async function urlFrom(all: Copy, path: string, body?: unknown): Promise<string> {
   const res = await fetch(path, {
@@ -26,62 +23,40 @@ async function urlFrom(all: Copy, path: string, body?: unknown): Promise<string>
   );
 }
 
-// The page a buyer lands on (ADR 0029). Before paying: the operator's intro, the free tile, a tile per plan the provider sells
-// (ADR 0035): its name and price from the provider, the rest from license.md, each with a button that opens the
-// provider's checkout over the page, and license.md's fine print below them. After: the key the provider issued, asked for by the checkout id
-// the buyer came back with (the provider may still be finishing, so it is asked again for a while); it is also in the provider's
-// receipt and customer portal. Below both: the way to the provider's pages, where buyers sign in by their e-mail (#316).
+// The page a buyer lands on (ADR 0029, ADR 0061): the operator's intro, the free tile, a tile per plan the provider sells (ADR 0035):
+// its name and price from the provider, the rest from license.md, each with a button that opens the provider's checkout over the page
+// for as many feeds as chosen, and license.md's fine print below them. A license belongs to an account: buying needs one signed in
+// (`signedIn`; else the page sends you to sign in or create one), and the buyer comes back to the account page, where the license is
+// managed. No key: the account is what was bought for.
 export function BuyLicense({
   text,
   intro,
   fineprint,
   plans,
   cap,
-  account,
+  signedIn,
 }: {
   text: LicenseText;
   intro: ReactNode;
   fineprint?: ReactNode;
   plans: Sold[];
   cap: number;
-  account: string;
+  signedIn: boolean;
 }) {
   const all = useCopy();
   const t = all.buy;
-  const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  // Back from the checkout: "waiting" while the key is asked for, "missing" when it never came.
-  const [bought, setBought] = useState<"" | "waiting" | "missing">("");
-  useEffect(() => {
-    const checkout = new URLSearchParams(window.location.search).get("checkout_id");
-    if (!checkout) return;
-    let gone = false;
-    (async () => {
-      setBought("waiting");
-      for (let i = 0; i < 10 && !gone; i++) {
-        const res = await fetch("/api/licenses/key", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ checkout }),
-        }).catch(() => null);
-        const answer = (await res?.json().catch(() => ({}))) as { key?: string } | undefined;
-        if (res?.ok && answer?.key && KEY.test(answer.key)) return void (gone || setKey(answer.key));
-        if (res && res.status !== 404) break;
-        await new Promise((r) => setTimeout(r, 2000));
-      }
-      if (!gone) setBought("missing");
-    })();
-    return () => void (gone = true);
-  }, []);
+  const [units, setUnits] = useState(1);
 
   const month = plans.find((p) => p.period === "month");
 
   async function buy(period: Sold["period"]) {
     setBusy(true);
     setError("");
+    if (!signedIn) return window.location.assign(`/login?next=${encodeURIComponent("/license")}`);
     try {
-      const url = await urlFrom(all, "/api/licenses/checkout", { period });
+      const url = await urlFrom(all, "/api/v1/account/license/checkout", { period, units });
       // The fake provider's checkout is this page itself.
       if (new URL(url, window.location.href).origin === window.location.origin) return window.location.assign(url);
       // The provider's checkout opens over this page. Paid, it comes back here with the checkout's id, as its redirect did; the
@@ -89,7 +64,7 @@ export function BuyLicense({
       openCheckout({
         checkoutUrl: url,
         theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
-        onComplete: (done) => done.redirect || window.location.assign(`/license?checkout_id=${encodeURIComponent(done.checkoutId)}`),
+        onComplete: (done) => done.redirect || window.location.assign("/account?bought=1"),
         onClose: () => setBusy(false),
       });
     } catch (e) {
@@ -100,30 +75,7 @@ export function BuyLicense({
 
   return (
     <div className="space-y-6 text-sm">
-      {key || bought ? (
-        <section aria-labelledby="your-key" className={`${card} p-5 sm:p-6`}>
-          <h2 id="your-key" className="flex items-center gap-2 text-[17px] font-bold">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-carbon-soft text-carbon">
-              <LicenseKeyIcon aria-hidden className="h-[18px] w-[18px]" />
-            </span>
-            {t.yourKey}
-          </h2>
-          {key ? (
-            <div className="mt-4 flex items-center gap-2 rounded-xl bg-surface-2 py-2 pl-4 pr-2">
-              <code className="min-w-0 flex-1 break-all font-mono text-carbon">{key}</code>
-              <CopyButton text={key} />
-            </div>
-          ) : (
-            <p role="status" className="mt-4">
-              {bought === "waiting" ? t.gettingKey : t.keyLater}
-            </p>
-          )}
-          <p className="mt-4 text-muted">
-            {key ? t.enterIt : t.enterYourKey} {t.under} <em>{t.licenseRow}</em> {t.inSettingsOr} <em>{t.protectRow}</em> {t.whenCreating}
-          </p>
-          <p className="mt-2 text-muted">{t.receipt}</p>
-        </section>
-      ) : (
+      {
         <section aria-label={t.buyLabel}>
           {intro && <div className="mb-5 text-[15px] text-muted">{intro}</div>}
           <div className={`grid gap-x-3 ${COLUMNS[plans.length] ?? "sm:grid-cols-3"}`}>
@@ -159,10 +111,22 @@ export function BuyLicense({
           <p id="buy-error" role="alert" className="mt-2 text-error empty:hidden">
             {error}
           </p>
+          <label className="mt-4 flex items-center gap-2 text-muted">
+            {t.feeds}
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={units}
+              onChange={(e) => setUnits(Math.max(1, Math.min(100, Math.trunc(Number(e.target.value)) || 1)))}
+              className="w-20 rounded-xl border border-rule bg-surface px-2 py-1"
+            />
+          </label>
+          {!signedIn && <p className="mt-2 text-muted">{t.needsAccount}</p>}
           {fineprint && <div className="mt-3 text-[12px] text-muted">{fineprint}</div>}
         </section>
-      )}
-      <ManageLicense t={all} account={account} />
+      }
+      <ManageLicense t={all} />
     </div>
   );
 }
@@ -247,9 +211,9 @@ function Feature({ t, off = false, children }: { t: Copy; off?: boolean; childre
   );
 }
 
-// Cancelling, the payment method and the invoices are the payment provider's pages, where buyers sign in with the e-mail
-// address they bought with. No key opens them: they show the buyer and every license bought, keys included (#316).
-function ManageLicense({ t, account }: { t: Copy; account: string }) {
+// Managing a license (its units, which feeds, the provider's portal for cancelling, the payment method and invoices) is on the account
+// page: the license belongs to the account, so only its holder opens the provider's pages for it (ADR 0061).
+function ManageLicense({ t }: { t: Copy }) {
   return (
     <section aria-labelledby="manage" className={`${card} p-5 sm:p-6`}>
       <h2 id="manage" className="flex items-center gap-2 text-[17px] font-bold">
@@ -259,7 +223,7 @@ function ManageLicense({ t, account }: { t: Copy; account: string }) {
         {t.buy.manageTitle}
       </h2>
       <p className="mt-3 text-muted">{t.buy.managePurchases}</p>
-      <a href={account} className={`${secondary} mt-4 inline-flex`}>
+      <a href="/account" className={`${secondary} mt-4 inline-flex`}>
         {t.buy.manage}
       </a>
     </section>

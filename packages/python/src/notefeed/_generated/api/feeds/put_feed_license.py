@@ -8,19 +8,12 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.feed import Feed
-from ...models.license_key import LicenseKey
-from ...types import UNSET, Response, Unset
+from ...types import Response
 
 
 def _get_kwargs(
     feed: str,
-    *,
-    body: LicenseKey,
-    x_feed_password: str | Unset = UNSET,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
-    if not isinstance(x_feed_password, Unset):
-        headers["X-Feed-Password"] = x_feed_password
 
     _kwargs: dict[str, Any] = {
         "method": "put",
@@ -29,11 +22,6 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["json"] = body.to_dict()
-
-    headers["Content-Type"] = "application/json"
-
-    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -97,22 +85,16 @@ def sync_detailed(
     feed: str,
     *,
     client: AuthenticatedClient,
-    body: LicenseKey,
-    x_feed_password: str | Unset = UNSET,
 ) -> Response[Error | Feed]:
-    """Put a license on a feed
+    """Put a feed under its owner's license
 
-     Only on an instance that sells licenses (404 elsewhere). Puts the license the key names on the feed,
-    taking it off the feed it was on; a feed that has an active license already answers 400 (take it off
-    first). A feed needs no password for a license. A key notefeed doesn't know is 400 and counts as a
-    failed attempt, like a wrong password. Needs the feed's password if it has one, and counts against
-    the post rate limit. Only on a feed that exists: it is created by its first note, which can bring
-    the key in `X-License-Key`.
+     Only on an instance that sells licenses (404 elsewhere). The license belongs to the feed's owner, an
+    account: its subscriptions' units say how many of its feeds it covers. This puts one more under it
+    (402 `license_required` when it covers as many as its units already: raise them first). Only for the
+    feed's owner (403 `owner_only`).
 
     Args:
         feed (str):
-        x_feed_password (str | Unset):
-        body (LicenseKey):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -124,8 +106,6 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         feed=feed,
-        body=body,
-        x_feed_password=x_feed_password,
     )
 
     response = client.get_httpx_client().request(
@@ -139,22 +119,16 @@ def sync(
     feed: str,
     *,
     client: AuthenticatedClient,
-    body: LicenseKey,
-    x_feed_password: str | Unset = UNSET,
 ) -> Error | Feed | None:
-    """Put a license on a feed
+    """Put a feed under its owner's license
 
-     Only on an instance that sells licenses (404 elsewhere). Puts the license the key names on the feed,
-    taking it off the feed it was on; a feed that has an active license already answers 400 (take it off
-    first). A feed needs no password for a license. A key notefeed doesn't know is 400 and counts as a
-    failed attempt, like a wrong password. Needs the feed's password if it has one, and counts against
-    the post rate limit. Only on a feed that exists: it is created by its first note, which can bring
-    the key in `X-License-Key`.
+     Only on an instance that sells licenses (404 elsewhere). The license belongs to the feed's owner, an
+    account: its subscriptions' units say how many of its feeds it covers. This puts one more under it
+    (402 `license_required` when it covers as many as its units already: raise them first). Only for the
+    feed's owner (403 `owner_only`).
 
     Args:
         feed (str):
-        x_feed_password (str | Unset):
-        body (LicenseKey):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -167,8 +141,6 @@ def sync(
     return sync_detailed(
         feed=feed,
         client=client,
-        body=body,
-        x_feed_password=x_feed_password,
     ).parsed
 
 
@@ -176,22 +148,16 @@ async def asyncio_detailed(
     feed: str,
     *,
     client: AuthenticatedClient,
-    body: LicenseKey,
-    x_feed_password: str | Unset = UNSET,
 ) -> Response[Error | Feed]:
-    """Put a license on a feed
+    """Put a feed under its owner's license
 
-     Only on an instance that sells licenses (404 elsewhere). Puts the license the key names on the feed,
-    taking it off the feed it was on; a feed that has an active license already answers 400 (take it off
-    first). A feed needs no password for a license. A key notefeed doesn't know is 400 and counts as a
-    failed attempt, like a wrong password. Needs the feed's password if it has one, and counts against
-    the post rate limit. Only on a feed that exists: it is created by its first note, which can bring
-    the key in `X-License-Key`.
+     Only on an instance that sells licenses (404 elsewhere). The license belongs to the feed's owner, an
+    account: its subscriptions' units say how many of its feeds it covers. This puts one more under it
+    (402 `license_required` when it covers as many as its units already: raise them first). Only for the
+    feed's owner (403 `owner_only`).
 
     Args:
         feed (str):
-        x_feed_password (str | Unset):
-        body (LicenseKey):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -203,8 +169,6 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         feed=feed,
-        body=body,
-        x_feed_password=x_feed_password,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -216,22 +180,16 @@ async def asyncio(
     feed: str,
     *,
     client: AuthenticatedClient,
-    body: LicenseKey,
-    x_feed_password: str | Unset = UNSET,
 ) -> Error | Feed | None:
-    """Put a license on a feed
+    """Put a feed under its owner's license
 
-     Only on an instance that sells licenses (404 elsewhere). Puts the license the key names on the feed,
-    taking it off the feed it was on; a feed that has an active license already answers 400 (take it off
-    first). A feed needs no password for a license. A key notefeed doesn't know is 400 and counts as a
-    failed attempt, like a wrong password. Needs the feed's password if it has one, and counts against
-    the post rate limit. Only on a feed that exists: it is created by its first note, which can bring
-    the key in `X-License-Key`.
+     Only on an instance that sells licenses (404 elsewhere). The license belongs to the feed's owner, an
+    account: its subscriptions' units say how many of its feeds it covers. This puts one more under it
+    (402 `license_required` when it covers as many as its units already: raise them first). Only for the
+    feed's owner (403 `owner_only`).
 
     Args:
         feed (str):
-        x_feed_password (str | Unset):
-        body (LicenseKey):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -245,7 +203,5 @@ async def asyncio(
         await asyncio_detailed(
             feed=feed,
             client=client,
-            body=body,
-            x_feed_password=x_feed_password,
         )
     ).parsed

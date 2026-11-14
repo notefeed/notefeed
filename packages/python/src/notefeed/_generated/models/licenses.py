@@ -18,9 +18,9 @@ class Licenses:
     Attributes:
         plans (list[LicensesPlansItem]): What is sold right now, monthly then yearly; empty while the payment provider
             can't be read
-        buy_url (str): The license page: a person buys there, and gets the key after paying
-        manage_url (str): The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the
-            payment method, invoices, keys. No license key opens it
+        buy_url (str): The license page: a person signed in to an account buys there, for as many feeds as they choose
+        manage_url (str): The account page, where the account's holder manages its license and opens the payment
+            provider's portal
         manage (str): How managing a purchase works, in a sentence to show a person
     """
 

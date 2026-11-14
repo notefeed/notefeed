@@ -288,37 +288,15 @@ export type PasswordJson = {
     password: string;
 };
 
-export type RecoveryJson = {
-    /**
-     * The license key on this feed, as the checkout or the receipt gave it
-     */
-    key: string;
-    /**
-     * The new password: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out removes the password
-     */
-    password?: string;
-};
-
 export type CreateFeedJson = {
     /**
      * A password that protects the new feed: 1 to 256 printable ASCII characters, with no space at the start or end. Empty or left out: an open feed
      */
     password?: string;
     /**
-     * Where licenses are sold, required: the key of the license to put on the new feed
-     */
-    license_key?: string;
-    /**
      * The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one
      */
     read_id?: string;
-};
-
-export type LicenseKey = {
-    /**
-     * The license key, as the checkout or the receipt gave it
-     */
-    key: string;
 };
 
 export type FeedSettings = {
@@ -464,11 +442,11 @@ export type Licenses = {
         tax_included: boolean;
     }>;
     /**
-     * The license page: a person buys there, and gets the key after paying
+     * The license page: a person signed in to an account buys there, for as many feeds as they choose
      */
     buy_url: string;
     /**
-     * The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it
+     * The account page, where the account's holder manages its license and opens the payment provider's portal
      */
     manage_url: string;
     /**
@@ -534,6 +512,65 @@ export type AccountFeeds = {
      * The names of the feeds the account owns, sorted
      */
     feeds: Array<string>;
+};
+
+export type AccountLicense = {
+    subscriptions: Array<{
+        /**
+         * The provider's subscription id
+         */
+        id: string;
+        period: 'month' | 'year';
+        /**
+         * How many feeds it covers
+         */
+        units: number;
+        /**
+         * When its paid period ends (ms since the epoch), or null
+         */
+        valid_until: number | null;
+        /**
+         * Whether it is paid for now
+         */
+        active: boolean;
+    }>;
+    /**
+     * How many feeds the active subscriptions cover together
+     */
+    units: number;
+    /**
+     * The account's feeds put under the license, oldest first
+     */
+    covered: Array<string>;
+    /**
+     * Those it covers now: the first `units` of `covered`
+     */
+    licensed: Array<string>;
+};
+
+export type CheckoutRequest = {
+    /**
+     * Default month
+     */
+    period?: 'month' | 'year';
+    /**
+     * How many feeds, 1 to 100; default 1
+     */
+    units?: number;
+};
+
+export type Checkout = {
+    /**
+     * Where to send the browser
+     */
+    url: string;
+};
+
+export type Units = {
+    /**
+     * The new number of feeds, 1 to 100
+     */
+    units: number;
 };
 
 export type AccountToken = {
@@ -680,10 +717,6 @@ export type PostNoteData = {
          * The read id the feed gets when this post creates it: 3 to 64 characters (a-z, 0-9, - and _), random when left out or empty, ignored for a feed that exists. A short readable one is guessable: protect the feed with a password if that matters. 409 when it is taken
          */
         'X-Read-Id'?: string;
-        /**
-         * Only on an instance that sells licenses, on the post that creates the feed: the key of the license to put on the new feed, with or without `X-Feed-Password` (a feed password is for licensed feeds: with one and no key, 402). 400 for a key that is none, 402 for one whose license has lapsed; either way nothing is created. Ignored on an existing feed: put a license on it with `PUT /api/v1/feeds/{feed}/license`
-         */
-        'X-License-Key'?: string;
         /**
          * The note's title: at most 100 characters, one line (control and text-direction override characters are refused). Left out or empty, a markdown note is titled by its text. Sent as UTF-8; empty is none.
          */
@@ -1254,7 +1287,7 @@ export type CreateFeedErrors = {
      */
     400: Error;
     /**
-     * A license key is needed to create a feed without a note here, or its license has lapsed (`license_required`)
+     * An account whose license covers one more feed is needed to create a feed without a note here (`license_required`)
      */
     402: Error;
     /**
@@ -1946,68 +1979,8 @@ export type RevokeAccountTokenResponses = {
 
 export type RevokeAccountTokenResponse = RevokeAccountTokenResponses[keyof RevokeAccountTokenResponses];
 
-export type RecoverFeedPasswordData = {
-    body: RecoveryJson;
-    path: {
-        /**
-         * The feed's name. It is the write key: anyone who knows it can post.
-         */
-        feed: string;
-    };
-    query?: never;
-    url: '/api/v1/feeds/{feed}/password/recover';
-};
-
-export type RecoverFeedPasswordErrors = {
-    /**
-     * Invalid or reserved feed name, bad JSON, or a new password that is not 1 to 256 printable ASCII characters, with no space at the start or end
-     */
-    400: Error;
-    /**
-     * The key is not this feed's license, or the feed has no password
-     */
-    401: Error;
-    /**
-     * The key's license has lapsed, and a new password needs an active one (`license_required`)
-     */
-    402: Error;
-    /**
-     * An account token that may only read (`read_only`)
-     */
-    403: Error;
-    /**
-     * Licenses are not sold on this instance, or the feed was deleted meanwhile
-     */
-    404: Error;
-    /**
-     * Too many wrong passwords or keys from this client
-     */
-    429: Error;
-    /**
-     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
-     */
-    503: Error;
-};
-
-export type RecoverFeedPasswordError = RecoverFeedPasswordErrors[keyof RecoverFeedPasswordErrors];
-
-export type RecoverFeedPasswordResponses = {
-    /**
-     * Set or removed; the old password and unlock cookies stop working
-     */
-    204: void;
-};
-
-export type RecoverFeedPasswordResponse = RecoverFeedPasswordResponses[keyof RecoverFeedPasswordResponses];
-
 export type DeleteFeedLicenseData = {
     body?: never;
-    headers?: {
-        /**
-         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
-         */
-        'X-Feed-Password'?: string;
-    };
     path: {
         /**
          * The feed's name. It is the write key: anyone who knows it can post.
@@ -2028,7 +2001,7 @@ export type DeleteFeedLicenseErrors = {
      */
     401: Error;
     /**
-     * An account token that may only read (`read_only`)
+     * Not the feed's owner (`owner_only`)
      */
     403: Error;
     /**
@@ -2036,7 +2009,7 @@ export type DeleteFeedLicenseErrors = {
      */
     404: Error;
     /**
-     * Too many posts, edits and deletes, or wrong passwords, from this client
+     * Too many posts, edits and deletes from this client
      */
     429: Error;
     /**
@@ -2057,13 +2030,7 @@ export type DeleteFeedLicenseResponses = {
 export type DeleteFeedLicenseResponse = DeleteFeedLicenseResponses[keyof DeleteFeedLicenseResponses];
 
 export type PutFeedLicenseData = {
-    body: LicenseKey;
-    headers?: {
-        /**
-         * The feed's own password, when it has one: to post, list or get, and (as the current password) to change or remove it. On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. An empty value is the same as no header, so a `POST` with an empty one creates an open feed.
-         */
-        'X-Feed-Password'?: string;
-    };
+    body?: never;
     path: {
         /**
          * The feed's name. It is the write key: anyone who knows it can post.
@@ -2076,7 +2043,7 @@ export type PutFeedLicenseData = {
 
 export type PutFeedLicenseErrors = {
     /**
-     * Invalid or reserved feed name, bad JSON, a key that is none, or a feed with an active license already
+     * Invalid or reserved feed name
      */
     400: Error;
     /**
@@ -2084,11 +2051,11 @@ export type PutFeedLicenseErrors = {
      */
     401: Error;
     /**
-     * The key's license has lapsed (`license_required`)
+     * The owner's license covers no more feeds (`license_required`)
      */
     402: Error;
     /**
-     * An account token that may only read (`read_only`)
+     * Not the feed's owner (`owner_only`)
      */
     403: Error;
     /**
@@ -2096,7 +2063,7 @@ export type PutFeedLicenseErrors = {
      */
     404: Error;
     /**
-     * Too many posts, edits and deletes, or wrong passwords and keys, from this client
+     * Too many posts, edits and deletes from this client
      */
     429: Error;
     /**
@@ -2115,6 +2082,159 @@ export type PutFeedLicenseResponses = {
 };
 
 export type PutFeedLicenseResponse = PutFeedLicenseResponses[keyof PutFeedLicenseResponses];
+
+export type GetAccountLicenseData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/license';
+};
+
+export type GetAccountLicenseErrors = {
+    /**
+     * No account: signed in on this instance's pages, or its token
+     */
+    401: Error;
+    /**
+     * Licenses are not sold on this instance
+     */
+    404: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type GetAccountLicenseError = GetAccountLicenseErrors[keyof GetAccountLicenseErrors];
+
+export type GetAccountLicenseResponses = {
+    /**
+     * The account's license
+     */
+    200: AccountLicense;
+};
+
+export type GetAccountLicenseResponse = GetAccountLicenseResponses[keyof GetAccountLicenseResponses];
+
+export type BuyLicenseData = {
+    body: CheckoutRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/license/checkout';
+};
+
+export type BuyLicenseErrors = {
+    /**
+     * Bad JSON, a period that is not sold, or units outside 1 to 100
+     */
+    400: Error;
+    /**
+     * No account: signed in on this instance's pages, or its token
+     */
+    401: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
+     * Licenses are not sold on this instance
+     */
+    404: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type BuyLicenseError = BuyLicenseErrors[keyof BuyLicenseErrors];
+
+export type BuyLicenseResponses = {
+    /**
+     * Where to send the buyer
+     */
+    200: Checkout;
+};
+
+export type BuyLicenseResponse = BuyLicenseResponses[keyof BuyLicenseResponses];
+
+export type ChangeLicenseUnitsData = {
+    body: Units;
+    path: {
+        /**
+         * The subscription's id, from getAccountLicense
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/account/license/subscriptions/{id}';
+};
+
+export type ChangeLicenseUnitsErrors = {
+    /**
+     * Bad JSON, units outside 1 to 100, or fewer than the feeds under the license
+     */
+    400: Error;
+    /**
+     * No account: signed in on this instance's pages, or its token
+     */
+    401: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
+     * No such active subscription on this account, or licenses are not sold here
+     */
+    404: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type ChangeLicenseUnitsError = ChangeLicenseUnitsErrors[keyof ChangeLicenseUnitsErrors];
+
+export type ChangeLicenseUnitsResponses = {
+    /**
+     * Changed
+     */
+    204: void;
+};
+
+export type ChangeLicenseUnitsResponse = ChangeLicenseUnitsResponses[keyof ChangeLicenseUnitsResponses];
+
+export type GetLicensePortalData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/license/portal';
+};
+
+export type GetLicensePortalErrors = {
+    /**
+     * No account: signed in on this instance's pages, or its token
+     */
+    401: Error;
+    /**
+     * The account has bought no license, or licenses are not sold here
+     */
+    404: Error;
+    /**
+     * The key service is unreachable: the instance is down for maintenance; try again after Retry-After
+     */
+    503: Error;
+};
+
+export type GetLicensePortalError = GetLicensePortalErrors[keyof GetLicensePortalErrors];
+
+export type GetLicensePortalResponses = {
+    /**
+     * The portal's URL
+     */
+    200: Checkout;
+};
+
+export type GetLicensePortalResponse = GetLicensePortalResponses[keyof GetLicensePortalResponses];
 
 export type GetReadFeedData = {
     body?: never;
