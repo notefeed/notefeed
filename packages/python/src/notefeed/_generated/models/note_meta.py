@@ -14,23 +14,21 @@ T = TypeVar("T", bound="NoteMeta")
 class NoteMeta:
     """
     Attributes:
-        title (str | Unset): The note's title, at most 100 characters, one line (control and text-direction override
-            characters are refused); empty or left out means the title is taken from the text (a markdown note) or there is
-            none (an image)
-        alt (str | Unset): Alternative text of an image note, at most 500 characters, one line (control and text-
-            direction override characters are refused)
-        sender (str | Unset): Who posted the note, as it is shown: at most 100 characters, one line (control and text-
-            direction override characters are refused). Not verified. Given with a post, it wins over the signed-in name;
-            empty means none
-        tags (list[str] | Unset): The note's tags, the whole new list (`["ci","done"]`): at most 10 tags, each 1 to 32
-            characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Empty
-            removes them all; omitted leaves them as they are.
-        date (str | Unset): An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`,
-            `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). When the note is placed in the feed, from 1970 to
-            9999. A time after now schedules it: readers see it from then on. The note's attachments move with it.
-        draft (bool | Unset): true makes the note a draft, which readers do not see; false publishes it. Its attachments
-            follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future
-            one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)
+        title (str | Unset): The note's title: at most 100 characters, one line (control and text-direction override
+            characters are refused). Empty removes it: a markdown note's title follows its text again.
+        alt (str | Unset): A picture's alternative text: at most 500 characters, one line (control and text-direction
+            override characters are refused). For image notes only. Empty removes it.
+        sender (str | Unset): Who posted the note, as shown on it: at most 100 characters, one line (control and text-
+            direction override characters are refused). Not verified. Empty removes it.
+        tags (list[str] | Unset): The note's tags (`ci`, `deploy`): at most 10 tags, each 1 to 32 characters of letters,
+            digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Not verified; readers see
+            them. The whole new list; empty removes them, left out keeps them.
+        date (str | Unset): The note's date: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`) or a
+            date alone (midnight UTC), from 1970 to 9999. The note takes its place in the feed by it; a time after now
+            schedules it: readers see it from then on. Its attachments move with it.
+        draft (bool | Unset): A draft: only whoever can post to the feed sees it, readers do not until it is published.
+            Its pictures follow it. false publishes it, true hides it from readers again (refused while a picture of it is
+            the feed's title image); its date stays.
     """
 
     title: str | Unset = UNSET

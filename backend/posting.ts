@@ -1,5 +1,6 @@
 // The one way a note gets posted, edited or deleted, for the HTTP API, MCP and the web UI alike. Credentials are the
 // caller's job (bearer vs. session cookie); everything after that is here, in this order.
+import { checkNoteMeta } from "./notefields";
 import { config } from "./config";
 import { applyImages, type ImagePlan } from "../shared/imagePlan.mjs";
 import { isAttachmentName, MAX_ATTACHMENTS, safeName } from "../shared/links";
@@ -60,8 +61,6 @@ import {
   MARKDOWN,
   hasImageNote,
   MAX_ALT,
-  MAX_NOTE_TITLE,
-  MAX_SENDER,
   newNoteId,
   refuseRemovedNote,
   removeNote,
@@ -211,33 +210,6 @@ export type PostInput = {
   licenseKey?: string;
 };
 
-const DATE = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(\.\d{1,9})?)?(?:(Z)|([+-])(\d{2}):(\d{2})))?$/;
-const DATE_RULE = "date must be an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date (2026-10-01), from 1970 to 9999";
-// The last millisecond of 9999 (UTC): past it, an ISO string needs a six-digit year.
-const LAST = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
-
-// A note's date: undefined (now) for none, else an ISO 8601 date-time with an offset, or a date alone (midnight UTC). Every field is
-// checked against the calendar (Date.parse takes 2026-02-30 and 24:00); from 1970 to the end of 9999 (UTC). A time after now is fine:
-// it makes the note scheduled.
-export function checkDate(value: string | undefined): Date | undefined {
-  if (value === undefined) return undefined;
-  const m = DATE.exec(value);
-  if (!m) throw new InvalidBodyError(DATE_RULE);
-  const [, y, mo, d, h = "0", mi = "0", s = "0", frac = "", , sign, oh = "0", om = "0"] = m;
-  const local = new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s, frac ? Math.floor(Number(frac) * 1000) : 0));
-  const fits =
-    local.getUTCFullYear() === +y &&
-    local.getUTCMonth() === +mo - 1 &&
-    local.getUTCDate() === +d &&
-    local.getUTCHours() === +h &&
-    local.getUTCMinutes() === +mi &&
-    local.getUTCSeconds() === +s;
-  if (!fits || +oh > 23 || +om > 59) throw new InvalidBodyError(DATE_RULE);
-  const at = new Date(local.getTime() - (sign === "-" ? -1 : 1) * (+oh * 60 + +om) * 60_000);
-  if (at.getTime() < 0 || at.getTime() > LAST) throw new InvalidBodyError(DATE_RULE);
-  return at;
-}
-
 // `read` runs only once the post is admitted, so a refused request never has its body read.
 // A password (the feed's `X-Feed-Password`) is set only by the post that creates the feed.
 // `created`: this post created the feed protected, so its sender is the one who chose the password.
@@ -263,11 +235,11 @@ export async function postNote(
   // Before createProtected: a refused note must not leave a protected, empty feed.
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
   type.checkBody(input.body);
-  checkLine("title", input.title, MAX_NOTE_TITLE);
-  const sender = senderOf(input.sender, signedIn);
-  if (checkLine("alt", input.alt, MAX_ALT) && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
-  const tags = checkTags(input.tags);
-  const at = checkDate(input.date);
+  const meta = checkNoteMeta(input);
+  const sender = senderOf(input.sender, meta.sender, signedIn);
+  if (meta.alt && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
+  const tags = meta.tags ?? [];
+  const at = meta.date;
   const body = type.name === "image" ? await prepareImage(input.body, ext) : input.body;
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
@@ -287,9 +259,9 @@ export async function postNote(
   return { ...made, created };
 }
 
-// The sender a post stores: its own (checked like a title; "" is none), else the signed-in name.
-const senderOf = (given: string | undefined, signedIn: string | undefined): string | undefined =>
-  given === undefined ? signedIn : checkLine("sender", given, MAX_SENDER) || undefined;
+// The sender a post stores: its own (checked by checkNoteMeta; "" is none), else the signed-in name.
+const senderOf = (given: string | undefined, checked: string | undefined, signedIn: string | undefined): string | undefined =>
+  given === undefined ? signedIn : checked || undefined;
 
 // A feed without a note (#295, ADR 0047): reserved now, with a password and a read id if given, as a first post would create it.
 // Where licenses are sold it needs a license key, which goes on the new feed (free feeds still start with their first note). It counts
@@ -338,7 +310,7 @@ export async function editContent(
   return note;
 }
 
-// A note's title, alt text and date (at least one): every value is checked before the first change, the date by checkDate.
+// A note's title, alt text, sender, tags and date (at least one): every value is checked before the first change (checkNoteMeta).
 // `draft`: true makes the note a draft, false publishes it, its pictures along (#265); its date stays.
 export async function editMeta(
   feed: string,
@@ -350,7 +322,7 @@ export async function editMeta(
   await admit(feed, ip, access);
   await refuseRemovedNote(feed, id);
   const { date: given, draft, ...meta } = await read();
-  const date = checkDate(given);
+  const date = checkNoteMeta({ ...meta, date: given }).date; // every value checked before the first change
   const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined || meta.sender !== undefined;
   if (date === undefined && draft === undefined && !metaGiven) throw new InvalidBodyError("nothing to change: send title, alt, tags, sender, date or draft");
   if (draft !== undefined) {
@@ -607,10 +579,10 @@ export async function postWithPictures(
   await licenseForImages(feed, pictures.length > 0, newFeedKey(proved, exists, input.licenseKey), ip);
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
-  checkLine("title", title, MAX_NOTE_TITLE);
-  const sender = senderOf(input.sender, signedIn);
-  const tags = checkTags(input.tags);
-  const at = checkDate(input.date) ?? new Date();
+  const meta = checkNoteMeta({ title, sender: input.sender, tags: input.tags, date: input.date });
+  const sender = senderOf(input.sender, meta.sender, signedIn);
+  const tags = meta.tags ?? [];
+  const at = meta.date ?? new Date();
   await recheck(feed, ip, access, proved, input.password);
   await checkCaps(feed, { notes: (text === undefined ? 0 : 1) + pictures.length, images: pictures.length });
   for (const p of pictures) p.body = await prepareImage(p.body, p.ext); // one at a time: a post never fills the queue alone

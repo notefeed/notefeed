@@ -106,6 +106,27 @@ const call = async (tool: string, args: Record<string, unknown>) => {
   return result;
 };
 
+// Every surface takes the note fields its REST counterpart takes (backend/notefields.ts is the one list): a field added to the
+// table and forgotten in a tool fails here.
+describe("note fields", () => {
+  const props = async (tool: string) =>
+    Object.keys((await (await rpc("tools/list")).json()).result.tools.find((t: { name: string }) => t.name === tool).inputSchema.properties);
+  test.each([
+    ["post_note", ["title", "sender", "tags", "date", "draft", "name"]],
+    ["post_file", ["title", "sender", "tags", "date", "draft", "name", "alt"]],
+    ["edit_note", ["title", "sender", "tags", "date", "draft"]],
+  ])("%s takes %j", async (tool, fields) => {
+    expect(await props(tool)).toEqual(expect.arrayContaining(fields));
+  });
+
+  test("post_file stores tags and a date", async () => {
+    const r = await call("post_file", { feed: "a", type: "text/markdown", data: Buffer.from("# F").toString("base64"), tags: ["ci"], date: "2025-03-01" });
+    const note = (await getNote("a", r.structuredContent.id))!;
+    expect(note.tags).toEqual(["ci"]);
+    expect(note.date.toISOString()).toBe("2025-03-01T00:00:00.000Z");
+  });
+});
+
 describe("protocol", () => {
   test("tools/list", async () => {
     const tools = (await (await rpc("tools/list")).json()).result.tools;

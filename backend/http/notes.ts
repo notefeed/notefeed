@@ -11,7 +11,7 @@ import { MAX_BYTES, type Note } from "../notes";
 import { MAX_ATTACHMENTS, postNote, postWithPictures, type Picture, type PostBundle, type PostInput } from "../posting";
 import { parseMedia } from "../note/media";
 import { parseMediaType } from "../note/types";
-import { tagsFromHeader } from "../tags";
+import { readNoteHeaders } from "../notefields";
 import { atomPath, feedPath, imagePath, publicUrl, rssPath } from "../urls";
 import { feedCookies } from "./feedsession";
 import { authorize, feedAccess, mediaType, parseForm, readCapped, sameOrigin, sender } from "./request";
@@ -35,13 +35,7 @@ export async function readPost(req: Request): Promise<PostInput> {
   return {
     body,
     mediaType: parsed.mediaType,
-    title: header("x-note-title"),
-    sender: header("x-note-sender"),
-    alt: header("x-note-alt"),
-    name: header("x-note-name"), // cleaned where the note is made (cleanName)
-    tags: tagsFromHeader(req.headers.get("x-note-tags")),
-    date: header("x-note-date"),
-    draft: draftHeader(req),
+    ...readNoteHeaders(req.headers), // the name is cleaned where the note is made (cleanName)
     readId: header("x-read-id"),
     licenseKey: header("x-license-key"),
   };
@@ -94,11 +88,7 @@ export async function readMultipart(req: Request, kind: "post" | "edit"): Promis
   return {
     text,
     pictures,
-    title: header("x-note-title"),
-    sender: header("x-note-sender"),
-    tags: tagsFromHeader(req.headers.get("x-note-tags")),
-    date: header("x-note-date"),
-    draft: draftHeader(req),
+    ...readNoteHeaders(req.headers, ["title", "sender", "tags", "date", "draft"]),
     readId: header("x-read-id"),
     licenseKey: header("x-license-key"),
   };
@@ -139,14 +129,6 @@ export async function readMetaPatch(req: Request): Promise<{ title?: string; alt
   const parsed = MetaJson.safeParse(json);
   if (!parsed.success) throw new InvalidBodyError('JSON may carry "title", "alt", "sender" and "date" strings, "draft" and a "tags" list of strings');
   return parsed.data;
-}
-
-// X-Note-Draft (#265): `true` or `false`, else a bad request; left out, undefined (published).
-function draftHeader(req: Request): boolean | undefined {
-  const v = req.headers.get("x-note-draft")?.trim().toLowerCase();
-  if (v === undefined || v === "") return undefined;
-  if (v !== "true" && v !== "false") throw new InvalidBodyError("X-Note-Draft must be true or false");
-  return v === "true";
 }
 
 // The postNote entry's handler (backend/http/api.ts). Refusals are thrown as domain errors.

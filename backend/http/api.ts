@@ -2,6 +2,7 @@
 // requests through it, and openApiDocument() generates the OpenAPI 3.1 description the clients are
 // generated from. Each handler is typed from its own declared responses (see op() in dispatch.ts).
 import * as z from "zod";
+import { noteHeaderSchemas } from "../notefields";
 import { config } from "../config";
 import { ImageTooLargeError, InvalidBodyError, NotFoundError, RemovedFeedError, UnsupportedTypeError } from "../errors";
 import { changePassword, checkFeedAccess, protectedFeed, recoverPassword, removePassword } from "../feedlock";
@@ -33,19 +34,12 @@ import {
   FileBody,
   MetaJson,
   MultipartNote,
-  NoteAltHeader,
-  NoteNameHeader,
-  NoteSenderHeader,
-  NoteTitleHeader,
-  NoteDateHeader,
-  NoteDraftHeader,
   ReadIdHeader,
   NoteIdParam,
   FileParam,
   NoteEdited,
   NoteJson,
   NoteList,
-  NoteTagsHeader,
   PageQuery,
   LicenseKeyJson,
   PasswordJson,
@@ -211,13 +205,7 @@ const OPS: AnyOp[] = [
       "X-Feed-Password": FeedPasswordHeader,
       "X-Read-Id": ReadIdHeader,
       "X-License-Key": LicenseKeyHeader,
-      "X-Note-Title": NoteTitleHeader,
-      "X-Note-Sender": NoteSenderHeader,
-      "X-Note-Tags": NoteTagsHeader,
-      "X-Note-Alt": NoteAltHeader,
-      "X-Note-Name": NoteNameHeader,
-      "X-Note-Date": NoteDateHeader,
-      "X-Note-Draft": NoteDraftHeader.optional(),
+      ...noteHeaderSchemas(["title", "sender", "tags", "alt", "name", "date", "draft"]),
     },
     body: { ...Object.fromEntries(MEDIA_TYPES.map((m) => [m.mediaType, FileBody])), "multipart/form-data": MultipartNote },
     responses: {
@@ -347,9 +335,11 @@ const OPS: AnyOp[] = [
     params: { feed: FeedParam, id: NoteIdParam },
     headers: {
       "X-Feed-Password": FeedPasswordHeader,
-      "X-Note-Tags": NoteTagsHeader.describe(
-        "Only for a multipart body: the tags go on the new pictures (the note keeps its own). A raw body ignores it. Comma-separated, empty is none.",
-      ),
+      "X-Note-Tags": z
+        .string()
+        .describe(
+          "Only for a multipart body: the tags go on the new pictures (the note keeps its own). A raw body ignores it. Comma-separated, empty is none.",
+        ),
     },
     body: { ...Object.fromEntries(MEDIA_TYPES.map((m) => [m.mediaType, FileBody])), "multipart/form-data": MultipartNote },
     responses: {

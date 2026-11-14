@@ -1,11 +1,12 @@
 // The API's wire shapes. Named ones (.meta({ id })) become components of the generated OpenAPI
 // document; handlers build their bodies as z.infer of these, and the dispatcher checks them.
 import * as z from "zod";
+import { noteFieldSchemas } from "../notefields";
 import { ERROR_CODES } from "../../shared/errors";
 import { PASSWORD_RULE } from "../../shared/password";
 import { FEED_RE } from "../feeds";
 import { MAX_ATTACHMENTS } from "../posting";
-import { TAG_RE, TAG_RULE } from "../tags";
+import { TAG_RE } from "../tags";
 
 export const NOTE_ID = /^[A-Za-z0-9_-]{1,128}$/;
 export const MAX_LIMIT = 100;
@@ -132,40 +133,8 @@ export const ErrorJson = z
   })
   .meta({ id: "Error" });
 
-const NoteTitle = z
-  .string()
-  .describe(
-    "The note's title, at most 100 characters, one line (control and text-direction override characters are refused); empty or left out means the title is taken from the text (a markdown note) or there is none (an image)",
-  );
-const NoteSender = z
-  .string()
-  .describe(
-    "Who posted the note, as it is shown: at most 100 characters, one line (control and text-direction override characters are refused). Not verified. Given with a post, it wins over the signed-in name; empty means none",
-  );
-const NoteAlt = z
-  .string()
-  .describe("Alternative text of an image note, at most 500 characters, one line (control and text-direction override characters are refused)");
-const DATE_FORMAT = "An ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`, `2026-10-01T11:30:00+02:00`) or a date alone (midnight UTC). ";
-const DATE_RULE = "When the note is placed in the feed, from 1970 to 9999. A time after now schedules it: readers see it from then on.";
-const NoteDate = z.string().describe(`${DATE_FORMAT}${DATE_RULE} The note's attachments move with it.`);
-export const MetaJson = z
-  .object({
-    title: NoteTitle.optional(),
-    alt: NoteAlt.optional(),
-    sender: NoteSender.optional(),
-    tags: z
-      .array(z.string())
-      .optional()
-      .describe(`The note's tags, the whole new list (\`["ci","done"]\`): ${TAG_RULE}. Empty removes them all; omitted leaves them as they are.`),
-    date: NoteDate.optional(),
-    draft: z
-      .boolean()
-      .optional()
-      .describe(
-        "true makes the note a draft, which readers do not see; false publishes it. Its attachments follow (an attachment's own state can't be set: 400), and its date stays: a past date places it there, a future one schedules it. A note whose picture is the feed's title image cannot become a draft (409, `title_image`)",
-      ),
-  })
-  .meta({ id: "NoteMeta" });
+// A PATCH's fields, from the one list of note fields (backend/notefields.ts).
+export const MetaJson = z.object(noteFieldSchemas(["title", "alt", "sender", "tags", "date", "draft"], "edit")).meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
 export const CreateFeedJson = z
   .object({
@@ -189,24 +158,6 @@ export const FeedPasswordHeader = z
       "On the `POST` that creates a feed it sets the feed's password; on a `POST` to an existing feed that has none it answers 409. " +
       "An empty value is the same as no header, so a `POST` with an empty one creates an open feed.",
   );
-export const NoteTagsHeader = z
-  .string()
-  .describe(
-    `Tags for the note, comma-separated (\`ci,deploy\`): ${TAG_RULE}. For a raw markdown body; a JSON or form body's own \`tags\` wins. Empty is none.`,
-  );
-export const NoteTitleHeader = NoteTitle.describe(
-  "The note's title, for a raw body; a JSON or form body's own `title` wins. At most 100 characters, one line, with no control or text-direction override characters.",
-);
-export const NoteSenderHeader = NoteSender.describe(
-  "Who posted the note, as it is shown: at most 100 characters, one line, with no control or text-direction override characters. Not verified; it wins over the signed-in name. Empty is none (then a signed-in name applies).",
-);
-export const NoteDateHeader = z.string().describe(`${DATE_FORMAT}${DATE_RULE} Empty is now.`);
-export const NoteDraftHeader = z
-  .enum(["true", "false"])
-  .describe(
-    "`true` stores the note, and its pictures, as a draft: only whoever can post to the feed sees it, readers do not until it is published. Left out or `false`: published",
-  );
-export const NoteAltHeader = NoteAlt.describe("For an image body: its alternative text; a form's own `alt` wins.");
 export const ReadIdHeader = z
   .string()
   .describe(
@@ -218,12 +169,6 @@ export const LicenseKeyHeader = z
     "Only on an instance that sells licenses, on the post that creates the feed: the key of the license to put on the new feed, with or without `X-Feed-Password` " +
       "(a feed password is for licensed feeds: with one and no key, 402). 400 for a key that is none, 402 for one whose license has lapsed; either way nothing is created. " +
       "Ignored on an existing feed: put a license on it with `PUT /api/v1/feeds/{feed}/license`",
-  );
-export const NoteNameHeader = z
-  .string()
-  .describe(
-    "The note's file name (at most 200 characters; `/`, `\\` and control characters are dropped): for a picture, its original name. The read link serves the newest note with that name at `/r/{readId}/{name}`, " +
-      "a stable address for a file that changes (a name ending in a lower-case extension, such as `post-to-notefeed.md`); a note's own file name (`<id>.<ext>`) comes first",
   );
 export const CurrentPasswordHeader = z.string().describe("The feed's current password");
 

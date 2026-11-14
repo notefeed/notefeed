@@ -172,6 +172,19 @@ def _as_file(content: str | bytes, type: str | None) -> tuple[bytes, str]:
     return content, type
 
 
+def _post_headers(title, sender, tags, created, drafted, read_id, license_key) -> dict[str, Any]:
+    """The headers of a post's metadata, for a single file and for a note with its pictures; what is left out sends nothing."""
+    return {
+        "x_read_id": read_id or UNSET,
+        "x_license_key": license_key or UNSET,
+        "x_note_title": _header_value(title) if title else UNSET,
+        "x_note_sender": _header_value(sender) if sender else UNSET,
+        "x_note_tags": ",".join(tags) if tags else UNSET,
+        "x_note_date": created,
+        "x_note_draft": drafted,
+    }
+
+
 def _header_value(text: str) -> Any:
     """A header holds bytes: text that may not be ASCII goes as its UTF-8 bytes, which the server reads back (httpx takes bytes values)."""
     return text.encode("utf-8")
@@ -318,13 +331,7 @@ class Client:
             feed=self._feed_for(feed),
             body=File(payload=b""),
             x_feed_password=self._fp(feed_password),
-            x_read_id=read_id or UNSET,
-            x_license_key=license_key or UNSET,
-            x_note_title=_header_value(title) if title else UNSET,
-            x_note_sender=_header_value(sender) if sender else UNSET,
-            x_note_tags=",".join(tags) if tags else UNSET,
-            x_note_date=created,
-            x_note_draft=drafted,
+            **_post_headers(title, sender, tags, created, drafted, read_id, license_key),
         )
         del kwargs["content"], kwargs["headers"]["Content-Type"]  # httpx writes the multipart body and its boundary
         kwargs["files"], kwargs["data"] = files, fields
@@ -342,13 +349,7 @@ class Client:
             feed=self._feed_for(feed),
             body=File(payload=payload),
             x_feed_password=self._fp(feed_password),
-            x_read_id=read_id or UNSET,
-            x_license_key=license_key or UNSET,
-            x_note_title=_header_value(title) if title else UNSET,
-            x_note_sender=_header_value(sender) if sender else UNSET,
-            x_note_tags=",".join(tags) if tags else UNSET,
-            x_note_date=created,
-            x_note_draft=drafted,
+            **_post_headers(title, sender, tags, created, drafted, read_id, license_key),
             x_note_alt=_header_value(alt) if alt else UNSET,
             x_note_name=_header_value(name) if name else UNSET,
         )

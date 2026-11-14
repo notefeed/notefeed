@@ -1,4 +1,5 @@
 // The MCP endpoint: POST /mcp, protocol 2026-07-28 only, nine tools over the same backend the HTTP API uses.
+import { checkNoteMeta, noteFieldSchemas, type NoteMeta } from "./notefields";
 import { McpServer, createMcpHandler, type AuthInfo } from "@modelcontextprotocol/server";
 import * as z from "zod";
 import { bearerOf, checkBearer, locked } from "./auth";
@@ -16,24 +17,11 @@ import { ACCEPTED_TYPES } from "./note/media";
 import { parseMediaType } from "./note/types";
 import { logger } from "./log";
 import * as next from "./mcpguidance";
-import { checkLine, getNote, isDraft, isScheduled, listNotes, MAX_NOTE_TITLE, MAX_SENDER, refuseRemovedNote, type Note } from "./notes";
+import { getNote, isDraft, isScheduled, listNotes, refuseRemovedNote, type Note } from "./notes";
 import { verify } from "./oauth/tokens";
 import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
-import { checkTags, TAG_RULE } from "./tags";
-import {
-  checkDate,
-  createFeed,
-  deleteFeed,
-  setFeedImage,
-  deleteNote,
-  editContent,
-  editMeta,
-  postNote,
-  postWithPictures,
-  setLicense,
-  updateFeed,
-} from "./posting";
+import { createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setLicense, updateFeed } from "./posting";
 import { getStoredSettings } from "./feedsettings";
 import { atomPath, feedPath, imagePath, mcpResource, publicUrl, rssPath } from "./urls";
 
@@ -41,24 +29,12 @@ const log = logger("mcp");
 const SECRET_NOTE = "The feed name works like a password: anyone who knows it can read and post. Don't repeat it in replies.";
 
 const feed = z.string().regex(FEED_RE);
-const SENDER = z
-  .string()
-  .optional()
-  .describe(
-    "Who posted the note, as shown on it (at most 100 characters, one line; control and text-direction override characters are refused). Not verified. Left out: the signed-in name, if any; empty: none",
-  );
 const password = z.string().optional();
 const PROTECTED = "A protected feed needs its password as password.";
 // Every picture is processed on the server (ADR 0049): an assistant should send the file it has, not shrink it first.
 const PICTURES =
   "Send a picture as it is, full size (up to 10 MiB, 100 megapixels): it is stored turned upright, at most 2560 px on its long side and without metadata (EXIF, GPS position). If the server answers busy, try again after a few seconds.";
 // Drafts (#265): what a post takes, and what its answer says.
-const DRAFT_POST = z
-  .boolean()
-  .optional()
-  .describe(
-    "Post it as a draft: only whoever can post to the feed sees it (on the feed page, here, in the API); readers do not, its pictures neither, until edit_note publishes it with draft false.",
-  );
 const DRAFT_OUT = z.literal(true).optional().describe("Only present when the note was stored as a draft");
 const NoteSummary = z.object({
   id: z.string(),
@@ -133,22 +109,13 @@ function server(h: Headers): McpServer {
   const s = new McpServer({ name: "notefeed", version: runningVersion().version }); // the instance's version (#306)
 
   // One file as a note: the type must be accepted and the bytes must be what it says (postNote checks that); a picture is size-limited.
-  const postBytes = async (
-    feed: string,
-    f: { type: string; data: string; title?: string; sender?: string; alt?: string; name?: string; tags?: string[]; draft?: boolean },
-    password: string | undefined,
-  ) => {
-    const parsed = parseMediaType(f.type);
+  const postBytes = async (feed: string, f: { type: string; data: string } & NoteMeta, password: string | undefined) => {
+    const { type, data, ...meta } = f;
+    const parsed = parseMediaType(type);
     if (!parsed) throw new UnsupportedTypeError();
-    const body = Buffer.from(f.data, "base64");
+    const body = Buffer.from(data, "base64");
     if (parsed.type.name === "image" && body.length > config.maxImageBytes()) throw new ImageTooLargeError();
-    return postNote(
-      feed,
-      clientIp(h),
-      async () => ({ body, mediaType: parsed.mediaType, title: f.title, sender: f.sender, alt: f.alt, name: f.name, tags: f.tags, draft: f.draft }),
-      { password },
-      await sender(h),
-    );
+    return postNote(feed, clientIp(h), async () => ({ ...meta, body, mediaType: parsed.mediaType }), { password }, await sender(h));
   };
   const fileUrl = (readId: string | null, file: string) => (readId ? base + imagePath(readId, file) : "");
 
@@ -159,28 +126,8 @@ function server(h: Headers): McpServer {
       inputSchema: z.object({
         feed,
         markdown: z.string(),
-        sender: SENDER,
-        title: z
-          .string()
-          .optional()
-          .describe(
-            "The note's title (at most 100 characters, one line; control and text-direction override characters are refused); left out, it is taken from the text",
-          ),
-        name: z
-          .string()
-          .optional()
-          .describe(
-            "A file name for the note, e.g. post-to-notefeed.md: the read link serves the newest note with that name at <read link>/<name>, a stable address for a file that changes. Not unique: post again under the same name for a new version.",
-          ),
+        ...noteFieldSchemas(["title", "sender", "name", "tags", "date", "draft"], "post"),
         password,
-        tags: z.array(z.string()).optional().describe(`Labels for the note, e.g. ["ci","deploy"]: ${TAG_RULE}. Not verified; readers see them.`),
-        date: z
-          .string()
-          .optional()
-          .describe(
-            "The note's date, if not now: an ISO 8601 date and time with its offset (2026-10-01T09:30:00Z) or a date alone (midnight UTC), any time from 1970 to 9999. The note takes its place in the feed by this time. A future time schedules the note: readers see it from then on.",
-          ),
-        draft: DRAFT_POST,
         read_id: z
           .string()
           .optional()
@@ -332,24 +279,7 @@ function server(h: Headers): McpServer {
         feed,
         id: z.string(),
         markdown: z.string().optional(),
-        title: z.string().optional(),
-        sender: SENDER,
-        tags: z
-          .array(z.string())
-          .optional()
-          .describe(`The note's tags, the whole new list, e.g. ["ci","done"]: ${TAG_RULE}. Empty removes them; left out keeps them.`),
-        date: z
-          .string()
-          .optional()
-          .describe(
-            "The note's new date: an ISO 8601 date and time with its offset or a date alone (midnight UTC), any time from 1970 to 9999. A future time schedules the note.",
-          ),
-        draft: z
-          .boolean()
-          .optional()
-          .describe(
-            "false publishes the note: readers see it from then on. true makes it a draft again, hidden from readers (refused while a picture of it is the feed's title image). Its pictures follow (a picture posted with a note can't be set on its own), and its date stays: a past date places it there, a future one schedules it.",
-          ),
+        ...noteFieldSchemas(["title", "sender", "tags", "date", "draft"], "edit"),
         password,
       }),
       outputSchema: NoteOut,
@@ -358,10 +288,7 @@ function server(h: Headers): McpServer {
     guard(async ({ feed, id, markdown, title, sender: given, tags, date, draft, password }) => {
       if (markdown === undefined && title === undefined && given === undefined && tags === undefined && date === undefined && draft === undefined)
         throw new InvalidBodyError("nothing to change: send markdown, title, sender, tags, date, draft or several");
-      checkLine("title", title, MAX_NOTE_TITLE);
-      checkLine("sender", given, MAX_SENDER);
-      if (tags !== undefined) checkTags(tags);
-      checkDate(date); // before the content is replaced: a bad title, tag or date must not leave a half edit
+      checkNoteMeta({ title, sender: given, tags, date }); // before the content is replaced: a bad value must not leave a half edit
       let note =
         markdown === undefined
           ? undefined
@@ -581,24 +508,14 @@ function server(h: Headers): McpServer {
         feed,
         type: z.string().describe("The file's media type"),
         data: z.string().describe("The file's bytes, base64"),
-        sender: SENDER,
-        title: z
-          .string()
-          .optional()
-          .describe("The note's title (at most 100 characters, one line; control and text-direction override characters are refused)"),
-        alt: z
-          .string()
-          .optional()
-          .describe("Alternative text of a picture (at most 500 characters, one line; control and text-direction override characters are refused)"),
-        name: z.string().optional().describe("The file's original name"),
-        draft: DRAFT_POST,
+        ...noteFieldSchemas(["title", "sender", "alt", "name", "tags", "date", "draft"], "post"),
         password,
       }),
       outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string(), draft: DRAFT_OUT, guidance: GUIDANCE }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    guard(async ({ feed, type, data, title, sender: given, alt, name, draft, password }) => {
-      const { note, readId } = await postBytes(feed, { type, data, title, sender: given, alt, name, draft }, password);
+    guard(async ({ feed, type, data, password, ...meta }) => {
+      const { note, readId } = await postBytes(feed, { type, data, ...meta }, password);
       const url = fileUrl(readId, note.file);
       return ok({ id: note.id, file: note.file, url, ...(note.draft && { draft: true as const }), guidance: next.afterPostFile({ ...state(note), url }) });
     }),

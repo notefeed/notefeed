@@ -20,7 +20,7 @@ ADRs: [0001](https://github.com/notefeed/notefeed/blob/main/docs/adr/0001-open-f
 
 notefeed stores nothing about the people who post or read: no names, no e-mail addresses, no client addresses in its logs. A client's address is used only in memory, to limit how fast it may post or guess passwords, and is never written down by notefeed; notefeed.me's proxy keeps only the network part of it (the last part zeroed), for 14 days. Where personal data can't be avoided, it stays with someone else: on notefeed.me the payment and the buyer's details are with Creem, the merchant of record, and notefeed keeps the key's hash, the provider's reference to the subscription and its end date, and nothing about the buyer. A report about a note is sent from notefeed's report form straight to the operator's inbox, and notefeed stores nothing of it; on notefeed.me the reporter's name and e-mail address in it are optional (the DSA requires the form to offer them, Art. 16(2)), and they are deleted the day after the report is dealt with.
 
-A self-hoster may turn on sign-in with a verified sender ([V12](#v12)). Then the sender's name is stored on the notes they post, and that instance's operator is responsible for it; nothing else needs it.
+A note may carry a sender: a name its poster gives it, shown on the note and not verified, part of what they post like the note's text. A self-hoster may also turn on sign-in through their own identity provider ([V12](#v12)): then the signed-in name is the sender of the notes posted that way, stored on them, and that instance's operator is responsible for it; nothing else needs it.
 
 **Rules out:** asking for an e-mail address "just for recovery" or a newsletter, storing a buyer's name or address in notefeed, logging client addresses, analytics or third-party scripts that collect personal data.
 
@@ -106,7 +106,7 @@ ADRs: [0003](https://github.com/notefeed/notefeed/blob/main/docs/adr/0003-backen
 
 ### V12. Private by default {#v12}
 
-With nothing turned on, notefeed knows no one. A self-hoster can turn on sign-in, which adds a verified sender to the notes posted that way; it only adds, and no feature may need it.
+With nothing turned on, notefeed knows no one. A self-hoster can turn on sign-in through their own identity provider, which puts the signed-in name on the notes posted that way as their sender; it only adds, and no feature may need it.
 
 **Rules out:** a feature that works only with sign-in on, sign-in on notefeed.me as the way to use it, people records or profiles behind sign-in.
 
