@@ -135,3 +135,63 @@ test("an account session from another site is no account", async () => {
   expect(await (await call("GET", "/feeds/mine", evil)).json()).toMatchObject({ yours: false });
   expect((await call("DELETE", "/feeds/mine", evil)).status).toBe(403);
 });
+
+describe("deleting an account", () => {
+  test("deletes the feeds it owns first, and leaves everyone else's", async () => {
+    const ann = await signedIn();
+    await create("annsfeed", ann);
+    await create("other", {});
+    const res = await (
+      await import("./accounts")
+    ).accountDeleteRoute(
+      new Request(`${BASE}/api/accounts/delete`, {
+        method: "POST",
+        headers: { ...ann, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ confirm: "x" }),
+      }),
+    );
+    expect(res.headers.get("location")).toBe("/account?error=confirm"); // the number is needed: see accounts.test.ts
+    const { deleteAccountWithFeeds } = await import("../posting");
+    const { accountOf } = await import("../accounts/numbers");
+    await deleteAccountWithFeeds((await accountOf(new Headers(ann)))!.userId);
+    expect((await call("GET", "/feeds/annsfeed")).status).toBe(404);
+    expect((await call("GET", "/feeds/other")).status).toBe(200);
+  });
+});
+
+describe("the operator", () => {
+  const TOKEN = "t".repeat(40);
+  const op = (method: string, query: string, body?: unknown) =>
+    import("./operator").then(({ operatorFeedsRoute }) =>
+      operatorFeedsRoute(
+        new Request(`${BASE}/api/operator/feeds?${query}`, {
+          method,
+          headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        }),
+      ),
+    );
+
+  test("gives a feed to an account by its number, or takes its owner away", async () => {
+    vi.stubEnv("NOTEFEED_OPERATOR_TOKEN", TOKEN);
+    const { number, recoveryKey } = await createAccount();
+    const cookies = await signInWithNumber(number, recoveryKey, new Headers(SAME));
+    const ann = { ...SAME, cookie: cookies.map((c) => c.split(";")[0]).join("; ") };
+    await create("orphan", {}, "the-password");
+    expect((await op("PUT", "feed=orphan", { number })).status).toBe(204);
+    expect(await (await call("GET", "/account/feeds", ann)).json()).toEqual({ feeds: ["orphan"] });
+    expect((await op("PUT", "feed=orphan", { number: null })).status).toBe(204);
+    expect(await (await call("GET", "/feeds/orphan", { "x-feed-password": "the-password" })).json()).toMatchObject({ owned: false });
+    expect((await op("PUT", "feed=orphan", { number: "1111-2222-3333-4444" })).status).toBe(404);
+    expect((await op("PUT", "feed=nope", { number })).status).toBe(404);
+  });
+
+  test("deletes a feed, owned or not", async () => {
+    vi.stubEnv("NOTEFEED_OPERATOR_TOKEN", TOKEN);
+    const ann = await signedIn();
+    await create("annsfeed", ann);
+    expect((await op("DELETE", "feed=annsfeed")).status).toBe(204);
+    expect((await call("GET", "/feeds/annsfeed")).status).toBe(404);
+    expect((await op("DELETE", "feed=annsfeed")).status).toBe(404);
+  });
+});

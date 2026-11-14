@@ -24,7 +24,7 @@ import {
   TitleImageDraftError,
   UnsupportedTypeError,
 } from "./errors";
-import { type FeedAccess, checkFeedAccess, checkNewPassword, createProtected, ownersChanged, ownNewFeed, requireOwnerIfOwned } from "./feedlock";
+import { type FeedAccess, checkFeedAccess, checkNewPassword, createProtected, ownedFeeds, ownersChanged, ownNewFeed, requireOwnerIfOwned } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
 import {
   assertFeed,
@@ -468,6 +468,23 @@ export async function deleteFeed(feed: string, ip: string, access: FeedAccess): 
   if (!(await removeWholeFeed(feed))) throw new NotFoundError("no such feed");
   ownersChanged();
   await releaseLicense(feed);
+}
+
+// A feed with everything in it, and its license given back: the operator's, and an account's own when the account goes.
+export async function removeFeedAndLicense(feed: string): Promise<boolean> {
+  if (!(await removeWholeFeed(feed))) return false;
+  ownersChanged();
+  await releaseLicense(feed);
+  return true;
+}
+
+// Deleting an account (ADR 0059): its feeds first, then the account. Should it stop in between, the account is still there to try
+// again; should it stop after a feed's deletion failed, that feed stays owned by an account that is gone, which nobody can claim and
+// the operator decides about (/api/operator/feeds).
+export async function deleteAccountWithFeeds(userId: string): Promise<void> {
+  for (const feed of await ownedFeeds(userId)) await removeFeedAndLicense(feed);
+  const { deleteAccount } = await import("./accounts/numbers");
+  await deleteAccount(userId);
 }
 
 export { MAX_ATTACHMENTS }; // defined in shared/links.ts: the web box holds to it too
