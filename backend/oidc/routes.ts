@@ -59,20 +59,19 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
   if (!identityOn() || !auth) return notFound();
   const start = startRequest(req);
   const { next } = start;
+  // Logged here, shown to the person only as "sign-in failed" on the page the sign-in started from.
+  const failed = (reason: string, detail?: Parameters<typeof logFailure>[1]) => {
+    logFailure(reason, detail);
+    return seeOther(failedPage({ next }, "sign_in_failed"));
+  };
   const wait = authWait(clientIp(req.headers));
   if (wait !== null) return seeOther(failedPage({ next }, `too_many_attempts&retry=${wait}`));
   const provider = chosen(start.provider);
   // A missing or unknown provider: back where the sign-in started, with nothing fetched.
-  if (!provider) {
-    // The id only when it has a provider id's shape: requested text is never echoed.
-    logFailure("unknown provider", /^[a-z0-9_]{1,64}$/.test(start.provider ?? "") ? { provider: start.provider! } : {});
-    return seeOther(failedPage({ next }, "sign_in_failed"));
-  }
+  // The id only when it has a provider id's shape: requested text is never echoed.
+  if (!provider) return failed("unknown provider", /^[a-z0-9_]{1,64}$/.test(start.provider ?? "") ? { provider: start.provider! } : {});
   // TLS to the provider: https, or plain http on loopback only (as for redirect URIs).
-  if (!issuerOk(provider.issuer)) {
-    logFailure("issuer is not an https URL", { provider: provider.id, issuer: logUrl(provider.issuer) });
-    return seeOther(failedPage({ next }, "sign_in_failed"));
-  }
+  if (!issuerOk(provider.issuer)) return failed("issuer is not an https URL", { provider: provider.id, issuer: logUrl(provider.issuer) });
   const flight: Flight = { provider: provider.id, nonce: randomBytes(16).toString("base64url"), next };
   try {
     const { headers, response } = await auth.api.signInSocial({
@@ -86,8 +85,7 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
     return res;
   } catch (e) {
     // Discovery failed, or the provider's configuration is unusable: Better Auth has logged its detail.
-    logFailure("discovery failed", { provider: provider.id, ...(e instanceof Error ? { error: e.name } : {}) });
-    return seeOther(failedPage({ next }, "sign_in_failed"));
+    return failed("discovery failed", { provider: provider.id, ...(e instanceof Error ? { error: e.name } : {}) });
   }
 }
 

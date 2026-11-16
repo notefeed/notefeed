@@ -19,26 +19,30 @@ const cors = { "Access-Control-Allow-Origin": "*" };
 const UNSERVED = ["introspection_endpoint", "introspection_endpoint_auth_methods_supported", "introspection_endpoint_auth_signing_alg_values_supported"];
 
 const notFound = () => new Response("not found", { status: 404 });
+// Every handler here: 404 on an open instance without accounts, else the handler with the OAuth server's instance.
+const withOAuth =
+  <A extends unknown[], R extends Response | Promise<Response>>(handler: (auth: Auth, ...args: A) => R) =>
+  (...args: A): R | Response => {
+    const auth = oauthAuth();
+    return auth ? handler(auth, ...args) : notFound();
+  };
 
 // RFC 8414, at /.well-known/oauth-authorization-server and below it the issuer's path (/api/auth).
-export async function authServerRoute(req: Request): Promise<Response> {
-  const auth = oauthAuth();
-  if (!auth) return notFound();
+export const authServerRoute = withOAuth(async (auth, req: Request): Promise<Response> => {
   const res = await oauthProviderAuthServerMetadata(auth)(req);
   const body = (await res.json()) as Record<string, unknown>;
   for (const k of UNSERVED) delete body[k];
   return Response.json(body, { status: res.status, headers: cors });
-}
+});
 
 // RFC 9728: /mcp, whose tokens Better Auth issues.
-export function protectedResourceRoute(): Response {
-  if (!oauthAuth()) return notFound();
+export const protectedResourceRoute = withOAuth((): Response => {
   const base = config.publicUrl();
   return Response.json(
     { resource: `${base}/mcp`, authorization_servers: [`${base}/api/auth`], bearer_methods_supported: ["header"], scopes_supported: MCP_SCOPES },
     { headers: cors },
   );
-}
+});
 
 // The authorize request Better Auth signed for the page (its query without the page's own parameters), or null when it isn't one, was
 // changed or has expired (10 minutes).
@@ -65,20 +69,18 @@ export async function oauthClient(auth: Auth, query: string): Promise<{ name: st
 }
 
 // OPTIONS for the metadata documents, which browser-based MCP clients read cross-origin.
-export const metadataPreflight = (): Response =>
-  oauthAuth()
-    ? new Response(null, {
-        status: 204,
-        headers: { ...cors, "Access-Control-Allow-Methods": "GET", "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" },
-      })
-    : notFound();
+export const metadataPreflight = withOAuth(
+  (): Response =>
+    new Response(null, {
+      status: 204,
+      headers: { ...cors, "Access-Control-Allow-Methods": "GET", "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" },
+    }),
+);
 
 // POST /api/oauth/authorize: the page's form, from this instance's own pages. With accounts, Allow or Deny for the account signed in
 // on them; without, the instance password. Better Auth checks the signed request again and answers with where the browser goes:
 // the client, with a code or access_denied.
-export async function authorizeRoute(req: Request): Promise<Response> {
-  const auth = oauthAuth();
-  if (!auth) return notFound();
+export const authorizeRoute = withOAuth(async (auth, req: Request): Promise<Response> => {
   const h = req.headers;
   if (!sameOrigin(h)) return new Response("forbidden", { status: 403 });
   const form = await readFields(req, 16 * 1024);
@@ -93,7 +95,7 @@ export async function authorizeRoute(req: Request): Promise<Response> {
   if (!r?.url) return expired();
   log.info({ via: "account", accept }, accept ? "authorization granted" : "authorization denied"); // never who, never the client's name
   return seeOther(r.url);
-}
+});
 
 // Back to the authorize page, which says in the reader's language that this sign-in has expired (t.login.expired).
 const expired = () => seeOther("/oauth/authorize?error=expired");
