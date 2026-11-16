@@ -107,8 +107,9 @@ export async function requestAccount(h: Headers): Promise<string | undefined> {
   if (bearer.startsWith(TOKEN_PREFIX)) {
     const t = await tokenAccount(bearer);
     if (!t) return undefined;
-    const method = requestScope()?.method ?? "GET";
-    if (!t.write && method !== "GET") throw new ReadOnlyTokenError();
+    // Only a request known to be a GET (or HEAD) reads: a route outside the REST dispatcher notes no method, and counts as a write.
+    const method = requestScope()?.method;
+    if (!t.write && method !== "GET" && method !== "HEAD") throw new ReadOnlyTokenError();
     return t.userId;
   }
   return sessionAccount(h);

@@ -65,3 +65,15 @@ test("a name is one line of 1 to 50 characters; the scope is read or read+write;
   await expect(createAccountToken(userId, "x", "admin" as never)).rejects.toBeInstanceOf(InvalidBodyError);
   await expect(createAccountToken(userId, "x", "read", 366)).rejects.toBeInstanceOf(InvalidBodyError);
 });
+
+test("a token of a person taken off the provider's allow-list stops working, as their sign-in does", async () => {
+  const { stubSignInOn, signedInCookie } = await import("./signin.testkit");
+  const { signedInSession } = await import("./auth");
+  vi.stubEnv("NOTEFEED_ACCOUNTS", "provider");
+  stubSignInOn();
+  const userId = (await signedInSession(new Headers({ host: "localhost:3000", cookie: await signedInCookie("Ann") })))!.userId;
+  const { token } = await createAccountToken(userId, "script", "read+write");
+  expect(await tokenAccount(token)).toMatchObject({ userId });
+  vi.stubEnv("NOTEFEED_OIDC_ALLOW", "bob@example.com");
+  expect(await tokenAccount(token)).toBeUndefined();
+});

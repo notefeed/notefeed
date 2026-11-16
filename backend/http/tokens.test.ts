@@ -90,3 +90,11 @@ test("a token is refused on MCP", async () => {
   );
   expect(res.status).toBe(401);
 });
+
+test("a read token is refused where no method was noted (a form route outside the REST dispatcher): it counts as a write", async () => {
+  const ann = await session();
+  const { token: t } = await token(ann, "read");
+  const { requestAccount } = await import("./request");
+  const { ReadOnlyTokenError } = await import("../errors");
+  await expect(inRequest({ id: "f" }, () => requestAccount(new Headers({ ...SAME, ...bearer(t) })))).rejects.toBeInstanceOf(ReadOnlyTokenError);
+});

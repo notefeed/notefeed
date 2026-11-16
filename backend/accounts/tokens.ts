@@ -4,7 +4,7 @@
 // and the browser's session never take one (conventions: tokens bound to one surface).
 import { cleanLine } from "../../shared/links";
 import { InvalidBodyError, NotFoundError } from "../errors";
-import { accountsAuth } from "./auth";
+import { accountsAuth, stillAllowed } from "./auth";
 
 export const TOKEN_PREFIX = "nf_";
 export const TOKEN_SCOPES = ["read", "read+write"] as const;
@@ -55,13 +55,15 @@ export async function revokeAccountToken(userId: string, id: string): Promise<vo
   await (await auth().$context).adapter.delete({ model: "apikey", where: [{ field: "id", value: id }] });
 }
 
-// The account a token belongs to, and whether it may write; undefined for anything that isn't a valid token of an account that exists.
+// The account a token belongs to, and whether it may write; undefined for anything that isn't a valid token of an account that may
+// still be signed in.
 export async function tokenAccount(token: string): Promise<{ userId: string; write: boolean } | undefined> {
   const a = accountsAuth();
   if (!a || !token.startsWith(TOKEN_PREFIX)) return undefined;
   const r = await a.api.verifyApiKey({ body: { key: token } }).catch(() => null);
   if (!r?.valid || !r.key) return undefined;
   const userId = (r.key as { referenceId?: string; userId?: string }).referenceId ?? (r.key as { userId?: string }).userId;
-  if (!userId || !(await (await a.$context).internalAdapter.findUserById(userId))) return undefined;
+  // As a session is checked (ADR 0056): the account must still exist and, signed in through a provider, still be on its allow-list.
+  if (!userId || !(await stillAllowed(userId))) return undefined;
   return { userId, write: scopeOf(r.key.permissions) === "read+write" };
 }
