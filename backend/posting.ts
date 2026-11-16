@@ -23,14 +23,14 @@ import {
   ReservedFeedError,
   TitleImageDraftError,
   UnsupportedTypeError,
-  OwnerOnlyError,
 } from "./errors";
 import {
   type FeedAccess,
   checkFeedAccess,
   checkNewPassword,
   createProtected,
-  feedOwner,
+  feedOwnership,
+  requireOwner,
   ownedFeeds,
   ownersChanged,
   ownNewFeed,
@@ -272,18 +272,12 @@ export async function postNote(
   return { ...made, created };
 }
 
-// The owner's own steps on a feed that has one: refused for anyone else, and on a feed without an owner.
-async function requireOwner(feed: string, account: string | undefined): Promise<void> {
-  const owner = await feedOwner(feed);
-  if (!owner || owner !== account) throw new OwnerOnlyError();
-}
-
 // Whether a post is the feed owner's own with no sender of its own (ADR 0059): then it carries the mark, not a name. A feed this post
 // creates becomes the posting account's, so its first note is the owner's too.
 async function postedByOwner(feed: string, given: string | undefined, access: FeedAccess, exists: boolean): Promise<boolean> {
   if (given !== undefined || !access.account) return false;
-  const owner = await feedOwner(feed);
-  return owner === access.account || (!exists && owner === undefined);
+  const ownership = await feedOwnership(feed, access.account);
+  return ownership === "yours" || (!exists && ownership === "unowned");
 }
 
 // The sender a post stores: its own (checked by checkNoteMeta; "" is none), else the signed-in name.

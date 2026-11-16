@@ -39,7 +39,7 @@ export {
   unreferencedImagesRoute,
 } from "./http/operator";
 export { accountCreateRoute, accountDeleteRoute, accountSignInRoute, recoveryKeyRoute } from "./http/accounts";
-export { feedCookieName, feedOwner, feedUnlocked, listFeedPasswords, ownedFeeds } from "./feedlock";
+export { feedCookieName, feedOwner, feedOwnership, feedUnlocked, listFeedPasswords, ownedFeeds } from "./feedlock";
 export { feedDeleteRoute, feedSettingsRoute } from "./http/feedforms";
 export { feedAccessRoute } from "./http/feedsession";
 export { loginRoute, logoutRoute } from "./http/session";

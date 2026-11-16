@@ -10,7 +10,7 @@ import {
   changePassword,
   checkFeedAccess,
   claimFeed,
-  feedOwner,
+  feedOwnership,
   listFeedPasswords,
   ownedFeeds,
   protectedFeed,
@@ -178,7 +178,7 @@ export async function licensesJson(headers: Headers): Promise<z.infer<typeof Lic
 }
 
 export async function feedJson(feed: string, headers: Headers): Promise<z.infer<typeof FeedJson>> {
-  const owner = await feedOwner(feed);
+  const ownership = await feedOwnership(feed, await requestAccount(headers));
   const readId = (await countNotes(feed)) ? await readIdOf(feed) : null;
   const { title, description, image, showSender, senderName } = await getSettings(feed);
   return {
@@ -186,8 +186,8 @@ export async function feedJson(feed: string, headers: Headers): Promise<z.infer<
     title,
     description,
     protected: await protectedFeed(feed),
-    owned: owner !== undefined,
-    yours: owner !== undefined && owner === (await requestAccount(headers)),
+    owned: ownership !== "unowned",
+    yours: ownership === "yours",
     read_url: readId && publicUrl(headers) + rssPath(readId),
     atom_url: readId && publicUrl(headers) + atomPath(readId),
     image_url: readId && image ? publicUrl(headers) + imagePath(readId, image) : null,
