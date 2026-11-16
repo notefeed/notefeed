@@ -1612,6 +1612,16 @@
               }
             }
           },
+          "403": {
+            "description": "A new name for an owned feed, from anyone but its owner (`owner_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No such feed",
             "content": {
@@ -1720,6 +1730,16 @@
           },
           "401": {
             "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An owned feed, deleted by anyone but its owner (`owner_only`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2303,6 +2323,505 @@
                 }
               }
             },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feeds/{feed}/claim": {
+      "post": {
+        "operationId": "claimFeed",
+        "summary": "Claim a feed for the signed-in account",
+        "description": "The feed becomes the account's own (its owner): only the owner then manages its feed passwords, renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`). Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Claim"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Claimed"
+          },
+          "400": {
+            "description": "Invalid or reserved feed name, bad JSON, or an open feed's new password that is not 1 to 256 printable ASCII characters, with no space at the start or end",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in account, or a wrong password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feed has an owner (`owned`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong passwords from this client",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feeds/{feed}/passwords": {
+      "get": {
+        "operationId": "listFeedPasswords",
+        "summary": "List an owned feed's passwords",
+        "description": "Their names, ids and when they were added, never the passwords. Only for the feed's owner.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The feed's passwords",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPasswords"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the feed's owner (`owner_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "addFeedPassword",
+        "summary": "Add a named password to an owned feed",
+        "description": "A new password for one person or script, generated and shown only in this answer. It does what a feed password does: post, edit, delete notes, change the settings. Each is revoked on its own. Only for the feed's owner; where licenses are sold, the feed needs one.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedPasswordName"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Added; the password is in the answer, only this once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewFeedPassword"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or reserved feed name, or a name that is not one line of 1 to 50 characters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Only on an instance with a payment provider (`license_required`): the feed has no active license, and a picture, or a new feed password, is for licensed feeds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the feed's owner (`owner_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feeds/{feed}/passwords/{id}": {
+      "delete": {
+        "operationId": "revokeFeedPassword",
+        "summary": "Revoke one of an owned feed's passwords",
+        "description": "It, and every browser unlocked with it, stops working at once; the others keep working. Revoking the last leaves the feed open, still the owner's.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "feed",
+            "in": "path",
+            "required": true,
+            "description": "The feed's name. It is the write key: anyone who knows it can post.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The password's id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "400": {
+            "description": "Invalid or reserved feed name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The instance has a password, or the feed has its own, and it is missing or wrong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the feed's owner (`owner_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such feed, or no such password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/feeds": {
+      "get": {
+        "operationId": "listAccountFeeds",
+        "summary": "The signed-in account's feeds",
+        "description": "The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.",
+        "tags": [
+          "Feeds"
+        ],
+        "security": [
+          {},
+          {
+            "password": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's feeds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountFeeds"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No signed-in account",
             "content": {
               "application/json": {
                 "schema": {
@@ -3490,7 +4009,9 @@
               "blocked",
               "unreadable",
               "unavailable",
-              "busy"
+              "busy",
+              "owner_only",
+              "owned"
             ]
           }
         },
@@ -3668,6 +4189,14 @@
             "type": "boolean",
             "description": "Whether the feed has its own password"
           },
+          "owned": {
+            "type": "boolean",
+            "description": "Whether the feed belongs to an account (its owner): then only the owner manages its passwords, renames and deletes it"
+          },
+          "yours": {
+            "type": "boolean",
+            "description": "Whether it belongs to the account signed in with this request"
+          },
           "read_url": {
             "anyOf": [
               {
@@ -3730,6 +4259,8 @@
           "title",
           "description",
           "protected",
+          "owned",
+          "yours",
           "read_url",
           "atom_url",
           "image_url",
@@ -3841,6 +4372,120 @@
           "buy_url",
           "manage_url",
           "manage"
+        ],
+        "additionalProperties": false
+      },
+      "Claim": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "A protected feed: one of its passwords. An open feed: the password it gets now, as setting one does (1 to 256 printable ASCII characters, with no space at the start or end)"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "FeedPassword": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The password's id, to revoke it"
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is for, as the owner named it (\"blog script\", \"Anna\"); a feed's password from before it had an owner is \"Feed password\""
+          },
+          "created": {
+            "description": "When it was added (ISO 8601); null for the one from before the feed had an owner",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created"
+        ],
+        "additionalProperties": false
+      },
+      "FeedPasswords": {
+        "type": "object",
+        "properties": {
+          "passwords": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeedPassword"
+            }
+          }
+        },
+        "required": [
+          "passwords"
+        ],
+        "additionalProperties": false
+      },
+      "NewFeedPassword": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The password's id, to revoke it"
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is for, as the owner named it (\"blog script\", \"Anna\"); a feed's password from before it had an owner is \"Feed password\""
+          },
+          "created": {
+            "description": "When it was added (ISO 8601); null for the one from before the feed had an owner",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "password": {
+            "type": "string",
+            "description": "The password, 24 characters: shown only this once. Send it as X-Feed-Password"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "FeedPasswordName": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What it is for: one line, 1 to 50 characters"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "AccountFeeds": {
+        "type": "object",
+        "properties": {
+          "feeds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names of the feeds the account owns, sorted"
+          }
+        },
+        "required": [
+          "feeds"
         ],
         "additionalProperties": false
       }

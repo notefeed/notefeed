@@ -114,3 +114,53 @@ test("the ⓘ menu leads to the account when signed in, to sign-in when not", as
   await page.locator('summary[aria-label="About and legal"]').first().click();
   await expect(page.getByRole("link", { name: "Account" })).toBeVisible();
 });
+
+// Owners and their feed passwords (#389): a feed made while signed in is the account's; its settings list its passwords.
+test("a feed made while signed in is yours: add a named password, use it, revoke it", async ({ page, baseURL }) => {
+  await createAccount(page);
+  const api = (path: string, init: { method?: string; data?: unknown; headers?: Record<string, string> } = {}) =>
+    page.request.fetch(`/api/v1/feeds/${path}`, { method: init.method ?? "GET", data: init.data, headers: { origin: baseURL!, ...init.headers } });
+  expect((await api("e2e-owned", { method: "POST", data: { password: "first-password" } })).status()).toBe(201);
+  expect((await api("e2e-owned/notes", { method: "POST", data: "# hi", headers: { "content-type": "text/markdown" } })).status()).toBe(201);
+  await page.goto("/e2e-owned/settings");
+  await expect(page.getByText("This feed is yours")).toBeVisible();
+  await expect(page.getByText("Feed password", { exact: true })).toBeVisible();
+  await page.getByLabel("What it's for").fill("blog script");
+  await page.getByRole("button", { name: "Add a password" }).click();
+  const shown = page.locator("code").filter({ hasText: /^[A-Za-z0-9_-]{24}$/ });
+  await expect(shown).toHaveCount(1);
+  const secret = (await shown.textContent())!;
+  await expect(page.getByText("blog script", { exact: true })).toBeVisible();
+  const post = () =>
+    page.request.fetch("/api/v1/feeds/e2e-owned/notes", {
+      method: "POST",
+      data: "# from the script",
+      headers: { "content-type": "text/markdown", "x-feed-password": secret },
+    });
+  expect((await post()).status()).toBe(201);
+  await page.getByRole("listitem").filter({ hasText: "blog script" }).getByRole("button", { name: "Revoke" }).click();
+  await expect(page.getByText("blog script", { exact: true })).toHaveCount(0);
+  expect((await post()).status()).toBe(401);
+});
+
+test("a protected feed is claimed with its password after unlocking it", async ({ page, browser, baseURL }) => {
+  const anon = await browser.newContext({ baseURL });
+  expect((await anon.request.post("/api/v1/feeds/e2e-claim", { data: { password: "claim-password" } })).status()).toBe(201);
+  expect(
+    (
+      await anon.request.post("/api/v1/feeds/e2e-claim/notes", {
+        data: "# hi",
+        headers: { "content-type": "text/markdown", "x-feed-password": "claim-password" },
+      })
+    ).status(),
+  ).toBe(201);
+  await anon.close();
+  await createAccount(page);
+  await page.goto("/e2e-claim");
+  await page.getByLabel("Password").fill("claim-password");
+  await page.getByRole("button", { name: "Unlock" }).click();
+  await page.goto("/e2e-claim/settings");
+  await page.locator("#claim-password").fill("claim-password");
+  await page.getByRole("button", { name: "Claim" }).click();
+  await expect(page.getByText("This feed is yours")).toBeVisible();
+});

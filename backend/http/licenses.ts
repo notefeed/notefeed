@@ -97,7 +97,7 @@ async function attachOrDetach(req: Request, feedOf: (b: Record<string, unknown>)
     const b = await body(req, 4096);
     const feed = await feedOf(b);
     if (checkFeed(feed)) throw new NotFoundError("no such feed");
-    await checkFeedAccess(feed, feedAccess(req.headers, feed), ip);
+    await checkFeedAccess(feed, await feedAccess(req.headers, feed), ip);
     if (req.method === "DELETE") {
       await detachLicense(feed);
       return json({ ok: true });

@@ -28,7 +28,7 @@ export const feedSettingsRoute = (req: Request, feed: string): Promise<Response>
         name: typeof form.get("name") === "string" ? form.get("name") : undefined, // the rename form (#350)
       };
     };
-    const saved = await updateFeed(feed, ip, read, feedAccess(h, feed));
+    const saved = await updateFeed(feed, ip, read, await feedAccess(h, feed));
     // Renamed: on to the new name's settings; the old name's unlock cookie is of no use any more.
     if (saved.feed !== feed) return seeOther(`${settingsPath(saved.feed)}?saved=1`, feedCookies(h, feed, "", 0));
     return seeOther(`${settingsPath(feed)}?saved=1`);
@@ -43,7 +43,7 @@ export function feedDeleteRoute(req: Request, feed: string): Promise<Response> {
     refused(feed),
     async (h, ip) => {
       if ((await readFields(req, FORM_MAX))?.get("confirm") !== feed) throw new InvalidRequestError("type the feed's name to confirm");
-      await deleteFeed(feed, ip, feedAccess(h, feed));
+      await deleteFeed(feed, ip, await feedAccess(h, feed));
       return gone(h);
     },
     () => gone(req.headers),

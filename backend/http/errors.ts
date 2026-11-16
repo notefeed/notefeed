@@ -26,6 +26,8 @@ import {
   ReservedFeedError,
   UnreadableNoteError,
   UnsupportedTypeError,
+  FeedOwnedError,
+  OwnerOnlyError,
 } from "../errors";
 import { logger } from "../log";
 import { noteOutcome } from "../requestscope";
@@ -41,8 +43,10 @@ const STATUS: [new (...args: never[]) => NotefeedError, number][] = [
   [AuthError, 401],
   [LicenseRequiredError, 402],
   [ImagesOffError, 403],
+  [OwnerOnlyError, 403],
   [NotFoundError, 404],
   [FeedExistsError, 409],
+  [FeedOwnedError, 409],
   [TitleImageDraftError, 409],
   [ReadIdTakenError, 409],
   [FeedNameTakenError, 409],

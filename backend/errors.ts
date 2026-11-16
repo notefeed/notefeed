@@ -94,6 +94,20 @@ export class LicenseRequiredError extends NotefeedError {
 }
 
 /** A feed password was asked for (set, change, remove) on a feed that exists and has none. */
+/** Only the feed's owner may do this (ADR 0059): manage its feed passwords, rename or delete it. */
+export class OwnerOnlyError extends NotefeedError {
+  constructor(message = "only the feed's owner may do this") {
+    super("owner_only", message);
+  }
+}
+
+/** The feed has an owner already, so it can't be claimed (ADR 0059). */
+export class FeedOwnedError extends NotefeedError {
+  constructor(message = "this feed has an owner") {
+    super("owned", message);
+  }
+}
+
 export class FeedExistsError extends NotefeedError {
   constructor(message = "feed already exists and has no password") {
     super("feed_exists", message);

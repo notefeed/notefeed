@@ -235,7 +235,7 @@ describe("edit and delete", () => {
 });
 
 describe("feed settings and deletion", () => {
-  const FEED = { name: "inbox", title: "My inbox", description: "Things", protected: false, read_url: null };
+  const FEED = { name: "inbox", title: "My inbox", description: "Things", protected: false, owned: false, yours: false, read_url: null };
   test("feedInfo GETs the feed and returns it; feed and feedPassword work as for post", async () => {
     server.reply(200, FEED);
     const c = new Client({ url: server.url, feed: "inbox", password: "pw", feedPassword: "fp" });

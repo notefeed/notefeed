@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen.js';
+import type { AddFeedPasswordData, AddFeedPasswordErrors, AddFeedPasswordResponses, ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, ClaimFeedData, ClaimFeedErrors, ClaimFeedResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListAccountFeedsData, ListAccountFeedsErrors, ListAccountFeedsResponses, ListFeedPasswordsData, ListFeedPasswordsErrors, ListFeedPasswordsResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RecoverFeedPasswordData, RecoverFeedPasswordErrors, RecoverFeedPasswordResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, RevokeFeedPasswordData, RevokeFeedPasswordErrors, RevokeFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -210,6 +210,69 @@ export const changeFeedPassword = <ThrowOnError extends boolean = false>(options
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Claim a feed for the signed-in account
+ *
+ * The feed becomes the account's own (its owner): only the owner then manages its feed passwords, renames and deletes it. A protected feed is claimed with one of its passwords, which stays as its first, named `Feed password`, so scripts keep working. An open feed is claimed by giving it a password, as setting one protects it. A feed with an owner can't be claimed (409, code `owned`). Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.
+ */
+export const claimFeed = <ThrowOnError extends boolean = false>(options: Options<ClaimFeedData, ThrowOnError>): RequestResult<ClaimFeedResponses, ClaimFeedErrors, ThrowOnError> => (options.client ?? client).post<ClaimFeedResponses, ClaimFeedErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/claim',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List an owned feed's passwords
+ *
+ * Their names, ids and when they were added, never the passwords. Only for the feed's owner.
+ */
+export const listFeedPasswords = <ThrowOnError extends boolean = false>(options: Options<ListFeedPasswordsData, ThrowOnError>): RequestResult<ListFeedPasswordsResponses, ListFeedPasswordsErrors, ThrowOnError> => (options.client ?? client).get<ListFeedPasswordsResponses, ListFeedPasswordsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/passwords',
+    ...options
+});
+
+/**
+ * Add a named password to an owned feed
+ *
+ * A new password for one person or script, generated and shown only in this answer. It does what a feed password does: post, edit, delete notes, change the settings. Each is revoked on its own. Only for the feed's owner; where licenses are sold, the feed needs one.
+ */
+export const addFeedPassword = <ThrowOnError extends boolean = false>(options: Options<AddFeedPasswordData, ThrowOnError>): RequestResult<AddFeedPasswordResponses, AddFeedPasswordErrors, ThrowOnError> => (options.client ?? client).post<AddFeedPasswordResponses, AddFeedPasswordErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/passwords',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke one of an owned feed's passwords
+ *
+ * It, and every browser unlocked with it, stops working at once; the others keep working. Revoking the last leaves the feed open, still the owner's.
+ */
+export const revokeFeedPassword = <ThrowOnError extends boolean = false>(options: Options<RevokeFeedPasswordData, ThrowOnError>): RequestResult<RevokeFeedPasswordResponses, RevokeFeedPasswordErrors, ThrowOnError> => (options.client ?? client).delete<RevokeFeedPasswordResponses, RevokeFeedPasswordErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/feeds/{feed}/passwords/{id}',
+    ...options
+});
+
+/**
+ * The signed-in account's feeds
+ *
+ * The feeds it owns. Needs a signed-in account: from this instance's own pages for now; account tokens for scripts follow.
+ */
+export const listAccountFeeds = <ThrowOnError extends boolean = false>(options?: Options<ListAccountFeedsData, ThrowOnError>): RequestResult<ListAccountFeedsResponses, ListAccountFeedsErrors, ThrowOnError> => (options?.client ?? client).get<ListAccountFeedsResponses, ListAccountFeedsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/account/feeds',
+    ...options
 });
 
 /**

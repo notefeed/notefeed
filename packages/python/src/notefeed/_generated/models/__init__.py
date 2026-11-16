@@ -1,10 +1,15 @@
 """Contains all the data models used in inputs/outputs"""
 
+from .account_feeds import AccountFeeds
+from .claim import Claim
 from .create_feed_json import CreateFeedJson
 from .created import Created
 from .error import Error
 from .error_code import ErrorCode
 from .feed import Feed
+from .feed_password import FeedPassword
+from .feed_password_name import FeedPasswordName
+from .feed_passwords import FeedPasswords
 from .feed_settings import FeedSettings
 from .free_tier import FreeTier
 from .get_open_api_response_200 import GetOpenApiResponse200
@@ -13,6 +18,7 @@ from .licenses import Licenses
 from .licenses_plans_item import LicensesPlansItem
 from .licenses_plans_item_period import LicensesPlansItemPeriod
 from .multipart_note import MultipartNote
+from .new_feed_password import NewFeedPassword
 from .note import Note
 from .note_edited import NoteEdited
 from .note_list import NoteList
@@ -24,11 +30,16 @@ from .read_feed import ReadFeed
 from .recovery_json import RecoveryJson
 
 __all__ = (
+    "AccountFeeds",
+    "Claim",
     "CreateFeedJson",
     "Created",
     "Error",
     "ErrorCode",
     "Feed",
+    "FeedPassword",
+    "FeedPasswordName",
+    "FeedPasswords",
     "FeedSettings",
     "FreeTier",
     "GetOpenApiResponse200",
@@ -37,6 +48,7 @@ __all__ = (
     "LicensesPlansItem",
     "LicensesPlansItemPeriod",
     "MultipartNote",
+    "NewFeedPassword",
     "Note",
     "NoteEdited",
     "NoteList",

@@ -44,6 +44,20 @@ Wrong keys count toward the failed-attempt limit, like wrong passwords. With `pr
 
 The number and the key are the way back in. Lose both and every passkey, and the account is gone: notefeed has no e-mail address to send a reset to and can't tell who held it. You can delete it as the operator; nothing can open it again.
 
+## Feeds and their owners
+
+A feed created by a signed-in account is its own, and an existing one can be claimed: see [A feed with an owner](../using/feed-passwords.md#a-feed-with-an-owner). Deleting an account deletes the feeds it owns first, then the account. A feed whose owner's account is gone (a deletion stopped halfway, or a restore of the notes without `accounts.sqlite`) can't be claimed by anyone. You decide about it:
+
+```sh
+# give it to an account, by its number (or take its owner away with null)
+curl -X PUT -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" -d '{"number": "4821-0937-5521-7764"}' "https://notes.example.com/api/operator/feeds?feed=<name>"
+
+# delete it with everything in it
+curl -X DELETE -H "Authorization: Bearer $NOTEFEED_OPERATOR_TOKEN" "https://notes.example.com/api/operator/feeds?feed=<name>"
+```
+
+The owner is stored with the feed, encrypted with its key on an encrypted database ([Storage](storage.md)), never in `accounts.sqlite`.
+
 ## The operator's accounts
 
 With `NOTEFEED_OPERATOR_TOKEN` set (32 characters or more), with accounts `open` or `closed`:

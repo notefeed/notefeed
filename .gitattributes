@@ -1,0 +1,5 @@
+# Written by `npm run generate` from backend/http/api.ts: collapsed in GitHub's diffs and left out of the language stats.
+openapi.json linguist-generated=true
+packages/js/src/generated/** linguist-generated=true
+app/_lib/api/** linguist-generated=true
+packages/python/src/notefeed/_generated/** linguist-generated=true

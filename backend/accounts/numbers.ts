@@ -77,6 +77,14 @@ export async function deleteAccount(userId: string): Promise<void> {
   await ctx.internalAdapter.deleteUser(userId); // with its sessions and sign-in records
 }
 
+// The id of the account with this number (as typed), or undefined.
+export async function accountIdOf(typed: string): Promise<string | undefined> {
+  const number = parseNumber(typed);
+  const a = accountsAuth();
+  if (!number || !a) return undefined;
+  return (await (await a.$context).internalAdapter.findUserByEmail(placeholderEmail(number)))?.user.id;
+}
+
 // The account number of a signed-in account, or undefined for one made through an identity provider.
 export async function accountNumber(userId: string): Promise<string | undefined> {
   const ctx = await auth().$context;

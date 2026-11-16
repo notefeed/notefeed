@@ -7,7 +7,8 @@
 // with account tokens.
 import { accountsAuth, fresh, type SignedIn, signedInSession } from "../accounts/auth";
 import { accountsMode, accountsOn } from "../accounts/mode";
-import { accountNumber, createAccount, deleteAccount, formatNumber, newRecoveryKey, parseNumber, signInWithNumber } from "../accounts/numbers";
+import { accountNumber, createAccount, formatNumber, newRecoveryKey, parseNumber, signInWithNumber } from "../accounts/numbers";
+import { deleteAccountWithFeeds } from "../posting";
 import { AuthError, NotefeedError, RateLimitedError, TooManyAttemptsError } from "../errors";
 import { accountCreateWait, authAttempt, clientIp } from "../limits";
 import { logger } from "../log";
@@ -86,7 +87,7 @@ export async function accountDeleteRoute(req: Request): Promise<Response> {
   const out = await accountsAuth()!
     .api.signOut({ headers: req.headers, returnHeaders: true })
     .catch(() => null);
-  await deleteAccount(who.userId);
+  await deleteAccountWithFeeds(who.userId); // its feeds first
   log.info("account deleted");
   const res = seeOther("/");
   for (const c of out?.headers.getSetCookie() ?? []) res.headers.append("Set-Cookie", c);

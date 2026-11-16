@@ -13,7 +13,11 @@
 //     POST    encrypts the notes stored before NOTEFEED_ENCRYPTION_KEY was set, a batch per call
 //   /api/operator/accounts (#388, ADR 0057; 404 while accounts are off)
 //     POST    a new account, with accounts `open` or `closed` (the only way in `closed`): its number and recovery key, once
-//     DELETE  ?number=<account number>: that account, with its sessions and passkeys
+//     DELETE  ?number=<account number>: that account, with its feeds, sessions and passkeys
+//   /api/operator/feeds?feed=<name> (#389, ADR 0059)
+//     PUT     {"number": "<account number>" | null}: gives the feed to that account, or takes its owner away; for a feed whose
+//             owner's account is gone, or reserved feeds. Its passwords stay
+//     DELETE  the feed with everything in it, owned or not
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { config } from "../config";
@@ -29,8 +33,10 @@ import type { ImageStore } from "../storage/images/types";
 import type { SqlStorage } from "../storage/sql";
 import { takedown, takedownNote } from "../takedown";
 import { accountsMode, accountsOn } from "../accounts/mode";
-import { accountsAuth } from "../accounts/auth";
-import { createAccount, deleteAccount, formatNumber, parseNumber } from "../accounts/numbers";
+import { accountIdOf, createAccount, formatNumber } from "../accounts/numbers";
+import { deleteAccountWithFeeds, removeFeedAndLicense } from "../posting";
+import { setFeedOwner } from "../feedlock";
+import { assertFeed } from "../feeds";
 
 // An object younger than this is never counted or removed: its note's row may still be on its way (the object is written first).
 export const MIN_AGE_MS = 3_600_000;
@@ -190,23 +196,70 @@ export async function resealRoute(req: Request): Promise<Response> {
   return json({ resealed: r.resealed, skipped: r.skipped, failed: r.failed, left: r.left, next: r.next });
 }
 
-export async function operatorAccountsRoute(req: Request): Promise<Response> {
+// POST /api/operator/accounts: a new account, its number and recovery key once.
+export async function operatorAccountCreateRoute(req: Request): Promise<Response> {
   const refused = gate(req);
   if (refused) return refused;
   if (!accountsOn()) return json({ error: "accounts are off" }, 404);
-  if (req.method === "POST") {
-    // In `provider` mode every account comes through the identity provider and its allow-list.
-    if (accountsMode() === "provider") return json({ error: "accounts come from the identity provider (NOTEFEED_ACCOUNTS=provider)" }, 409);
-    const { number, recoveryKey } = await createAccount();
-    log.info("account created by the operator"); // never which
-    return json({ number: formatNumber(number), recoveryKey }, 201);
-  }
-  if (req.method !== "DELETE") return json({ error: "method not allowed" }, 405, { Allow: "POST, DELETE" });
-  const number = parseNumber(new URL(req.url).searchParams.get("number") ?? "");
-  const ctx = await accountsAuth()!.$context;
-  const user = number ? await ctx.internalAdapter.findUserByEmail(`${number}@accounts.invalid`) : null;
-  if (!user) return json({ error: "no such account" }, 404);
-  await deleteAccount(user.user.id);
+  // In `provider` mode every account comes through the identity provider and its allow-list.
+  if (accountsMode() === "provider") return json({ error: "accounts come from the identity provider (NOTEFEED_ACCOUNTS=provider)" }, 409);
+  const { number, recoveryKey } = await createAccount();
+  log.info("account created by the operator"); // never which
+  return json({ number: formatNumber(number), recoveryKey }, 201);
+}
+
+// DELETE /api/operator/accounts?number=: that account, with its feeds.
+export async function operatorAccountDeleteRoute(req: Request): Promise<Response> {
+  const refused = gate(req);
+  if (refused) return refused;
+  if (!accountsOn()) return json({ error: "accounts are off" }, 404);
+  const account = await accountIdOf(new URL(req.url).searchParams.get("number") ?? "");
+  if (!account) return json({ error: "no such account" }, 404);
+  await deleteAccountWithFeeds(account); // its feeds first
   log.info("account deleted by the operator");
+  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+}
+
+// The feed ?feed= names, or the 400 for a name that isn't one; after the operator's token.
+function operatorFeed(req: Request): string | Response {
+  const refused = gate(req);
+  if (refused) return refused;
+  const feed = new URL(req.url).searchParams.get("feed") ?? "";
+  try {
+    assertFeed(feed);
+  } catch {
+    return json({ error: "invalid feed name" }, 400);
+  }
+  return feed;
+}
+
+// PUT /api/operator/feeds?feed=: gives the feed to an account, or takes its owner away.
+export async function operatorFeedOwnerRoute(req: Request): Promise<Response> {
+  const feed = operatorFeed(req);
+  if (feed instanceof Response) return feed;
+  const body = (await req.json().catch(() => null)) as { number?: unknown } | null;
+  if (!body || (body.number !== null && typeof body.number !== "string")) return json({ error: 'JSON needs "number": an account number or null' }, 400);
+  let owner: string | undefined;
+  if (typeof body.number === "string") {
+    if (!accountsOn()) return json({ error: "accounts are off" }, 404);
+    owner = await accountIdOf(body.number);
+    if (!owner) return json({ error: "no such account" }, 404);
+  }
+  try {
+    await setFeedOwner(feed, owner);
+  } catch (e) {
+    if (e instanceof NotefeedError && e.code === "not_found") return json({ error: "no such feed" }, 404);
+    throw e;
+  }
+  log.info({ owner: owner ? "given" : "taken away" }, "feed owner set by the operator");
+  return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+}
+
+// DELETE /api/operator/feeds?feed=: the feed with everything in it, owned or not.
+export async function operatorFeedDeleteRoute(req: Request): Promise<Response> {
+  const feed = operatorFeed(req);
+  if (feed instanceof Response) return feed;
+  if (!(await removeFeedAndLicense(feed))) return json({ error: "no such feed" }, 404);
+  log.info("feed deleted by the operator"); // never its name
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }

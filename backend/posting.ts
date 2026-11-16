@@ -24,7 +24,7 @@ import {
   TitleImageDraftError,
   UnsupportedTypeError,
 } from "./errors";
-import { type FeedAccess, checkFeedAccess, checkNewPassword, createProtected } from "./feedlock";
+import { type FeedAccess, checkFeedAccess, checkNewPassword, createProtected, ownedFeeds, ownersChanged, ownNewFeed, requireOwnerIfOwned } from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
 import {
   assertFeed,
@@ -133,7 +133,7 @@ async function protect(
     if (exists) throw new FeedExistsError();
     if (key) await countingKeys(ip, () => checkLicenseKey(key));
     else await requireLicense(feed);
-    await createProtected(feed, password, wantedReadId);
+    await createProtected(feed, password, wantedReadId, access.account);
     // The feed exists now, protected by a password only its creator knows, so nobody else can take the license meanwhile.
     // ponytail: should the store fail here, the feed stays protected and unlicensed; its owner enters the key in the settings.
     if (key) await attachLicense(feed, key);
@@ -255,6 +255,7 @@ export async function postNote(
     at,
   );
   await licenseNewFeed(feed, licenseKey);
+  if (!exists) await ownNewFeed(feed, access.account); // a feed an account's post made is that account's (ADR 0059)
   await trimToFreeCap(feed);
   return { ...made, created };
 }
@@ -266,7 +267,13 @@ const senderOf = (given: string | undefined, checked: string | undefined, signed
 // A feed without a note (#295, ADR 0047): reserved now, with a password and a read id if given, as a first post would create it.
 // Where licenses are sold it needs a license key, which goes on the new feed (free feeds still start with their first note). It counts
 // as a post against the rate limit, and against NOTEFEED_MAX_FEEDS. A feed that exists is refused (409), whatever it holds.
-export async function createFeed(feed: string, ip: string, input: { password?: string; licenseKey?: string; readId?: string }): Promise<void> {
+// `account`: the signed-in account creating it, whose feed it then is (ADR 0059).
+export async function createFeed(
+  feed: string,
+  ip: string,
+  input: { password?: string; licenseKey?: string; readId?: string },
+  account?: string,
+): Promise<void> {
   assertFeed(feed);
   if (isHeldBack(feed)) throw new ReservedFeedError();
   if (await isRemovedFeed(feed)) throw new RemovedFeedError();
@@ -280,10 +287,11 @@ export async function createFeed(feed: string, ip: string, input: { password?: s
   if (key) await countingKeys(ip, () => checkLicenseKey(key));
   const readId = input.readId?.trim() || undefined;
   if (password !== undefined) {
-    await createProtected(feed, password, readId).catch((e) => {
+    await createProtected(feed, password, readId, account).catch((e) => {
       throw e instanceof AuthError ? new FeedExistsError("feed already exists") : e; // created by someone else meanwhile
     });
   } else if (!(await createOpenFeed(feed, readId))) throw new FeedExistsError("feed already exists");
+  else await ownNewFeed(feed, account);
   if (key) await attachLicense(feed, key);
 }
 
@@ -365,6 +373,7 @@ export async function updateFeed(feed: string, ip: string, read: () => Promise<u
   const stored = await getStoredSettings(feed);
   const { readId, name, ...rest } = given;
   const newName = name === undefined || name === "" || name === feed ? undefined : name; // the page sends the current one back: no change
+  if (newName !== undefined) await requireOwnerIfOwned(feed, access.account); // an owned feed is renamed by its owner only
   if (newName !== undefined) await checkRename(feed, newName); // first, so a refused name saves nothing
   const newId = readId === undefined || readId === (await readIdOf(feed)) ? undefined : readId; // the page sends the current one back: no change
   if (newId !== undefined && isHeldBack(feed)) throw new InvalidBodyError("a reserved feed keeps its read id");
@@ -376,6 +385,7 @@ export async function updateFeed(feed: string, ip: string, read: () => Promise<u
   await saveSettings(feed, checked);
   if (stored.ownImage && stored.image && stored.image !== image) await removeOwnImage(feed, stored.image);
   if (newName !== undefined) await renameWithLicense(feed, newName);
+  if (newName !== undefined) ownersChanged();
   return { ...checked, feed: newName ?? feed };
 }
 
@@ -454,8 +464,27 @@ export async function setLicense(feed: string, ip: string, key: string | null, a
 
 export async function deleteFeed(feed: string, ip: string, access: FeedAccess): Promise<void> {
   await admit(feed, ip, access);
+  await requireOwnerIfOwned(feed, access.account); // an owned feed is deleted by its owner only (ADR 0059)
   if (!(await removeWholeFeed(feed))) throw new NotFoundError("no such feed");
+  ownersChanged();
   await releaseLicense(feed);
+}
+
+// A feed with everything in it, and its license given back: the operator's, and an account's own when the account goes.
+export async function removeFeedAndLicense(feed: string): Promise<boolean> {
+  if (!(await removeWholeFeed(feed))) return false;
+  ownersChanged();
+  await releaseLicense(feed);
+  return true;
+}
+
+// Deleting an account (ADR 0059): its feeds first, then the account. Should it stop in between, the account is still there to try
+// again; should it stop after a feed's deletion failed, that feed stays owned by an account that is gone, which nobody can claim and
+// the operator decides about (/api/operator/feeds).
+export async function deleteAccountWithFeeds(userId: string): Promise<void> {
+  for (const feed of await ownedFeeds(userId)) await removeFeedAndLicense(feed);
+  const { deleteAccount } = await import("./accounts/numbers");
+  await deleteAccount(userId);
 }
 
 export { MAX_ATTACHMENTS }; // defined in shared/links.ts: the web box holds to it too
@@ -592,6 +621,7 @@ export async function postWithPictures(
   const id = text === undefined ? undefined : newNoteId();
   const dateOf = (i: number) => new Date(Math.max(0, at.getTime() - pictures.length + i)); // never before 1970
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined, of: id }, dateOf, async (stored, sent, readId) => {
+    if (!exists) await ownNewFeed(feed, access.account);
     if (text === undefined) {
       await licenseNewFeed(feed, licenseKey);
       return { note: stored[0], created, readId, pictures: stored };

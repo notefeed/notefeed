@@ -5,6 +5,7 @@
 // /r/<readId>/post-to-notefeed.md is always the current version of that file.
 import { createHash } from "node:crypto";
 import { feedUnlocked } from "../feedlock";
+import { accountOf } from "../accounts/numbers";
 import { checkFeed } from "../feednames";
 import { feedForReadId, isRemovedFeed, isRemovedReadId } from "../feeds";
 import { measured } from "../metrics";
@@ -61,14 +62,16 @@ async function serveFile(readId: string, file: string, ifNoneMatch?: string | nu
 
 // GET /<feed>/files/<file>: ownerFile for the feed's own pages, with the browser's unlock cookie (`cookie`) as the page has it. A locked
 // feed answers 401 without saying whether the file is there.
-export const ownerFileRoute = (feed: string, file: string, cookie: string | undefined, ifNoneMatch?: string | null): Promise<Response> =>
+// `h`: the request's headers, for the signed-in owner, who opens their own feed without a password (ADR 0059).
+export const ownerFileRoute = (feed: string, file: string, cookie: string | undefined, ifNoneMatch?: string | null, h?: Headers): Promise<Response> =>
   measured(
     "feed_owner_file",
     async () => {
       noteRoute("/[feed]/files/[file]");
       if (checkFeed(feed)) return new Response("not found", { status: 404 });
       if (await isRemovedFeed(feed)) return new Response("removed by the operator", { status: 410 });
-      if ((await feedUnlocked(feed, cookie)) === "locked") return new Response("locked", { status: 401, headers: { "Cache-Control": "no-store" } });
+      if ((await feedUnlocked(feed, cookie, h ? (await accountOf(h))?.userId : undefined)) === "locked")
+        return new Response("locked", { status: 401, headers: { "Cache-Control": "no-store" } });
       return ownerFile(feed, file, ifNoneMatch);
     },
     (r) => r.status,

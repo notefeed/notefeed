@@ -36,6 +36,8 @@ export const en = {
       removed: "This feed was removed by the operator. Its name can't be used again.",
       blocked: "This image may not be posted here.",
       busy: "notefeed is busy with other pictures. Try again in {retry} seconds.",
+      owner_only: "Only the feed's owner can do that. Sign in to its account.",
+      owned: "This feed has an owner already, so it can't be claimed.",
       sign_in_failed: "Sign-in didn't work. Try again.",
     },
     feed: {
@@ -419,6 +421,26 @@ export const en = {
     empty: "No notes yet. Write one, or post from a script:",
   },
   // A feed's settings page (app/[lang]/[feed]/settings/page.tsx). **x** is shown bold, `x` as code (components/rich.tsx).
+  // A feed's owner and its named feed passwords (components/FeedOwner.tsx, ADR 0059).
+  owner: {
+    passwordsHeading: "Feed passwords",
+    passwordsIntro: "Give each script or person a password of their own, and revoke it on its own. Only you, the owner, see these.",
+    added: (date: string) => `added ${date}`,
+    nameLabel: "What it's for",
+    namePlaceholder: "blog script, Anna",
+    add: "Add a password",
+    shown: "The new password, shown only this once. Give it to the script or person it is for:",
+    revoke: "Revoke",
+    noPasswords: "No passwords: the feed is open to anyone who knows its name. It stays yours.",
+    yours: "This feed is yours: only your account manages its passwords, renames and deletes it.",
+    someoneElses: "This feed belongs to an account. Only its owner manages its passwords, renames and deletes it.",
+    claimHeading: "Make this feed yours",
+    claimProtected: "Claim it with its password. Then only your account manages its passwords, renames and deletes it, and the password keeps working.",
+    claimOpen: "Give it a password to claim it. Then only your account manages its passwords, renames and deletes it.",
+    password: "Password",
+    claim: "Claim",
+    failed: "That didn't work. Please try again.",
+  },
   settings: {
     title: "Feed settings",
     back: "Back to the feed",

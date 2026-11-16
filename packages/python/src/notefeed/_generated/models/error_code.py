@@ -16,6 +16,8 @@ class ErrorCode(StrEnum):
     LICENSE_REQUIRED = "license_required"
     NOTE_LIMIT = "note_limit"
     NOT_FOUND = "not_found"
+    OWNED = "owned"
+    OWNER_ONLY = "owner_only"
     RATE_LIMITED = "rate_limited"
     REMOVED = "removed"
     RESERVED_FEED = "reserved_feed"

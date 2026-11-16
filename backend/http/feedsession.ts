@@ -9,7 +9,7 @@ import { clientIp } from "../limits";
 import { API_PREFIX, feedPath, publicUrl, settingsPath } from "../urls";
 import { shareQuery } from "../../shared/share";
 import { errorResponse } from "./errors";
-import { FORM_WITH_SHARE_BYTES, authorize, errorRedirect, parseForm, readCapped, sameOrigin, seeOther } from "./request";
+import { FORM_WITH_SHARE_BYTES, authorize, errorRedirect, parseForm, readCapped, sameOrigin, seeOther, requestAccount } from "./request";
 
 const YEAR = 60 * 60 * 24 * 365;
 
@@ -58,7 +58,7 @@ export async function feedAccessRoute(req: Request, feed: string): Promise<Respo
     if (action === "create") {
       await authorize(h, clientIp(h)); // a locked instance's own password (or session) first, as every other way to create a feed needs it
       const password = field("password");
-      await createFeed(feed, clientIp(h), { password, licenseKey: field("key") });
+      await createFeed(feed, clientIp(h), { password, licenseKey: field("key") }, await requestAccount(h));
       return password ? seeOther(`${page}?created=1`, set(await unlock(feed, password, clientIp(h)))) : seeOther(`${page}?created=1`);
     }
     if (action === "protect") return seeOther(saved(feed, "set"), set(await changePassword(feed, "", field("next"), clientIp(h))));

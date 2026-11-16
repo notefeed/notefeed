@@ -1,6 +1,6 @@
 // Reading requests, for the handlers in backend/http.
 import { AuthError, NotefeedError, RateLimitedError } from "../errors";
-import { signedInName } from "../accounts/auth";
+import { signedInName, signedInSession } from "../accounts/auth";
 import { bearerOf, checkBearer, cookieOf, locked, sessionOk } from "../auth";
 import { type FeedAccess, feedCookieName } from "../feedlock";
 import { assertFeed } from "../feeds";
@@ -94,12 +94,21 @@ export async function authorize(h: Headers, ip: string): Promise<void> {
   checkBearer(h.get("authorization"), ip);
 }
 
-// The feed password header, or (like the instance cookie) the feed's unlock cookie from this instance's own pages.
-// An empty header is no header: that is what curl sends for -H "X-Feed-Password: $UNSET" (nothing at all).
-export function feedAccess(h: Headers, feed: string): FeedAccess {
+// The signed-in account behind a request from this instance's own pages (a session cookie, honoured like the instance's own: same
+// origin, no Authorization header), or undefined. Account tokens for scripts come with #390.
+export async function requestAccount(h: Headers): Promise<string | undefined> {
+  if (h.has("authorization") || !sameOrigin(h)) return undefined;
+  return (await signedInSession(h))?.userId;
+}
+
+// The feed password header, or (like the instance cookie) the feed's unlock cookie from this instance's own pages, and the account
+// signed in there (an owner passes without a password, ADR 0059). An empty header is no header: that is what curl sends for
+// -H "X-Feed-Password: $UNSET" (nothing at all).
+export async function feedAccess(h: Headers, feed: string): Promise<FeedAccess> {
   const password = h.get("x-feed-password") || undefined;
   const cookieOk = password === undefined && sameOrigin(h);
-  return { password, cookie: cookieOk ? cookie(h, feedCookieName(feed)) : undefined };
+  const account = await requestAccount(h);
+  return { password, cookie: cookieOk ? cookie(h, feedCookieName(feed)) : undefined, ...(account ? { account } : {}) };
 }
 
 // One of the web UI's plain forms for changing a feed or a note. Runs `act` once the post is known to come from
