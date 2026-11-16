@@ -23,7 +23,7 @@ The tag message is the release notes: on GitHub, on /r/releases, and what the ne
 - First line `notefeed X.Y.Z` (dropped on /r/releases), then what changed for users in a few short paragraphs, as the previous tags do.
 - `Breaking:` a paragraph per change that makes something stop working (a renamed or removed header, parameter, tool or command, something now refused, a changed default) and what to do instead. Check every pull request since the last tag for one; when there is none, leave the paragraph out.
 - `Upgrading:` what someone who runs notefeed has to do: a new or changed setting (and that notefeed.me sets it in MarcelBruckner-Business/ansible), a backup before a migration.
-- `MCP:` when the tools changed (`git diff --quiet vPREV..HEAD -- backend/mcp.ts` fails): which tools or parameters are new, changed or gone, and that assistants see them only after reconnecting (Claude: a new chat, or remove and add the connector; Claude Code: restart). When the sign-in changed (`backend/oauth`, `app/.well-known`, `app/mcp`) in a way that ends existing connections: connect notefeed again.
+- `MCP:` when the tools changed (`git diff --quiet vPREV..HEAD -- backend/mcp.ts` fails): which tools or parameters are new, changed or gone, and that assistants see them only after reconnecting (Claude: a new chat, or remove and add the connector; Claude Code: restart). When the sign-in changed (`backend/accounts/auth.ts`, `backend/accounts/mcpoauth.ts`, `app/.well-known`, `app/[lang]/(site)/oauth`) in a way that ends existing connections: connect notefeed again.
 
 Write the message to a file and tag with `git tag -a vX.Y.Z -F <file>`.
 

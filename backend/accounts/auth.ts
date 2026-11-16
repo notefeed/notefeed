@@ -12,6 +12,7 @@ import { mcp } from "@better-auth/mcp";
 import { cimd } from "@better-auth/cimd";
 import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { getMigrations } from "better-auth/db/migration";
+import { symmetricDecrypt } from "better-auth/crypto";
 import { createHmac } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -37,7 +38,7 @@ function options() {
   return {
     database: new Database(path),
     basePath: AUTH_PATH,
-    // From the key of the other signed values (oauth/tokens.ts: the server secret and the instance password), so changing either
+    // From the key of the other signed values (signed.ts: the server secret and the instance password), so changing either
     // signs everyone out.
     secret: betterAuthSecret(),
     // Always PUBLIC_URL (migrateAccounts refuses to start without it): from a request's Host, Better Auth's origin check would trust
@@ -129,24 +130,49 @@ export function oauthAuth(): Auth | undefined {
 // The instance, or undefined while accounts are off (or PUBLIC_URL is missing, which startup refuses).
 export const accountsAuth = (): Auth | undefined => (accountsOn() ? oauthAuth() : undefined);
 
-// The Better Auth user an MCP client of a password-locked instance acts as (ADR 0062): no person, no name, made on first use. Its
-// address carries a fingerprint of the password's key, so a changed password makes a new one; the old one is deleted with its
-// clients' tokens, and Better Auth's signing keys (sealed with the secret that changed with it) are made afresh.
+// The Better Auth user an MCP client of a password-locked instance acts as (ADR 0062): no person, no name. Its address carries a
+// fingerprint of the password's key, so a changed password makes a new one and the old one is deleted with its clients' grants.
+// Found or made once per key and then kept in memory; callers meanwhile share that one lookup, so two can't make two users.
 const INSTANCE_DOMAIN = "instance.notefeed.invalid";
-export async function instanceUser(auth: Auth): Promise<string> {
-  const ctx = await auth.$context;
+const instance = processState("instance-user", () => ({ fp: "", id: undefined as Promise<string> | undefined }));
+export function instanceUser(auth: Auth): Promise<string> {
   const fp = createHmac("sha256", signingKey()).update("notefeed-instance-user").digest("hex").slice(0, 32);
+  const at = `${fp} ${config.accountsDb()}`;
+  if (instance.fp !== at || !instance.id) {
+    instance.fp = at;
+    instance.id = findOrMakeInstanceUser(auth, fp).catch((e) => {
+      instance.id = undefined; // tried again by the next caller
+      throw e;
+    });
+  }
+  return instance.id;
+}
+async function findOrMakeInstanceUser(auth: Auth, fp: string): Promise<string> {
+  const ctx = await auth.$context;
   const email = `${fp}@${INSTANCE_DOMAIN}`;
   const found = await ctx.internalAdapter.findUserByEmail(email);
   if (found) return found.user.id;
-  const old = await ctx.adapter.findMany<{ id: string; email: string }>({
-    model: "user",
-    where: [{ field: "email", operator: "ends_with", value: `@${INSTANCE_DOMAIN}` }],
-  });
+  const old = await ctx.adapter.findMany<{ id: string }>({ model: "user", where: [{ field: "email", operator: "ends_with", value: `@${INSTANCE_DOMAIN}` }] });
   for (const u of old) await ctx.internalAdapter.deleteUser(u.id);
-  if (old.length) await ctx.adapter.deleteMany({ model: "jwks", where: [] });
-  const user = await ctx.internalAdapter.createUser({ email, name: "", emailVerified: true }, { method: "admin" });
-  return user.id;
+  return (await ctx.internalAdapter.createUser({ email, name: "", emailVerified: true }, { method: "admin" })).id;
+}
+
+// Better Auth's signing keys are sealed with its secret, which notefeed derives from NOTEFEED_SECRET and the instance password: after
+// either changed, the stored ones can't be opened and every token request would fail. They are dropped then, and the next token made
+// with a new key; the tokens signed with the old ones end with them, as a changed secret signs everyone out.
+async function dropUnreadableKeys(auth: Auth): Promise<void> {
+  const ctx = await auth.$context;
+  const keys = await ctx.adapter.findMany<{ privateKey: string }>({ model: "jwks" });
+  for (const k of keys) {
+    const opens = await symmetricDecrypt({ key: ctx.secretConfig, data: JSON.parse(k.privateKey) as string }).then(
+      () => true,
+      () => false,
+    );
+    if (opens) continue;
+    await ctx.adapter.deleteMany({ model: "jwks", where: [] });
+    betterAuthLog.warn({}, "signing keys sealed with an earlier secret dropped; MCP clients sign in again");
+    return;
+  }
 }
 
 // Creates or updates Better Auth's tables; nothing while accounts are off (no file is made). The settings were checked at start-up
@@ -156,6 +182,7 @@ export async function migrateAccounts(): Promise<void> {
   if (!auth) return;
   const { runMigrations } = await getMigrations(auth.options);
   await runMigrations();
+  await dropUnreadableKeys(auth);
   if (!accountsOn()) return void (await instanceUser(auth)); // after a password change: the old clients go now, not at their next call
   await (await import("./subscriptions")).migrateSubscriptions(); // the license's subscriptions, notefeed's own table (#391)
 }
@@ -238,7 +265,7 @@ async function refusal(auth: Auth, userId: string): Promise<{ reason: string; pr
   return allowed(p, { email, email_verified: user.emailVerified }) ? null : { reason: "person no longer on the allow-list", provider: p.id };
 }
 
-// Whether the person may still be signed in (for an MCP client's refresh, oauth/routes.ts); false while sign-in is off.
+// Whether the person may still be signed in: for an MCP client's token (mcp.ts) and an account token (tokens.ts); false while sign-in is off.
 export async function stillAllowed(userId: string): Promise<boolean> {
   const auth = accountsAuth();
   return auth ? (await refusal(auth, userId)) === null : false;

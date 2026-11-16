@@ -21,7 +21,7 @@ function postTarget(pathname: string): string | null {
 // left alone: the API, MCP, metrics, health, logout, OAuth's endpoints, a read link's RSS, Atom and files, and the static files.
 // /<feed>'s own POST handlers (access, delete, details, license, files) live under app/[lang]/[feed], so they are rewritten too.
 const NOT_A_PAGE =
-  /^\/(?:api\/|_next\/|\.well-known\/|shortcuts\/|oauth\/(?:register|token)$|(?:mcp|metrics|health|logout)$|r\/[^/]+\/(?:[^/]*\.[^/]*|files\/.*)$|(?:icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js|favicon\.ico)$)/;
+  /^\/(?:api\/|_next\/|\.well-known\/|shortcuts\/|(?:mcp|metrics|health|logout)$|r\/[^/]+\/(?:[^/]*\.[^/]*|files\/.*)$|(?:icon\.svg|icon-[\w-]+\.png|apple-icon\.png|opengraph-image\.png|manifest\.webmanifest|sw\.js|favicon\.ico)$)/;
 
 function localized(req: NextRequest): NextResponse {
   const { pathname, search } = req.nextUrl;

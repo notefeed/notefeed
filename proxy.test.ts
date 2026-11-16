@@ -101,8 +101,6 @@ test.each([
   "/metrics",
   "/health",
   "/logout",
-  "/oauth/token",
-  "/oauth/register",
   "/.well-known/oauth-authorization-server",
   "/r/q2Zc9kD0bTnVx4LmAe7sWp/feed.xml",
   "/r/q2Zc9kD0bTnVx4LmAe7sWp/atom.xml",
@@ -218,7 +216,6 @@ test.each([
   "/metrics",
   "/health",
   "/oauth/authorize?x=1",
-  "/oauth/token",
   "/.well-known/oauth-authorization-server",
   "/.well-known/oauth-protected-resource/mcp",
 ])("locked: %s is not sent to /login", async (p) => {

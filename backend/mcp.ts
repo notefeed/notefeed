@@ -5,7 +5,7 @@ import { AccountLicenseJson } from "./http/schemas";
 import { checkNoteMeta, noteFieldSchemas, type NoteMeta } from "./notefields";
 import { McpServer, createMcpHandler, type AuthInfo } from "@modelcontextprotocol/server";
 import * as z from "zod";
-import { bearerOf, checkBearer, locked } from "./auth";
+import { bearerOf, checkBearer, locked, safeEqual } from "./auth";
 import { config } from "./config";
 import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoundError, TooManyAttemptsError, UnsupportedTypeError } from "./errors";
 import { addFeedPassword, changePassword, checkFeedAccess, claimFeed, listFeedPasswords, ownedFeeds, revokeFeedPassword } from "./feedlock";
@@ -730,8 +730,10 @@ async function gate(req: Request): Promise<Response | AuthInfo | undefined> {
   const auth = oauthAuth();
   if (auth && accountsOn()) return tokenGate(req, auth);
   if (!locked()) return undefined; // an open instance without accounts: anyone may call
-  // A JWT is never a password guess: it goes to Better Auth's check, and no failed attempt is counted.
-  if (auth && bearerOf(req.headers.get("authorization")).split(".").length === 3) return tokenGate(req, auth);
+  // A JWT is never a password guess: it goes to Better Auth's check, and no failed attempt is counted. The password itself may look
+  // like one (two dots), so it is compared first.
+  const bearer = bearerOf(req.headers.get("authorization"));
+  if (auth && bearer.split(".").length === 3 && !safeEqual(bearer, config.password())) return tokenGate(req, auth);
   try {
     checkBearer(req.headers.get("authorization"), clientIp(req.headers));
   } catch (e) {

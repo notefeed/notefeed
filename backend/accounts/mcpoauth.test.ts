@@ -116,7 +116,7 @@ test("the answer needs the signed request unchanged, a session, and this instanc
   const cookie = await sessionCookie(userId);
   const pending = await authorize(await registerClient(), cookie);
   const changed = pending.page.search.slice(1).replace(`state=st`, `state=other`);
-  expect((await answer(pending, cookie, true, changed)).status).toBe(400);
+  expect((await answer(pending, cookie, true, changed)).headers.get("location")).toBe("/oauth/authorize?error=expired");
   const signedOut = await answer(pending, "", true);
   expect(signedOut.headers.get("location")).toMatch(/^\/oauth\/authorize\?.*&error=auth$/);
   const cross = await authRoute(new Request(`${BASE}/api/auth/oauth2/consent`, { method: "POST", headers: { cookie } }));
@@ -247,9 +247,26 @@ describe("an instance the password locks", () => {
     expect(res.headers.get("www-authenticate")).toMatch(/resource_metadata=/);
   });
 
+  test("a password that looks like a JWT (two dots) still works as the bearer", async () => {
+    vi.stubEnv("NOTEFEED_PASSWORD", "my.secret.pw");
+    await migrateAccounts();
+    expect((await mcpRoute(mcp("Bearer my.secret.pw"))).status).toBe(200);
+  });
+
   test("without PUBLIC_URL there is no OAuth, only the password as a bearer", async () => {
     vi.stubEnv("PUBLIC_URL", "");
     expect(protectedResourceRoute().status).toBe(404);
     expect((await mcpRoute(mcp())).headers.get("www-authenticate")).toBe('Bearer realm="notefeed"');
   });
+});
+
+test("signing keys sealed with an earlier secret are dropped at start-up, and tokens are made again", async () => {
+  const { resetFeedsForTests } = await import("../feeds");
+  const { userId } = await createAccount();
+  await mcpToken(userId);
+  vi.stubEnv("NOTEFEED_SECRET", "another-secret-".padEnd(32, "y"));
+  resetFeedsForTests(); // the secret is read once per process
+  await migrateAccounts(); // start-up
+  const again = await createAccount();
+  expect(await mcpToken(again.userId)).toMatch(/^ey/);
 });

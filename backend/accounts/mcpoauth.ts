@@ -84,18 +84,19 @@ export async function authorizeRoute(req: Request): Promise<Response> {
   const form = await readFields(req, 16 * 1024);
   const raw = form?.get("oauth_query");
   const query = typeof raw === "string" ? await oauthQuery(auth, new URLSearchParams(raw)) : null;
-  if (!query) return new Response(EXPIRED, { status: 400 });
+  if (!query) return expired();
   if (!accountsAuth()) return passwordAnswer(auth, query, String(form?.get("password") ?? ""), h);
   const session = await signedInSession(h);
   if (!session) return seeOther(`/oauth/authorize?${query}&error=auth`);
   const accept = form?.get("accept") === "1";
   const r = await auth.api.oauth2Consent({ body: { accept, oauth_query: query }, headers: h }).catch(() => null);
-  if (!r?.url) return new Response(EXPIRED, { status: 400 });
+  if (!r?.url) return expired();
   log.info({ via: "account", accept }, accept ? "authorization granted" : "authorization denied"); // never who, never the client's name
   return seeOther(r.url);
 }
 
-const EXPIRED = "This sign-in has expired. Connect again from your MCP client.";
+// Back to the authorize page, which says in the reader's language that this sign-in has expired (t.login.expired).
+const expired = () => seeOther("/oauth/authorize?error=expired");
 
 // The instance password, checked like /login (the failed-attempt limit applies). Right, a session of the instance's user answers
 // Better Auth's consent; it is never sent to the browser, and the client's grant hangs on it (the code's exchange wants it).
@@ -112,7 +113,7 @@ async function passwordAnswer(auth: Auth, query: string, password: string, h: He
   const session = await ctx.internalAdapter.createSession(await instanceUser(auth), false);
   const cookie = `${ctx.authCookies.sessionToken.name}=${session.token}.${await makeSignature(session.token, ctx.secret)}`;
   const r = await auth.api.oauth2Consent({ body: { accept: true, oauth_query: query }, headers: new Headers({ cookie }) }).catch(() => null);
-  if (!r?.url) return new Response(EXPIRED, { status: 400 });
+  if (!r?.url) return expired();
   log.info({ via: "password" }, "authorization granted"); // never the client's self-chosen name
   return seeOther(r.url);
 }
