@@ -1,9 +1,10 @@
-// MCP sign-in where there are accounts, through Better Auth's OAuth server (ADR 0062): discovery, the authorize page's answer, the
-// token on /mcp, and what /mcp refuses.
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+// MCP sign-in through Better Auth's OAuth server (ADR 0062), with accounts and on an instance the password locks: discovery, the
+// authorize page's answer, the token on /mcp, and what /mcp refuses.
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { resetRateLimitsForTests } from "../limits";
 import { mcpRoute } from "../mcp";
 import { accountsAuth, authRoute, migrateAccounts } from "./auth";
-import { authServerRoute, metadataPreflight, oauthClient, oauthQuery, protectedResourceRoute } from "./mcpoauth";
+import { authorizeRoute, authServerRoute, metadataPreflight, oauthClient, oauthQuery, protectedResourceRoute } from "./mcpoauth";
 import { answer, authorize, BASE, mcpToken, registerClient, REDIRECT, sessionCookie, token } from "./mcp.testkit";
 import { createAccount } from "./numbers";
 
@@ -63,9 +64,8 @@ test("discovery names Better Auth's server, at the root and below the issuer's p
   });
 });
 
-test("without accounts there is no OAuth: discovery, the page's answer and the preflight are 404", async () => {
+test("an open instance without accounts has no OAuth: discovery, the page's answer and the preflight are 404", async () => {
   vi.stubEnv("NOTEFEED_ACCOUNTS", "off");
-  vi.stubEnv("NOTEFEED_PASSWORD", "pw");
   expect((await authServerRoute(new Request(`${BASE}/.well-known/oauth-authorization-server`))).status).toBe(404);
   expect(protectedResourceRoute().status).toBe(404);
   expect(metadataPreflight().status).toBe(404);
@@ -162,4 +162,94 @@ test("a native client's loopback redirect registers, also without application_ty
     }),
   );
   expect(res.status).toBe(201);
+});
+
+describe("an instance the password locks", () => {
+  beforeEach(async () => {
+    vi.stubEnv("NOTEFEED_ACCOUNTS", "");
+    vi.stubEnv("NOTEFEED_PASSWORD", "pw");
+    resetRateLimitsForTests();
+    await migrateAccounts();
+  });
+  const login = (query: string, password: string) =>
+    authorizeRoute(
+      new Request(`${BASE}/api/oauth/authorize`, {
+        method: "POST",
+        headers: { origin: BASE, host: "localhost:3000", "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ oauth_query: query, password }),
+      }),
+    );
+  async function connect() {
+    const pending = await authorize(await registerClient());
+    expect(pending.page.pathname).toBe("/oauth/authorize"); // no session ever: always the page
+    const res = await login(pending.page.search.slice(1), "pw");
+    const back = new URL(res.headers.get("location")!);
+    expect(back.origin + back.pathname).toBe(REDIRECT);
+    return token(pending, back.searchParams.get("code")!);
+  }
+
+  test("discovery is Better Auth's; none of its sign-in or account routes is served", async () => {
+    expect((await (await authServerRoute(new Request(`${BASE}/.well-known/oauth-authorization-server`))).json()).issuer).toBe(`${BASE}/api/auth`);
+    expect(protectedResourceRoute().status).toBe(200);
+    for (const path of ["/api/auth/passkey/generate-authenticate-options", "/api/auth/callback/default", "/api/auth/oauth2/consent"])
+      expect((await authRoute(new Request(`${BASE}${path}`, { method: "POST" }))).status, path).toBe(404);
+  });
+
+  test("the password on the authorize page gives a code; the token works on /mcp, and so does the refresh", async () => {
+    const t = await connect();
+    expect((await mcpRoute(mcp(`Bearer ${t.access_token}`))).status).toBe(200);
+    const refreshed = await authRoute(
+      new Request(`${BASE}/api/auth/oauth2/token`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: t.refresh_token,
+          client_id: JSON.parse(Buffer.from(t.access_token.split(".")[1], "base64url").toString()).azp,
+        }),
+      }),
+    );
+    expect(refreshed.status).toBe(200);
+    expect((await mcpRoute(mcp(`Bearer ${(await refreshed.json()).access_token}`))).status).toBe(200);
+  });
+
+  test("a wrong password goes back to the page with its error and counts as a failed attempt", async () => {
+    vi.stubEnv("NOTEFEED_RATE_LIMIT", "1");
+    const pending = await authorize(await registerClient());
+    const query = pending.page.search.slice(1);
+    expect((await login(query, "nope")).headers.get("location")).toBe(`/oauth/authorize?${query}&error=auth`);
+    expect((await login(query, "pw")).headers.get("location")).toMatch(/&error=too_many_attempts&retry=\d+$/);
+  });
+
+  test("a changed password ends every client: its tokens and its refresh are refused", async () => {
+    const t = await connect();
+    vi.stubEnv("NOTEFEED_PASSWORD", "new");
+    await migrateAccounts(); // start-up
+    expect((await mcpRoute(mcp(`Bearer ${t.access_token}`))).status).toBe(401);
+    const refreshed = await authRoute(
+      new Request(`${BASE}/api/auth/oauth2/token`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: t.refresh_token,
+          client_id: JSON.parse(Buffer.from(t.access_token.split(".")[1], "base64url").toString()).azp,
+        }),
+      }),
+    );
+    expect(refreshed.status).not.toBe(200);
+  });
+
+  test("/mcp still takes the password as a bearer; without anything it points at the OAuth metadata", async () => {
+    expect((await mcpRoute(mcp("Bearer pw"))).status).toBe(200);
+    const res = await mcpRoute(mcp());
+    expect(res.status).toBe(401);
+    expect(res.headers.get("www-authenticate")).toMatch(/resource_metadata=/);
+  });
+
+  test("without PUBLIC_URL there is no OAuth, only the password as a bearer", async () => {
+    vi.stubEnv("PUBLIC_URL", "");
+    expect(protectedResourceRoute().status).toBe(404);
+    expect((await mcpRoute(mcp())).headers.get("www-authenticate")).toBe('Bearer realm="notefeed"');
+  });
 });

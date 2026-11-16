@@ -63,6 +63,8 @@ export default defineConfig({
     ),
     server(3101, {
       NOTEFEED_PASSWORD: "e2e",
+      // The MCP OAuth login with the password (ADR 0062) needs the public address.
+      PUBLIC_URL: "http://localhost:3101",
       NOTEFEED_IMAGE_UPLOADS: "0",
       NOTEFEED_IMPRINT_FILE: "e2e/fixtures/imprint.md",
       NOTEFEED_PRIVACY_FILE: "e2e/fixtures/privacy.md",

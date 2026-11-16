@@ -13,7 +13,8 @@ import { createAccountToken, listAccountTokens, revokeAccountToken } from "./acc
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson, licensesJson } from "./http/api";
 import { ownerFile } from "./http/files";
-import { accountName, accountsAuth, stillAllowed, type Auth } from "./accounts/auth";
+import { accountName, instanceUser, oauthAuth, stillAllowed, type Auth } from "./accounts/auth";
+import { accountsOn } from "./accounts/mode";
 import { requireMcpAuth } from "@better-auth/mcp";
 import type { JWTPayload } from "jose";
 import { FeedJson, FreeTierJson, LicensesJson } from "./http/schemas";
@@ -715,8 +716,8 @@ const rpcError = (status: number, message: string, headers?: Record<string, stri
 // What may reach the handler. The SDK doesn't check Origin, so a browser page of another site can't drive
 // this endpoint: no Origin (server-side clients) passes, a present one must be our own host. That stops
 // DNS rebinding only when PUBLIC_URL is set; without it our host comes from the request's own Host header.
-// With accounts, a client sends Better Auth's access token (accountGate); an instance the password locks wants the password as the
-// bearer (ADR 0062: no OAuth without accounts).
+// With accounts, a client sends Better Auth's access token (tokenGate). An instance the password locks takes the password as the
+// bearer, or, with PUBLIC_URL, a Better Auth token its OAuth login gave for the password (ADR 0062).
 async function gate(req: Request): Promise<Response | AuthInfo | undefined> {
   const origin = req.headers.get("origin");
   if (origin !== null) {
@@ -726,23 +727,28 @@ async function gate(req: Request): Promise<Response | AuthInfo | undefined> {
     } catch {}
     if (host !== new URL(publicUrl(req.headers)).host) return rpcError(403, "forbidden origin");
   }
-  const auth = accountsAuth();
-  if (auth) return accountGate(req, auth);
+  const auth = oauthAuth();
+  if (auth && accountsOn()) return tokenGate(req, auth);
   if (!locked()) return undefined; // an open instance without accounts: anyone may call
+  // A JWT is never a password guess: it goes to Better Auth's check, and no failed attempt is counted.
+  if (auth && bearerOf(req.headers.get("authorization")).split(".").length === 3) return tokenGate(req, auth);
   try {
     checkBearer(req.headers.get("authorization"), clientIp(req.headers));
   } catch (e) {
     if (e instanceof TooManyAttemptsError) return rpcError(429, e.message, { "retry-after": String(e.retryAfter) });
-    if (e instanceof AuthError) return rpcError(401, e.message, { "www-authenticate": 'Bearer realm="notefeed"' });
+    if (e instanceof AuthError) return rpcError(401, e.message, { "www-authenticate": auth ? `Bearer ${resourceMetadata(req)}` : 'Bearer realm="notefeed"' });
     throw e;
   }
   return { token: "", clientId: "password", scopes: [] };
 }
 
-// With accounts (ADR 0062): Better Auth's MCP check (signature, issuer, audience /mcp, expiry) answers a missing or bad token with its
-// 401 and the protected resource's metadata. A token must name an account that may still be signed in (a client-only token names
-// none), checked on every request as a browser session is (ADR 0056). An open instance lets a client without a token in, as no one.
-async function accountGate(req: Request, auth: Auth): Promise<Response | AuthInfo | undefined> {
+const resourceMetadata = (req: Request) => `resource_metadata="${publicUrl(req.headers)}/.well-known/oauth-protected-resource/mcp"`;
+
+// Better Auth's MCP check (signature, issuer, audience /mcp, expiry) answers a missing or bad token with its 401 and the protected
+// resource's metadata (ADR 0062). With accounts, a token must name an account that may still be signed in (a client-only token names
+// none), checked on every request as a browser session is (ADR 0056), and an open instance lets a client without a token in, as
+// no one. Without accounts, it must name the user that stands for the instance under its current password.
+async function tokenGate(req: Request, auth: Auth): Promise<Response | AuthInfo | undefined> {
   if (!req.headers.has("authorization") && !locked()) return undefined;
   let claims: JWTPayload | undefined;
   const checked = await requireMcpAuth(
@@ -754,13 +760,12 @@ async function accountGate(req: Request, auth: Auth): Promise<Response | AuthInf
     { resource: mcpResource(req.headers) },
   )(req);
   if (!claims) return checked;
-  const account = typeof claims.sub === "string" ? claims.sub : undefined;
-  if (!account || !(await stillAllowed(account)))
-    return rpcError(401, "invalid token", {
-      "www-authenticate": `Bearer error="invalid_token", resource_metadata="${publicUrl(req.headers)}/.well-known/oauth-protected-resource/mcp"`,
-    });
+  const sub = typeof claims.sub === "string" ? claims.sub : undefined;
+  const ok = !!sub && (accountsOn() ? await stillAllowed(sub) : sub === (await instanceUser(auth)));
+  if (!ok) return rpcError(401, "invalid token", { "www-authenticate": `Bearer error="invalid_token", ${resourceMetadata(req)}` });
   const scope = typeof claims.scope === "string" ? claims.scope.split(" ") : [];
-  return { token: bearerOf(req.headers.get("authorization")), clientId: String(claims.azp ?? "oauth"), scopes: scope, extra: { account } };
+  const token = bearerOf(req.headers.get("authorization"));
+  return { token, clientId: String(claims.azp ?? "oauth"), scopes: scope, ...(accountsOn() ? { extra: { account: sub } } : {}) };
 }
 
 export async function mcpRoute(req: Request): Promise<Response> {

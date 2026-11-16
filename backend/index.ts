@@ -47,7 +47,7 @@ export { loginRoute, logoutRoute } from "./http/session";
 export { fileRoute, ownerFileRoute } from "./http/files";
 export { atomRoute, rssRoute } from "./http/rss";
 export { mcpRoute } from "./mcp";
-export { accountsAuth, authRoute } from "./accounts/auth";
+export { accountsAuth, authRoute, oauthAuth } from "./accounts/auth";
 export { oauthClient, oauthQuery } from "./accounts/mcpoauth";
 export { oidcFinishRoute, oidcStartRoute } from "./oidc/routes";
 export { authorizeRoute, authServerRoute, metadataPreflight, protectedResourceRoute } from "./accounts/mcpoauth";

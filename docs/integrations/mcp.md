@@ -34,7 +34,7 @@ claude mcp add notefeed --transport http https://notes.example.com/mcp --header 
 
 ## Claude.ai and Claude Desktop
 
-Add a custom connector with the URL `https://notes.example.com/mcp`. On an instance with [accounts](../self-hosting/accounts.md), it signs in as your account ([below](#as-an-account)). On an instance the password locks, give it the password in the connector's **Request headers** (under **Advanced** in the dialog): `Authorization` with the value `Bearer <password>`. Request headers are new on Claude.ai and not open to every organization yet; without them, use [accounts](../self-hosting/accounts.md) with `NOTEFEED_ACCOUNTS=closed` instead of the password. See [OAuth for MCP clients](../self-hosting/access.md#oauth-for-mcp-clients).
+Add a custom connector with the URL `https://notes.example.com/mcp`. On an instance the password locks, the connector opens notefeed's login page: check that it names the client, enter the instance password and press **Allow**. On an instance with [accounts](../self-hosting/accounts.md), it signs in as your account ([below](#as-an-account)). Both need the instance's public `https://` address in `PUBLIC_URL`; see [OAuth for MCP clients](../self-hosting/access.md#oauth-for-mcp-clients). A connector that offers **Request headers** can instead send the password as `Authorization: Bearer <password>`.
 
 For writing a note with a review step before it is posted, see the [agent skills](skills.md).
 

@@ -1,12 +1,16 @@
-// MCP sign-in (ADR 0062): only where there are accounts, through Better Auth's OAuth server (the `mcp` plugin, auth.ts), which issues
-// the tokens; this is what notefeed adds around it. Discovery at the addresses MCP clients look in, the protected resource's
-// metadata (the plugin serves none under Next), and the authorize page's answer (consent). The authorize and token steps
-// themselves are Better Auth's. Without accounts there is no OAuth: every handler here is 404, and a locked instance's MCP clients
-// send the instance password as a header.
+// MCP sign-in (ADR 0062) through Better Auth's OAuth server (the `mcp` plugin, auth.ts), which issues the tokens; this is what
+// notefeed adds around it. Discovery at the addresses MCP clients look in, the protected resource's metadata (the plugin serves
+// none under Next), and the authorize page's answer: with accounts, the signed-in account's Allow or Deny; on an instance the
+// password locks, the password, for the one user that stands for the instance. The authorize and token steps themselves are
+// Better Auth's. On an open instance without accounts every handler here is 404.
 import { oauthProviderAuthServerMetadata, verifyOAuthQueryParams } from "@better-auth/oauth-provider";
 import { readFields, sameOrigin, seeOther } from "../http/request";
 import { logger } from "../log";
-import { accountsAuth, MCP_SCOPES, signedInSession, type Auth } from "./auth";
+import { makeSignature } from "better-auth/crypto";
+import { checkPassword } from "../auth";
+import { AuthError, NotefeedError, RateLimitedError } from "../errors";
+import { clientIp } from "../limits";
+import { accountsAuth, instanceUser, MCP_SCOPES, oauthAuth, signedInSession, type Auth } from "./auth";
 import { config } from "../config";
 
 const log = logger("oauth");
@@ -18,7 +22,7 @@ const notFound = () => new Response("not found", { status: 404 });
 
 // RFC 8414, at /.well-known/oauth-authorization-server and below it the issuer's path (/api/auth).
 export async function authServerRoute(req: Request): Promise<Response> {
-  const auth = accountsAuth();
+  const auth = oauthAuth();
   if (!auth) return notFound();
   const res = await oauthProviderAuthServerMetadata(auth)(req);
   const body = (await res.json()) as Record<string, unknown>;
@@ -28,7 +32,7 @@ export async function authServerRoute(req: Request): Promise<Response> {
 
 // RFC 9728: /mcp, whose tokens Better Auth issues.
 export function protectedResourceRoute(): Response {
-  if (!accountsAuth()) return notFound();
+  if (!oauthAuth()) return notFound();
   const base = config.publicUrl();
   return Response.json(
     { resource: `${base}/mcp`, authorization_servers: [`${base}/api/auth`], bearer_methods_supported: ["header"], scopes_supported: MCP_SCOPES },
@@ -62,29 +66,53 @@ export async function oauthClient(auth: Auth, query: string): Promise<{ name: st
 
 // OPTIONS for the metadata documents, which browser-based MCP clients read cross-origin.
 export const metadataPreflight = (): Response =>
-  accountsAuth()
+  oauthAuth()
     ? new Response(null, {
         status: 204,
         headers: { ...cors, "Access-Control-Allow-Methods": "GET", "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" },
       })
     : notFound();
 
-// POST /api/oauth/authorize: the page's Allow or Deny, from this instance's own pages, for the account signed in on
-// them. Better Auth checks the signed request again and answers with where the browser goes: the client, with a code or access_denied.
+// POST /api/oauth/authorize: the page's form, from this instance's own pages. With accounts, Allow or Deny for the account signed in
+// on them; without, the instance password. Better Auth checks the signed request again and answers with where the browser goes:
+// the client, with a code or access_denied.
 export async function authorizeRoute(req: Request): Promise<Response> {
-  const auth = accountsAuth();
+  const auth = oauthAuth();
   if (!auth) return notFound();
   const h = req.headers;
   if (!sameOrigin(h)) return new Response("forbidden", { status: 403 });
   const form = await readFields(req, 16 * 1024);
   const raw = form?.get("oauth_query");
   const query = typeof raw === "string" ? await oauthQuery(auth, new URLSearchParams(raw)) : null;
-  if (!query) return new Response("This sign-in has expired. Connect again from your MCP client.", { status: 400 });
+  if (!query) return new Response(EXPIRED, { status: 400 });
+  if (!accountsAuth()) return passwordAnswer(auth, query, String(form?.get("password") ?? ""), h);
   const session = await signedInSession(h);
   if (!session) return seeOther(`/oauth/authorize?${query}&error=auth`);
   const accept = form?.get("accept") === "1";
   const r = await auth.api.oauth2Consent({ body: { accept, oauth_query: query }, headers: h }).catch(() => null);
-  if (!r?.url) return new Response("This sign-in has expired. Connect again from your MCP client.", { status: 400 });
+  if (!r?.url) return new Response(EXPIRED, { status: 400 });
   log.info({ via: "account", accept }, accept ? "authorization granted" : "authorization denied"); // never who, never the client's name
+  return seeOther(r.url);
+}
+
+const EXPIRED = "This sign-in has expired. Connect again from your MCP client.";
+
+// The instance password, checked like /login (the failed-attempt limit applies). Right, a session of the instance's user answers
+// Better Auth's consent; it is never sent to the browser, and the client's grant hangs on it (the code's exchange wants it).
+async function passwordAnswer(auth: Auth, query: string, password: string, h: Headers): Promise<Response> {
+  try {
+    checkPassword(password, clientIp(h));
+  } catch (e) {
+    if (!(e instanceof NotefeedError)) throw e;
+    if (e instanceof AuthError) logger("auth").warn({ page: "authorize" }, "password login failed");
+    const retry = e instanceof RateLimitedError ? `&retry=${e.retryAfter}` : "";
+    return seeOther(`/oauth/authorize?${query}&error=${e.code}${retry}`);
+  }
+  const ctx = await auth.$context;
+  const session = await ctx.internalAdapter.createSession(await instanceUser(auth), false);
+  const cookie = `${ctx.authCookies.sessionToken.name}=${session.token}.${await makeSignature(session.token, ctx.secret)}`;
+  const r = await auth.api.oauth2Consent({ body: { accept: true, oauth_query: query }, headers: new Headers({ cookie }) }).catch(() => null);
+  if (!r?.url) return new Response(EXPIRED, { status: 400 });
+  log.info({ via: "password" }, "authorization granted"); // never the client's self-chosen name
   return seeOther(r.url);
 }

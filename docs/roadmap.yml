@@ -109,7 +109,7 @@ items:
       - **Sign-in on Better Auth**, and one sender any post can set.
       - **Accounts**: sign-ins that renew while used (no weekly sign-in, the allow-list checked on every request); account number, recovery key and passkeys; a feed's owner and its several named feed passwords; account tokens; either an instance password or accounts.
       - **Licenses on the account**: one checkout for several feeds, the number raised or lowered later.
-      - **MCP sign-in on Better Auth**: an MCP client signs in as an account through Better Auth's OAuth server; notefeed's own OAuth server is gone, and the instance password goes in a header.
+      - **MCP sign-in on Better Auth**: an MCP client signs in as an account, or with the instance password, through Better Auth's OAuth server; notefeed's own OAuth server is gone.
       - **Values and legal pages** for accounts, and notefeed.me's setup.
 
       Readers get nothing new, and nothing about who holds an account is stored.

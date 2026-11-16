@@ -6,19 +6,21 @@ vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 // With accounts (ADR 0062): Better Auth's signed request, the client it names and the account signed in, each set per test.
 const ba = vi.hoisted(() => ({
   on: false,
+  password: false,
   query: "client_id=x&sig=s" as string | null,
   account: undefined as { number?: string } | undefined,
 }));
 vi.mock("@/backend", async (orig) => ({
   ...(await orig<typeof import("@/backend")>()),
   accountsAuth: () => (ba.on ? {} : undefined),
+  oauthAuth: () => (ba.on || ba.password ? {} : undefined),
   oauthQuery: async () => ba.query,
   oauthClient: async () => ({ name: "Claude", redirectHost: "claude.ai" }),
   accountOf: async () => ba.account,
 }));
 
 beforeEach(() => {
-  Object.assign(ba, { on: false, query: "client_id=x&sig=s", account: undefined });
+  Object.assign(ba, { on: false, password: false, query: "client_id=x&sig=s", account: undefined });
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -27,7 +29,15 @@ const render = async (q: Record<string, string>) =>
     await AuthorizePage({ params: Promise.resolve({ lang: "en" }), searchParams: Promise.resolve(q) } as PageProps<"/[lang]/oauth/authorize">),
   );
 
-test("without accounts there is no page", async () => {
+test("the instance password: its form posts the signed request, its message inside it", async () => {
+  ba.password = true;
+  const html = await render({ client_id: "x", sig: "s", error: "too_many_attempts", retry: "9" });
+  expect(html).toContain("Connect Claude");
+  expect(html).toContain('<input type="hidden" name="oauth_query" value="client_id=x&amp;sig=s"/>');
+  expect(html).toMatch(/name="password"[^]*>Allow<\/button>[^]*id="login-error"[^>]*>[^<]*9 seconds[^]*<\/form>/);
+});
+
+test("an open instance without accounts has no page", async () => {
   await expect(render({ client_id: "x" })).rejects.toThrow();
 });
 

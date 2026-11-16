@@ -110,9 +110,14 @@ const state = processState("accounts-auth", () => ({}) as { key?: string; auth?:
 // Everything the instance is built from, so a changed setting (or secret) builds it again.
 const key = () => JSON.stringify([config.accountsDb(), config.publicUrl(), betterAuthSecret(), accountsMode(), providers()]);
 
-// The instance, or undefined while accounts are off (or PUBLIC_URL is missing, which startup refuses).
-export function accountsAuth(): Auth | undefined {
-  if (!accountsOn() || !config.publicUrl()) return undefined;
+// Better Auth runs with accounts, and on an instance the password locks for its MCP OAuth server alone (ADR 0062): there, one
+// Better Auth user stands for the instance (instanceUser), and its sign-in, passkey and account routes stay closed (authRoute).
+// Both need PUBLIC_URL; a password-locked instance without it has no OAuth, only the password as a bearer.
+export const passwordOAuth = (): boolean => !accountsOn() && config.password() !== "" && !!config.publicUrl();
+
+// The instance for the MCP OAuth server: with accounts or the instance password; else undefined.
+export function oauthAuth(): Auth | undefined {
+  if (!(accountsOn() || passwordOAuth()) || !config.publicUrl()) return undefined;
   const k = key();
   if (state.key !== k || !state.auth) {
     state.auth = build();
@@ -121,13 +126,37 @@ export function accountsAuth(): Auth | undefined {
   return state.auth;
 }
 
+// The instance, or undefined while accounts are off (or PUBLIC_URL is missing, which startup refuses).
+export const accountsAuth = (): Auth | undefined => (accountsOn() ? oauthAuth() : undefined);
+
+// The Better Auth user an MCP client of a password-locked instance acts as (ADR 0062): no person, no name, made on first use. Its
+// address carries a fingerprint of the password's key, so a changed password makes a new one; the old one is deleted with its
+// clients' tokens, and Better Auth's signing keys (sealed with the secret that changed with it) are made afresh.
+const INSTANCE_DOMAIN = "instance.notefeed.invalid";
+export async function instanceUser(auth: Auth): Promise<string> {
+  const ctx = await auth.$context;
+  const fp = createHmac("sha256", signingKey()).update("notefeed-instance-user").digest("hex").slice(0, 32);
+  const email = `${fp}@${INSTANCE_DOMAIN}`;
+  const found = await ctx.internalAdapter.findUserByEmail(email);
+  if (found) return found.user.id;
+  const old = await ctx.adapter.findMany<{ id: string; email: string }>({
+    model: "user",
+    where: [{ field: "email", operator: "ends_with", value: `@${INSTANCE_DOMAIN}` }],
+  });
+  for (const u of old) await ctx.internalAdapter.deleteUser(u.id);
+  if (old.length) await ctx.adapter.deleteMany({ model: "jwks", where: [] });
+  const user = await ctx.internalAdapter.createUser({ email, name: "", emailVerified: true }, { method: "admin" });
+  return user.id;
+}
+
 // Creates or updates Better Auth's tables; nothing while accounts are off (no file is made). The settings were checked at start-up
 // (mode.ts, checkAccessSettings).
 export async function migrateAccounts(): Promise<void> {
-  const auth = accountsAuth();
+  const auth = oauthAuth();
   if (!auth) return;
   const { runMigrations } = await getMigrations(auth.options);
   await runMigrations();
+  if (!accountsOn()) return void (await instanceUser(auth)); // after a password change: the old clients go now, not at their next call
   await (await import("./subscriptions")).migrateSubscriptions(); // the license's subscriptions, notefeed's own table (#391)
 }
 
@@ -148,11 +177,14 @@ const CORS = /^\/api\/auth\/(oauth2\/(token|register|revoke)|jwks)$/;
 // (Better Auth's own limiter is off: it would need the client's address, which notefeed never gives it).
 const ANONYMOUS = /\/(passkey\/(generate-authenticate-options|verify-authentication)|oauth2\/register)$/;
 
-// GET, POST and OPTIONS /api/auth/*: 404 while sign-in is off.
+// What a password-locked instance serves of Better Auth: its MCP OAuth server only.
+const OAUTH_ONLY = /^\/api\/auth\/(oauth2\/(authorize|token|register|revoke)|jwks)$/;
+
+// GET, POST and OPTIONS /api/auth/*: 404 while Better Auth doesn't run.
 export async function authRoute(req: Request): Promise<Response> {
-  const auth = accountsAuth();
   const path = new URL(req.url).pathname;
-  if (!auth || !OPEN.test(path)) return new Response("not found", { status: 404 });
+  const auth = oauthAuth();
+  if (!auth || !OPEN.test(path) || (!accountsOn() && !OAUTH_ONLY.test(path))) return new Response("not found", { status: 404 });
   const cors = CORS.test(path);
   if (req.method === "OPTIONS")
     return cors

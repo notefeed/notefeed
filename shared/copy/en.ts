@@ -474,6 +474,7 @@ export const en = {
     logIn: "Log in",
     connect: (client: string) => `Connect ${client}`,
     sentTo: (host: string) => `After login you'll be sent to ${host}.`,
+    allow: "Allow",
     allowAccount: "Allow as your account",
     asAccount: (number: string) => `It will act as account ${number}: post to and manage the feeds it owns.`,
     asYou: "It will act as you: post to and manage the feeds your account owns.",
