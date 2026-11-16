@@ -162,8 +162,8 @@ describe("deleting an account", () => {
 describe("the operator", () => {
   const TOKEN = "t".repeat(40);
   const op = (method: string, query: string, body?: unknown) =>
-    import("./operator").then(({ operatorFeedsRoute }) =>
-      operatorFeedsRoute(
+    import("./operator").then(({ operatorFeedDeleteRoute, operatorFeedOwnerRoute }) =>
+      (method === "DELETE" ? operatorFeedDeleteRoute : operatorFeedOwnerRoute)(
         new Request(`${BASE}/api/operator/feeds?${query}`, {
           method,
           headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },

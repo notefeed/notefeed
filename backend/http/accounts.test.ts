@@ -5,7 +5,7 @@ import { authRoute, migrateAccounts, signedInSession } from "../accounts/auth";
 import { checkAccessSettings } from "../accounts/mode";
 import { resetRateLimitsForTests } from "../limits";
 import { accountCreateRoute, accountDeleteRoute, accountSignInRoute, recoveryKeyRoute } from "./accounts";
-import { operatorAccountsRoute } from "./operator";
+import { operatorAccountCreateRoute, operatorAccountDeleteRoute } from "./operator";
 
 const BASE = "http://localhost:3000";
 const SAME = { host: "localhost:3000", origin: BASE };
@@ -120,7 +120,7 @@ describe("the operator", () => {
 
   test("creates an account where accounts are closed, getting the number and key once", async () => {
     vi.stubEnv("NOTEFEED_ACCOUNTS", "closed");
-    const res = await operatorAccountsRoute(op("POST"));
+    const res = await operatorAccountCreateRoute(op("POST"));
     expect(res.status).toBe(201);
     const { number, recoveryKey } = await res.json();
     const signIn = await accountSignInRoute(post("/api/accounts/sign-in", formHeaders(), form({ number, recoveryKey })));
@@ -128,9 +128,9 @@ describe("the operator", () => {
   });
 
   test("deletes one by its number; an unknown number is 404", async () => {
-    const { number } = await (await operatorAccountsRoute(op("POST"))).json();
-    expect((await operatorAccountsRoute(op("DELETE", `?number=${number}`))).status).toBe(204);
-    expect((await operatorAccountsRoute(op("DELETE", `?number=${number}`))).status).toBe(404);
+    const { number } = await (await operatorAccountCreateRoute(op("POST"))).json();
+    expect((await operatorAccountDeleteRoute(op("DELETE", `?number=${number}`))).status).toBe(204);
+    expect((await operatorAccountDeleteRoute(op("DELETE", `?number=${number}`))).status).toBe(404);
   });
 
   test("doesn't make number accounts where they come from the identity provider", async () => {
@@ -139,13 +139,13 @@ describe("the operator", () => {
     vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
     vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "secret");
     vi.stubEnv("NOTEFEED_OIDC_ALLOW", "*");
-    expect((await operatorAccountsRoute(op("POST"))).status).toBe(409);
+    expect((await operatorAccountCreateRoute(op("POST"))).status).toBe(409);
   });
 
   test("needs the operator token, and accounts on", async () => {
-    expect((await operatorAccountsRoute(new Request(`${BASE}/api/operator/accounts`, { method: "POST" }))).status).toBe(401);
+    expect((await operatorAccountCreateRoute(new Request(`${BASE}/api/operator/accounts`, { method: "POST" }))).status).toBe(401);
     vi.stubEnv("NOTEFEED_ACCOUNTS", "off");
-    expect((await operatorAccountsRoute(op("POST"))).status).toBe(404);
+    expect((await operatorAccountCreateRoute(op("POST"))).status).toBe(404);
   });
 });
 
