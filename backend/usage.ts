@@ -92,6 +92,6 @@ export const resetUsageForTests = (): void => {
 // is unattached; the state stays for the dashboards that read it.
 async function licenseCounts(): Promise<{ active: number; unattached: number; lapsed: number }> {
   const { subscriptionCounts } = await import("./accounts/subscriptions");
-  const { active, lapsed } = subscriptionCounts();
+  const { active, lapsed } = await subscriptionCounts();
   return { active, unattached: 0, lapsed };
 }
