@@ -22,6 +22,9 @@ To upgrade only on purpose, pin a version. Each release is listed on [GitHub Rel
 !!! warning "Accounts: the instance password or accounts, not both"
     An identity provider (`NOTEFEED_OIDC_*`) now counts as [accounts](accounts.md), and notefeed refuses to start with `NOTEFEED_PASSWORD` set as well. Remove one of the two before upgrading. Scripts that sent the instance password post with an [account token](accounts.md#account-tokens) instead (`NOTEFEED_TOKEN` for the clients and CLIs). An instance with only one of the two needs nothing. `account` is now a name notefeed uses for a page: a feed of that name can no longer be opened by name (the start-up log names it), so rename it before upgrading.
 
+!!! warning "MCP: no OAuth login with the instance password"
+    An instance locked by `NOTEFEED_PASSWORD` no longer has an OAuth login page for MCP clients: a connector that logged in there (Claude.ai, Claude Desktop) stops working. Give it the password in its request headers instead (`Authorization: Bearer <password>`, see [MCP](../integrations/mcp.md#claudeai-and-claude-desktop)), or move the instance to [accounts](accounts.md) (`NOTEFEED_ACCOUNTS=closed`), where MCP clients sign in as an account. Claude Code and scripts that send the password as a header are not affected.
+
 !!! note "Older set-ups"
     Up to 0.9.0 the image was `ghcr.io/marceltov/notefeed`; change the `image:` line to keep upgrading. Since 0.10.1 the image has no shell: remove a `healthcheck:` of your own that calls `wget` or `curl`, the image's own check does the same (see [Health check](operating.md#docker)).
 

@@ -225,6 +225,8 @@ test("an MCP client connects as an account: sign in on the way, Allow, and its t
   });
   await page.goto(`${meta.authorization_endpoint}?${params}`);
   await expect(page.getByRole("heading", { name: "Connect E2E client" })).toBeVisible();
+  // The page that grants access can't be framed (clickjacking).
+  expect((await page.request.get(page.url())).headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
   await page.getByRole("link", { name: "Sign in to your account first" }).click();
   await page.getByLabel("Account number").fill(number);
   await page.getByLabel("Recovery key").fill(key);

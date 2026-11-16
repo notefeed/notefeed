@@ -11,7 +11,6 @@ import { mcpToken } from "./accounts/mcp.testkit";
 import { signedInCookie, stubSignInOn } from "./accounts/signin.testkit";
 import { mcpRoute } from "./mcp";
 import { takedownNote } from "./takedown";
-import { sign } from "./oauth/tokens";
 import { loadSharp } from "./imageprocess";
 import { PNG } from "./testimages";
 
@@ -489,37 +488,20 @@ describe("tools", () => {
 });
 
 describe("gate on a locked instance", () => {
-  const META_URL = 'resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/mcp"';
-  const WWW = `Bearer ${META_URL}`;
   const bearer = (t: string) => ({ authorization: `Bearer ${t}` });
   beforeEach(() => {
     process.env.NOTEFEED_PASSWORD = "pw";
   });
 
-  test("no authorization is 401 pointing at the metadata", async () => {
+  // No OAuth without accounts (ADR 0062): the challenge names no authorization server, only the scheme.
+  test("no authorization is 401 asking for a bearer", async () => {
     const res = await rpc("tools/list");
     expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toBe(WWW);
+    expect(res.headers.get("www-authenticate")).toBe('Bearer realm="notefeed"');
   });
-  test("the password works as a bearer", async () => {
+  test("the password works as a bearer; anything else is 401", async () => {
     expect((await rpc("tools/list", {}, bearer("pw"))).status).toBe(200);
-  });
-  test("an access token for this resource works", async () => {
-    expect((await rpc("tools/list", {}, bearer(sign("access", { aud: "http://localhost:3000/mcp" })))).status).toBe(200);
-  });
-  test("an access token for another resource, or a refresh token, is 401", async () => {
-    expect((await rpc("tools/list", {}, bearer(sign("access", { aud: "http://other/mcp" })))).status).toBe(401);
-    expect((await rpc("tools/list", {}, bearer(sign("refresh", { cid: "c", aud: "http://localhost:3000/mcp", jti: "j" })))).status).toBe(401);
-  });
-  test.each([
-    ["expired", () => sign("access", { aud: "http://localhost:3000/mcp" }, Date.now() - 3601_000)],
-    ["for another resource", () => sign("access", { aud: "http://other/mcp" })],
-  ])("an access token %s is invalid_token and no failed password attempt", async (_, token) => {
-    process.env.NOTEFEED_RATE_LIMIT = "1";
-    const res = await rpc("tools/list", {}, bearer(token()));
-    expect(res.status).toBe(401);
-    expect(res.headers.get("www-authenticate")).toBe(`Bearer error="invalid_token", ${META_URL}`);
-    expect((await rpc("tools/list", {}, bearer("pw"))).status).toBe(200);
+    expect((await rpc("tools/list", {}, bearer("eyJhbGciOiJFZERTQSJ9.e30.x"))).status).toBe(401);
   });
   test("the scheme is case-insensitive and extra spaces are fine", async () => {
     expect((await rpc("tools/list", {}, { authorization: "bearer pw" })).status).toBe(200);

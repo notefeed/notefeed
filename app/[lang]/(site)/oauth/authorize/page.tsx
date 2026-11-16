@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { messagesFor } from "@/app/_lib/messages";
 import { copyFor } from "@/shared/copy";
 import Link from "next/link";
-import { accountOf, accountsAuth, checkAuthorize, oauthClient, oauthOn, oauthQuery } from "@/backend";
+import { accountOf, accountsAuth, oauthClient, oauthQuery } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -16,54 +16,17 @@ const Failed = ({ message }: { message: string }) => (
   </main>
 );
 
-// The OAuth login. With accounts (ADR 0062), Better Auth's login and consent page: the account signed in on these pages allows the
-// client or denies it, and signed out, the login page brings you back here. Without, the instance password lets an MCP client in.
-// Both forms post to /api/oauth/authorize, which redirects back to the client, or back here with ?error=.
+// Better Auth's login and consent page for MCP clients (ADR 0062): the account signed in on these pages allows the client or denies
+// it (the form posts to /api/oauth/authorize, which sends the browser back to the client), and signed out, the login page brings
+// you back here. Only where there are accounts; without them there is no OAuth.
 export default async function AuthorizePage({ params: route, searchParams }: PageProps<"/[lang]/oauth/authorize">) {
   const t = copyFor((await route).lang);
   const { errorMessage } = messagesFor(t);
   const { error, retry, ...rest } = await searchParams;
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(rest)) for (const one of [v ?? []].flat()) params.append(k, one);
-  const auth = accountsAuth();
-  if (auth) return accountConsent(t, params, errorMessage(error, retry));
-  if (!oauthOn()) notFound();
-  const checked = checkAuthorize(params, await headers());
-  if (checked.kind === "redirect") redirect(checked.location);
-  if (checked.kind === "error") return <Failed message={checked.message} />;
-  return (
-    <main className="mt-[6vh]">
-      <h1 className="mb-2 text-xl font-bold tracking-tight">{t.login.connect(checked.clientName)}</h1>
-      <p className="mb-6 text-muted">{t.login.sentTo(checked.redirectHost)}</p>
-      <form method="post" action="/api/oauth/authorize" className="max-w-sm">
-        {Object.entries(checked.fields).map(([name, value]) => (
-          <input key={name} type="hidden" name={name} value={value} />
-        ))}
-        <label htmlFor="password" className="mb-1 block text-sm text-muted">
-          {t.login.password}
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            autoFocus
-            aria-describedby="login-error"
-            aria-invalid={error ? true : undefined}
-            className="min-w-0 flex-1 rounded-xl border border-rule bg-surface px-3 py-1.5 focus:border-carbon focus:outline-none"
-          />
-          <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
-            {t.login.allow}
-          </button>
-        </div>
-        <p id="login-error" role="alert" className="mt-2 text-sm text-error">
-          {errorMessage(error, retry)}
-        </p>
-      </form>
-    </main>
-  );
+  if (!accountsAuth()) notFound();
+  return accountConsent(t, params, errorMessage(error, retry));
 }
 
 async function accountConsent(t: ReturnType<typeof copyFor>, params: URLSearchParams, error: string | undefined) {

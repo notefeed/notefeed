@@ -2,7 +2,7 @@
 // (ADR 0062): register, authorize, the authorize page's Allow, the token. Nothing here is reachable from the app.
 import { makeSignature } from "better-auth/crypto";
 import { createHash, randomBytes } from "node:crypto";
-import { authorizeRoute } from "../oauth/routes";
+import { authorizeRoute } from "./mcpoauth";
 import { accountsAuth, authRoute } from "./auth";
 
 export const BASE = "http://localhost:3000";

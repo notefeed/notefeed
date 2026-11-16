@@ -15,12 +15,10 @@ vi.mock("@/backend", async (orig) => ({
   oauthQuery: async () => ba.query,
   oauthClient: async () => ({ name: "Claude", redirectHost: "claude.ai" }),
   accountOf: async () => ba.account,
-  checkAuthorize: () => ({ kind: "page", clientName: "C", redirectHost: "c.example", fields: { client_id: "x" } }),
 }));
 
 beforeEach(() => {
   Object.assign(ba, { on: false, query: "client_id=x&sig=s", account: undefined });
-  vi.stubEnv("NOTEFEED_PASSWORD", "pw");
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -29,12 +27,8 @@ const render = async (q: Record<string, string>) =>
     await AuthorizePage({ params: Promise.resolve({ lang: "en" }), searchParams: Promise.resolve(q) } as PageProps<"/[lang]/oauth/authorize">),
   );
 
-test("the instance password: a form with the authorize fields, its message inside it, once", async () => {
-  const html = await render({ error: "too_many_attempts", retry: "9" });
-  expect(html).toContain('action="/api/oauth/authorize"');
-  expect(html).toContain('name="client_id" value="x"');
-  expect(html.match(/id="login-error"/g)).toHaveLength(1);
-  expect(html).toMatch(/action="\/api\/oauth\/authorize"[^]*id="login-error"[^>]*>[^<]*9 seconds[^]*<\/form>/);
+test("without accounts there is no page", async () => {
+  await expect(render({ client_id: "x" })).rejects.toThrow();
 });
 
 test("with accounts, signed out: a link to sign in that comes back with Better Auth's signed request; no form", async () => {

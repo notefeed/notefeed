@@ -53,8 +53,6 @@ export const ROUTES = [
   "/mcp",
   "/metrics",
   "/oauth/authorize",
-  "/oauth/register",
-  "/oauth/token",
   "/privacy",
   "/r/[readId]",
   "/r/[readId]/[id]",

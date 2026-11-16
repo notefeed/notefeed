@@ -1,10 +1,12 @@
-// MCP sign-in where there are accounts (ADR 0062): Better Auth's OAuth server (the `mcp` plugin, auth.ts) issues the tokens; this is
-// what notefeed adds around it. Discovery at the addresses MCP clients look in, the protected resource's metadata (the plugin
-// serves none under Next), and the authorize page's answer (consent). The authorize and token steps themselves are Better Auth's.
+// MCP sign-in (ADR 0062): only where there are accounts, through Better Auth's OAuth server (the `mcp` plugin, auth.ts), which issues
+// the tokens; this is what notefeed adds around it. Discovery at the addresses MCP clients look in, the protected resource's
+// metadata (the plugin serves none under Next), and the authorize page's answer (consent). The authorize and token steps
+// themselves are Better Auth's. Without accounts there is no OAuth: every handler here is 404, and a locked instance's MCP clients
+// send the instance password as a header.
 import { oauthProviderAuthServerMetadata, verifyOAuthQueryParams } from "@better-auth/oauth-provider";
 import { readFields, sameOrigin, seeOther } from "../http/request";
 import { logger } from "../log";
-import { MCP_SCOPES, signedInSession, type Auth } from "./auth";
+import { accountsAuth, MCP_SCOPES, signedInSession, type Auth } from "./auth";
 import { config } from "../config";
 
 const log = logger("oauth");
@@ -12,8 +14,12 @@ const cors = { "Access-Control-Allow-Origin": "*" };
 // What the metadata names but notefeed doesn't serve: introspection needs a confidential client, which no MCP client is.
 const UNSERVED = ["introspection_endpoint", "introspection_endpoint_auth_methods_supported", "introspection_endpoint_auth_signing_alg_values_supported"];
 
+const notFound = () => new Response("not found", { status: 404 });
+
 // RFC 8414, at /.well-known/oauth-authorization-server and below it the issuer's path (/api/auth).
-export async function accountsAuthServerRoute(auth: Auth, req: Request): Promise<Response> {
+export async function authServerRoute(req: Request): Promise<Response> {
+  const auth = accountsAuth();
+  if (!auth) return notFound();
   const res = await oauthProviderAuthServerMetadata(auth)(req);
   const body = (await res.json()) as Record<string, unknown>;
   for (const k of UNSERVED) delete body[k];
@@ -21,7 +27,8 @@ export async function accountsAuthServerRoute(auth: Auth, req: Request): Promise
 }
 
 // RFC 9728: /mcp, whose tokens Better Auth issues.
-export function accountsProtectedResourceRoute(): Response {
+export function protectedResourceRoute(): Response {
+  if (!accountsAuth()) return notFound();
   const base = config.publicUrl();
   return Response.json(
     { resource: `${base}/mcp`, authorization_servers: [`${base}/api/auth`], bearer_methods_supported: ["header"], scopes_supported: MCP_SCOPES },
@@ -53,9 +60,20 @@ export async function oauthClient(auth: Auth, query: string): Promise<{ name: st
   return { name, redirectHost: host };
 }
 
-// POST /api/oauth/authorize with accounts: the page's Allow or Deny, from this instance's own pages, for the account signed in on
+// OPTIONS for the metadata documents, which browser-based MCP clients read cross-origin.
+export const metadataPreflight = (): Response =>
+  accountsAuth()
+    ? new Response(null, {
+        status: 204,
+        headers: { ...cors, "Access-Control-Allow-Methods": "GET", "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" },
+      })
+    : notFound();
+
+// POST /api/oauth/authorize: the page's Allow or Deny, from this instance's own pages, for the account signed in on
 // them. Better Auth checks the signed request again and answers with where the browser goes: the client, with a code or access_denied.
-export async function consentRoute(auth: Auth, req: Request): Promise<Response> {
+export async function authorizeRoute(req: Request): Promise<Response> {
+  const auth = accountsAuth();
+  if (!auth) return notFound();
   const h = req.headers;
   if (!sameOrigin(h)) return new Response("forbidden", { status: 403 });
   const form = await readFields(req, 16 * 1024);

@@ -7,8 +7,7 @@ import { accountsAuth, signedInSession } from "../accounts/auth";
 import { AuthError } from "../errors";
 import { cookie, seeOther } from "../http/request";
 import { authFailed, authWait, clientIp } from "../limits";
-import { redirectUriOk } from "../oauth/routes";
-import { type Payloads, sign, TTL, verify } from "../oauth/tokens";
+import { type Payloads, sign, TTL, verify } from "../signed";
 import { publicUrl, safeNext } from "../urls";
 import { safeEqual } from "../auth";
 import { randomBytes } from "node:crypto";
@@ -16,6 +15,13 @@ import { identityOn, type Provider, providerById, providers } from "./config";
 import { errorCode, log, logFailure, logUrl } from "./log";
 
 type Flight = Payloads["oidc"];
+
+// TLS to the provider: https anywhere, plain http only on loopback (a provider on this machine). No fragment.
+function issuerOk(u: string): boolean {
+  if (u.length > 512 || u.includes("#") || !URL.canParse(u)) return false;
+  const { protocol, hostname } = new URL(u);
+  return protocol === "https:" || (protocol === "http:" && (hostname === "localhost" || hostname === "127.0.0.1"));
+}
 const notFound = () => new Response("not found", { status: 404 });
 
 // The browser that started a sign-in holds its nonce in this cookie; finish takes a flight only together with it, so a finish link
@@ -63,7 +69,7 @@ export async function oidcStartRoute(req: Request): Promise<Response> {
     return seeOther(failedPage({ next }, "sign_in_failed"));
   }
   // TLS to the provider: https, or plain http on loopback only (as for redirect URIs).
-  if (!redirectUriOk(provider.issuer)) {
+  if (!issuerOk(provider.issuer)) {
     logFailure("issuer is not an https URL", { provider: provider.id, issuer: logUrl(provider.issuer) });
     return seeOther(failedPage({ next }, "sign_in_failed"));
   }

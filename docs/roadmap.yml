@@ -47,15 +47,6 @@ items:
     links:
       - {label: "#400", url: "https://github.com/notefeed/notefeed/issues/400"}
 
-  - id: oauth-on-better-auth
-    status: later
-    when: Later
-    icon: key-chain-variant
-    title: The instance password's MCP sign-in on Better Auth
-    summary: Instances with accounts sign MCP clients in through Better Auth already; notefeed's own OAuth server is left only where the instance password locks, and moves too.
-    links:
-      - {label: "#401", url: "https://github.com/notefeed/notefeed/issues/401"}
-
   - id: account-recovery
     status: later
     when: Later
@@ -118,7 +109,7 @@ items:
       - **Sign-in on Better Auth**, and one sender any post can set.
       - **Accounts**: sign-ins that renew while used (no weekly sign-in, the allow-list checked on every request); account number, recovery key and passkeys; a feed's owner and its several named feed passwords; account tokens; either an instance password or accounts.
       - **Licenses on the account**: one checkout for several feeds, the number raised or lowered later.
-      - **MCP sign-in on Better Auth** where there are accounts: an MCP client signs in as an account through Better Auth's OAuth server.
+      - **MCP sign-in on Better Auth**: an MCP client signs in as an account through Better Auth's OAuth server; notefeed's own OAuth server is gone, and the instance password goes in a header.
       - **Values and legal pages** for accounts, and notefeed.me's setup.
 
       Readers get nothing new, and nothing about who holds an account is stored.

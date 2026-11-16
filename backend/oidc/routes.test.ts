@@ -3,7 +3,6 @@ import { migrateAccounts, signedInName } from "../accounts/auth";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logTo } from "../log";
-import { resetTokensForTests } from "../oauth/tokens";
 import { BASE, Jar, type MockProvider, providerEnv, signIn, startProvider } from "./mockprovider.testkit";
 import { oidcFinishRoute, oidcStartRoute } from "./routes";
 
@@ -30,7 +29,6 @@ beforeEach(async () => {
   other.claims = { name: "Bea", email: "bea@y.com", email_verified: true };
   resetFeedsForTests();
   resetRateLimitsForTests();
-  resetTokensForTests();
   await migrateAccounts();
   lines = [];
   restore = logTo((l) => void lines.push(l));
@@ -205,7 +203,7 @@ describe("what sign-in keeps", () => {
 describe("final review", () => {
   test("finish refuses a valid flight that another browser started (a link cut out of someone else's sign-in)", async () => {
     const victim = await signIn(webStart());
-    const { sign: signFlight } = await import("../oauth/tokens");
+    const { sign: signFlight } = await import("../signed");
     const f = signFlight("oidc", { provider: "default", nonce: "the-attackers-own", next: "/elsewhere" });
     const res = await oidcFinishRoute(get(`/api/oidc/finish?f=${encodeURIComponent(f)}`, victim.jar.header()));
     expect(res.headers.get("location")).toMatch(/^\/login\?error=sign_in_failed/);

@@ -17,7 +17,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { config } from "../config";
 import { logger } from "../log";
-import { key as signingKey, TTL } from "../oauth/tokens";
+import { key as signingKey, TTL } from "../signed";
 import { allowed, providerById, providers } from "../oidc/config";
 import { accountsMode, accountsOn } from "./mode";
 import { logFailure } from "../oidc/log";

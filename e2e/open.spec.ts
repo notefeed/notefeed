@@ -164,7 +164,7 @@ test("MCP: a note posted over /mcp appears on the feed page; OAuth is off", asyn
   expect((await request.get("/mcp")).status()).toBe(405);
   for (const path of ["/oauth/authorize", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])
     expect((await request.get(path)).status(), path).toBe(404);
-  for (const path of ["/oauth/register", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])
+  for (const path of ["/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])
     expect((await request.fetch(path, { method: "OPTIONS" })).status(), `OPTIONS ${path}`).toBe(404);
 });
 

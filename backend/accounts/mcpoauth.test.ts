@@ -2,9 +2,8 @@
 // token on /mcp, and what /mcp refuses.
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { mcpRoute } from "../mcp";
-import { authServerRoute, protectedResourceRoute, registerRoute, tokenRoute } from "../oauth/routes";
 import { accountsAuth, authRoute, migrateAccounts } from "./auth";
-import { oauthClient, oauthQuery } from "./mcpoauth";
+import { authServerRoute, metadataPreflight, oauthClient, oauthQuery, protectedResourceRoute } from "./mcpoauth";
 import { answer, authorize, BASE, mcpToken, registerClient, REDIRECT, sessionCookie, token } from "./mcp.testkit";
 import { createAccount } from "./numbers";
 
@@ -55,7 +54,7 @@ test("discovery names Better Auth's server, at the root and below the issuer's p
     code_challenge_methods_supported: ["S256"],
   });
   expect(meta).not.toHaveProperty("introspection_endpoint");
-  const pr = await protectedResourceRoute(new Request(`${BASE}/.well-known/oauth-protected-resource/mcp`)).json();
+  const pr = await protectedResourceRoute().json();
   expect(pr).toEqual({
     resource: `${BASE}/mcp`,
     authorization_servers: [`${BASE}/api/auth`],
@@ -64,9 +63,12 @@ test("discovery names Better Auth's server, at the root and below the issuer's p
   });
 });
 
-test("notefeed's own server is gone where there are accounts", async () => {
-  expect((await registerRoute(new Request(`${BASE}/oauth/register`, { method: "POST", body: "{}" }))).status).toBe(404);
-  expect((await tokenRoute(new Request(`${BASE}/oauth/token`, { method: "POST", body: "" }))).status).toBe(404);
+test("without accounts there is no OAuth: discovery, the page's answer and the preflight are 404", async () => {
+  vi.stubEnv("NOTEFEED_ACCOUNTS", "off");
+  vi.stubEnv("NOTEFEED_PASSWORD", "pw");
+  expect((await authServerRoute(new Request(`${BASE}/.well-known/oauth-authorization-server`))).status).toBe(404);
+  expect(protectedResourceRoute().status).toBe(404);
+  expect(metadataPreflight().status).toBe(404);
 });
 
 test("signed out, authorize sends the browser to the authorize page with the request signed", async () => {

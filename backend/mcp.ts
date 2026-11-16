@@ -24,7 +24,6 @@ import { parseMediaType } from "./note/types";
 import { logger } from "./log";
 import * as next from "./mcpguidance";
 import { getNote, isDraft, isScheduled, listNotes, refuseRemovedNote, type Note } from "./notes";
-import { verify } from "./oauth/tokens";
 import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
 import { createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setFeedCovered, updateFeed } from "./posting";
@@ -716,8 +715,8 @@ const rpcError = (status: number, message: string, headers?: Record<string, stri
 // What may reach the handler. The SDK doesn't check Origin, so a browser page of another site can't drive
 // this endpoint: no Origin (server-side clients) passes, a present one must be our own host. That stops
 // DNS rebinding only when PUBLIC_URL is set; without it our host comes from the request's own Host header.
-// With accounts, a client sends Better Auth's access token (accountGate); a locked instance without them wants an access token of
-// notefeed's own server for this resource, or the password as the bearer.
+// With accounts, a client sends Better Auth's access token (accountGate); an instance the password locks wants the password as the
+// bearer (ADR 0062: no OAuth without accounts).
 async function gate(req: Request): Promise<Response | AuthInfo | undefined> {
   const origin = req.headers.get("origin");
   if (origin !== null) {
@@ -729,22 +728,12 @@ async function gate(req: Request): Promise<Response | AuthInfo | undefined> {
   }
   const auth = accountsAuth();
   if (auth) return accountGate(req, auth);
-  const unauthorized = (message: string, error = "") =>
-    rpcError(401, message, { "www-authenticate": `Bearer ${error}resource_metadata="${publicUrl(req.headers)}/.well-known/oauth-protected-resource/mcp"` });
-  const authorization = req.headers.get("authorization");
-  const token = bearerOf(authorization);
   if (!locked()) return undefined; // an open instance without accounts: anyone may call
-  // An access token we signed (now = 0 ignores expiry) is never a password guess: when it has expired or
-  // names another resource, invalid_token tells the client to refresh, and no failed attempt is counted.
-  if (verify("access", token, 0)) {
-    if (verify("access", token)?.aud === mcpResource(req.headers)) return { token, clientId: "oauth", scopes: [] };
-    return unauthorized("invalid token", 'error="invalid_token", ');
-  }
   try {
-    checkBearer(authorization, clientIp(req.headers));
+    checkBearer(req.headers.get("authorization"), clientIp(req.headers));
   } catch (e) {
     if (e instanceof TooManyAttemptsError) return rpcError(429, e.message, { "retry-after": String(e.retryAfter) });
-    if (e instanceof AuthError) return unauthorized(e.message);
+    if (e instanceof AuthError) return rpcError(401, e.message, { "www-authenticate": 'Bearer realm="notefeed"' });
     throw e;
   }
   return { token: "", clientId: "password", scopes: [] };
