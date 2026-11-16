@@ -205,9 +205,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
           </>
         }
       >
-        {licensingOn() && (
-          <LicenseSection feed={feed} freeTier={await freeTier(feed)} licensePage={await licensePageOn()} yours={ownership === "yours"} />
-        )}
+        {licensingOn() && <LicenseSection feed={feed} freeTier={await freeTier(feed)} licensePage={await licensePageOn()} yours={ownership === "yours"} />}
         {ownership === "yours" && <FeedPasswords feed={feed} passwords={await listFeedPasswords(feed, account)} />}
         {ownership === "others" && <p className="text-sm text-muted">{all.owner.someoneElses}</p>}
         {ownership === "unowned" && access === "unlocked" && (
