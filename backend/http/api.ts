@@ -23,7 +23,7 @@ import { isReadId, assertFeed, feedForReadId, hasFeed, isRemovedReadId, readIdOf
 import { forReaders, getSettings } from "../feedsettings";
 import { clientIp } from "../limits";
 import { MAX_BYTES, countNotes, getNote, isDraft, isScheduled, listNotes, refuseRemovedNote, type Note } from "../notes";
-import { freeTier, licensePlans, licensingOn } from "../licensing";
+import { freeTier, licensePlans, licensingOn, requireLicensesSold } from "../licensing";
 import { MANAGE_PURCHASES } from "../../shared/plans";
 import { PASSWORD_RULE } from "../../shared/password";
 import { TAG_RULE } from "../tags";
@@ -88,6 +88,8 @@ export { API_PREFIX };
 const err = (description: string) => ({ description, schema: ErrorJson }) satisfies ResponseSpec;
 const RETRY = { "Retry-After": { description: "Seconds to wait before trying again", type: "integer" } } as const;
 // Only on an instance whose main key is in a key service (NOTEFEED_KMS, issue #215).
+// The account operations' 401: neither a session from this instance's pages nor a token of an account.
+const NO_ACCOUNT = err("No account: signed in on this instance's pages, or its token");
 const UNAVAILABLE = { ...err("The key service is unreachable: the instance is down for maintenance; try again after Retry-After"), headers: RETRY };
 // Where images are stored: they are processed first (ADR 0049), a few at a time.
 const UNAVAILABLE_OR_BUSY = {
@@ -189,7 +191,7 @@ async function page(
 /** What licenses are sold, where to buy them and where buyers manage them (ADR 0050), for the API and MCP alike.
  *  NotFoundError where no licenses are sold. */
 export async function licensesJson(headers: Headers): Promise<z.infer<typeof LicensesJson>> {
-  if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+  requireLicensesSold();
   // A license is the account's (ADR 0061): its holder manages it on the account page, which opens the provider's portal for it.
   const manage = `${publicUrl(headers)}/account`;
   const plans = (await licensePlans()).map(({ taxIncluded, ...p }) => ({ ...p, tax_included: taxIncluded }));
@@ -989,13 +991,13 @@ const OPS: AnyOp[] = [
     params: {},
     responses: {
       200: { description: "The account's license", schema: AccountLicenseJson },
-      401: err("No account: signed in on this instance's pages, or its token"),
+      401: NO_ACCOUNT,
       404: err("Licenses are not sold on this instance"),
       503: UNAVAILABLE,
     },
-    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+    before: password,
   }).handle(async ({ req }) => {
-    if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+    requireLicensesSold();
     return { status: 200, body: await licenseOf(await signedInAccount(req.headers)) };
   }),
 
@@ -1013,11 +1015,11 @@ const OPS: AnyOp[] = [
     responses: {
       200: { description: "Where to send the buyer", schema: CheckoutJson },
       400: err("Bad JSON, a period that is not sold, or units outside 1 to 100"),
-      401: err("No account: signed in on this instance's pages, or its token"),
+      401: NO_ACCOUNT,
       404: err("Licenses are not sold on this instance"),
       503: UNAVAILABLE,
     },
-    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+    before: password,
   }).handle(async ({ req }) => {
     const account = await signedInAccount(req.headers);
     const body = CheckoutRequestJson.safeParse((await jsonBody(req)) ?? {});
@@ -1039,11 +1041,11 @@ const OPS: AnyOp[] = [
     responses: {
       204: { description: "Changed" },
       400: err("Bad JSON, units outside 1 to 100, or fewer than the feeds under the license"),
-      401: err("No account: signed in on this instance's pages, or its token"),
+      401: NO_ACCOUNT,
       404: err("No such active subscription on this account, or licenses are not sold here"),
       503: UNAVAILABLE,
     },
-    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+    before: password,
   }).handle(async ({ req, params }) => {
     const account = await signedInAccount(req.headers);
     const body = UnitsJson.safeParse(await jsonBody(req));
@@ -1063,11 +1065,11 @@ const OPS: AnyOp[] = [
     params: {},
     responses: {
       200: { description: "The portal's URL", schema: CheckoutJson },
-      401: err("No account: signed in on this instance's pages, or its token"),
+      401: NO_ACCOUNT,
       404: err("The account has bought no license, or licenses are not sold here"),
       503: UNAVAILABLE,
     },
-    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+    before: password,
   }).handle(async ({ req }) => ({ status: 200, body: await portalOf(await signedInAccount(req.headers)) })),
 
   op({

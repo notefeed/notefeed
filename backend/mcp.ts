@@ -1,6 +1,6 @@
 // The MCP endpoint: POST /mcp, protocol 2026-07-28 only, nine tools over the same backend the HTTP API uses.
 import { changeUnits, licenseOf, startCheckout } from "./licenseflow";
-import { licensingOn } from "./licensing";
+import { licensingOn, requireLicensesSold } from "./licensing";
 import { AccountLicenseJson } from "./http/schemas";
 import { checkNoteMeta, noteFieldSchemas, type NoteMeta } from "./notefields";
 import { McpServer, createMcpHandler, type AuthInfo } from "@modelcontextprotocol/server";
@@ -470,7 +470,7 @@ function server(h: Headers): McpServer {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     },
     guard(async () => {
-      if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+      requireLicensesSold();
       const l = await licenseOf(needAccount());
       return ok({ ...l, guidance: next.afterLicense(l) });
     }),

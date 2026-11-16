@@ -243,9 +243,7 @@ export async function claimFeed(feed: string, account: string, password: string,
   // a free unit of the account's license and puts it there, as creating a protected feed does (ADR 0061).
   let covered: number | undefined;
   if (licensingOn()) {
-    const { activeUnits } = await import("./accounts/subscriptions");
-    if ((await coveredFeeds(account)).length >= (await activeUnits(account)))
-      throw new LicenseRequiredError("the account's license covers no more feeds: raise its number first");
+    await requireFreeUnit(account);
     covered = Date.now();
   }
   const hash = await hashPassword(password);
@@ -308,12 +306,17 @@ export async function coveredFeeds(account: string): Promise<string[]> {
     .map((o) => o.feed);
 }
 
+// A free unit of the account's license for one more feed, or LicenseRequiredError. `units` when the caller has them already.
+export async function requireFreeUnit(account: string, units?: number): Promise<void> {
+  units ??= await (await import("./accounts/subscriptions")).activeUnits(account);
+  if ((await coveredFeeds(account)).length >= units) throw new LicenseRequiredError("the account's license covers no more feeds: raise its number first");
+}
+
 // Puts the owner's feed under its license (or takes it off): refused past the license's units (LicenseRequiredError).
 export async function setCovered(feed: string, account: string | undefined, covered: boolean, units: number): Promise<void> {
   const rec = await ownersRecord(feed, account);
   if (covered === (rec.covered !== undefined)) return;
-  if (covered && (await coveredFeeds(account!)).length >= units)
-    throw new LicenseRequiredError("the account's license covers no more feeds: raise its number first");
+  if (covered) await requireFreeUnit(account!, units);
   await writeRecord(feed, { ...rec, covered: covered ? Date.now() : undefined });
 }
 

@@ -49,7 +49,7 @@ import {
   renameFeed,
   setReadId,
 } from "./feeds";
-import { isLicensed, licensingOn, requireLicense, trimToFreeCap } from "./licensing";
+import { isLicensed, licensingOn, requireLicense, requireLicensesSold, trimToFreeCap } from "./licensing";
 import { activeUnits } from "./accounts/subscriptions";
 import { isBlockedImage } from "./takedown";
 import { processImage } from "./imageprocess";
@@ -154,9 +154,7 @@ async function protect(
 async function requireRoom(account: string | undefined): Promise<void> {
   if (!licensingOn()) return;
   if (!account) throw new LicenseRequiredError("this needs a license: sign in with an account that has one");
-  const { coveredFeeds } = await import("./feedlock");
-  if ((await coveredFeeds(account)).length >= (await activeUnits(account)))
-    throw new LicenseRequiredError("the account's license covers no more feeds: raise its number first");
+  await (await import("./feedlock")).requireFreeUnit(account);
 }
 
 // Puts a feed this request just made under the account's license, where licenses are sold (requireRoom checked there is room).
@@ -455,7 +453,7 @@ async function removeOwnImage(feed: string, file: string): Promise<void> {
 // Puts the owner's feed under its account's license, or takes it off (ADR 0061): only the owner, and no more feeds than the license's
 // units. NotFoundError while licenses are not sold here.
 export async function setFeedCovered(feed: string, ip: string, covered: boolean, access: FeedAccess): Promise<void> {
-  if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+  requireLicensesSold();
   await admit(feed, ip, access);
   if (!(await hasFeed(feed))) throw new NotFoundError("no such feed");
   const { setCovered } = await import("./feedlock");

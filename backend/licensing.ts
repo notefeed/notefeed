@@ -5,7 +5,7 @@
 // covers, the owner says which (feedlock.ts setCovered), and the first ones covered count when there are more than the units.
 // A lapsed license changes nothing already stored: the notes stay, images are still served, and a password keeps protecting the feed.
 import { config } from "./config";
-import { LicenseRequiredError } from "./errors";
+import { LicenseRequiredError, NotFoundError } from "./errors";
 import { isHeldBack } from "./feednames";
 import { logger } from "./log";
 import { countNotes, idsBeyond, removeNote } from "./notes";
@@ -14,6 +14,10 @@ import { paymentProvider, type Plan } from "./payments";
 const log = logger("licensing");
 
 export const licensingOn = (): boolean => config.paymentProvider() !== "";
+/** The guard of every license operation: NotFoundError where no licenses are sold. */
+export function requireLicensesSold(): void {
+  if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
+}
 export const freeNoteCap = config.freeNoteCap;
 /** The plans sold, from the payment provider; none with no provider. */
 export const licensePlans = async (): Promise<Plan[]> => (await paymentProvider()?.plans()) ?? [];
