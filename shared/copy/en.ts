@@ -479,6 +479,8 @@ export const en = {
     asAccount: (number: string) => `It will act as account ${number}: post to and manage the feeds it owns.`,
     asYou: "It will act as you: post to and manage the feeds your account owns.",
     signInFirst: "Sign in to your account first",
+    deny: "Deny",
+    expired: "This sign-in has expired. Connect again from your MCP client.",
     accountNumber: "Account number",
     recoveryKey: "Recovery key",
     signInWithKey: "Sign in",

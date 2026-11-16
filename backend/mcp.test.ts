@@ -6,6 +6,9 @@ import { resetRateLimitsForTests } from "./limits";
 import { logTo } from "./log";
 import { createNote, getNote, listNotes } from "./notes";
 import { storage } from "./storage";
+import { signedInSession } from "./accounts/auth";
+import { mcpToken } from "./accounts/mcp.testkit";
+import { signedInCookie, stubSignInOn } from "./accounts/signin.testkit";
 import { mcpRoute } from "./mcp";
 import { takedownNote } from "./takedown";
 import { sign } from "./oauth/tokens";
@@ -530,17 +533,18 @@ describe("gate on a locked instance", () => {
     expect(res.status).toBe(429);
     expect(Number(res.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
   });
-  test("identity only (no password): an access token works and carries its sender into post_note; an empty bearer never does", async () => {
+  test("identity only (no password): Better Auth's access token works and carries the account's sender into post_note", async () => {
     delete process.env.NOTEFEED_PASSWORD;
-    for (const [k, v] of Object.entries({ ISSUER: "https://idp.example", CLIENT_ID: "id", CLIENT_SECRET: "s", ALLOW: "*" }))
-      vi.stubEnv(`NOTEFEED_OIDC_${k}`, v);
+    stubSignInOn();
+    const userId = (await signedInSession(new Headers({ host: "localhost:3000", cookie: await signedInCookie("Ann") })))!.userId;
     for (const h of [{}, { authorization: "Bearer " }, { authorization: "Bearer" }, bearer("x")]) expect((await rpc("tools/list", {}, h)).status).toBe(401);
-    const t = sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" });
+    const t = await mcpToken(userId);
+    await rpc("tools/call", { name: "create_feed", arguments: { feed: "a" } }, bearer(t));
     const res = await rpc("tools/call", { name: "post_note", arguments: { feed: "a", markdown: "# Hi" } }, bearer(t));
     expect(res.status).toBe(200);
     const id = (await res.json()).result.structuredContent.id;
     expect((await getNote("a", id))!.sender).toBe("Ann");
-    // A sender given with the note wins over the token's.
+    // A sender given with the note wins over the account's.
     const given = await rpc("tools/call", { name: "post_note", arguments: { feed: "a", markdown: "# Hi", sender: "Backup bot" } }, bearer(t));
     expect((await getNote("a", (await given.json()).result.structuredContent.id))!.sender).toBe("Backup bot");
   });

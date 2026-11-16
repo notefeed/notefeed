@@ -1,0 +1,163 @@
+// MCP sign-in where there are accounts, through Better Auth's OAuth server (ADR 0062): discovery, the authorize page's answer, the
+// token on /mcp, and what /mcp refuses.
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { mcpRoute } from "../mcp";
+import { authServerRoute, protectedResourceRoute, registerRoute, tokenRoute } from "../oauth/routes";
+import { accountsAuth, authRoute, migrateAccounts } from "./auth";
+import { oauthClient, oauthQuery } from "./mcpoauth";
+import { answer, authorize, BASE, mcpToken, registerClient, REDIRECT, sessionCookie, token } from "./mcp.testkit";
+import { createAccount } from "./numbers";
+
+beforeEach(async () => {
+  vi.stubEnv("NOTEFEED_SECRET", "test-secret-".padEnd(32, "x"));
+  vi.stubEnv("NOTEFEED_PASSWORD", "");
+  vi.stubEnv("PUBLIC_URL", BASE);
+  vi.stubEnv("NOTEFEED_ACCOUNTS", "open");
+  await migrateAccounts();
+});
+afterEach(() => vi.unstubAllEnvs());
+
+const V = "2026-07-28";
+function mcp(authorization?: string): Request {
+  const body = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/call",
+    params: {
+      name: "list_feeds",
+      arguments: {},
+      _meta: {
+        "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" },
+        "io.modelcontextprotocol/clientCapabilities": {},
+        "io.modelcontextprotocol/protocolVersion": V,
+      },
+    },
+  };
+  const headers: Record<string, string> = {
+    host: "localhost:3000",
+    "content-type": "application/json",
+    accept: "application/json, text/event-stream",
+    "mcp-protocol-version": V,
+    "mcp-method": "tools/call",
+    "mcp-name": "list_feeds",
+    ...(authorization ? { authorization } : {}),
+  };
+  return new Request(`${BASE}/mcp`, { method: "POST", headers, body: JSON.stringify(body) });
+}
+
+test("discovery names Better Auth's server, at the root and below the issuer's path, and /mcp as the resource", async () => {
+  const meta = await (await authServerRoute(new Request(`${BASE}/.well-known/oauth-authorization-server`))).json();
+  expect(meta).toMatchObject({
+    issuer: `${BASE}/api/auth`,
+    authorization_endpoint: `${BASE}/api/auth/oauth2/authorize`,
+    token_endpoint: `${BASE}/api/auth/oauth2/token`,
+    registration_endpoint: `${BASE}/api/auth/oauth2/register`,
+    code_challenge_methods_supported: ["S256"],
+  });
+  expect(meta).not.toHaveProperty("introspection_endpoint");
+  const pr = await protectedResourceRoute(new Request(`${BASE}/.well-known/oauth-protected-resource/mcp`)).json();
+  expect(pr).toEqual({
+    resource: `${BASE}/mcp`,
+    authorization_servers: [`${BASE}/api/auth`],
+    bearer_methods_supported: ["header"],
+    scopes_supported: ["openid", "offline_access"],
+  });
+});
+
+test("notefeed's own server is gone where there are accounts", async () => {
+  expect((await registerRoute(new Request(`${BASE}/oauth/register`, { method: "POST", body: "{}" }))).status).toBe(404);
+  expect((await tokenRoute(new Request(`${BASE}/oauth/token`, { method: "POST", body: "" }))).status).toBe(404);
+});
+
+test("signed out, authorize sends the browser to the authorize page with the request signed", async () => {
+  const { page } = await authorize(await registerClient());
+  expect(page.pathname).toBe("/oauth/authorize");
+  expect(page.searchParams.get("sig")).toBeTruthy();
+  expect(page.searchParams.get("redirect_uri")).toBe(REDIRECT);
+  // What the page shows, before anyone has signed in.
+  const auth = accountsAuth()!;
+  const query = await oauthQuery(auth, page.searchParams);
+  expect(query).toBeTruthy();
+  expect(await oauthClient(auth, query!)).toEqual({ name: "Test client", redirectHost: "client.example" });
+  expect(await oauthQuery(auth, new URLSearchParams(page.search.replace("state=st", "state=x")))).toBeNull();
+});
+
+test("Allow sends a code; the token acts as the account on /mcp; once allowed, the next authorize skips the page", async () => {
+  const { userId } = await createAccount();
+  const cookie = await sessionCookie(userId);
+  const clientId = await registerClient();
+  const pending = await authorize(clientId, cookie);
+  const res = await answer(pending, cookie, true);
+  const back = new URL(res.headers.get("location")!);
+  expect(back.origin + back.pathname).toBe(REDIRECT);
+  expect(back.searchParams.get("state")).toBe("st");
+  const t = await token(pending, back.searchParams.get("code")!);
+  const claims = JSON.parse(Buffer.from(t.access_token.split(".")[1], "base64url").toString());
+  expect(claims).toMatchObject({ sub: userId, iss: `${BASE}/api/auth` });
+  expect(claims.aud).toContain(`${BASE}/mcp`);
+  const listed = await (await mcpRoute(mcp(`Bearer ${t.access_token}`))).json();
+  expect(listed.result.structuredContent.feeds).toEqual([]);
+  const again = await authorize(clientId, cookie);
+  expect(again.location.startsWith(`${REDIRECT}?code=`)).toBe(true);
+});
+
+test("Deny sends access_denied to the client", async () => {
+  const { userId } = await createAccount();
+  const cookie = await sessionCookie(userId);
+  const pending = await authorize(await registerClient(), cookie);
+  const back = new URL((await answer(pending, cookie, false)).headers.get("location")!);
+  expect(back.searchParams.get("error")).toBe("access_denied");
+});
+
+test("the answer needs the signed request unchanged, a session, and this instance's own page", async () => {
+  const { userId } = await createAccount();
+  const cookie = await sessionCookie(userId);
+  const pending = await authorize(await registerClient(), cookie);
+  const changed = pending.page.search.slice(1).replace(`state=st`, `state=other`);
+  expect((await answer(pending, cookie, true, changed)).status).toBe(400);
+  const signedOut = await answer(pending, "", true);
+  expect(signedOut.headers.get("location")).toMatch(/^\/oauth\/authorize\?.*&error=auth$/);
+  const cross = await authRoute(new Request(`${BASE}/api/auth/oauth2/consent`, { method: "POST", headers: { cookie } }));
+  expect(cross.status).toBe(404); // consent is the page's, on the server
+});
+
+test("/mcp refuses a bad token, and one whose account is gone; an open instance lets a client without one in", async () => {
+  const { userId } = await createAccount();
+  const t = await mcpToken(userId);
+  const bad = await mcpRoute(mcp(`Bearer ${t.slice(0, -4)}AAAA`));
+  expect(bad.status).toBe(401);
+  expect(bad.headers.get("www-authenticate")).toMatch(/resource_metadata=/);
+  await (await accountsAuth()!.$context).internalAdapter.deleteUser(userId);
+  expect((await mcpRoute(mcp(`Bearer ${t}`))).status).toBe(401);
+  const anonymous = await (await mcpRoute(mcp())).json();
+  expect(anonymous.result.isError).toBe(true); // list_feeds needs an account
+});
+
+test("an instance that accounts lock wants a token on /mcp", async () => {
+  vi.stubEnv("NOTEFEED_ACCOUNTS", "closed");
+  const res = await mcpRoute(mcp());
+  expect(res.status).toBe(401);
+  expect(res.headers.get("www-authenticate")).toMatch(/^Bearer /);
+});
+
+test("the token, register and keys routes answer any origin; the rest of Better Auth stays closed", async () => {
+  const pre = await authRoute(new Request(`${BASE}/api/auth/oauth2/token`, { method: "OPTIONS" }));
+  expect(pre.status).toBe(204);
+  expect(pre.headers.get("access-control-allow-origin")).toBe("*");
+  const jwks = await authRoute(new Request(`${BASE}/api/auth/jwks`));
+  expect(jwks.status).toBe(200);
+  expect(jwks.headers.get("access-control-allow-origin")).toBe("*");
+  expect((await authRoute(new Request(`${BASE}/api/auth/token`))).status).toBe(404);
+  expect((await authRoute(new Request(`${BASE}/api/auth/oauth2/introspect`, { method: "POST" }))).status).toBe(404);
+});
+
+test("a native client's loopback redirect registers, also without application_type (Cursor, older Claude Code)", async () => {
+  const res = await authRoute(
+    new Request(`${BASE}/api/auth/oauth2/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ client_name: "cli", redirect_uris: ["http://127.0.0.1:33418/callback"], token_endpoint_auth_method: "none" }),
+    }),
+  );
+  expect(res.status).toBe(201);
+});

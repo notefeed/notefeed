@@ -48,4 +48,8 @@ Each link goes to the feed's read link and shows the feed's title, or its name. 
 
 ## OAuth for MCP clients
 
-Clients that can't send a header, such as the Claude.ai and Claude Desktop connectors for [MCP](../integrations/mcp.md), log in through notefeed's own OAuth login page with the instance password (or [sign-in](sign-in/index.md)). It only exists on a locked instance. `PUBLIC_URL` is the issuer, so set it with `https://`. Nothing is stored: codes and tokens are signed with a key derived from the secret and the password, so changing `NOTEFEED_PASSWORD` signs every client out. An access token lasts an hour, a refresh token 30 days.
+Clients that can't send a header, such as the Claude.ai and Claude Desktop connectors for [MCP](../integrations/mcp.md), log in through OAuth. Which server answers depends on the instance:
+
+- **Locked by `NOTEFEED_PASSWORD`:** notefeed's own OAuth login page, with the instance password. `PUBLIC_URL` is the issuer, so set it with `https://`. Nothing is stored: codes and tokens are signed with a key derived from the secret and the password, so changing `NOTEFEED_PASSWORD` signs every client out. An access token lasts an hour, a refresh token 30 days.
+- **With [accounts](accounts.md):** Better Auth's OAuth server, in which the client signs in as an account ([MCP](../integrations/mcp.md#as-an-account)). Its issuer is `<PUBLIC_URL>/api/auth`, found from `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource/mcp`. A client registers itself, by its client metadata document or by dynamic registration (Claude.ai needs that); registrations count toward the [rate limit](limits.md). The clients, what each account allowed and the refresh tokens are kept in `accounts.sqlite`. An access token is a signed JWT for `<PUBLIC_URL>/mcp` that lasts an hour; a refresh token lasts 30 days from its last use and works once.
+- **Open, without accounts:** none; `/mcp` takes everyone.

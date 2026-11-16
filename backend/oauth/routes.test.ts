@@ -1,7 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { signedInSession } from "../accounts/auth";
-import { signedInCookie, stubSignInOn } from "../accounts/signin.testkit";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logsOf } from "../log";
@@ -10,14 +8,13 @@ import {
   authServerRoute,
   authorizeRoute,
   checkAuthorize,
-  issueCode,
   metadataPreflight,
   protectedResourceRoute,
   registerPreflight,
   registerRoute,
   tokenRoute,
 } from "./routes";
-import { TTL, cid, resetTokensForTests, verify } from "./tokens";
+import { resetTokensForTests, verify } from "./tokens";
 
 const BASE = "http://localhost:3000";
 const RESOURCE = `${BASE}/mcp`;
@@ -144,16 +141,6 @@ describe("flow", () => {
     expect(await again.json()).toEqual({ error: "invalid_grant" });
   });
 
-  // A code from a sign-in, as issueCode makes it after the provider's callback, for a person signed in through the stub provider.
-  async function signedInCode() {
-    const id = await clientId();
-    const { verifier, challenge } = pkce();
-    const fields = Object.fromEntries(authParams(id, challenge));
-    const uid = (await signedInSession(new Headers({ ...H, cookie: await signedInCookie("Ann") })))!.userId;
-    const code = new URL(issueCode(fields, new Headers(H), { sender: "Ann", uid }).headers.get("location")!).searchParams.get("code")!;
-    return { id, verifier, code, uid };
-  }
-  const signInOn = () => stubSignInOn();
   // Refreshes `refresh_token` every `days` days from now until `total` days have passed; the last response.
   async function refreshEvery(days: number, total: number, refresh_token: string, client_id: string): Promise<Response> {
     const start = Date.now();
@@ -166,60 +153,6 @@ describe("flow", () => {
     }
     return res;
   }
-
-  test("a code's sender and sign-in limit are carried into the tokens and through refresh", async () => {
-    signInOn();
-    const c = await signedInCode();
-    const until = verify("code", c.code)!.until!;
-    expect(Math.abs(until - (Math.floor(Date.now() / 1000) + TTL.signInMax))).toBeLessThanOrEqual(1);
-    const first = await (await exchange(c)).json();
-    expect(verify("access", first.access_token)?.sender).toBe("Ann");
-    expect(verify("refresh", first.refresh_token)).toMatchObject({ sender: "Ann", uid: c.uid, until });
-    // The access token carries the account too: MCP's tools act as it (#390); it is re-checked at its next refresh (ADR 0056).
-    expect(verify("access", first.access_token)).toMatchObject({ uid: c.uid });
-    const second = await (await token({ grant_type: "refresh_token", refresh_token: first.refresh_token, client_id: c.id })).json();
-    expect(verify("access", second.access_token)?.sender).toBe("Ann");
-    expect(verify("refresh", second.refresh_token)).toMatchObject({ sender: "Ann", until });
-  });
-
-  test("a sign-in's refresh is refused once sign-in is switched off", async () => {
-    signInOn();
-    const c = await signedInCode();
-    const { refresh_token } = await (await exchange(c)).json();
-    vi.unstubAllEnvs();
-    let res = new Response();
-    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toEqual([
-      { level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in switched off" },
-    ]);
-    expect((await res.json()).error).toBe("invalid_grant");
-  });
-
-  test("a sign-in's refresh chain ends 90 days after the sign-in, however often it is refreshed", async () => {
-    signInOn();
-    const c = await signedInCode();
-    const { refresh_token } = await (await exchange(c)).json();
-    let res = new Response();
-    expect(await logsOf(async () => (res = await refreshEvery(20, 100, refresh_token, c.id)))).toEqual([
-      { level: "warn", component: "oauth", msg: "refresh refused", reason: "sign-in past its lifetime" },
-    ]);
-    expect((await res.json()).error).toBe("invalid_grant");
-  });
-
-  test("a refresh after the person was taken off the allow-list is invalid_grant", async () => {
-    signInOn();
-    const c = await signedInCode();
-    const { refresh_token } = await (await exchange(c)).json();
-    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "bob@x.com");
-    let res = new Response();
-    // Among Better Auth's own lines (the stub provider can't be reached) and the session check's.
-    expect(await logsOf(async () => (res = await token({ grant_type: "refresh_token", refresh_token, client_id: c.id })))).toContainEqual({
-      level: "warn",
-      component: "oauth",
-      msg: "refresh refused",
-      reason: "no longer allowed",
-    });
-    expect((await res.json()).error).toBe("invalid_grant");
-  });
 
   test("a password login's refresh has no limit but its own: no uid, never re-checked", async () => {
     const c = await code();
@@ -396,31 +329,16 @@ describe("login", () => {
     expect(next.headers.get("location")).toMatch(new RegExp(`^/oauth/authorize\\?.*&error=too_many_attempts&retry=\\d+$`));
   });
 
-  test("with sign-in and no password, no password (not even an empty one) is accepted", async () => {
-    vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
-    vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
-    vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "secret");
-    vi.stubEnv("NOTEFEED_OIDC_ALLOW", "*");
+  test("with accounts, the password form is gone: a password gets no code", async () => {
+    vi.stubEnv("NOTEFEED_ACCOUNTS", "open");
+    vi.stubEnv("PUBLIC_URL", BASE);
     vi.stubEnv("NOTEFEED_PASSWORD", "");
-    try {
-      const q = authParams(await clientId(), pkce().challenge);
-      for (const password of ["", "pw"]) {
-        const res = await authorizeRoute(form("/api/oauth/authorize", { ...Object.fromEntries(q), password }));
-        expect(res.headers.get("location")).toBe(`/oauth/authorize?${q}&error=auth`);
-      }
-    } finally {
-      vi.unstubAllEnvs();
+    const q = authParams("any-client", pkce().challenge);
+    for (const password of ["", "pw"]) {
+      const res = await authorizeRoute(form("/api/oauth/authorize", { ...Object.fromEntries(q), password }));
+      expect(res.status).toBe(403); // not this instance's page: Better Auth's consent wants a same-origin form
+      expect(res.headers.get("location")).toBeNull();
     }
-  });
-
-  test("issueCode sends the browser back with a code carrying the sender", async () => {
-    const id = await clientId();
-    const fields = Object.fromEntries(authParams(id, pkce().challenge));
-    const loc = new URL(issueCode(fields, new Headers(H), { sender: "Ann", uid: "u1" }).headers.get("location")!);
-    expect(loc.searchParams.get("state")).toBe("a b&c");
-    expect(loc.searchParams.get("iss")).toBe(BASE);
-    expect(verify("code", loc.searchParams.get("code")!)).toMatchObject({ cid: cid(id), redirect_uri: CB, resource: RESOURCE, sender: "Ann" });
-    expect(verify("code", new URL(issueCode(fields, new Headers(H)).headers.get("location")!).searchParams.get("code")!)).not.toHaveProperty("sender");
   });
 
   test("an invalid client on the POST is a 400, no redirect", async () => {
@@ -444,7 +362,7 @@ test("open instance: every handler is 404", async () => {
   delete process.env.NOTEFEED_PASSWORD;
   const get = (path: string) => new Request(BASE + path, { headers: H });
   expect(protectedResourceRoute(get("/.well-known/oauth-protected-resource/mcp")).status).toBe(404);
-  expect(authServerRoute(get("/.well-known/oauth-authorization-server")).status).toBe(404);
+  expect((await authServerRoute(get("/.well-known/oauth-authorization-server"))).status).toBe(404);
   expect((await register({ redirect_uris: [CB] })).status).toBe(404);
   expect((await authorizeRoute(form("/api/oauth/authorize", { ...Object.fromEntries(authParams(id, pkce().challenge)), password: "" }))).status).toBe(404);
   expect((await token({ grant_type: "authorization_code" })).status).toBe(404);
@@ -459,7 +377,7 @@ describe("CORS for browser-based clients", () => {
     const c = await code();
     for (const res of [
       protectedResourceRoute(get("/.well-known/oauth-protected-resource/mcp")),
-      authServerRoute(get("/.well-known/oauth-authorization-server")),
+      await authServerRoute(get("/.well-known/oauth-authorization-server")),
       await register({ redirect_uris: [CB] }),
       await register({ redirect_uris: [] }),
       await exchange(c),
@@ -487,7 +405,7 @@ test("metadata documents", async () => {
     authorization_servers: [BASE],
     bearer_methods_supported: ["header"],
   });
-  expect(await authServerRoute(get("/.well-known/oauth-authorization-server")).json()).toEqual({
+  expect(await (await authServerRoute(get("/.well-known/oauth-authorization-server"))).json()).toEqual({
     issuer: BASE,
     authorization_endpoint: `${BASE}/oauth/authorize`,
     token_endpoint: `${BASE}/oauth/token`,

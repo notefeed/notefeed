@@ -3,20 +3,24 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import AuthorizePage from "./page";
 
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
-const providers = vi.hoisted(() => ({ list: null as { id: string; label: string }[] | null }));
+// With accounts (ADR 0062): Better Auth's signed request, the client it names and the account signed in, each set per test.
+const ba = vi.hoisted(() => ({
+  on: false,
+  query: "client_id=x&sig=s" as string | null,
+  account: undefined as { number?: string } | undefined,
+}));
 vi.mock("@/backend", async (orig) => ({
   ...(await orig<typeof import("@/backend")>()),
-  signInProviders: () => providers.list ?? [{ id: "default", label: "idp.example" }],
+  accountsAuth: () => (ba.on ? {} : undefined),
+  oauthQuery: async () => ba.query,
+  oauthClient: async () => ({ name: "Claude", redirectHost: "claude.ai" }),
+  accountOf: async () => ba.account,
   checkAuthorize: () => ({ kind: "page", clientName: "C", redirectHost: "c.example", fields: { client_id: "x" } }),
 }));
 
 beforeEach(() => {
-  providers.list = null;
-  vi.stubEnv("NOTEFEED_OIDC_ISSUER", "https://idp.example");
-  vi.stubEnv("NOTEFEED_OIDC_CLIENT_ID", "id");
-  vi.stubEnv("NOTEFEED_OIDC_CLIENT_SECRET", "client-secret");
-  vi.stubEnv("NOTEFEED_OIDC_ALLOW", "ann@x.com");
-  vi.stubEnv("NOTEFEED_PASSWORD", "");
+  Object.assign(ba, { on: false, query: "client_id=x&sig=s", account: undefined });
+  vi.stubEnv("NOTEFEED_PASSWORD", "pw");
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -25,52 +29,35 @@ const render = async (q: Record<string, string>) =>
     await AuthorizePage({ params: Promise.resolve({ lang: "en" }), searchParams: Promise.resolve(q) } as PageProps<"/[lang]/oauth/authorize">),
   );
 
-test("a failed sign-in shows its message without a password form", async () => {
+test("the instance password: a form with the authorize fields, its message inside it, once", async () => {
   const html = await render({ error: "too_many_attempts", retry: "9" });
-  expect(html).not.toContain('action="/api/oauth/authorize"');
-  expect(html).toMatch(/<p id="login-error" role="alert"[^>]*>[^<]*9 seconds[^<]*<\/p>/);
-});
-
-test("with a password too, the message stays in the password form, once", async () => {
-  vi.stubEnv("NOTEFEED_PASSWORD", "pw");
-  const html = await render({ error: "sign_in_failed" });
-  expect(html.match(/id="login-error"/g)).toHaveLength(1);
-  expect(html).toMatch(/action="\/api\/oauth\/authorize"[^]*id="login-error"[^]*<\/form>/);
-});
-
-const forms = (html: string) =>
-  [...html.matchAll(/<form action="\/api\/oidc\/start" method="post">(.*?)<\/form>/g)].map((m) => ({
-    provider: m[1].match(/name="provider" value="([^"]*)"/)?.[1],
-    client: m[1].match(/name="client_id" value="([^"]*)"/)?.[1],
-    button: m[1].match(/<button[^>]*>([^<]*)<\/button>/)?.[1],
-  }));
-
-test("one provider: one form with the authorize fields and its provider", async () => {
-  expect(forms(await render({}))).toEqual([{ provider: "default", client: "x", button: "Sign in with idp.example" }]);
-});
-
-test("two providers: a form each, in order, one disclosure", async () => {
-  providers.list = [
-    { id: "default", label: "Authentik" },
-    { id: "work", label: "Work" },
-  ];
-  const html = await render({});
-  expect(forms(html)).toEqual([
-    { provider: "default", client: "x", button: "Sign in with Authentik" },
-    { provider: "work", client: "x", button: "Sign in with Work" },
-  ]);
-  expect(html.match(/mt-2 text-sm text-muted/g)).toHaveLength(1);
-});
-
-test("an empty label reads just Sign in", async () => {
-  providers.list = [{ id: "x", label: "" }];
-  expect(forms(await render({}))[0].button).toBe("Sign in");
-});
-
-test("no provider: no form; password only is unchanged", async () => {
-  providers.list = [];
-  vi.stubEnv("NOTEFEED_PASSWORD", "pw");
-  const html = await render({});
-  expect(forms(html)).toEqual([]);
   expect(html).toContain('action="/api/oauth/authorize"');
+  expect(html).toContain('name="client_id" value="x"');
+  expect(html.match(/id="login-error"/g)).toHaveLength(1);
+  expect(html).toMatch(/action="\/api\/oauth\/authorize"[^]*id="login-error"[^>]*>[^<]*9 seconds[^]*<\/form>/);
+});
+
+test("with accounts, signed out: a link to sign in that comes back with Better Auth's signed request; no form", async () => {
+  ba.on = true;
+  const html = await render({ client_id: "x", sig: "s" });
+  expect(html).toContain("Connect Claude");
+  expect(html).toContain(`href="/login?next=${encodeURIComponent("/oauth/authorize?client_id=x&sig=s")}"`);
+  expect(html).not.toContain("<form");
+  expect(html).not.toContain('name="password"');
+});
+
+test("with accounts, signed in: Allow and Deny post the signed request, and say which account", async () => {
+  Object.assign(ba, { on: true, account: { number: "4821-0937-5521-7764" } });
+  const html = await render({ client_id: "x", sig: "s" });
+  expect(html).toContain('<input type="hidden" name="oauth_query" value="client_id=x&amp;sig=s"/>');
+  expect(html).toMatch(/value="1"[^>]*name="accept">Allow as your account</);
+  expect(html).toMatch(/value="0"[^>]*name="accept">Deny</);
+  expect(html).toContain("account 4821-0937-5521-7764");
+});
+
+test("with accounts, a request Better Auth didn't sign, or no longer would: the expired message", async () => {
+  Object.assign(ba, { on: true, query: null });
+  const html = await render({ client_id: "x" });
+  expect(html).toContain("This sign-in has expired");
+  expect(html).not.toContain("<form");
 });

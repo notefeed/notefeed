@@ -3,14 +3,11 @@ import { migrateAccounts, signedInName } from "../accounts/auth";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logTo } from "../log";
-import { registerRoute } from "../oauth/routes";
-import { resetTokensForTests, verify } from "../oauth/tokens";
+import { resetTokensForTests } from "../oauth/tokens";
 import { BASE, Jar, type MockProvider, providerEnv, signIn, startProvider } from "./mockprovider.testkit";
 import { oidcFinishRoute, oidcStartRoute } from "./routes";
 
 const H = { host: "localhost:3000" };
-const CB = "https://claude.ai/api/mcp/auth_callback";
-const CHALLENGE = "a".repeat(43);
 
 let idp: MockProvider;
 let other: MockProvider;
@@ -47,23 +44,6 @@ const warned = () => entries().filter((e) => e.level === "warn" && e.component =
 
 const get = (path: string, cookie?: string) => new Request(BASE + path, { headers: { ...H, ...(cookie ? { cookie } : {}) } });
 const webStart = (query = "next=/feed") => get(`/api/oidc/start?${query}`);
-const mcpStart = (fields: Record<string, string>, origin: string | null = BASE) =>
-  new Request(`${BASE}/api/oidc/start`, {
-    method: "POST",
-    headers: { ...H, "content-type": "application/x-www-form-urlencoded", ...(origin ? { origin } : {}) },
-    body: new URLSearchParams(fields),
-  });
-async function mcpFields(extra: Record<string, string> = {}): Promise<Record<string, string>> {
-  const reg = await registerRoute(
-    new Request(`${BASE}/oauth/register`, {
-      method: "POST",
-      headers: { ...H, "content-type": "application/json" },
-      body: JSON.stringify({ redirect_uris: [CB] }),
-    }),
-  );
-  const client_id = (await reg.json()).client_id;
-  return { response_type: "code", client_id, redirect_uri: CB, code_challenge: CHALLENGE, code_challenge_method: "S256", ...extra };
-}
 const nameOf = (jar: Jar) => signedInName(new Headers({ ...H, cookie: jar.header() }));
 
 test("start and finish are 404 while no provider is configured", async () => {
@@ -164,35 +144,11 @@ describe("web sign-in", () => {
 });
 
 describe("MCP sign-in", () => {
-  test("ends at the client's redirect_uri with a code whose sender is the name claim", async () => {
-    const { location } = await signIn(mcpStart(await mcpFields({ state: "s1" })));
-    const loc = new URL(location);
-    expect(loc.origin + loc.pathname).toBe(CB);
-    expect(loc.searchParams.get("state")).toBe("s1");
-    expect(verify("code", loc.searchParams.get("code")!)!.sender).toBe("Ann");
-    expect(entries().find((e) => e.component === "oauth")).toMatchObject({ msg: "authorization granted", via: "default" });
-  });
-
-  test.each([
-    ["another site", "https://evil.example"],
-    ["no Origin", null],
-  ])("a POST from %s is refused", async (_, origin) => {
-    expect((await oidcStartRoute(mcpStart(await mcpFields(), origin))).status).toBe(403);
-  });
-
-  test("a GET carrying authorize fields is refused", async () => {
-    expect((await oidcStartRoute(get(`/api/oidc/start?${new URLSearchParams(await mcpFields())}`))).status).toBe(400);
-  });
-
-  test("a POST that doesn't check out is refused", async () => {
-    expect((await oidcStartRoute(mcpStart({ client_id: "forged", redirect_uri: CB }))).status).toBe(400);
-  });
-
-  test("a failed sign-in goes back to the authorize page", async () => {
-    idp.claims = { ...idp.claims, email: "eve@x.com" };
-    const fields = await mcpFields();
-    const { location } = await signIn(mcpStart(fields));
-    expect(location).toBe(`/oauth/authorize?${new URLSearchParams(fields)}&error=sign_in_failed`);
+  // A provider signs the person in like any other sign-in; next brings them back to the client's authorize page (ADR 0062).
+  test("goes back to the authorize page, with Better Auth's signed request, through next", async () => {
+    const next = "/oauth/authorize?client_id=c&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&sig=abc%3D";
+    const { location } = await signIn(webStart(`next=${encodeURIComponent(next)}`));
+    expect(location).toBe(next);
   });
 
   test("finish with forged authorize fields issues no code", async () => {
@@ -219,11 +175,6 @@ describe("several providers", () => {
   test("with several providers, naming none is refused", async () => {
     const res = await oidcStartRoute(webStart("next=/"));
     expect(res.headers.get("location")).toMatch(/^\/login\?error=sign_in_failed/);
-  });
-
-  test("an MCP sign-in through a named provider issues the code", async () => {
-    const { location } = await signIn(mcpStart({ ...(await mcpFields()), provider: "work" }));
-    expect(verify("code", new URL(location).searchParams.get("code")!)!.sender).toBe("Bea");
   });
 });
 
@@ -252,17 +203,12 @@ describe("what sign-in keeps", () => {
 });
 
 describe("final review", () => {
-  test("finish refuses a valid flight that another browser started (no code for a link sent to someone signed in)", async () => {
+  test("finish refuses a valid flight that another browser started (a link cut out of someone else's sign-in)", async () => {
     const victim = await signIn(webStart());
-    // The attacker's own start: a signed flight for their MCP client, which they could cut out of Better Auth's redirect.
-    const start = await oidcStartRoute(mcpStart(await mcpFields({ state: "evil" })));
-    const authorizeUrl = new URL(start.headers.get("location")!);
-    const callback = new URL(authorizeUrl.searchParams.get("redirect_uri")!);
-    expect(callback.pathname).toBe("/api/auth/callback/default");
     const { sign: signFlight } = await import("../oauth/tokens");
-    const f = signFlight("oidc", { provider: "default", nonce: "the-attackers-own", authorize: await mcpFields({ state: "evil" }) });
+    const f = signFlight("oidc", { provider: "default", nonce: "the-attackers-own", next: "/elsewhere" });
     const res = await oidcFinishRoute(get(`/api/oidc/finish?f=${encodeURIComponent(f)}`, victim.jar.header()));
-    expect(res.headers.get("location")).toMatch(/^\/oauth\/authorize\?.*error=sign_in_failed/);
+    expect(res.headers.get("location")).toMatch(/^\/login\?error=sign_in_failed/);
     expect(warned().map((e) => e.msg)).toContain("state mismatch or missing sign-in cookie");
   });
 

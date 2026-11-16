@@ -1,18 +1,16 @@
-// notefeed as its own OAuth 2.1 authorization server for /mcp: metadata (RFC 9728, RFC 8414), dynamic
-// client registration (RFC 7591), the authorize step behind the instance password, and the token
-// endpoint (authorization code with PKCE S256, rotating refresh tokens). Everything is a signed token
-// (./tokens), so there is nothing to store. An open instance has no password to key them with: 404.
+// notefeed as its own OAuth 2.1 authorization server for /mcp on an instance locked by the instance password (ADR 0007): metadata
+// (RFC 9728, RFC 8414), dynamic client registration (RFC 7591), the authorize step behind the password, and the token endpoint
+// (authorization code with PKCE S256, rotating refresh tokens). Everything is a signed token (./tokens), so there is nothing to
+// store. With accounts, Better Auth's MCP server answers instead (ADR 0062); an open instance has none: 404.
 import { createHash } from "node:crypto";
-import { stillAllowed } from "../accounts/auth";
-import { checkPassword, locked } from "../auth";
+import { accountsAuth } from "../accounts/auth";
+import { accountsAuthServerRoute, accountsProtectedResourceRoute, consentRoute } from "../accounts/mcpoauth";
+import { checkPassword } from "../auth";
+import { config } from "../config";
 import { AuthError, NotefeedError, RateLimitedError } from "../errors";
 import { parseForm, readCapped, seeOther } from "../http/request";
 import { clientIp } from "../limits";
 import { logger } from "../log";
-import { identityOn } from "../oidc/config";
-import { accountsOn } from "../accounts/mode";
-import { signedInSession } from "../accounts/auth";
-import { sameOrigin } from "../http/request";
 import { mcpResource, publicUrl } from "../urls";
 import { cid, newJti, sign, spendOnce, TTL, verify } from "./tokens";
 
@@ -25,13 +23,12 @@ const cors = { "Access-Control-Allow-Origin": "*" };
 const noStore = { ...cors, "Cache-Control": "no-store" };
 const oauthError = (error: string, status = 400) => Response.json({ error }, { status, headers: noStore });
 
-// The OAuth server for MCP clients answers on a locked instance (the instance password, ADR 0007) and wherever there are accounts, also
-// open ones: an account signs its MCP client in to act as itself (#390).
-export const oauthOn = () => locked() || accountsOn();
+// Only on an instance the password locks; accounts and the password never go together (ADR 0058).
+export const oauthOn = () => config.password() !== "";
 
 // OPTIONS for the metadata documents and /oauth/register. /oauth/token takes a plain form POST, which needs no preflight.
 const preflight = (method: string) => (): Response =>
-  oauthOn()
+  oauthOn() || accountsAuth()
     ? new Response(null, {
         status: 204,
         headers: { ...cors, "Access-Control-Allow-Methods": method, "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" },
@@ -40,13 +37,17 @@ const preflight = (method: string) => (): Response =>
 export const metadataPreflight = preflight("GET");
 export const registerPreflight = preflight("POST");
 
+// The discovery documents: Better Auth's server where there are accounts, else this one.
 export function protectedResourceRoute(req: Request): Response {
+  if (accountsAuth()) return accountsProtectedResourceRoute();
   if (!oauthOn()) return notFound();
   const body = { resource: mcpResource(req.headers), authorization_servers: [publicUrl(req.headers)], bearer_methods_supported: ["header"] };
   return Response.json(body, { headers: cors });
 }
 
-export function authServerRoute(req: Request): Response {
+export async function authServerRoute(req: Request): Promise<Response> {
+  const auth = accountsAuth();
+  if (auth) return accountsAuthServerRoute(auth, req);
   if (!oauthOn()) return notFound();
   const base = publicUrl(req.headers);
   return Response.json(
@@ -147,9 +148,10 @@ export function checkAuthorize(params: URLSearchParams, h: Headers): Checked {
 }
 
 // POST /api/oauth/authorize: the page's form. The password is checked like /login (the failed-attempt
-// limit applies); or, with `account`, the account signed in on this instance's pages is the one the client acts as (#390), for a
-// form from those pages only. Success sends the browser back to the client with a code.
+// limit applies). Success sends the browser back to the client with a code.
 export async function authorizeRoute(req: Request): Promise<Response> {
+  const auth = accountsAuth();
+  if (auth) return consentRoute(auth, req);
   if (!oauthOn()) return notFound();
   const h = req.headers;
   const bytes = await readCapped(req, 16 * 1024);
@@ -160,12 +162,6 @@ export async function authorizeRoute(req: Request): Promise<Response> {
   if (checked.kind === "redirect") return seeOther(checked.location);
   if (checked.kind === "error") return new Response(checked.message, { status: 400 });
   const { fields } = checked;
-  if (form?.get("account") === "1") {
-    const session = sameOrigin(h) ? await signedInSession(h) : undefined;
-    if (!session) return seeOther(`/oauth/authorize?${new URLSearchParams(fields)}&error=auth`);
-    log.info({ via: "account" }, "authorization granted");
-    return issueCode(fields, h, { ...(session.name ? { sender: session.name } : {}), uid: session.userId });
-  }
   try {
     checkPassword(String(form?.get("password") ?? ""), clientIp(h));
   } catch (e) {
@@ -178,16 +174,14 @@ export async function authorizeRoute(req: Request): Promise<Response> {
   return issueCode(fields, h);
 }
 
-// Back to the client with a code, after a password login or an identity sign-in (`signedIn`: the sender and the Better Auth user
-// id, re-checked at every refresh). `fields` must come from checkAuthorize, never from a request.
-export function issueCode(fields: Record<string, string>, h: Headers, signedIn?: { sender?: string; uid: string }): Response {
+// Back to the client with a code, after a password login. `fields` must come from checkAuthorize, never from a request.
+function issueCode(fields: Record<string, string>, h: Headers): Response {
   const code = sign("code", {
     cid: cid(fields.client_id),
     redirect_uri: fields.redirect_uri,
     code_challenge: fields.code_challenge,
     resource: fields.resource ?? mcpResource(h),
     jti: newJti(),
-    ...(signedIn === undefined ? {} : { ...signedIn, until: Math.floor(Date.now() / 1000) + TTL.signInMax }),
   });
   const to = new URL(fields.redirect_uri);
   to.searchParams.set("code", code);
@@ -196,27 +190,17 @@ export function issueCode(fields: Record<string, string>, h: Headers, signedIn?:
   return seeOther(to.href);
 }
 
-// The sender (an identity login's) goes from the code into both tokens, and from each refresh token into the
-// next; its user id and `until` go into each refresh token, so every refresh re-checks the person and the chain ends with the sign-in.
-function issue(clientHash: string, aud: string, signedIn: { sender?: string; uid?: string; until?: number }): Response {
-  const { sender, uid, until } = signedIn;
-  const s = sender === undefined ? {} : { sender };
-  const u = { ...(uid === undefined ? {} : { uid }), ...(until === undefined ? {} : { until }) };
+function issue(clientHash: string, aud: string): Response {
   return Response.json(
     {
-      access_token: sign("access", { aud, ...s, ...(uid === undefined ? {} : { uid }) }),
+      access_token: sign("access", { aud }),
       token_type: "Bearer",
       expires_in: TTL.access,
-      refresh_token: sign("refresh", { cid: clientHash, aud, jti: newJti(), ...s, ...u }),
+      refresh_token: sign("refresh", { cid: clientHash, aud, jti: newJti() }),
     },
     { headers: noStore },
   );
 }
-
-const refusedRefresh = (reason: string) => {
-  log.warn({ reason }, "refresh refused");
-  return oauthError("invalid_grant");
-};
 
 // POST /oauth/token. Every check runs before the code or refresh token is spent, so a failed attempt
 // (a wrong verifier from someone who intercepted the code) can't burn the legitimate client's grant.
@@ -242,7 +226,7 @@ export async function tokenRoute(req: Request): Promise<Response> {
     if (createHash("sha256").update(verifier).digest("base64url") !== c.code_challenge) return oauthError("invalid_grant");
     if (resource !== undefined && resource !== c.resource) return oauthError("invalid_grant");
     if (!spendOnce(c.jti, c.exp!)) return oauthError("invalid_grant");
-    return issue(c.cid, c.resource, c);
+    return issue(c.cid, c.resource);
   }
 
   if (grant === "refresh_token") {
@@ -254,16 +238,8 @@ export async function tokenRoute(req: Request): Promise<Response> {
     if (!verify("client", clientId)) return oauthError("invalid_client");
     if (r.cid !== cid(clientId)) return oauthError("invalid_grant");
     if (resource !== undefined && resource !== r.aud) return oauthError("invalid_grant");
-    // A sign-in's chain ends with sign-in switched off or with the sign-in's lifetime, like a browser session.
-    // An account's chain (uid) ends with accounts off; one from before accounts (a sender, no uid) with sign-in off.
-    if (r.uid !== undefined ? !accountsOn() : r.sender !== undefined && !identityOn()) return refusedRefresh("sign-in switched off");
-    if ((r.sender !== undefined || r.uid !== undefined) && !(r.until !== undefined && Date.now() <= r.until * 1000))
-      return refusedRefresh("sign-in past its lifetime");
-    // The person, as a browser session is checked on every request (ADR 0056). A chain from before ADR 0056 has no uid: it ends
-    // with its until.
-    if (r.uid !== undefined && !(await stillAllowed(r.uid))) return refusedRefresh("no longer allowed");
     if (!spendOnce(r.jti, r.exp!)) return oauthError("invalid_grant");
-    return issue(r.cid, r.aud, r);
+    return issue(r.cid, r.aud);
   }
 
   return oauthError(grant === undefined ? "invalid_request" : "unsupported_grant_type");

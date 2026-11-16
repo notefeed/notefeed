@@ -6,18 +6,16 @@ import { config } from "../config";
 import { secret } from "../feeds";
 import { processState } from "../state";
 
-// `sender` is the signed-in person's name, from an identity login; a password login has none. `until` (epoch
-// seconds) is when that sign-in ends: the refresh chain it starts stops there.
 export type Kind = "client" | "code" | "access" | "refresh" | "oidc";
 export type Payloads = {
   client: { client_name?: string; redirect_uris: string[] };
-  code: { cid: string; redirect_uri: string; code_challenge: string; resource: string; jti: string; sender?: string; uid?: string; until?: number };
-  access: { aud: string; sender?: string; uid?: string };
-  refresh: { cid: string; aud: string; jti: string; sender?: string; uid?: string; until?: number };
-  oidc: { provider: string; nonce: string; next?: string; authorize?: Record<string, string> }; // a sign-in in flight, through `provider` (its id): where it goes back to, and the nonce of the browser that started it (its nf_oidc cookie)
+  code: { cid: string; redirect_uri: string; code_challenge: string; resource: string; jti: string };
+  access: { aud: string };
+  refresh: { cid: string; aud: string; jti: string };
+  oidc: { provider: string; nonce: string; next?: string }; // a sign-in in flight, through `provider` (its id): where it goes back to, and the nonce of the browser that started it (its nf_oidc cookie)
 };
 // A sign-in through a provider (the Better Auth session, accounts/auth.ts) ends after `idle` unused, is renewed at most every
-// `renew` while used, and ends `signInMax` after it was made whatever the use; an MCP client's refresh chain ends with it (ADR 0056).
+// `renew` while used, and ends `signInMax` after it was made whatever the use (ADR 0056).
 export const TTL = { code: 300, access: 3600, refresh: 2592000, idle: 2592000, renew: 86400, signInMax: 7776000, oidc: 600 } as const;
 
 // Derived per call (secret() is cached, the password is not, and either may change); also the root of Better Auth's secret.

@@ -34,13 +34,13 @@ claude mcp add notefeed --transport http https://notes.example.com/mcp --header 
 
 ## Claude.ai and Claude Desktop
 
-Add a custom connector with the URL `https://notes.example.com/mcp`. On a locked instance the connector opens notefeed's login page: check that it names the client, enter the instance password and press **Allow**; with [sign-in](../self-hosting/sign-in/index.md#mcp) on, there is also a **Sign in with** button per provider. See [OAuth for MCP clients](../self-hosting/access.md#oauth-for-mcp-clients). It needs the instance's public `https://` address in `PUBLIC_URL`. A client whose callback has its own scheme, such as `cursor://`, can't log in through OAuth: give it the password as a `Bearer` header, as for Claude Code.
+Add a custom connector with the URL `https://notes.example.com/mcp`. On an instance the password locks, the connector opens notefeed's login page: check that it names the client, enter the instance password and press **Allow**. On an instance with [accounts](../self-hosting/accounts.md), it signs in as your account ([below](#as-an-account)). See [OAuth for MCP clients](../self-hosting/access.md#oauth-for-mcp-clients). It needs the instance's public `https://` address in `PUBLIC_URL`. On a password-locked instance, a client whose callback has its own scheme, such as `cursor://`, can't log in through OAuth: give it the password as a `Bearer` header, as for Claude Code.
 
 For writing a note with a review step before it is posted, see the [agent skills](skills.md).
 
 ## As an account
 
-On an instance with [accounts](../self-hosting/accounts.md), the authorize page an MCP client opens has **Allow as your account** once you are signed in on that instance (or **Sign in to your account first**). The client then acts as the account: feeds it creates are the account's, its notes carry [the owner's name](../using/posting.md#sender), and the account tools above work. Like a browser's sign-in, it is checked again at every token refresh and lasts 90 days at most; an account token is never accepted on MCP.
+On an instance with [accounts](../self-hosting/accounts.md), an MCP client signs in as an account. Add notefeed with its URL alone (`claude mcp add notefeed --transport http https://notes.example.com/mcp`, or a connector): the client opens the authorize page, which asks you to **Sign in to your account first** (number and recovery key, a passkey or your identity provider) and then shows **Allow as your account** and **Deny**. The client then acts as the account: feeds it creates are the account's, its notes carry [the owner's name](../using/posting.md#sender), and the account tools above work. Once you allowed a client, it isn't asked again. Every call is checked against the account: deleting it, or taking its person off the identity provider's allow-list, ends the client's access at once. An account token is never accepted on MCP. On an open instance, a client without a sign-in still works as no one, like any open instance.
 
 ## Feeds with a password
 

@@ -7,7 +7,10 @@ import Database from "better-sqlite3";
 import { apiKey } from "@better-auth/api-key";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
-import { username } from "better-auth/plugins";
+import { jwt, username } from "better-auth/plugins";
+import { mcp } from "@better-auth/mcp";
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { getMigrations } from "better-auth/db/migration";
 import { createHmac } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -62,14 +65,42 @@ function options() {
     // Account numbers (ADR 0057): the username is the number, the password the recovery key. Accounts are made only by notefeed's
     // own createAccount (numbers.ts) on the server: the e-mail routes are outside authRoute's allow-list.
     emailAndPassword: { enabled: true, minPasswordLength: 20, maxPasswordLength: 64, autoSignIn: false },
+    // The JWT plugin signs MCP access tokens; its own /token (a JWT for a browser session) is never served.
+    disabledPaths: ["/token"],
     plugins: [
       genericOAuthPlugin(),
       username({ minUsernameLength: 16, maxUsernameLength: 16, usernameValidator: (u: string) => /^[1-9]\d{15}$/.test(u), displayUsername: false }),
       passkey({ rpID: new URL(config.publicUrl()).hostname, rpName: "notefeed" }),
       // Account tokens (tokens.ts): made and checked on the server only, never through a browser's session; notefeed counts requests itself.
       apiKey({ defaultPrefix: "nf_", requireName: true, maximumNameLength: 50, rateLimit: { enabled: false }, enableSessionForAPIKeys: false }),
+      ...mcpPlugins(),
     ],
   };
+}
+
+// MCP clients sign in as an account through Better Auth's OAuth server (conventions: Better Auth, MCP; ADR 0062): tokens bound to
+// /mcp, the client's identity from its metadata document (CIMD) or, for clients that need it (claude.ai), dynamic registration. The
+// authorize page (app/[lang]/(site)/oauth/authorize) is both the login and the consent page.
+export const MCP_SCOPES = ["openid", "offline_access"];
+function mcpPlugins() {
+  return [
+    jwt({ disableSettingJwtHeader: true }),
+    mcp({
+      resource: `${config.publicUrl()}/mcp`,
+      loginPage: "/oauth/authorize",
+      consentPage: "/oauth/authorize",
+      scopes: MCP_SCOPES,
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      // A client that registers loopback redirects without saying it is native (Cursor, older Claude Code) is treated as native.
+      clientRegistrationDefaultApplicationType: "infer",
+      // The authorize page names the client before sign-in, from the signed request (on the server; the route stays closed).
+      allowPublicClientPrelogin: true,
+      // A refresh token works once: no window in which a copied one gets a second answer.
+      refreshTokenReuseInterval: 0,
+    }),
+    cimd({ fetchClientMetadataResource, metadataProfile: "mcp-2026-07-28" }),
+  ];
 }
 
 const build = () => betterAuth(options());
@@ -105,18 +136,35 @@ export async function migrateAccounts(): Promise<void> {
 // session lists) is 404: notefeed calls what it needs on the server (auth.api).
 // Passkeys (ADR 0057) are Better Auth's own: adding one needs the session, signing in with one makes it; the browser talks to them
 // directly (WebAuthn).
+// MCP clients reach the OAuth server's authorize, token, register and revoke steps and its public keys (ADR 0062); consent is the
+// authorize page's, on the server (mcpoauth.ts).
 const OPEN =
-  /^\/api\/auth\/(callback\/[a-z0-9_]{1,64}|error|ok|passkey\/(generate-register-options|verify-registration|generate-authenticate-options|verify-authentication|list-user-passkeys|delete-passkey))$/;
+  /^\/api\/auth\/(callback\/[a-z0-9_]{1,64}|error|ok|passkey\/(generate-register-options|verify-registration|generate-authenticate-options|verify-authentication|list-user-passkeys|delete-passkey)|oauth2\/(authorize|token|register|revoke)|jwks)$/;
+// The ones a browser-based MCP client calls cross-origin; none of them reads a cookie, so any origin may.
+const CORS = /^\/api\/auth\/(oauth2\/(token|register|revoke)|jwks)$/;
 
-// Passkey steps anyone may start, without a session: each writes a challenge to accounts.sqlite, so they count toward the posts limit
+// Passkey steps and MCP client registrations (claude.ai needs them) anyone may start, without a session: each writes to accounts.sqlite,
+// so they count toward the posts limit
 // (Better Auth's own limiter is off: it would need the client's address, which notefeed never gives it).
-const ANONYMOUS = /\/passkey\/(generate-authenticate-options|verify-authentication)$/;
+const ANONYMOUS = /\/(passkey\/(generate-authenticate-options|verify-authentication)|oauth2\/register)$/;
 
-// GET and POST /api/auth/*: 404 while sign-in is off.
+// GET, POST and OPTIONS /api/auth/*: 404 while sign-in is off.
 export async function authRoute(req: Request): Promise<Response> {
   const auth = accountsAuth();
   const path = new URL(req.url).pathname;
   if (!auth || !OPEN.test(path)) return new Response("not found", { status: 404 });
+  const cors = CORS.test(path);
+  if (req.method === "OPTIONS")
+    return cors
+      ? new Response(null, {
+          status: 204,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST",
+            "Access-Control-Allow-Headers": "content-type, authorization",
+          },
+        })
+      : new Response("not found", { status: 404 });
   if (ANONYMOUS.test(path)) {
     const wait = rateLimit(clientIp(req.headers));
     if (wait !== null) return Response.json({ error: "rate limit exceeded" }, { status: 429, headers: { "Retry-After": String(wait) } });
@@ -136,7 +184,11 @@ export async function authRoute(req: Request): Promise<Response> {
     const session = await signedInSession(req.headers);
     if (session && !fresh(session)) return Response.json({ error: "sign in again" }, { status: 403 });
   }
-  return auth.handler(req);
+  const res = await auth.handler(req);
+  if (!cors) return res;
+  const out = new Response(res.body, res);
+  out.headers.set("Access-Control-Allow-Origin", "*");
+  return out;
 }
 
 // Why the person behind `userId` may no longer be signed in, or null while they may: their provider is still configured and its

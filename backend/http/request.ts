@@ -8,7 +8,6 @@ import { type FeedAccess, feedCookieName } from "../feedlock";
 import { assertFeed } from "../feeds";
 import { clientIp } from "../limits";
 import { identityOn } from "../oidc/config";
-import { verify } from "../oauth/tokens";
 import { publicUrl } from "../urls";
 import { errorResponse } from "./errors";
 
@@ -157,11 +156,9 @@ export async function formPost(
   }
 }
 
-// The signed-in sender of a request, or undefined: from the Better Auth session, honoured like the session cookie
-// in authorize (same origin, no Authorization header), or from an unexpired OAuth access token. Only while
-// sign-in is on. Callers must already have checked the access token's audience.
+// The signed-in sender of a request, or undefined: from the Better Auth session, honoured for this instance's own pages only (same
+// origin, no Authorization header). Only while sign-in is on. An MCP client's comes from its account (mcp.ts).
 export async function sender(h: Headers): Promise<string | undefined> {
-  if (!identityOn()) return undefined;
-  if (!h.has("authorization")) return sameOrigin(h) ? signedInName(h) : undefined;
-  return verify("access", bearerOf(h.get("authorization")))?.sender;
+  if (!identityOn() || h.has("authorization")) return undefined;
+  return sameOrigin(h) ? signedInName(h) : undefined;
 }
