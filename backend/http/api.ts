@@ -10,7 +10,7 @@ import {
   changePassword,
   checkFeedAccess,
   claimFeed,
-  feedOwner,
+  feedOwnership,
   listFeedPasswords,
   ownedFeeds,
   protectedFeed,
@@ -178,20 +178,21 @@ export async function licensesJson(headers: Headers): Promise<z.infer<typeof Lic
 }
 
 export async function feedJson(feed: string, headers: Headers): Promise<z.infer<typeof FeedJson>> {
-  const owner = await feedOwner(feed);
+  const ownership = await feedOwnership(feed, await requestAccount(headers));
   const readId = (await countNotes(feed)) ? await readIdOf(feed) : null;
-  const { title, description, image, showSender } = await getSettings(feed);
+  const { title, description, image, showSender, senderName } = await getSettings(feed);
   return {
     name: feed,
     title,
     description,
     protected: await protectedFeed(feed),
-    owned: owner !== undefined,
-    yours: owner !== undefined && owner === (await requestAccount(headers)),
+    owned: ownership !== "unowned",
+    yours: ownership === "yours",
     read_url: readId && publicUrl(headers) + rssPath(readId),
     atom_url: readId && publicUrl(headers) + atomPath(readId),
     image_url: readId && image ? publicUrl(headers) + imagePath(readId, image) : null,
     show_sender: showSender,
+    sender_name: senderName ?? "",
     shortcut_url: publicUrl(headers) + SHORTCUT_PATH,
     free_tier: await freeTier(feed),
   };
@@ -557,7 +558,7 @@ const OPS: AnyOp[] = [
       try {
         const j = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes ?? new Uint8Array()));
         // The API's snake_case name; checkSettings reads the stored one.
-        return j && typeof j === "object" && !Array.isArray(j) ? { ...j, showSender: j.show_sender, readId: j.read_id } : j;
+        return j && typeof j === "object" && !Array.isArray(j) ? { ...j, showSender: j.show_sender, readId: j.read_id, senderName: j.sender_name } : j;
       } catch {
         throw new InvalidBodyError('JSON needs "title" and "description" strings');
       }

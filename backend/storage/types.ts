@@ -4,10 +4,22 @@
 
 /** `of`: on an attachment, the id of the text note it was posted with. `updated`: when its content, title, alt, tags or date last
  *  changed after posting (ISO 8601), for Atom's `updated` (#324); absent until the first edit. */
-export type Meta = { title?: string; sender?: string; tags?: string[]; alt?: string; name?: string; created?: string; of?: string; updated?: string };
+/** `by`: "owner" on a note the feed's owner posted without a sender of its own (ADR 0059): shown with the feed's sender name. */
+export type Meta = {
+  title?: string;
+  sender?: string;
+  by?: string;
+  tags?: string[];
+  alt?: string;
+  name?: string;
+  created?: string;
+  of?: string;
+  updated?: string;
+};
 
 // `ownImage`: the title image is the feed's own, uploaded as one (not a post): lists leave that image note out (notes.ts).
-export type Settings = { title: string; description: string; image: string; showSender: boolean; ownImage?: boolean };
+// `senderName`: what the owner's own notes show as their sender (ADR 0059); set by the owner only.
+export type Settings = { title: string; description: string; image: string; showSender: boolean; ownImage?: boolean; senderName?: string };
 
 /** A note as listed: which note, the extension its file has, its date (ms since the epoch), and whether it is a draft (#265). */
 export type NoteRef = { id: string; ext: string; date: number; draft: boolean };

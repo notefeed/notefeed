@@ -226,6 +226,8 @@ export const config = {
   ],
   // Password of the reserved feeds, which exist only while this is set (see feeds.ts).
   reservedPassword: () => env("NOTEFEED_RESERVED_PASSWORD"),
+  // The operator's account (an account number, not secret): owns the reserved feeds on an instance with accounts (#389).
+  operatorAccount: () => env("NOTEFEED_OPERATOR_ACCOUNT").trim(),
   // "0" leaves only random read ids: nothing chosen is accepted (empty, a random one, still is).
   allowCustomIds: () => env("NOTEFEED_ALLOW_CUSTOM_IDS") !== "0",
   // How long reading a text to place its pictures may take, in ms (it runs in a worker, so a slow text costs only its sender that time).

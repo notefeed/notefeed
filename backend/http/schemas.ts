@@ -195,6 +195,12 @@ export const FeedSettingsJson = z
       .boolean()
       .optional()
       .describe("Whether readers (RSS, the read API and pages) see who posted each note; omitted leaves it as it is, a new feed starts with true"),
+    sender_name: z
+      .string()
+      .optional()
+      .describe(
+        "What the owner's own notes show as their sender, when posted by the owner's account without a sender of their own; changing it changes it on all of them. One line, at most 100 characters; empty shows none. Only the feed's owner may change it (403, code `owner_only`); omitted leaves it as it is",
+      ),
     read_id: z
       .string()
       .optional()
@@ -253,6 +259,7 @@ export const FeedJson = z
     atom_url: z.url().nullable().describe("The same feed as Atom (RFC 4287), beside the RSS link; null exactly when read_url is"),
     image_url: IMAGE_URL,
     show_sender: z.boolean().describe("Whether readers see who posted each note"),
+    sender_name: z.string().describe("What the owner's own notes show as their sender; empty for none (see updateFeed)"),
     shortcut_url: z
       .url()
       .describe(

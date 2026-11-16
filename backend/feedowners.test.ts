@@ -8,6 +8,7 @@ import {
   claimFeed,
   createProtected,
   feedOwner,
+  feedOwnership,
   feedUnlocked,
   listFeedPasswords,
   ownedFeeds,
@@ -15,6 +16,7 @@ import {
   protectedFeed,
   recoverPassword,
   removePassword,
+  requireOwner,
   requireOwnerIfOwned,
   resetOwnersForTests,
   revokeFeedPassword,
@@ -159,6 +161,19 @@ test("a feed made by an account is that account's, one made without none", async
   expect(await feedOwner("nobodys")).toBeUndefined();
   await createProtected("mine-protected", "a-password", undefined, "ann");
   expect(await feedOwner("mine-protected")).toBe("ann");
+});
+
+test("whose a feed is, seen from an account; the owner's guard lets only the owner through", async () => {
+  await open("mine");
+  await ownNewFeed("mine", "ann");
+  await open("nobodys");
+  expect(await feedOwnership("mine", "ann")).toBe("yours");
+  expect(await feedOwnership("mine", "bob")).toBe("others");
+  expect(await feedOwnership("mine", undefined)).toBe("others");
+  expect(await feedOwnership("nobodys", "ann")).toBe("unowned");
+  await expect(requireOwner("mine", "ann")).resolves.toBeUndefined();
+  await expect(requireOwner("mine", "bob")).rejects.toBeInstanceOf(OwnerOnlyError);
+  await expect(requireOwner("nobodys", "ann")).rejects.toBeInstanceOf(OwnerOnlyError);
 });
 
 test("an account's feeds are listed, sorted; a change shows at once", async () => {

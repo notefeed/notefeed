@@ -202,5 +202,12 @@ export async function signedInSession(h: Headers, { renew = false }: { renew?: b
   };
 }
 
+// The sender name an account has from its identity provider, or undefined (a number account, a gone one, accounts off).
+export async function accountName(userId: string): Promise<string | undefined> {
+  const auth = accountsAuth();
+  if (!auth) return undefined;
+  return senderName((await (await auth.$context).internalAdapter.findUserById(userId))?.name);
+}
+
 // The signed-in person's name (the sender); see signedInSession.
 export const signedInName = async (h: Headers): Promise<string | undefined> => (await signedInSession(h))?.name;

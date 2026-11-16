@@ -164,3 +164,19 @@ test("a protected feed is claimed with its password after unlocking it", async (
   await page.getByRole("button", { name: "Claim" }).click();
   await expect(page.getByText("This feed is yours")).toBeVisible();
 });
+
+test("the owner's name on their notes, and their feeds in the side bar", async ({ page, baseURL }) => {
+  await createAccount(page);
+  const headers = { origin: baseURL! };
+  expect((await page.request.post("/api/v1/feeds/e2e-named", { data: {}, headers })).status()).toBe(201);
+  expect(
+    (await page.request.post("/api/v1/feeds/e2e-named/notes", { data: "# mine", headers: { ...headers, "content-type": "text/markdown" } })).status(),
+  ).toBe(201);
+  await page.goto("/e2e-named/settings");
+  await page.getByLabel("Your name on your notes").fill("Ann");
+  await page.getByRole("button", { name: "Save" }).first().click();
+  await expect(page).toHaveURL(/saved=1/);
+  await page.goto("/e2e-named");
+  await expect(page.getByText("Ann", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("complementary").getByText("e2e-named", { exact: true })).toBeVisible();
+});

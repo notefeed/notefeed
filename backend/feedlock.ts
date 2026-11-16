@@ -75,6 +75,11 @@ export const protectedFeed = async (feed: string): Promise<boolean> => isProtect
 // The account that owns the feed, or undefined.
 export const feedOwner = async (feed: string): Promise<string | undefined> => (await feedRecord(feed))?.owner;
 
+// Whose a feed is, seen from `account` (ADR 0059): nobody's, the account's own, or someone else's. Every owner check asks this.
+export type Ownership = "unowned" | "yours" | "others";
+const ownershipOf = (rec: FeedRecord | null, account: string | undefined): Ownership => (!rec?.owner ? "unowned" : rec.owner === account ? "yours" : "others");
+export const feedOwnership = async (feed: string, account: string | undefined): Promise<Ownership> => ownershipOf(await feedRecord(feed), account);
+
 const cookieOf = (feed: string, hash: string) =>
   createHmac("sha256", secret())
     .update(feed + hash)
@@ -114,7 +119,7 @@ async function matchEntry(password: string | undefined, rec: FeedRecord, ip: str
   throw new AuthError();
 }
 
-const ownedBy = (rec: FeedRecord | null, account: string | undefined): boolean => !!rec?.owner && rec.owner === account;
+const ownedBy = (rec: FeedRecord | null, account: string | undefined): boolean => ownershipOf(rec, account) === "yours";
 
 // Passes for a feed without a password. True when the feed has one and this access proved it (a password, its cookie, or the owner's
 // account); a bad or stale cookie with no password beside it is, like no password, not a failed attempt.
@@ -228,8 +233,12 @@ async function ownersRecord(feed: string, account: string | undefined): Promise<
 
 // Whoever may delete or rename the feed: on an owned feed only its owner, on any other whoever has access (checked by the caller).
 export async function requireOwnerIfOwned(feed: string, account: string | undefined): Promise<void> {
-  const rec = await feedRecord(feed);
-  if (rec?.owner && rec.owner !== account) throw new OwnerOnlyError();
+  if ((await feedOwnership(feed, account)) === "others") throw new OwnerOnlyError();
+}
+
+// The owner's own steps on a feed that has one: refused for anyone else, and on a feed without an owner.
+export async function requireOwner(feed: string, account: string | undefined): Promise<void> {
+  if ((await feedOwnership(feed, account)) !== "yours") throw new OwnerOnlyError();
 }
 
 // Claims the feed for `account`: a protected feed with one of its passwords (it becomes the first of the owner's, named

@@ -90,9 +90,26 @@ export function FeedAvatar({ feed, size = "h-9 w-9" }: { feed: RememberedFeed; s
 
 // The list itself, for the left column and the switcher sheet. Links, not list items: the feed's notes are the page's list.
 // `query`: appended to each link (what was shared to notefeed, app/(site)/page.tsx).
-export function RememberedFeedLinks({ current, onNavigate, query = "" }: { current?: string; onNavigate?: () => void; query?: string }) {
-  const feeds = useRememberedFeeds();
+// `accountFeeds`: the signed-in account's own feeds (#389), listed first, on every device; the feeds only this device remembers follow,
+// each with a way to claim it. Undefined: nobody is signed in, only what this device remembers.
+export function RememberedFeedLinks({
+  current,
+  onNavigate,
+  query = "",
+  accountFeeds,
+}: {
+  current?: string;
+  onNavigate?: () => void;
+  query?: string;
+  accountFeeds?: string[];
+}) {
+  const remembered = useRememberedFeeds();
   const t = useCopy().rememberedFeeds;
+  const owned = new Set(accountFeeds ?? []);
+  const feeds = [
+    ...(accountFeeds ?? []).map((name) => remembered.find((f) => f.name === name) ?? { name, title: "", image: null }),
+    ...remembered.filter((f) => !owned.has(f.name)),
+  ];
   if (!feeds.length) return <p className="px-2 text-[13px] text-muted">{t.empty}</p>;
   return (
     <div className="space-y-0.5">
@@ -110,7 +127,16 @@ export function RememberedFeedLinks({ current, onNavigate, query = "" }: { curre
               {f.title && <span className="block truncate font-mono text-[12px] leading-tight text-muted">{f.name}</span>}
             </span>
           </Link>
-          {f.name !== current && (
+          {accountFeeds && !owned.has(f.name) && (
+            <Link
+              href={`/${f.name}/settings`}
+              onClick={onNavigate}
+              className="mr-1 shrink-0 rounded-full px-2 py-1 text-[12px] text-muted hover:bg-surface hover:text-ink"
+            >
+              {t.claim}
+            </Link>
+          )}
+          {f.name !== current && !owned.has(f.name) && (
             <button
               type="button"
               onClick={() => forgetFeed(f.name)}

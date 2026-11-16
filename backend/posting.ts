@@ -24,7 +24,18 @@ import {
   TitleImageDraftError,
   UnsupportedTypeError,
 } from "./errors";
-import { type FeedAccess, checkFeedAccess, checkNewPassword, createProtected, ownedFeeds, ownersChanged, ownNewFeed, requireOwnerIfOwned } from "./feedlock";
+import {
+  type FeedAccess,
+  checkFeedAccess,
+  checkNewPassword,
+  createProtected,
+  feedOwnership,
+  requireOwner,
+  ownedFeeds,
+  ownersChanged,
+  ownNewFeed,
+  requireOwnerIfOwned,
+} from "./feedlock";
 import { type FeedSettings, checkSettings, getStoredSettings, saveSettings } from "./feedsettings";
 import {
   assertFeed,
@@ -236,7 +247,8 @@ export async function postNote(
   if (!type.verify(input.body, ext)) throw new UnsupportedTypeError(`the body is not ${parsed.mediaType}`);
   type.checkBody(input.body);
   const meta = checkNoteMeta(input);
-  const sender = senderOf(input.sender, meta.sender, signedIn);
+  const byOwner = await postedByOwner(feed, input.sender, access, exists);
+  const sender = byOwner ? undefined : senderOf(input.sender, meta.sender, signedIn);
   if (meta.alt && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
   const tags = meta.tags ?? [];
   const at = meta.date;
@@ -251,13 +263,21 @@ export async function postNote(
     type,
     ext,
     body,
-    { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId, draft: input.draft },
+    { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId, draft: input.draft, byOwner },
     at,
   );
   await licenseNewFeed(feed, licenseKey);
   if (!exists) await ownNewFeed(feed, access.account); // a feed an account's post made is that account's (ADR 0059)
   await trimToFreeCap(feed);
   return { ...made, created };
+}
+
+// Whether a post is the feed owner's own with no sender of its own (ADR 0059): then it carries the mark, not a name. A feed this post
+// creates becomes the posting account's, so its first note is the owner's too.
+async function postedByOwner(feed: string, given: string | undefined, access: FeedAccess, exists: boolean): Promise<boolean> {
+  if (given !== undefined || !access.account) return false;
+  const ownership = await feedOwnership(feed, access.account);
+  return ownership === "yours" || (!exists && ownership === "unowned");
 }
 
 // The sender a post stores: its own (checked by checkNoteMeta; "" is none), else the signed-in name.
@@ -381,7 +401,10 @@ export async function updateFeed(feed: string, ip: string, read: () => Promise<u
   if (newId !== undefined) await setReadId(feed, newId === "" ? null : newId);
   const image = rest.image ?? stored.image;
   const ownImage = stored.ownImage && image === stored.image ? true : undefined; // another title image, or none: the own one goes (below)
-  const checked = { ...rest, image, showSender: given.showSender ?? stored.showSender, ...(ownImage && { ownImage }) };
+  // The sender name is the owner's (ADR 0059): a change from anyone else, or on a feed without an owner, is refused.
+  const senderName = given.senderName ?? stored.senderName ?? "";
+  if (senderName !== (stored.senderName ?? "")) await requireOwner(feed, access.account);
+  const checked = { ...rest, image, showSender: given.showSender ?? stored.showSender, ...(ownImage && { ownImage }), ...(senderName && { senderName }) };
   await saveSettings(feed, checked);
   if (stored.ownImage && stored.image && stored.image !== image) await removeOwnImage(feed, stored.image);
   if (newName !== undefined) await renameWithLicense(feed, newName);
@@ -609,7 +632,8 @@ export async function postWithPictures(
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
   const meta = checkNoteMeta({ title, sender: input.sender, tags: input.tags, date: input.date });
-  const sender = senderOf(input.sender, meta.sender, signedIn);
+  const byOwner = await postedByOwner(feed, input.sender, access, exists);
+  const sender = byOwner ? undefined : senderOf(input.sender, meta.sender, signedIn);
   const tags = meta.tags ?? [];
   const at = meta.date ?? new Date();
   await recheck(feed, ip, access, proved, input.password);
@@ -617,7 +641,7 @@ export async function postWithPictures(
   for (const p of pictures) p.body = await prepareImage(p.body, p.ext); // one at a time: a post never fills the queue alone
   const wantedReadId = exists || !input.readId?.trim() ? undefined : input.readId.trim();
   const { created, licenseKey } = await protect(feed, ip, access, proved, exists, input.password, wantedReadId, input.licenseKey);
-  const opts = { sender, tags, wantedReadId, draft: input.draft };
+  const opts = { sender, tags, wantedReadId, draft: input.draft, byOwner };
   const id = text === undefined ? undefined : newNoteId();
   const dateOf = (i: number) => new Date(Math.max(0, at.getTime() - pictures.length + i)); // never before 1970
   return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined, of: id }, dateOf, async (stored, sent, readId) => {

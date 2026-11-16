@@ -22,6 +22,9 @@ class FeedSettings:
             title image; empty removes it, omitted leaves it as it is
         show_sender (bool | Unset): Whether readers (RSS, the read API and pages) see who posted each note; omitted
             leaves it as it is, a new feed starts with true
+        sender_name (str | Unset): What the owner's own notes show as their sender, when posted by the owner's account
+            without a sender of their own; changing it changes it on all of them. One line, at most 100 characters; empty
+            shows none. Only the feed's owner may change it (403, code `owner_only`); omitted leaves it as it is
         read_id (str | Unset): A new read id (3 to 64 characters: a-z, 0-9, - and _), empty for a random one; omitted
             leaves it as it is. The old read link stops showing this feed, and may later show another one. Notes are not
             edited: a relative image link (`![](file)`) follows the new id, a full URL keeps the old one and is yours to
@@ -38,6 +41,7 @@ class FeedSettings:
     description: str
     image: str | Unset = UNSET
     show_sender: bool | Unset = UNSET
+    sender_name: str | Unset = UNSET
     read_id: str | Unset = UNSET
     name: str | Unset = UNSET
 
@@ -49,6 +53,8 @@ class FeedSettings:
         image = self.image
 
         show_sender = self.show_sender
+
+        sender_name = self.sender_name
 
         read_id = self.read_id
 
@@ -66,6 +72,8 @@ class FeedSettings:
             field_dict["image"] = image
         if show_sender is not UNSET:
             field_dict["show_sender"] = show_sender
+        if sender_name is not UNSET:
+            field_dict["sender_name"] = sender_name
         if read_id is not UNSET:
             field_dict["read_id"] = read_id
         if name is not UNSET:
@@ -84,6 +92,8 @@ class FeedSettings:
 
         show_sender = d.pop("show_sender", UNSET)
 
+        sender_name = d.pop("sender_name", UNSET)
+
         read_id = d.pop("read_id", UNSET)
 
         name = d.pop("name", UNSET)
@@ -93,6 +103,7 @@ class FeedSettings:
             description=description,
             image=image,
             show_sender=show_sender,
+            sender_name=sender_name,
             read_id=read_id,
             name=name,
         )

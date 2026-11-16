@@ -208,6 +208,7 @@ export const en = {
     empty: "Feeds you open are remembered here, on this device.",
     forget: "Forget on this device",
     forgetNamed: (name: string) => `Forget ${name} on this device`,
+    claim: "Claim",
   },
   // A feed's Privacy & access settings (components/FeedSettings.tsx).
   access: {
@@ -391,6 +392,7 @@ export const en = {
     title: "Title",
     description: "Description",
     showSender: "Show who posted",
+    senderName: "Your name on your notes",
     save: "Save changes",
     sharing: "Sharing",
     readId: "Read id",

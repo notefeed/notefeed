@@ -36,7 +36,7 @@ import {
   atomPath,
   SHORTCUT_PATH,
   accountOf,
-  feedOwner,
+  feedOwnership,
   listFeedPasswords,
 } from "@/backend";
 export const dynamic = "force-dynamic";
@@ -55,7 +55,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
   const account = (await accountOf(await headers()))?.userId;
   const access = await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value, account);
   const data = access === "locked" ? null : await getFeed(feed);
-  const owner = await feedOwner(feed);
+  const ownership = await feedOwnership(feed, account);
   // Locked feeds show only the unlock form on the feed page, and a feed without notes has nothing to set yet.
   if (!data?.exists) redirect(feedPath(feed));
   const { readId, title, description } = data;
@@ -105,6 +105,7 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         imageUrl={data.imageUrl}
         images={images}
         showSender={data.showSender}
+        senderName={ownership === "yours" ? (data.senderName ?? "") : undefined}
         readId={readId}
         readIdChoice={isReservedFeed(feed) ? "fixed" : customIdsOn() ? "custom" : "random"}
         renamable={!isReservedFeed(feed)}
@@ -205,9 +206,9 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
         }
       >
         {licensingOn() && <LicenseSection feed={feed} freeTier={await freeTier(feed)} licensePage={await licensePageOn()} />}
-        {owner !== undefined && owner === account && <FeedPasswords feed={feed} passwords={await listFeedPasswords(feed, account)} />}
-        {owner !== undefined && owner !== account && <p className="text-sm text-muted">{all.owner.someoneElses}</p>}
-        {owner === undefined && access === "unlocked" && (
+        {ownership === "yours" && <FeedPasswords feed={feed} passwords={await listFeedPasswords(feed, account)} />}
+        {ownership === "others" && <p className="text-sm text-muted">{all.owner.someoneElses}</p>}
+        {ownership === "unowned" && access === "unlocked" && (
           <FeedSettings
             feed={feed}
             error={passwordError ? feedErrorMessage(error, retry) : undefined}
@@ -215,8 +216,8 @@ export default async function SettingsPage({ params, searchParams }: PageProps<"
             recover={licensingOn() ? { open: recoverForm, error: recoverForm ? recoverErrorMessage(error, retry) : undefined } : undefined}
           />
         )}
-        {owner === undefined && access === "open" && <ProtectFeed feed={feed} error={form === "protect" ? protectErrorMessage(error, retry) : undefined} />}
-        {owner === undefined && account && <ClaimFeed feed={feed} isProtected={access === "unlocked"} />}
+        {ownership === "unowned" && access === "open" && <ProtectFeed feed={feed} error={form === "protect" ? protectErrorMessage(error, retry) : undefined} />}
+        {ownership === "unowned" && account && <ClaimFeed feed={feed} isProtected={access === "unlocked"} />}
       </FeedDetails>
     </AppShell>
   );

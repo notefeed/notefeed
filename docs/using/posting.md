@@ -40,7 +40,7 @@ A markdown note shows its text as written. Where a name is needed (RSS, the API,
 
 ## Sender
 
-A note can say who posted it: send `X-Note-Sender` (at most 100 characters, one line), fill in the **Sender** field in the web UI, or pass `sender` from a [client](../integrations/clients.md) or [MCP](../integrations/mcp.md); `PATCH` changes it later, and an empty one removes it. It is a label, not a proof: whoever can post to the feed can write any name. On an own instance with [sign-in](../self-hosting/sign-in/index.md), a note posted signed in without a sender of its own carries the signed-in name. The sender shows next to the note's time, in RSS and in the API; the feed's **Show who posted** setting hides it from readers.
+A note can say who posted it: send `X-Note-Sender` (at most 100 characters, one line), fill in the **Sender** field in the web UI, or pass `sender` from a [client](../integrations/clients.md) or [MCP](../integrations/mcp.md); `PATCH` changes it later, and an empty one removes it. It is a label, not a proof: whoever can post to the feed can write any name. A note the feed's [owner](feed-passwords.md#a-feed-with-an-owner) posts signed in, without a sender of its own, shows the feed's **Your name on your notes** setting (or, on an own instance with [sign-in](../self-hosting/sign-in/index.md), the name from the identity provider): change the setting and it changes on all of them. Anyone else signed in through a provider gets their own name on the note. The sender shows next to the note's time, in RSS and in the API; the feed's **Show who posted** setting hides it from readers.
 
 ## Long notes
 

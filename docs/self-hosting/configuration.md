@@ -36,7 +36,8 @@ See [Rate limits and caps](limits.md).
 |---|---|---|
 | `NOTEFEED_RESERVED_FEEDS` | empty | Comma-separated names nobody can create, e.g. `news,announcements`. See [Reserved feeds](access.md#reserved-feeds). |
 | `NOTEFEED_FOOTER_FEEDS` | empty | Comma-separated feeds linked in the footer and the ⓘ menu, in this order, e.g. `releases,blog`. See [Reserved feeds](access.md#reserved-feeds). |
-| `NOTEFEED_RESERVED_PASSWORD` | none | With it, each reserved name exists from start-up as a protected feed with its name as read id. |
+| `NOTEFEED_RESERVED_PASSWORD` | none | With it, each reserved name exists from start-up as a protected feed with its name as read id. Not used with accounts. |
+| `NOTEFEED_OPERATOR_ACCOUNT` | none | With [accounts](accounts.md): your account's number (not secret). The reserved feeds are created owned by it. |
 | `NOTEFEED_IMPRINT_FILE`, `NOTEFEED_PRIVACY_FILE`, `NOTEFEED_TERMS_FILE` | none | A Markdown file each, shown at `/imprint`, `/privacy` and `/terms`. See [Imprint, privacy page and terms](legal-pages.md). |
 | `NOTEFEED_NOTICE_FILE` | none | A Markdown file shown as a red banner on the start page. |
 | `NOTEFEED_SUPPORT_EMAIL` | none | An address for a **Support** link (`mailto:`) in every footer. See [A support address](legal-pages.md#a-support-address). |

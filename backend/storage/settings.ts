@@ -15,6 +15,7 @@ export function parseSettings(text: string | null): Settings {
       image,
       showSender: j.showSender !== false,
       ...(j.ownImage === true && image && { ownImage: true }),
+      ...(typeof j.senderName === "string" && j.senderName && { senderName: j.senderName }),
     };
   } catch {
     return { ...EMPTY };
@@ -22,6 +23,6 @@ export function parseSettings(text: string | null): Settings {
 }
 
 export function serializeSettings(s: Settings): string {
-  const { showSender, ownImage, ...rest } = s;
-  return JSON.stringify({ ...rest, ...(!showSender && { showSender }), ...(ownImage && { ownImage }) });
+  const { showSender, ownImage, senderName, ...rest } = s;
+  return JSON.stringify({ ...rest, ...(!showSender && { showSender }), ...(ownImage && { ownImage }), ...(senderName && { senderName }) });
 }

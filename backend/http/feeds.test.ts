@@ -52,6 +52,7 @@ describe("settings", () => {
       atom_url: `${BASE}/r/${rid}/atom.xml`,
       image_url: null,
       show_sender: true,
+      sender_name: "",
       shortcut_url: `${BASE}/shortcuts/Send%20to%20notefeed.shortcut`,
       free_tier: null,
     };
@@ -95,6 +96,7 @@ describe("settings", () => {
       atom_url: null,
       image_url: null,
       show_sender: true,
+      sender_name: "",
       shortcut_url: `${BASE}/shortcuts/Send%20to%20notefeed.shortcut`,
       free_tier: null,
     });
