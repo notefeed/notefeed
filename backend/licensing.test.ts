@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { licensedAccount, stubLicensing } from "./accounts/license.testkit";
 import { putSubscription, updateSubscription } from "./accounts/subscriptions";
 import { InvalidBodyError, LicenseRequiredError, NotFoundError, RateLimitedError } from "./errors";
-import { changePassword, coveredFeeds, ownNewFeed, resetOwnersForTests, setCovered } from "./feedlock";
+import { changePassword, claimFeed, coveredFeeds, ownedFeeds, ownNewFeed, resetOwnersForTests, setCovered } from "./feedlock";
 import { ensureFeed, resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
 import { changeUnits, licenseOf } from "./licenseflow";
@@ -181,4 +181,18 @@ describe.skipIf(!supported)("licensing on the account (ADR 0061)", () => {
       await expect(changeUnits(userId, sub.id, 0)).rejects.toBeInstanceOf(InvalidBodyError);
     });
   });
+});
+
+// An open feed has no license until it is owned (#391 review): claiming it with a password takes a free unit and puts it there.
+test("claiming an open feed with a password takes a free unit of the account's license; with none free it is refused", async () => {
+  await stubLicensing();
+  await ensureFeed("open-one");
+  await ensureFeed("open-two");
+  const holder = await licensedAccount(1);
+  await claimFeed("open-one", holder.userId, "a-good-password-1", "ip");
+  expect(await ownedFeeds(holder.userId)).toEqual(["open-one"]);
+  expect(await coveredFeeds(holder.userId)).toEqual(["open-one"]);
+  expect(await isLicensed("open-one")).toBe(true);
+  await expect(claimFeed("open-two", holder.userId, "a-good-password-2", "ip")).rejects.toBeInstanceOf(LicenseRequiredError);
+  expect(await ownedFeeds(holder.userId)).toEqual(["open-one"]);
 });
