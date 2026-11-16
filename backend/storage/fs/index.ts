@@ -2,6 +2,7 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { config } from "../../config";
+import { guardsFeed } from "../../feedrecord";
 import type { Storage } from "../types";
 import { isErrno } from "./fs";
 import { createFeedMethods, type FeedDeps } from "./feedindex";
@@ -72,7 +73,7 @@ export function createFsStorage(deps: FeedDeps): Storage {
     async usage() {
       const out = [];
       for (const feed of await feeds.listFeeds()) {
-        out.push({ protected: (await readHash(feed)) !== null, readLink: (await feeds.feedReadId(feed)) != null, ...(await noteUsage(feed)) });
+        out.push({ protected: guardsFeed(await readHash(feed)), readLink: (await feeds.feedReadId(feed)) != null, ...(await noteUsage(feed)) });
       }
       return out;
     },

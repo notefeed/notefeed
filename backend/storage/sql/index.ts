@@ -2,6 +2,7 @@
 // (no in-memory index): uniqueness is a constraint, counts are queries, so several containers stay consistent.
 import { sql, type Kysely } from "kysely";
 import { FeedNameTakenError, keyServiceDown, NotFoundError, ReadIdTakenError, RemovedFeedError } from "../../errors";
+import { guardsFeed } from "../../feedrecord";
 import { logger } from "../../log";
 import { noteFeedSize } from "../../metrics";
 import { newKey, type ImageStore } from "../images/types";
@@ -590,14 +591,14 @@ export function createSqlStorage(
       if (!row) throw new FeedGoneError();
       const r = await db
         .updateTable("feeds")
-        .set({ password_hash: sealIn(await keyOf(row), hash, fa(row.name, "hash")) })
+        .set({ password_hash: sealIn(await keyOf(row), hash, fa(row.name, "hash")), protected: guardsFeed(hash) ? 1 : 0 })
         .where("name", "=", ident("feed", feed))
         .where("data_key", row.data_key === null ? "is" : "=", row.data_key)
         .executeTakeFirst();
       if (!changed(r.numUpdatedRows)) throw new FeedGoneError();
     },
     async removeHash(feed) {
-      await (await open()).updateTable("feeds").set({ password_hash: null }).where("name", "=", ident("feed", feed)).execute();
+      await (await open()).updateTable("feeds").set({ password_hash: null, protected: 0 }).where("name", "=", ident("feed", feed)).execute();
     },
 
     async createFeed(feed, readId, hash) {
@@ -613,6 +614,7 @@ export function createSqlStorage(
             name,
             read_id: ident("read_id", readId),
             password_hash: hash === undefined ? null : sealIn(k?.key ?? null, hash, fa(name, "hash")),
+            protected: guardsFeed(hash ?? null) ? 1 : 0,
             settings: null,
             created_at: Date.now(),
             key_id: k?.key_id ?? null,
@@ -691,6 +693,7 @@ export function createSqlStorage(
               name,
               read_id: row.read_id,
               password_hash: again(row.password_hash, "hash"),
+              protected: row.protected,
               settings: again(row.settings, "settings"),
               created_at: Number(row.created_at),
               key_id: k?.key_id ?? null,
@@ -766,7 +769,7 @@ export function createSqlStorage(
     // Every feed row holds a read id: on a database a feed always has its read link.
     async usage() {
       const db = await open();
-      const feeds = await db.selectFrom("feeds").select(["name", "password_hash"]).execute();
+      const feeds = await db.selectFrom("feeds").select(["name", "protected"]).execute();
       const notes = await db
         .selectFrom("notes")
         .select([
@@ -778,9 +781,7 @@ export function createSqlStorage(
         ])
         .groupBy(["feed", "ext"])
         .execute();
-      const byFeed = new Map<string, FeedUsage>(
-        feeds.map((f) => [f.name, { protected: f.password_hash !== null, readLink: true, lastWrite: null, notes: {} }]),
-      );
+      const byFeed = new Map<string, FeedUsage>(feeds.map((f) => [f.name, { protected: f.protected === 1, readLink: true, lastWrite: null, notes: {} }]));
       for (const r of notes) {
         const u = byFeed.get(r.feed);
         if (!u) continue;

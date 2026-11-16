@@ -43,7 +43,7 @@ Chosen: several named passwords, because they are one credential doing one job: 
 * Good, because one person's or one script's access ends without touching anyone else's.
 * Good, because nothing new is stored where it wasn't: the record sits where the hash sat, sealed the same way.
 * Bad, because a wrong password is checked against every password of the feed (one scrypt each).
-* Bad, because the operator's usage metrics count an owned feed whose passwords were all revoked as protected: they see that a record exists, not what is in it.
+* Neutral: the operator's usage metrics count a feed as protected only when it has a password, without opening the sealed record: the database keeps a plain flag beside it (migration `009_feed_protected`), which tells the operator no more than the count already did.
 * Neutral, because the account's own steps over the API need a session from this instance's pages until account tokens exist (#390).
 
 This amends ADR 0008 and ADR 0044.

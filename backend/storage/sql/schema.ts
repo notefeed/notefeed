@@ -9,6 +9,8 @@ export interface Schema {
     name: string;
     read_id: string;
     password_hash: string | null;
+    // 1: the value in password_hash guards the feed (guardsFeed); 0 when it is null or names only an owner. Plain, for usage().
+    protected: ColumnType<number, number | undefined, number>;
     settings: string | null;
     created_at: Time;
     // Encryption at rest: the main key's id and the feed's data key wrapped by it; the name and read id sealed with the data key.

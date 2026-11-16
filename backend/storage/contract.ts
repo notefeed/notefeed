@@ -1,5 +1,6 @@
 // The tests every Storage backend must pass. A backend's test file calls describeStorage() with a factory for a fresh, empty store.
 import { describe, expect, test } from "vitest";
+import { serializeRecord } from "../feedrecord";
 import { FeedNameTakenError, NotFoundError, ReadIdTakenError, RemovedFeedError } from "../errors";
 import { FeedGoneError, type Storage } from "./types";
 
@@ -389,6 +390,15 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect(f).toMatchObject({ protected: false, readLink: true, notes: { md: { count: 1, bytes: 5 }, png: { count: 1, bytes: 10 } } });
         expect(f.lastWrite).toBeGreaterThanOrEqual(before);
         expect(f.lastWrite).toBeLessThanOrEqual(Date.now() + 1000);
+      });
+      t("usage counts a feed whose value names only an owner as not protected, and one with a password as protected", async ({ storage: s }) => {
+        await s.createFeed("g", "gid-123", serializeRecord({ owner: "acct", entries: [] })!);
+        await s.writeHash("f", serializeRecord({ owner: "acct", entries: [] })!);
+        expect((await s.usage()).map((u) => u.protected)).toEqual([false, false]);
+        await s.writeHash("g", serializeRecord({ owner: "acct", entries: [{ id: "p1", name: "CI", hash: "scrypt$x", created: 1 }] })!);
+        expect((await s.usage()).map((u) => u.protected).sort()).toEqual([false, true]);
+        await s.removeHash("g");
+        expect((await s.usage()).map((u) => u.protected)).toEqual([false, false]);
       });
       t("usage of a store with no feed but the harness's is that feed alone, empty", async ({ storage: s }) => {
         expect(await s.usage()).toEqual([{ protected: false, readLink: true, lastWrite: null, notes: {} }]);

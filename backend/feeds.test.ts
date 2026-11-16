@@ -10,6 +10,7 @@ import {
   READ_ID_RE,
   RESERVED_FEEDS,
   checkFeed,
+  createProtectedFeed,
   derivedReadId,
   ensureFeed,
   feedCount,
@@ -21,6 +22,7 @@ import {
 } from "./feeds";
 import { createProtected, protectedFeed } from "./feedlock";
 import { createNote, listNotes } from "./notes";
+import { serializeRecord } from "./feedrecord";
 
 // Log lines, captured per test.
 let logs: string[] = [];
@@ -384,4 +386,17 @@ test("a reserved feed is found by its name as read id", async () => {
   expect(await feedForReadId("news")).toBe("news");
   delete process.env.NOTEFEED_RESERVED_PASSWORD;
   delete process.env.NOTEFEED_RESERVED_FEEDS;
+});
+
+describe("createProtectedFeed", () => {
+  test("a feed made with only an owner is logged as open, one with a password as protected", async () => {
+    await createProtectedFeed("owned", serializeRecord({ owner: "acct", entries: [] })!);
+    await createProtectedFeed("locked", "scrypt$x");
+    expect(
+      logs
+        .map((l) => JSON.parse(l))
+        .filter((l) => l.msg === "feed created")
+        .map((l) => l.protected),
+    ).toEqual([false, true]);
+  });
 });
