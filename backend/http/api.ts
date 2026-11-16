@@ -111,8 +111,10 @@ const IMAGES_OFF = err(
 // For the Feeds reads: the password first (a locked instance tells strangers nothing else), then the name.
 // postNote does its own, because a browser form gets a redirect to the login page instead of a 401.
 // The feed's own password comes after both: the instance lock is always checked first.
+// The instance gate (authorize: the bearer password or a session from its own pages), before every operation behind it.
+const password = async ({ req }: { req: Request }) => authorize(req.headers, clientIp(req.headers));
 async function passwordAndFeed({ req, params }: { req: Request; params: Record<string, string> }) {
-  await authorize(req.headers, clientIp(req.headers));
+  await password({ req });
   assertFeed(params.feed);
 }
 async function passwordFeedAndFeedPassword(input: { req: Request; params: Record<string, string> }) {
@@ -823,7 +825,7 @@ const OPS: AnyOp[] = [
       401: err("No signed-in account"),
       503: UNAVAILABLE,
     },
-    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+    before: password,
   }).handle(async ({ req }) => ({ status: 200, body: { feeds: await ownedFeeds(await signedInAccount(req.headers)) } })),
 
   op({
@@ -840,7 +842,7 @@ const OPS: AnyOp[] = [
       401: err("No account signed in on this instance's pages"),
       503: UNAVAILABLE,
     },
-    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+    before: password,
   }).handle(async ({ req }) => ({ status: 200, body: { tokens: (await listAccountTokens(await sessionOnly(req.headers))).map(tokenJson) } })),
 
   op({
@@ -861,7 +863,7 @@ const OPS: AnyOp[] = [
       401: err("No account signed in on this instance's pages"),
       503: UNAVAILABLE,
     },
-    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+    before: password,
   }).handle(async ({ req }) => {
     const account = await sessionOnly(req.headers);
     const body = AccountTokenRequestJson.safeParse(await jsonBody(req));
@@ -885,7 +887,7 @@ const OPS: AnyOp[] = [
       404: err("No such token of this account"),
       503: UNAVAILABLE,
     },
-    before: async ({ req }) => authorize(req.headers, clientIp(req.headers)),
+    before: password,
   }).handle(async ({ req, params }) => {
     await revokeAccountToken(await sessionOnly(req.headers), params.id);
     return { status: 204, body: undefined };
