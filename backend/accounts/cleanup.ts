@@ -8,6 +8,7 @@ import { accountsMode } from "./mode";
 
 const DAY = 86_400_000;
 export const EMPTY_ACCOUNT_DAYS = 30;
+const PAGE = 100;
 const log = logger("accounts");
 
 // The accounts deleted. Runs the owners lookup once for all of them.
@@ -17,13 +18,26 @@ export async function cleanupEmptyAccounts(now = Date.now()): Promise<number> {
   const { ownedFeeds } = await import("../feedlock");
   const { deleteAccount } = await import("./numbers");
   const ctx = await auth.$context;
-  const users = (await ctx.internalAdapter.listUsers()) as { id: string; createdAt: Date | string }[];
-  let deleted = 0;
-  for (const u of users) {
-    if (now - new Date(u.createdAt).getTime() < EMPTY_ACCOUNT_DAYS * DAY) continue;
-    if ((await ownedFeeds(u.id)).length) continue;
-    await deleteAccount(u.id);
-    deleted++;
+  // The accounts older than 30 days, a page at a time (Better Auth answers at most 100 rows unless asked for a limit), oldest first;
+  // the next page starts after the ones kept, since the deleted ones are no longer there.
+  const before = new Date(now - EMPTY_ACCOUNT_DAYS * DAY);
+  let [deleted, kept] = [0, 0];
+  for (;;) {
+    const page = await ctx.adapter.findMany<{ id: string }>({
+      model: "user",
+      where: [{ field: "createdAt", operator: "lt", value: before }],
+      sortBy: { field: "createdAt", direction: "asc" },
+      limit: PAGE,
+      offset: kept,
+    });
+    for (const u of page) {
+      if ((await ownedFeeds(u.id)).length) kept++;
+      else {
+        await deleteAccount(u.id);
+        deleted++;
+      }
+    }
+    if (page.length < PAGE) break;
   }
   if (deleted) log.info({ deleted }, "accounts without a feed deleted after 30 days"); // how many, never which
   return deleted;

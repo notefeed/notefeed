@@ -52,3 +52,18 @@ test("only where anyone may create accounts: the operator's (closed) and the pro
   expect(await cleanupEmptyAccounts()).toBe(0);
   expect(users()).toHaveLength(1);
 });
+
+test("every old empty account is found, not only the first page of them", async () => {
+  const { accountsAuth } = await import("./auth");
+  const ctx = await accountsAuth()!.$context;
+  const kept = await createAccount();
+  await ensureFeed("kept-too");
+  await ownNewFeed("kept-too", kept.userId);
+  for (let i = 0; i < 130; i++) await ctx.internalAdapter.createUser({ email: `u${i}@test.invalid`, name: "" }, { method: "admin" });
+  const now = Date.now();
+  const db = new Database(join(process.env.DATA_DIR!, "accounts.sqlite"));
+  db.prepare("update user set createdAt = ?").run(new Date(now - 31 * DAY).toISOString());
+  db.close();
+  expect(await cleanupEmptyAccounts(now)).toBe(130);
+  expect(users()).toEqual([kept.userId]);
+}, 30_000);
