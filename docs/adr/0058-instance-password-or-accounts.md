@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0060: MCP clients on an instance with accounts sign in as the account, through notefeed's own OAuth server until it moves to Better Auth; scripts use account tokens, so a `closed` instance has a way in for both.
+
 An own instance could be locked by an instance password (`NOTEFEED_PASSWORD`, ADR 0001), by sign-in through an identity provider (ADR 0014), or by both. MCP clients authorise through notefeed's OAuth server (ADR 0007), which offered both. Accounts (ADR 0057) add a third way in. Which combinations should an instance allow, and which lock it?
 
 ## Considered Options
@@ -32,11 +34,12 @@ Chosen: either, because two ways into one instance meant two OAuth flows, two ki
   * `off` with a provider
   * `closed` with a provider (its sign-ins would create accounts)
   * accounts without `PUBLIC_URL`
-* **MCP OAuth:** one OAuth server, notefeed's own (ADR 0007), answers wherever the instance is locked or has accounts. A password-locked instance authorises with the password. An instance with accounts authorises the account signed in on its pages, by number, passkey or identity provider (ADR 0060). Moving that server onto Better Auth is a follow-up.
+* **MCP OAuth:** a password-locked instance keeps notefeed's own OAuth server. Instances with accounts move to Better Auth's in a later step; until then they keep the provider path of the existing one.
 
 ### Consequences
 
 * Good, because each instance has exactly one way in to reason about.
-* Bad, because an instance that had a provider and a password for scripts no longer starts. Its scripts move to account tokens (ADR 0060), and the upgrading page says so.
+* Bad, because an instance that had a provider and a password for scripts no longer starts. Its scripts need account tokens, which come in a later step, and the upgrading page says so.
+* Bad, until that step: a `closed` instance has no way in for scripts or MCP clients, only the web pages.
 
 This amends ADR 0007 and ADR 0014.
