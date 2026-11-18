@@ -565,3 +565,12 @@ test("postAttachWithANonMarkdownFileExits2AndPostsNothing", async () => {
   expect(await main(["post", "--file", join(dir, "chart.png"), "--attach", join(dir, "t.webp"), "--url", server.url, "--feed", "inbox"], t.io)).toBe(2);
   expect(server.requests).toHaveLength(0);
 });
+
+test("postAndUpdateTakeALanguage", async () => {
+  server.reply(201, CREATED_REPLY);
+  expect(await main(["post", "hi", "--language", "de", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect(server.requests[0].headers["x-note-language"]).toBe("de");
+  server.reply(200, { ...NOTE, url: "https://n.example/inbox/i" });
+  expect(await main(["update", "i", "--language", "", "--url", server.url, "--feed", "inbox"], io().io)).toBe(0);
+  expect(JSON.parse(sent(1))).toEqual({ language: "" });
+});

@@ -77,6 +77,8 @@ import {
   removeNote,
   replaceContent,
   changeMeta,
+  givesMetaEdit,
+  type MetaEdit,
   type NewNoteOptions,
   type Note,
 } from "./notes";
@@ -207,6 +209,7 @@ export type PostInput = {
   name?: string;
   date?: string;
   draft?: boolean;
+  language?: string; // ADR 0063
   password?: string;
   readId?: string;
 };
@@ -252,7 +255,7 @@ export async function postNote(
     type,
     ext,
     body,
-    { sender, tags, title: input.title, alt: input.alt, name: input.name, wantedReadId, draft: input.draft, byOwner },
+    { sender, tags, title: input.title, alt: input.alt, name: input.name, language: meta.language, wantedReadId, draft: input.draft, byOwner },
     at,
   );
   if (!exists) await ownNewFeed(feed, access.account); // a feed an account's post made is that account's (ADR 0059)
@@ -321,21 +324,25 @@ export async function editContent(
   return note;
 }
 
-// A note's title, alt text, sender, tags and date (at least one): every value is checked before the first change (checkNoteMeta).
+// A note's title, alt text, sender, tags, language and date (at least one): every value is checked before the first change
+// (checkNoteMeta), and a lang: tag in new tags becomes the language (ADR 0063).
 // `draft`: true makes the note a draft, false publishes it, its pictures along (#265); its date stays.
 export async function editMeta(
   feed: string,
   id: string,
   ip: string,
-  read: () => Promise<{ title?: string; alt?: string; tags?: string[]; sender?: string; date?: string; draft?: boolean }>,
+  read: () => Promise<MetaEdit & { date?: string; draft?: boolean }>,
   access: FeedAccess,
 ): Promise<Note> {
   await admit(feed, ip, access);
   await refuseRemovedNote(feed, id);
-  const { date: given, draft, ...meta } = await read();
-  const date = checkNoteMeta({ ...meta, date: given }).date; // every value checked before the first change
-  const metaGiven = meta.title !== undefined || meta.alt !== undefined || meta.tags !== undefined || meta.sender !== undefined;
-  if (date === undefined && draft === undefined && !metaGiven) throw new InvalidBodyError("nothing to change: send title, alt, tags, sender, date or draft");
+  const { date: given, draft, ...givenMeta } = await read();
+  const checked = checkNoteMeta({ ...givenMeta, date: given }); // every value checked before the first change
+  const { date } = checked;
+  const meta: MetaEdit = { ...givenMeta, ...(checked.tags !== undefined && { tags: checked.tags, language: checked.language }) };
+  const metaGiven = givesMetaEdit(meta);
+  if (date === undefined && draft === undefined && !metaGiven)
+    throw new InvalidBodyError("nothing to change: send title, alt, tags, sender, language, date or draft");
   if (draft !== undefined) {
     // A picture posted with a note is a draft when its note is: published alone, it would show readers part of a draft (V3).
     const of = (await getNote(feed, id))?.of;
@@ -498,6 +505,7 @@ export type PostBundle = {
   tags?: string[];
   date?: string;
   draft?: boolean;
+  language?: string; // ADR 0063: on the text note, or with no text on each picture, like the title
   password?: string;
   readId?: string;
   name?: string;
@@ -605,7 +613,8 @@ export async function postWithPictures(
   await licenseForImages(feed, pictures.length > 0, exists, access);
   if (text === undefined && pictures.length === 0) throw new InvalidBodyError("send a text, pictures or both");
   const plan = text === undefined ? undefined : await checkText(text, pictures);
-  const meta = checkNoteMeta({ title, sender: input.sender, tags: input.tags, date: input.date });
+  const meta = checkNoteMeta({ title, sender: input.sender, tags: input.tags, date: input.date, language: input.language });
+  const placed = { language: meta.language }; // ADR 0063: where the title goes
   const byOwner = await postedByOwner(feed, input.sender, access, exists);
   const sender = byOwner ? undefined : senderOf(input.sender, meta.sender, signedIn);
   const tags = meta.tags ?? [];
@@ -618,11 +627,12 @@ export async function postWithPictures(
   const opts = { sender, tags, wantedReadId, draft: input.draft, byOwner };
   const id = text === undefined ? undefined : newNoteId();
   const dateOf = (i: number) => new Date(Math.max(0, at.getTime() - pictures.length + i)); // never before 1970
-  return storeWithPictures(feed, pictures, { ...opts, title: text === undefined ? title : undefined, of: id }, dateOf, async (stored, sent, readId) => {
+  const onPictures = text === undefined ? { title, ...placed } : {};
+  return storeWithPictures(feed, pictures, { ...opts, ...onPictures, of: id }, dateOf, async (stored, sent, readId) => {
     if (!exists) await ownNewFeed(feed, access.account);
     if (!exists && !created && pictures.length) await coverNewFeed(feed, access.account); // pictures need its license from the start
     if (text === undefined) return { note: stored[0], created, readId, pictures: stored };
-    const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title, id, name: input.name }, at);
+    const made = await createNoteOf(feed, MARKDOWN, "md", encoder.encode(applyImages(plan!, sent)), { ...opts, title, ...placed, id, name: input.name }, at);
     await trimToFreeCap(feed);
     return { ...made, created, pictures: stored };
   });

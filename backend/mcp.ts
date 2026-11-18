@@ -52,6 +52,7 @@ const NoteSummary = z.object({
   url: z.string(),
   sender: z.string().optional(),
   tags: z.array(z.string()),
+  language: z.string().optional().describe("The note's language (a BCP 47 tag), when it has one"),
   unreadable: z
     .literal(true)
     .optional()
@@ -109,6 +110,7 @@ function server(h: Headers, account: string | undefined): McpServer {
     url: `${base}${feedPath(feed)}/${n.id}`,
     ...(n.sender !== undefined && { sender: n.sender }),
     tags: n.tags,
+    ...(n.language !== undefined && { language: n.language }),
     ...(n.unreadable && { unreadable: true as const }),
     ...(n.removed && { removed: true as const }),
   });
@@ -139,7 +141,7 @@ function server(h: Headers, account: string | undefined): McpServer {
       inputSchema: z.object({
         feed,
         markdown: z.string(),
-        ...noteFieldSchemas(["title", "sender", "name", "tags", "date", "draft"], "post"),
+        ...noteFieldSchemas(["title", "sender", "name", "tags", "language", "date", "draft"], "post"),
         password,
         read_id: z
           .string()
@@ -181,7 +183,7 @@ function server(h: Headers, account: string | undefined): McpServer {
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    guard(async ({ feed, markdown, title, sender: given, name, password, tags, date, draft, read_id, attachments = [] }) => {
+    guard(async ({ feed, markdown, title, sender: given, name, password, tags, language, date, draft, read_id, attachments = [] }) => {
       // Buffer.from skips what is not base64, so the data is checked here; the rest of the checks are postWithPictures's.
       const pictures = attachments.map((a) => {
         const clean = a.data.replace(/\s/g, "");
@@ -198,7 +200,7 @@ function server(h: Headers, account: string | undefined): McpServer {
       } = await postWithPictures(
         feed,
         clientIp(h),
-        async () => ({ text: markdown, pictures, title, sender: given, name, tags, date, draft, password, readId: read_id }),
+        async () => ({ text: markdown, pictures, title, sender: given, name, tags, language, date, draft, password, readId: read_id }),
         { password, account },
         await sender(),
       );
@@ -281,21 +283,23 @@ function server(h: Headers, account: string | undefined): McpServer {
   s.registerTool(
     "edit_note",
     {
-      description: `Replace a note's markdown, set its title, its tags, its date or whether it is a draft, or any of them (an empty title removes it: the title follows the text again; tags replace the whole list, an empty one removes them; a future date schedules the note; draft false publishes a draft, draft true hides a note from readers again); its id stays. At least one of markdown, title, sender, tags, date and draft. ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Replace a note's markdown, set its title, its tags, its language, its date or whether it is a draft, or any of them (an empty title removes it: the title follows the text again; an empty language removes it; tags replace the whole list, an empty one removes them; a future date schedules the note; draft false publishes a draft, draft true hides a note from readers again); its id stays. At least one of markdown, title, sender, tags, language, date and draft. ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
         id: z.string(),
         markdown: z.string().optional(),
-        ...noteFieldSchemas(["title", "sender", "tags", "date", "draft"], "edit"),
+        ...noteFieldSchemas(["title", "sender", "tags", "language", "date", "draft"], "edit"),
         password,
       }),
       outputSchema: NoteOut,
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     },
-    guard(async ({ feed, id, markdown, title, sender: given, tags, date, draft, password }) => {
-      if (markdown === undefined && title === undefined && given === undefined && tags === undefined && date === undefined && draft === undefined)
-        throw new InvalidBodyError("nothing to change: send markdown, title, sender, tags, date, draft or several");
-      checkNoteMeta({ title, sender: given, tags, date }); // before the content is replaced: a bad value must not leave a half edit
+    guard(async ({ feed, id, markdown, password, ...fields }) => {
+      const meta = fields;
+      const metaGiven = Object.values(meta).some((v) => v !== undefined);
+      if (markdown === undefined && !metaGiven)
+        throw new InvalidBodyError("nothing to change: send markdown, title, sender, tags, language, date, draft or several");
+      checkNoteMeta(meta); // before the content is replaced: a bad value must not leave a half edit
       let note =
         markdown === undefined
           ? undefined
@@ -303,8 +307,7 @@ function server(h: Headers, account: string | undefined): McpServer {
               password,
               account,
             });
-      if (title !== undefined || given !== undefined || tags !== undefined || date !== undefined || draft !== undefined)
-        note = await editMeta(feed, id, clientIp(h), async () => ({ title, sender: given, tags, date, draft }), { password, account });
+      if (metaGiven) note = await editMeta(feed, id, clientIp(h), async () => meta, { password, account });
       const edited = summary(feed, note!);
       return ok({ ...edited, ...(note!.content !== undefined && { content: note!.content }), guidance: next.afterEdit({ ...state(note!), url: edited.url }) });
     }),
@@ -553,7 +556,7 @@ function server(h: Headers, account: string | undefined): McpServer {
         feed,
         type: z.string().describe("The file's media type"),
         data: z.string().describe("The file's bytes, base64"),
-        ...noteFieldSchemas(["title", "sender", "alt", "name", "tags", "date", "draft"], "post"),
+        ...noteFieldSchemas(["title", "sender", "alt", "name", "tags", "language", "date", "draft"], "post"),
         password,
       }),
       outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string(), draft: DRAFT_OUT, guidance: GUIDANCE }),

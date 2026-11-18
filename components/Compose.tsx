@@ -1,8 +1,20 @@
 "use client";
 
-import { CameraIcon, CloseIcon, DescriptionIcon, DoneIcon, DraftIcon, MoreIcon, PostIcon, ScheduledIcon, SenderIcon, TagIcon } from "@/components/icons";
+import {
+  CameraIcon,
+  CloseIcon,
+  DescriptionIcon,
+  DoneIcon,
+  DraftIcon,
+  MoreIcon,
+  PostIcon,
+  LanguageIcon,
+  ScheduledIcon,
+  SenderIcon,
+  TagIcon,
+} from "@/components/icons";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType, type FormEvent } from "react";
 import { bare, card, primary, secondary } from "@/components/styles";
 import { editNote, patchNote, postNote } from "@/app/_lib/api";
 import { encodeHeaderValue } from "@/shared/headers";
@@ -15,6 +27,7 @@ import { clearSharedFiles, readSharedFiles } from "@/app/_lib/sharedFiles";
 import { COMPOSE_FORM } from "@/components/ProtectFeed";
 import { addPending, removeReference, type Pending } from "@/components/pendingFiles";
 import { TAGS_PATTERN } from "@/shared/tags";
+import { LANGUAGE_PATTERN, MAX_LANGUAGE } from "@/shared/language";
 import { NOTE_KINDS, type KindName } from "@/shared/notekinds";
 
 // The compose box posts through the API client generated from openapi.json (the session cookie rides along same-origin) and
@@ -31,7 +44,7 @@ import { NOTE_KINDS, type KindName } from "@/shared/notekinds";
 // (app/_lib/sharedFiles.ts): the box takes them like photos from the camera button, and posting clears them there.
 // `edit`: a note to edit instead of a new one (the note page's Edit opens the feed page with ?edit=): the box opens with it, a
 // picture's without the text (it has none) and with its alt text, and Save sends only what changed; Cancel and a saved edit go
-// back to the note's page (`href`). `date` is an ISO string, `tags` as stored.
+// back to the note's page (`href`). `date` is an ISO string, `tags` as stored; `language` "" for none.
 export type NoteToEdit = {
   id: string;
   href: string;
@@ -40,6 +53,7 @@ export type NoteToEdit = {
   title: string;
   alt: string;
   tags: string[];
+  language: string;
   date: string;
   draft: boolean;
 };
@@ -100,6 +114,7 @@ export function Compose({
   const [tags, setTags] = useState(edit?.tags.join(", ") ?? ""); // as typed: comma-separated
   const [title, setTitle] = useState(edit?.title ?? initialTitle); // empty: the one the text gives
   const [alt, setAlt] = useState(edit?.alt ?? "");
+  const [language, setLanguage] = useState(edit?.language ?? ""); // ADR 0063: the note's language
   const [senderName, setSenderName] = useState(""); // as shown on the note; empty: the signed-in name, if any
   // A datetime-local value, the browser's time: empty is now, a later time schedules the note. An edited note's date is the
   // browser's time too, which the server can't know: until the field is changed (null) it shows the note's date once hydrated
@@ -129,6 +144,7 @@ export function Compose({
       ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
       ...(date && { "X-Note-Date": new Date(date).toISOString() }),
       ...(draft && { "X-Note-Draft": "true" as const }),
+      ...(language.trim() && { "X-Note-Language": language.trim() }),
     };
     return run(
       e,
@@ -162,6 +178,7 @@ export function Compose({
       ...(title !== note.title && { title }),
       ...(hasAlt && alt !== note.alt && { alt }),
       ...(tagsChanged && { tags: tagList }),
+      ...(language.trim() !== note.language && { language: language.trim() }),
       ...(dateChanged && { date: new Date(changedDate).toISOString() }),
       ...(draft !== note.draft && { draft }),
     };
@@ -283,61 +300,57 @@ export function Compose({
   const fields = (
     <div className="mt-2 flex flex-wrap gap-2">
       {hasAlt && (
-        <div className="flex min-w-0 basis-full items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1">
-          <DescriptionIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
-          <label htmlFor="note-alt" className="sr-only">
-            {all.noteActions.alt}
-          </label>
-          <input
-            id="note-alt"
-            name="alt"
-            type="text"
-            autoComplete="off"
-            maxLength={500}
-            placeholder={all.noteActions.alt}
-            value={alt}
-            onChange={(e) => setAlt(e.target.value)}
-            className={`${bare} text-[13px]`}
-          />
-        </div>
-      )}
-      <div className="flex min-w-0 flex-1 basis-48 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 sm:max-w-sm">
-        <TagIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
-        <label htmlFor="note-tags" className="sr-only">
-          {t.tagsLabel}
-        </label>
-        <input
-          id="note-tags"
-          name="tags"
-          type="text"
-          autoComplete="off"
-          placeholder={t.tagsPlaceholder}
-          pattern={TAGS_PATTERN}
-          title={t.tagsHint}
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          className={`${bare} text-[13px]`}
+        <TextChip
+          id="note-alt"
+          name="alt"
+          icon={DescriptionIcon}
+          label={all.noteActions.alt}
+          placeholder={all.noteActions.alt}
+          maxLength={500}
+          value={alt}
+          onChange={setAlt}
+          className="basis-full"
         />
-      </div>
-      {!edit && (
-        <div className="flex min-w-0 basis-36 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 sm:max-w-48" title={t.senderHint}>
-          <SenderIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
-          <label htmlFor="note-sender" className="sr-only">
-            {t.senderLabel}
-          </label>
-          <input
-            id="note-sender"
-            name="sender"
-            type="text"
-            autoComplete="off"
-            maxLength={100}
-            placeholder={t.senderPlaceholder}
-            value={senderName}
-            onChange={(e) => setSenderName(e.target.value)}
-            className={`${bare} text-[13px]`}
-          />
-        </div>
       )}
+      <TextChip
+        id="note-tags"
+        name="tags"
+        icon={TagIcon}
+        label={t.tagsLabel}
+        placeholder={t.tagsPlaceholder}
+        hint={t.tagsHint}
+        pattern={TAGS_PATTERN}
+        value={tags}
+        onChange={setTags}
+        className="flex-1 basis-48 sm:max-w-sm"
+      />
+      {!edit && (
+        <TextChip
+          id="note-sender"
+          name="sender"
+          icon={SenderIcon}
+          label={t.senderLabel}
+          placeholder={t.senderPlaceholder}
+          hint={t.senderHint}
+          maxLength={100}
+          value={senderName}
+          onChange={setSenderName}
+          className="basis-36 sm:max-w-48"
+        />
+      )}
+      <TextChip
+        id="note-language"
+        name="language"
+        icon={LanguageIcon}
+        label={t.languageLabel}
+        placeholder={t.languagePlaceholder}
+        hint={t.languageHint}
+        pattern={LANGUAGE_PATTERN}
+        maxLength={MAX_LANGUAGE}
+        value={language}
+        onChange={setLanguage}
+        className="basis-24 sm:max-w-32"
+      />
       <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1" title={t.dateHint}>
         <ScheduledIcon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
         <label htmlFor="note-date" className="sr-only">
@@ -527,6 +540,56 @@ export function Compose({
         </p>
       </form>
     </>
+  );
+}
+
+// One of the box's text fields as a chip: an icon, a label for screen readers, the field. `hint`: the chip's tooltip, and the field's
+// message when `pattern` refuses what is typed.
+function TextChip({
+  id,
+  name,
+  icon: Icon,
+  label,
+  placeholder,
+  hint,
+  pattern,
+  maxLength,
+  value,
+  onChange,
+  className,
+}: {
+  id: string;
+  name: string;
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  label: string;
+  placeholder: string;
+  hint?: string;
+  pattern?: string;
+  maxLength?: number;
+  value: string;
+  onChange: (value: string) => void;
+  className: string;
+}) {
+  return (
+    <div className={`flex min-w-0 items-center gap-1.5 rounded-full bg-surface-2/70 px-3 py-1 ${className}`} title={hint}>
+      <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <input
+        id={id}
+        name={name}
+        type="text"
+        autoComplete="off"
+        placeholder={placeholder}
+        pattern={pattern}
+        title={hint}
+        maxLength={maxLength}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${bare} text-[13px]`}
+      />
+    </div>
   );
 }
 

@@ -162,6 +162,8 @@ export const en = {
   noteFoot: {
     draft: "Draft",
     scheduledFor: (when: string) => `Scheduled for ${when}`,
+    // The note's language, as a BCP 47 tag ("de"): its name in English where the browser knows it.
+    language: (tag: string) => `Language: ${languageName(tag)}`,
     note: "Note",
     report: "Report",
     // The BCP 47 tag a note's full date is written in.
@@ -297,6 +299,9 @@ export const en = {
     dateHint: "The note's date: an earlier time backdates it, a later one schedules it; empty is now",
     dateLabel: "Date (optional; empty is now, a later time schedules the note)",
     draftHint: "A draft stays on this page: readers see it once it is published",
+    languageLabel: "Language (optional)",
+    languagePlaceholder: "Language, e.g. de",
+    languageHint: "The note's language as a language tag: de, en, pt-BR",
     draft: "Draft",
     hint: "Markdown · Ctrl+Enter to post",
     postNote: "Post note",
@@ -577,3 +582,12 @@ export const en = {
 // Every language has these keys, with a string where English has one and a function of the same arguments where it has one.
 type Widen<T> = T extends string ? string : T extends (...a: infer A) => string ? (...a: A) => string : { [K in keyof T]: Widen<T[K]> };
 export type Copy = Widen<typeof en>;
+
+// A language tag's English name ("de" → "German"), else the tag itself.
+function languageName(tag: string): string {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(tag) ?? tag;
+  } catch {
+    return tag;
+  }
+}

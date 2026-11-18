@@ -97,6 +97,16 @@ items:
       - {label: "V4", url: "https://docs.notefeed.me/values/#v4"}
 
   # ---- done ------------------------------------------------------------------------------------------------------------
+  - id: language-and-path
+    status: done
+    date: 2026-11-18
+    icon: translate
+    title: A note's language
+    summary: A note has a language of its own instead of a lang: tag; readers' pages and feeds mark the note's text with it.
+    links:
+      - {label: "#409", url: "https://github.com/notefeed/notefeed/issues/409"}
+      - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
+
   - id: accounts
     status: done
     date: 2026-11-14

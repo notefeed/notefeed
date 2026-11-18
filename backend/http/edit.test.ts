@@ -189,11 +189,11 @@ describe("PATCH changes the date", () => {
     const body = await (await patch(made.id, { date: "2099-01-01", title: "Later" })).json();
     expect(body).toMatchObject({ title: "Later", date: "2099-01-01T00:00:00.000Z", scheduled: true });
   });
-  test("PATCH {} is 400 and names title, alt, tags, sender, date or draft; a bad date is 400 and changes nothing", async () => {
+  test("PATCH {} is 400 and names every field; a bad date is 400 and changes nothing", async () => {
     const made = await post("# x", "text/markdown");
     const empty = await patch(made.id, {});
     expect(empty.status).toBe(400);
-    expect((await empty.json()).error).toContain("title, alt, tags, sender, date or draft");
+    expect((await empty.json()).error).toContain("title, alt, tags, sender, language, date or draft");
     const before = (await get(made.id)).date;
     expect((await patch(made.id, { date: "2025-02-30" })).status).toBe(400);
     expect((await patch(made.id, { date: 5 })).status).toBe(400);

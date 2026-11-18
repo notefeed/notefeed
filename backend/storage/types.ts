@@ -12,6 +12,7 @@ export type Meta = {
   tags?: string[];
   alt?: string;
   name?: string;
+  language?: string; // a BCP 47 tag (ADR 0063)
   created?: string;
   of?: string;
   updated?: string;

@@ -23,6 +23,9 @@ class NoteMeta:
         tags (list[str] | Unset): The note's tags (`ci`, `deploy`): at most 10 tags, each 1 to 32 characters of letters,
             digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Not verified; readers see
             them. The whole new list; empty removes them, left out keeps them.
+        language (str | Unset): The note's language, a BCP 47 language tag (`de`, `en`, `pt-BR`): letters, digits and
+            single hyphens, at most 35 characters; stored with the language lower-case, a region upper-case and a script
+            title-case. Readers' pages and feeds mark the note with it. Empty removes it.
         date (str | Unset): The note's date: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`) or a
             date alone (midnight UTC), from 1970 to 9999. The note takes its place in the feed by it; a time after now
             schedules it: readers see it from then on. Its attachments move with it.
@@ -35,6 +38,7 @@ class NoteMeta:
     alt: str | Unset = UNSET
     sender: str | Unset = UNSET
     tags: list[str] | Unset = UNSET
+    language: str | Unset = UNSET
     date: str | Unset = UNSET
     draft: bool | Unset = UNSET
 
@@ -48,6 +52,8 @@ class NoteMeta:
         tags: list[str] | Unset = UNSET
         if not isinstance(self.tags, Unset):
             tags = self.tags
+
+        language = self.language
 
         date = self.date
 
@@ -64,6 +70,8 @@ class NoteMeta:
             field_dict["sender"] = sender
         if tags is not UNSET:
             field_dict["tags"] = tags
+        if language is not UNSET:
+            field_dict["language"] = language
         if date is not UNSET:
             field_dict["date"] = date
         if draft is not UNSET:
@@ -82,6 +90,8 @@ class NoteMeta:
 
         tags = cast(list[str], d.pop("tags", UNSET))
 
+        language = d.pop("language", UNSET)
+
         date = d.pop("date", UNSET)
 
         draft = d.pop("draft", UNSET)
@@ -91,6 +101,7 @@ class NoteMeta:
             alt=alt,
             sender=sender,
             tags=tags,
+            language=language,
             date=date,
             draft=draft,
         )

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { renderFeed } from "./rss";
+import { renderAtom, renderFeed } from "./rss";
 import { imgNote, mdNote } from "./note/testing";
 import { RemovedNote } from "./note/removed";
 
@@ -113,4 +113,15 @@ test("the operator's mark (#159) is an item saying so, with no enclosure and no 
   const item = renderFeed([mark], photoOpts).split("<item>")[1];
   expect(item).toContain("Removed by the operator: this broke the content rules of this instance.");
   expect(item).not.toContain("<enclosure");
+});
+
+test("a note's language is its item's dc:language and its Atom entry's xml:lang (ADR 0063)", () => {
+  const de = [mdNote({ id: "de", markdown: "Hallo", language: "de-AT" }), mdNote({ id: "none", markdown: "Hi" })];
+  const opts = { title: "t", description: "d", baseUrl: "https://x.test", readId: "AbCdEfGhIjKlMnOpQrSt_-" };
+  const rss = renderFeed(de, opts);
+  expect(rss).toContain('xmlns:dc="http://purl.org/dc/elements/1.1/"');
+  expect(rss.match(/<dc:language>de-AT<\/dc:language>/g)).toHaveLength(1);
+  const atom = renderAtom(de, opts);
+  expect(atom).toContain('<entry xml:lang="de-AT">');
+  expect(atom.match(/xml:lang/g)).toHaveLength(1);
 });

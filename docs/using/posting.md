@@ -64,6 +64,18 @@ curl -H "Content-Type: text/markdown" -H "X-Note-Tags: ci,deploy" --data-binary 
 - `?tag=ci` on the feed page, the read-only view, the note list of the API and the RSS feed (`/r/<read id>/feed.xml?tag=ci`) shows only notes with that tag.
 - A note's tags can be changed afterwards with a `PATCH` (see [Editing](#editing-and-deleting-notes)) or **Edit** on its page: the whole list is replaced, and the note keeps its id, address and date.
 
+## A note's language
+
+A note can say what language it is in:
+
+```sh
+curl -H "Content-Type: text/markdown" -H "X-Note-Language: de" --data-binary @post.md "$NOTEFEED_URL/$FEED"
+```
+
+- `X-Note-Language` is a language tag (`de`, `en`, `pt-BR`). The note's page, the read link, RSS (`<dc:language>`) and Atom (`xml:lang`) mark the note's text with it, so screen readers and feed readers read it in that language; its foot shows it quietly, as `DE`.
+- In the web UI it is the **Language** field of the compose box. `PATCH` (`language`) changes it later, and an empty one removes it.
+- Notes used to carry it as a `lang:de` tag. A post or an edit that still sends a single such tag, and not the field, sets the language instead of storing the tag. For older notes, `scripts/move-lang-tags.mts` in the repository moves a whole feed's (`--apply`; without it, it only lists them).
+
 ## A note's date
 
 Every note has a date: when it is placed in its feed, the read link and RSS. It is the time of posting unless you send `X-Note-Date`:

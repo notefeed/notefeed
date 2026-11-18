@@ -77,7 +77,9 @@ export async function NoteList({
               // The operator's mark (#159), in the post's place; its page is where its owner can delete it.
               <RemovedMark terms={terms} />
             ) : (
-              <CardContent t={t} note={n} imageBase={imageBase} />
+              <div lang={n.language}>
+                <CardContent t={t} note={n} imageBase={imageBase} />
+              </div>
             )}
             <Foot t={t} note={n} base={base} when={time(n.date)} open={`${base}/${n.id}`} report={n.removed ? undefined : report} />
           </NoteCard>

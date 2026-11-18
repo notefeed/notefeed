@@ -32,6 +32,7 @@ export {
   PencilLine as DraftIcon,
   CalendarClock as ScheduledIcon,
   Hash as TagIcon,
+  Languages as LanguageIcon,
   ImagePlus as PictureIcon,
   Camera as CameraIcon,
   Link2 as NoteLinkIcon,

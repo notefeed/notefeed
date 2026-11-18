@@ -68,6 +68,10 @@ export abstract class Note {
   get alt(): string | undefined {
     return this.meta.alt === undefined ? undefined : cleanLine(this.meta.alt);
   }
+  /** The note's language, a BCP 47 tag (ADR 0063), when set. */
+  get language(): string | undefined {
+    return this.meta.language;
+  }
   /** The text of a text type; undefined for a binary file. */
   abstract get content(): string | undefined;
   /** What lists and links show: the metadata's title, else what the type derives from its content; may be empty. */

@@ -16,6 +16,7 @@ import { atomPath, feedPath, imagePath, publicUrl, rssPath } from "../urls";
 import { feedCookies } from "./feedsession";
 import { authorize, feedAccess, mediaType, parseForm, readCapped, sameOrigin, sender } from "./request";
 import { type Created, MetaJson, type Posted } from "./schemas";
+import type { z } from "zod";
 
 // What the POST answers: the created note (with a multipart post's pictures).
 type PostReply = { status: 201; body: Posted; headers?: HeadersInit };
@@ -87,7 +88,7 @@ export async function readMultipart(req: Request, kind: "post" | "edit"): Promis
   return {
     text,
     pictures,
-    ...readNoteHeaders(req.headers, ["title", "sender", "tags", "date", "draft"]),
+    ...readNoteHeaders(req.headers, ["title", "sender", "tags", "date", "draft", "language"]),
     readId: header("x-read-id"),
   };
 }
@@ -113,8 +114,8 @@ export async function readContent(req: Request): Promise<{ body: Uint8Array; med
   return { body, mediaType };
 }
 
-// The JSON of a PATCH: a title, an alt text and/or a date.
-export async function readMetaPatch(req: Request): Promise<{ title?: string; alt?: string; tags?: string[]; sender?: string; date?: string }> {
+// The JSON of a PATCH: any of the fields MetaJson lists.
+export async function readMetaPatch(req: Request): Promise<z.infer<typeof MetaJson>> {
   if (mediaType(req.headers) !== "application/json") throw new UnsupportedTypeError("send Content-Type: application/json");
   const bytes = await readCapped(req, MAX_BYTES);
   if (!bytes) throw new NoteTooLargeError();
@@ -125,7 +126,8 @@ export async function readMetaPatch(req: Request): Promise<{ title?: string; alt
     throw new InvalidBodyError("invalid JSON");
   }
   const parsed = MetaJson.safeParse(json);
-  if (!parsed.success) throw new InvalidBodyError('JSON may carry "title", "alt", "sender" and "date" strings, "draft" and a "tags" list of strings');
+  if (!parsed.success)
+    throw new InvalidBodyError('JSON may carry "title", "alt", "sender", "language" and "date" strings, "draft" and a "tags" list of strings');
   return parsed.data;
 }
 

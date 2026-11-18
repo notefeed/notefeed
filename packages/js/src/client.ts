@@ -143,6 +143,7 @@ type PostOptions = {
   tags?: string[];
   alt?: string;
   name?: string;
+  language?: string;
   date?: string | Date;
   draft?: boolean;
   readId?: string;
@@ -157,6 +158,7 @@ function postHeaders(o: PostOptions) {
     ...(o.tags?.length && { "X-Note-Tags": o.tags.join(",") }),
     ...(o.alt && { "X-Note-Alt": headerValue(o.alt) }),
     ...(o.name && { "X-Note-Name": headerValue(o.name) }),
+    ...(o.language && { "X-Note-Language": o.language }),
     ...(o.date && { "X-Note-Date": dateString(o.date) }),
     ...(o.draft && { "X-Note-Draft": "true" as const }),
     ...(o.readId && { "X-Read-Id": o.readId }),
@@ -206,7 +208,8 @@ export class Client {
    *
    * `feedPassword` overrides the client's, for a feed that has its own password. `tags` label the note (at most 10, each 1 to 32 characters of
    * letters, digits, `-`, `_`, `.`, `:`; not verified). `title` is its title (at most 100 characters, one line); left out, it is taken from the
-   * text. `alt` is a picture's alternative text, `name` the file's original name. `date` is the note's date, if not now: a
+   * text. `alt` is a picture's alternative text, `name` the file's original name. `language` is the note's language (a BCP 47 tag: `de`,
+   * `pt-BR`); a single `lang:` tag sets it when it is left out. `date` is the note's date, if not now: a
    * Date or an ISO 8601 date-time with its offset (`2026-10-01T09:30:00Z`) or a date alone (midnight UTC), from 1970 to 9999; a future date schedules the note: readers see it from then on. `readId` is the read id the feed gets when this post creates it
    * (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; random when left out; ignored for a feed that exists; a `taken` error when another feed has it).
    * On an instance that sells licenses, a post that creates a feed with `feedPassword` or pictures needs the client's account (its token)
@@ -214,7 +217,7 @@ export class Client {
    *
    * `attachments` are pictures posted with the note in one request: `![](name)` in the markdown shows one (a picture the text never refers to is
    * added at the end), and `Created.attachments` lists them in order. `tags` label the pictures too. `content` may be `null` when there are
-   * attachments: only the pictures are posted, `title`, `tags` and `date` go on each, and the result is the first picture plus `attachments`. Checked
+   * attachments: only the pictures are posted, `title`, `tags`, `language` and `date` go on each, and the result is the first picture plus `attachments`. Checked
    * here, before anything is sent (ConfigError): a name given twice, an attachment that is not a picture, content that is not markdown, `alt` or
    * `name` with attachments. What a name may be is the server's rule (docs/using/pictures.md, "Posting a note with its pictures"): a name it refuses is an
    * InvalidRequestError, `attachment "<name>": ...`, and whenever the server refuses any part (its message names it) nothing is posted.
@@ -267,10 +270,10 @@ export class Client {
     return this.call(editNote({ client: this.api, path: { feed, id }, body, headers, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
-  /** Set a note's title, alt text (for pictures), sender (who posted it, as shown; `""` removes it), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (`false` publishes it, `true` hides it from readers again; its date stays); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
+  /** Set a note's title, alt text (for pictures), sender (who posted it, as shown; `""` removes it), tags, language (as in post(); `""` removes it), date (as in post(); a future one schedules the note) and/or whether it is a draft (`false` publishes it, `true` hides it from readers again; its date stays); `""` removes a title or alt, so a markdown note's title follows its text again; `tags` replaces the whole list (`[]` removes them). Same options as post(). */
   async update(
     id: string,
-    meta: { title?: string; alt?: string; sender?: string; tags?: string[]; date?: string | Date; draft?: boolean },
+    meta: { title?: string; alt?: string; sender?: string; tags?: string[]; language?: string; date?: string | Date; draft?: boolean },
     options: { feed?: string; feedPassword?: string } = {},
   ): Promise<Note> {
     const feed = this.feedFor(options.feed);

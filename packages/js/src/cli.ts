@@ -14,9 +14,9 @@ type Io = {
 class UsageError extends Error {}
 
 const USAGE = [
-  "usage: notefeed post <text | - | --file PATH> [--type MEDIA_TYPE] [--title TITLE] [--sender NAME] [--tag TAG]... [--attach PATH]... [--date WHEN] [--draft] [--url URL] [--feed FEED] [--password PASSWORD]",
+  "usage: notefeed post <text | - | --file PATH> [--type MEDIA_TYPE] [--title TITLE] [--sender NAME] [--tag TAG]... [--language LANG] [--attach PATH]... [--date WHEN] [--draft] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed edit <id> <text | - | --file PATH> [--type MEDIA_TYPE] [--url URL] [--feed FEED] [--password PASSWORD]",
-  "       notefeed update <id> [--title TITLE] [--alt ALT] [--sender NAME] [--tags LIST] [--date WHEN] [--draft | --publish] [--url URL] [--feed FEED] [--password PASSWORD]",
+  "       notefeed update <id> [--title TITLE] [--alt ALT] [--sender NAME] [--tags LIST] [--language LANG] [--date WHEN] [--draft | --publish] [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed delete <id> [--url URL] [--feed FEED] [--password PASSWORD]",
   "       notefeed notes [--limit N] [--tag TAG] [--json] [--url URL] [--feed FEED] [--password PASSWORD]",
 ].join("\n");
@@ -49,6 +49,7 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
         alt: { type: "string" },
         tag: { type: "string", multiple: true },
         tags: { type: "string" },
+        language: { type: "string" },
         date: { type: "string" },
         draft: { type: "boolean" },
         publish: { type: "boolean" },
@@ -80,6 +81,7 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
         title: values.title,
         sender: values.sender,
         tags: values.tag,
+        language: values.language,
         date: values.date,
         draft: values.draft,
         name: attachments.length ? undefined : input.name,
@@ -98,14 +100,22 @@ export async function main(argv: string[], io: Io = process): Promise<number> {
       if (values.draft && values.publish) throw new UsageError("give --draft or --publish, not both");
       // --draft makes the note a draft (#265), --publish publishes it; either alone is an update.
       const draft = values.draft ? true : values.publish ? false : undefined;
-      const given = [values.title, values.alt, values.sender, values.tags, values.date, draft];
-      if (given.every((v) => v === undefined)) throw new UsageError("give --title, --alt, --sender, --tags, --date and/or --draft or --publish");
+      const given = [values.title, values.alt, values.sender, values.tags, values.language, values.date, draft];
+      if (given.every((v) => v === undefined)) throw new UsageError("give --title, --alt, --sender, --tags, --language, --date and/or --draft or --publish");
       // --tags is the whole new list, comma-separated; "" removes them all.
       const tags = values.tags
         ?.split(",")
         .map((t) => t.trim())
         .filter(Boolean);
-      const note = await client(values).update(text, { title: values.title, alt: values.alt, sender: values.sender, tags, date: values.date, draft });
+      const note = await client(values).update(text, {
+        title: values.title,
+        alt: values.alt,
+        sender: values.sender,
+        tags,
+        language: values.language,
+        date: values.date,
+        draft,
+      });
       io.stdout.write(`${note.url}\n`);
       return 0;
     }

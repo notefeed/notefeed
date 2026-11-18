@@ -79,6 +79,7 @@ async function noteToEdit(feed: string, id?: string): Promise<NoteToEdit | undef
     title: note.meta.title ?? "",
     alt: note.alt ?? "",
     tags: note.tags,
+    language: note.language ?? "",
     date: note.date.toISOString(),
     draft: note.draft,
   };

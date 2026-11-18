@@ -42,6 +42,10 @@ export type Note = {
      */
     name?: string;
     /**
+     * The note's language, a BCP 47 tag (`de`, `pt-BR`), when it has one
+     */
+    language?: string;
+    /**
      * Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it
      */
     date: string;
@@ -195,6 +199,10 @@ export type NoteEdited = {
      */
     name?: string;
     /**
+     * The note's language, a BCP 47 tag (`de`, `pt-BR`), when it has one
+     */
+    language?: string;
+    /**
      * Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it
      */
     date: string;
@@ -271,6 +279,10 @@ export type NoteMeta = {
      * The note's tags (`ci`, `deploy`): at most 10 tags, each 1 to 32 characters of letters, digits, `-`, `_`, `.` and `:`; case is folded to lowercase, duplicates are removed. Not verified; readers see them. The whole new list; empty removes them, left out keeps them.
      */
     tags?: Array<string>;
+    /**
+     * The note's language, a BCP 47 language tag (`de`, `en`, `pt-BR`): letters, digits and single hyphens, at most 35 characters; stored with the language lower-case, a region upper-case and a script title-case. Readers' pages and feeds mark the note with it. Empty removes it.
+     */
+    language?: string;
     /**
      * The note's date: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`) or a date alone (midnight UTC), from 1970 to 9999. The note takes its place in the feed by it; a time after now schedules it: readers see it from then on. Its attachments move with it.
      */
@@ -738,6 +750,10 @@ export type PostNoteData = {
          */
         'X-Note-Name'?: string;
         /**
+         * The note's language, a BCP 47 language tag (`de`, `en`, `pt-BR`): letters, digits and single hyphens, at most 35 characters; stored with the language lower-case, a region upper-case and a script title-case. Readers' pages and feeds mark the note with it. Left out or empty: none. A single `lang:<language>` tag sets it when it is not given (the tag is then not stored). Sent as UTF-8; empty is none.
+         */
+        'X-Note-Language'?: string;
+        /**
          * The note's date: an ISO 8601 date and time with its offset (`2026-10-01T09:30:00Z`) or a date alone (midnight UTC), from 1970 to 9999. The note takes its place in the feed by it; a time after now schedules it: readers see it from then on. Its attachments move with it. Left out or empty: now. Sent as UTF-8; empty is none.
          */
         'X-Note-Date'?: string;
@@ -758,7 +774,7 @@ export type PostNoteData = {
 
 export type PostNoteErrors = {
     /**
-     * Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
+     * Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Language`, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`
      */
     400: Error;
     /**
@@ -962,7 +978,7 @@ export type PatchNoteData = {
 
 export type PatchNoteErrors = {
     /**
-     * Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, date or draft; too many tags; alt for a note that has none; bad JSON
+     * Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, language, date or draft; too many tags; alt for a note that has none; bad JSON
      */
     400: Error;
     /**

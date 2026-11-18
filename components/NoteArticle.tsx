@@ -40,7 +40,7 @@ export async function NoteArticle({
         {t.note.allNotes}
       </Link>
       <article className={`${card} p-4 sm:p-5`}>
-        <div>
+        <div lang={note.language}>
           <PageContent t={t} note={note} imageBase={imageBase} attachments={link} />
         </div>
         <Foot t={t} note={note} base={back} when={fullDate(t, note.date)} report={report} />
