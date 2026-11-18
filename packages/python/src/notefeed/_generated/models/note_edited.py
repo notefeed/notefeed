@@ -38,6 +38,7 @@ class NoteEdited:
             picture
         alt (str | Unset): Alternative text of an image note, when it has one
         name (str | Unset): The file name an image was posted with, when it came with one
+        language (str | Unset): The note's language, a BCP 47 tag (`de`, `pt-BR`), when it has one
         scheduled (bool | Unset): Present, and true, when the note's date is after now: it is stored, and readers see it
             from its date on. Absent for every other note
         draft (bool | Unset): Present, and true, for a draft: only whoever can post to the feed sees it; readers do not,
@@ -68,6 +69,7 @@ class NoteEdited:
     content: str | Unset = UNSET
     alt: str | Unset = UNSET
     name: str | Unset = UNSET
+    language: str | Unset = UNSET
     scheduled: bool | Unset = UNSET
     draft: bool | Unset = UNSET
     sender: None | str | Unset = UNSET
@@ -100,6 +102,8 @@ class NoteEdited:
         alt = self.alt
 
         name = self.name
+
+        language = self.language
 
         scheduled = self.scheduled
 
@@ -143,6 +147,8 @@ class NoteEdited:
             field_dict["alt"] = alt
         if name is not UNSET:
             field_dict["name"] = name
+        if language is not UNSET:
+            field_dict["language"] = language
         if scheduled is not UNSET:
             field_dict["scheduled"] = scheduled
         if draft is not UNSET:
@@ -192,6 +198,8 @@ class NoteEdited:
 
         name = d.pop("name", UNSET)
 
+        language = d.pop("language", UNSET)
+
         scheduled = d.pop("scheduled", UNSET)
 
         draft = d.pop("draft", UNSET)
@@ -231,6 +239,7 @@ class NoteEdited:
             content=content,
             alt=alt,
             name=name,
+            language=language,
             scheduled=scheduled,
             draft=draft,
             sender=sender,

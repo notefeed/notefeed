@@ -557,3 +557,43 @@ describe("drafts", () => {
     expect((await getNote("f", p.note.id))?.draft).toBe(false);
   });
 });
+
+// ADR 0063: a note's language is a field of its own; a lang: tag that stood for it becomes it.
+describe("language", () => {
+  const md = (extra: object) => async () => ({ body: new TextEncoder().encode("# Hallo"), mediaType: "text/markdown", ...extra });
+  const fields = (n: { language?: string; tags: string[] }) => ({ language: n.language, tags: n.tags });
+
+  test("a post stores it, normalised, and it reads back", async () => {
+    const { note } = await postNote("f", "ip", md({ language: "DE-at" }), {});
+    expect(fields((await getNote("f", note.id))!)).toEqual({ language: "de-AT", tags: [] });
+  });
+
+  test("a post's lang: tag becomes it, and is no longer a tag", async () => {
+    const { note } = await postNote("f", "ip", md({ tags: ["lang:de", "druck"] }), {});
+    expect(fields(note)).toEqual({ language: "de", tags: ["druck"] });
+  });
+
+  test("a bad language is refused, with nothing stored", async () => {
+    await expect(postNote("f", "ip", md({ language: "deutsch" }), {})).rejects.toThrow(/language/);
+    expect(await hasFeed("f")).toBe(false);
+  });
+
+  test("with pictures it goes on the text note; with no text on each picture, like the title", async () => {
+    const r = await post({ text: "![](a.png)", pictures: [pic("a.png")], tags: ["lang:de", "trip"] });
+    expect([fields(r.note), fields(r.pictures[0])]).toEqual([
+      { language: "de", tags: ["trip"] },
+      { language: undefined, tags: ["trip"] },
+    ]);
+    const only = await post({ pictures: [pic("b.png")], language: "en" });
+    expect(fields(only.pictures[0])).toEqual({ language: "en", tags: [] });
+  });
+
+  test("an edit sets, changes and removes it; new tags with lang: set it", async () => {
+    const { note } = await postNote("f", "ip", md({}), {});
+    const edit = (m: object) => editMeta("f", note.id, "ip", async () => m, {});
+    expect(fields(await edit({ language: "de" }))).toEqual({ language: "de", tags: [] });
+    expect(fields(await edit({ tags: ["lang:en", "ci"] }))).toEqual({ language: "en", tags: ["ci"] });
+    expect(fields(await edit({ language: "" }))).toEqual({ language: undefined, tags: ["ci"] });
+    await expect(edit({ language: "x" })).rejects.toThrow(/language/);
+  });
+});

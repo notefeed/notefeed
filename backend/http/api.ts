@@ -148,6 +148,7 @@ const noteJson = (n: Note, base: string, files: string | null): NoteJson => ({
   ...(n.content !== undefined && { content: n.content }),
   ...(n.alt !== undefined && { alt: n.alt }),
   ...("name" in n && typeof n.name === "string" && { name: n.name }),
+  ...(n.language !== undefined && { language: n.language }),
   date: n.date.toISOString(),
   ...(isScheduled(n) && { scheduled: true as const }),
   ...(isDraft(n) && { draft: true as const }),
@@ -236,9 +237,9 @@ const OPS: AnyOp[] = [
       "Where licenses are sold, a post that creates a feed with a password, or with pictures, needs an account (its token, or signed in on this instance's pages) whose license covers one more feed: the new feed goes under it; else `402`. " +
       "Posting to a protected feed needs its password. Also served at `POST /{feed}`, the short form curl one-liners use. " +
       "The response names the note's `file` and where it is served, `file_url`, under the feed's read id (public like the read link). " +
-      `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Date\` (where it is placed in the feed: a past date backdates it, a future one schedules it), \`X-Note-Draft\` (\`true\`: a draft, which readers do not see until it is published). ` +
+      `Metadata goes in headers: \`X-Note-Title\`, \`X-Note-Tags\` (${TAG_RULE}), \`X-Note-Alt\` (images), \`X-Note-Name\` (the original file name), \`X-Note-Date\` (where it is placed in the feed: a past date backdates it, a future one schedules it), \`X-Note-Draft\` (\`true\`: a draft, which readers do not see until it is published), \`X-Note-Language\` (the note's language; a single \`lang:\` tag sets it when it is not given, and is then not stored as a tag). ` +
       MULTIPART +
-      "The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. " +
+      "The `text` part is optional: `X-Note-Title` goes on the text note, `X-Note-Tags` on every note, `X-Note-Date` and `X-Note-Language` on the text note (its pictures take the milliseconds just before it); with no `text` part only the pictures are stored, each with the title, and the answer's top level is the first picture. " +
       "A refused multipart post that would have created a protected feed creates nothing.",
     tags: ["Feeds"],
     password: true,
@@ -246,13 +247,13 @@ const OPS: AnyOp[] = [
     headers: {
       "X-Feed-Password": FeedPasswordHeader,
       "X-Read-Id": ReadIdHeader,
-      ...noteHeaderSchemas(["title", "sender", "tags", "alt", "name", "date", "draft"]),
+      ...noteHeaderSchemas(["title", "sender", "tags", "alt", "name", "language", "date", "draft"]),
     },
     body: { ...Object.fromEntries(MEDIA_TYPES.map((m) => [m.mediaType, FileBody])), "multipart/form-data": MultipartNote },
     responses: {
       201: { description: "Stored: the note, and with a multipart body its pictures", schema: Posted },
       400: err(
-        "Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; " +
+        "Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Language`, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; " +
           `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
@@ -424,10 +425,10 @@ const OPS: AnyOp[] = [
     method: "PATCH",
     path: `${API_PREFIX}/feeds/{feed}/notes/{id}`,
     operationId: "patchNote",
-    summary: "Change a note's title, alt text, tags or date",
+    summary: "Change a note's title, alt text, tags, language or date",
     description:
-      "Sets the note's title, alt text (only for images), tags and/or date. An empty title or alt removes it: a markdown note's title follows its text again. " +
-      "`tags` replaces the whole list (an empty list removes them), with the same rules as on a post. " +
+      "Sets the note's title, alt text (only for images), tags, language and/or date. An empty title, alt or language removes it: a markdown note's title follows its text again. " +
+      "`tags` replaces the whole list (an empty list removes them), with the same rules as on a post; a single `lang:` tag in it sets the language when that is not given. " +
       "A new date moves the note in the feed, with its attachments; a date after now schedules it. Id and links stay, and so does its RSS item's guid. " +
       "At least one is needed. Needs the feed's password if it has one, and counts against the post rate limit. Read links can't change notes.",
     tags: ["Feeds"],
@@ -438,7 +439,7 @@ const OPS: AnyOp[] = [
     responses: {
       200: { description: "The note as it is now", schema: NoteJson },
       400: err(
-        "Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, date or draft; too many tags; alt for a note that has none; bad JSON",
+        "Invalid or reserved feed name; nothing to change; a bad title, alt text, tag, language, date or draft; too many tags; alt for a note that has none; bad JSON",
       ),
       401: UNAUTHORIZED,
       404: err("No such note"),

@@ -105,6 +105,14 @@ export function describeStorage(name: string, make: () => Promise<Harness>): voi
         expect((await s.readNote("f", id, MD, () => true))?.meta).toEqual({});
         expect(await s.updateMeta("f", "nope", MD, { title: "x" })).toBe(false);
       });
+      t("a note's language is stored, read back and removed like its title (ADR 0063)", async ({ storage: s }) => {
+        const id = await s.writeNote("f", "a", "md", "x", { language: "de", title: "T" }, 0);
+        expect((await s.readNote("f", id, MD, () => true))?.meta).toEqual({ language: "de", title: "T" });
+        expect(await s.updateMeta("f", id, MD, { language: "pt-BR", title: null })).toBe(true);
+        expect((await s.readNote("f", id, MD, () => true))?.meta).toEqual({ language: "pt-BR" });
+        expect(await s.updateMeta("f", id, MD, { language: null })).toBe(true);
+        expect((await s.readNote("f", id, MD, () => true))?.meta).toEqual({});
+      });
       t("deleteNote removes the note, a second delete is false", async ({ storage: s }) => {
         const id = await s.writeNote("f", "a", "md", "x", { sender: "S" }, 0);
         expect(await s.deleteNote("f", id, MD)).toBe(true);

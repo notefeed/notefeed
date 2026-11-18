@@ -18,9 +18,10 @@ describe("readNoteHeaders", () => {
           "x-note-draft": "TRUE",
           "x-note-alt": "a cat",
           "x-note-name": "a.png",
+          "x-note-language": "de",
         }),
       ),
-    ).toEqual({ title: "Café", tags: ["ci", "deploy"], date: "2025-03-01", draft: true, alt: "a cat", name: "a.png" });
+    ).toEqual({ title: "Café", tags: ["ci", "deploy"], date: "2025-03-01", draft: true, alt: "a cat", name: "a.png", language: "de" });
   });
 
   test("only the fields asked for", () => {
@@ -37,6 +38,28 @@ describe("checkNoteMeta", () => {
     const max = NOTE_FIELDS[field].max!;
     expect(checkNoteMeta({ [field]: "  x " })[field]).toBe("x");
     for (const bad of ["a\nb", "a‮b", "x".repeat(max + 1)]) expect(() => checkNoteMeta({ [field]: bad }), JSON.stringify(bad)).toThrow(new RegExp(field));
+  });
+
+  test("language: a BCP 47 tag, the language lower-case, a region upper-case and a script title-case; else refused", () => {
+    expect(checkNoteMeta({ language: " DE " }).language).toBe("de");
+    expect(checkNoteMeta({ language: "pt-br" }).language).toBe("pt-BR");
+    expect(checkNoteMeta({ language: "zh-hant-tw" }).language).toBe("zh-Hant-TW");
+    expect(checkNoteMeta({ language: "es-419" }).language).toBe("es-419");
+    for (const bad of ["deutsch", "d", "de_DE", "de-", "-de", "de--at", "x".repeat(36), "de at"])
+      expect(() => checkNoteMeta({ language: bad }), bad).toThrow(/language/);
+  });
+
+  test("an empty language stays empty: on an edit it removes the field", () => {
+    expect(checkNoteMeta({ language: "" })).toEqual({ language: "" });
+  });
+
+  test("one lang: tag becomes the language, when none is given and its value is valid; slug: stays a tag", () => {
+    expect(checkNoteMeta({ tags: ["lang:de", "ci", "slug:kamera"] })).toEqual({ tags: ["ci", "slug:kamera"], language: "de" });
+    // A given language wins: the tag stays a tag.
+    expect(checkNoteMeta({ tags: ["lang:de"], language: "en" })).toEqual({ tags: ["lang:de"], language: "en" });
+    // Two of them, or a value the field refuses: tags as before.
+    expect(checkNoteMeta({ tags: ["lang:de", "lang:en"] })).toEqual({ tags: ["lang:de", "lang:en"] });
+    expect(checkNoteMeta({ tags: ["lang:deutsch"] })).toEqual({ tags: ["lang:deutsch"] });
   });
 
   test("tags are folded and checked, a date is parsed", () => {

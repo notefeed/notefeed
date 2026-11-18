@@ -36,6 +36,7 @@ export const NoteJson = z
     content: z.string().optional().describe("The note's text, byte-for-byte as posted: for a text type (markdown) only; absent for a picture"),
     alt: z.string().optional().describe("Alternative text of an image note, when it has one"),
     name: z.string().optional().describe("The file name an image was posted with, when it came with one"),
+    language: z.string().optional().describe("The note's language, a BCP 47 tag (`de`, `pt-BR`), when it has one"),
     date: z.iso
       .datetime()
       .describe("Where the note is placed in the feed (UTC): when it was posted, unless a date was given or changed; lists are ordered by it"),
@@ -134,7 +135,7 @@ export const ErrorJson = z
   .meta({ id: "Error" });
 
 // A PATCH's fields, from the one list of note fields (backend/notefields.ts).
-export const MetaJson = z.object(noteFieldSchemas(["title", "alt", "sender", "tags", "date", "draft"], "edit")).meta({ id: "NoteMeta" });
+export const MetaJson = z.object(noteFieldSchemas(["title", "alt", "sender", "tags", "language", "date", "draft"], "edit")).meta({ id: "NoteMeta" });
 export const PasswordJson = z.object({ password: z.string().describe(`The new password: ${PASSWORD_RULE}`) }).meta({ id: "PasswordJson" });
 export const CreateFeedJson = z
   .object({

@@ -16,6 +16,7 @@ import { Note } from "./note/note";
 import { UnreadableNote } from "./note/unreadable";
 import { NOTE_TYPES, parseMediaType, typeForExt, type NoteType } from "./note/types";
 import { checkTags } from "./tags";
+import { checkLanguage } from "./language";
 
 export { checkMarkdown, MAX_BYTES } from "./note/markdown";
 export { ImageNote, MarkdownNote, Note };
@@ -87,6 +88,7 @@ export type NewNoteOptions = {
   title?: string;
   alt?: string;
   name?: string;
+  language?: string; // ADR 0063: checked here like the title
   wantedReadId?: string;
   id?: string;
   of?: string;
@@ -112,6 +114,7 @@ export async function createNoteOf(
   const title = checkLine("title", opts.title, MAX_NOTE_TITLE);
   const alt = checkLine("alt", opts.alt, MAX_ALT);
   if (alt && !type.hasAlt) throw new InvalidBodyError("alt is for image notes");
+  const language = checkLanguage(opts.language);
   const { sender, tags = [], of } = opts;
   const name = cleanName(opts.name);
   const meta: Meta = {
@@ -121,6 +124,7 @@ export async function createNoteOf(
     ...(title && { title }),
     ...(alt && { alt }),
     ...(name && { name }),
+    ...(language && { language }),
     ...(of !== undefined && { of }),
   };
   const draft = opts.draft === true;
@@ -359,14 +363,19 @@ export async function replaceContent(feed: string, id: string, body: Uint8Array,
   return getNote(feed, id);
 }
 
-/** Sets the title, alt text, tags and/or sender of a note; "" removes one. At least one is needed; alt only for types that have it. null: no such note. */
-export async function changeMeta(feed: string, id: string, edit: { title?: string; alt?: string; tags?: string[]; sender?: string }): Promise<Note | null> {
-  if (edit.title === undefined && edit.alt === undefined && edit.tags === undefined && edit.sender === undefined)
-    throw new InvalidBodyError("nothing to change: send title, alt, tags or sender");
+/** What changeMeta sets; "" removes one. */
+export type MetaEdit = { title?: string; alt?: string; tags?: string[]; sender?: string; language?: string };
+export const META_EDIT_KEYS = ["title", "alt", "tags", "sender", "language"] as const satisfies readonly (keyof MetaEdit)[];
+export const givesMetaEdit = (edit: MetaEdit): boolean => META_EDIT_KEYS.some((k) => edit[k] !== undefined);
+
+/** Sets the title, alt text, tags, sender and/or language of a note; "" removes one. At least one is needed; alt only for types that have it. null: no such note. */
+export async function changeMeta(feed: string, id: string, edit: MetaEdit): Promise<Note | null> {
+  if (!givesMetaEdit(edit)) throw new InvalidBodyError("nothing to change: send title, alt, tags, sender or language");
   const title = checkLine("title", edit.title, MAX_NOTE_TITLE);
   const alt = checkLine("alt", edit.alt, MAX_ALT);
   const sender = checkLine("sender", edit.sender, MAX_SENDER);
   const tags = edit.tags === undefined ? undefined : checkTags(edit.tags);
+  const language = checkLanguage(edit.language);
   if (checkFeed(feed) || !isValidId(id)) return null;
   const note = await getNote(feed, id);
   if (!note) return null;
@@ -377,6 +386,7 @@ export async function changeMeta(feed: string, id: string, edit: { title?: strin
     ...(alt !== undefined && { alt }),
     ...(tags !== undefined && { tags: tags.length ? tags : null }),
     ...(sender !== undefined && { sender: sender || null }),
+    ...(language !== undefined && { language: language || null }),
     updated: new Date().toISOString(),
   };
   if (!(await storage().updateMeta(feed, id, EDIT_EXTS, patch))) return null;

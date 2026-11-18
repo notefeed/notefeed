@@ -569,3 +569,11 @@ def test_post_draft_and_update_publish_or_draft(server, capsys):
     capsys.readouterr()
     assert main(["update", "i", "--draft", "--publish", "--url", server.url, "--feed", "inbox"]) == 2
     assert "--publish" in capsys.readouterr().err
+
+
+def test_post_and_update_take_a_language(server):
+    assert main(["post", "hi", "--language", "de", "--url", server.url, "--feed", "inbox"]) == 0
+    assert server.requests[0]["headers"]["X-Note-Language"] == "de"
+    server.reply(200, NOTE)
+    assert main(["update", "i", "--language", "", "--url", server.url, "--feed", "inbox"]) == 0
+    assert json.loads(server.requests[1]["body"]) == {"language": ""}

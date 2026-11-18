@@ -39,6 +39,15 @@ export function Foot({ t, note, base, when, open, report }: { t: Copy; note: Not
         ))}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5 text-[13px] text-muted">
+        {/* The note's language (ADR 0063), quietly: its tag in capitals, named in full for screen readers and on hover. */}
+        {note.language && (
+          <>
+            <abbr title={t.noteFoot.language(note.language)} className="font-semibold tracking-wide no-underline">
+              {note.language.toUpperCase()}
+            </abbr>
+            <span aria-hidden>·</span>
+          </>
+        )}
         {note.sender && (
           <>
             <span className="max-w-32 truncate">{note.sender}</span>

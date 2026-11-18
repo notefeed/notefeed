@@ -407,3 +407,39 @@ test("the composer's Sender field shows on the posted note; the feed can hide it
   await page.goto(`/${name}/settings`);
   await expect(page.getByLabel("Show who posted")).toBeChecked(); // offered without sign-in too: any note can carry a sender
 });
+
+test("a note's language: set in the compose box, shown as DE and lang on its text, changed in the editor (ADR 0063)", async ({ page, request }) => {
+  const name = feedName();
+  await page.goto(`/${name}`);
+  await page.getByLabel("Note in markdown").fill("# Hallo Welt");
+  await page.getByLabel("Language (optional)").fill("de");
+  await page.getByRole("button", { name: "Post note" }).click();
+  await page.getByRole("link", { name: "Hallo Welt" }).click();
+  await expect(page.locator("article abbr")).toHaveText("DE");
+  await expect(page.locator("article abbr")).toHaveAttribute("title", "Language: German");
+  await expect(page.locator('article [lang="de"]').getByRole("heading", { name: "Hallo Welt" })).toBeVisible();
+  const id = page.url().split("/").pop()!;
+  const api = `/api/v1/feeds/${name}/notes/${id}`;
+  expect(await (await request.get(api)).json()).toMatchObject({ language: "de", tags: [] });
+
+  await page.getByText("Edit", { exact: true }).click();
+  await expect(page.getByLabel("Language (optional)")).toHaveValue("de");
+  await page.getByLabel("Language (optional)").fill("en");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved.");
+  await expect(page.locator("article abbr")).toHaveText("EN");
+  expect((await (await request.get(api)).json()).language).toBe("en");
+});
+
+test("a lang: tag posted the old way becomes the language, not a tag chip", async ({ page, request }) => {
+  const name = feedName();
+  const made = await request.post(`/${name}`, {
+    headers: { "Content-Type": "text/markdown", "X-Note-Tags": "lang:de,druck" },
+    data: "# Kamera",
+  });
+  expect(await made.json()).toMatchObject({ id: expect.any(String) });
+  await page.goto(`/${name}`);
+  await expect(page.getByRole("link", { name: "druck", exact: true })).toBeVisible();
+  await expect(page.getByText("lang:de")).toHaveCount(0);
+  await expect(page.locator("ol abbr")).toHaveText("DE");
+});

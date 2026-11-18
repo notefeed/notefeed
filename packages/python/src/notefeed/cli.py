@@ -29,6 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--date", metavar="WHEN", help="the note's date, if not now: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note"
     )
+    p.add_argument("--language", metavar="LANG", help="the note's language, a BCP 47 tag (de, pt-BR)")
     p.add_argument("--draft", action="store_true", help="post it as a draft: readers do not see it until it is published (update --publish)")
     p.add_argument("--attach", action="append", metavar="PATH", help="a picture to post with the note and refer to as ![](its file name); repeat for several")
     e = sub.add_parser("edit", help="replace a note's content; prints its URL")
@@ -36,12 +37,13 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("text", nargs="?", help='the new markdown, or "-" to read stdin')
     e.add_argument("--file", help="replace it with this file (of the note's own type)")
     e.add_argument("--type", help="the file's media type, when the extension does not say")
-    u = sub.add_parser("update", help="set a note's title, alt text, sender, tags, date and/or draft state; prints its URL")
+    u = sub.add_parser("update", help="set a note's title, alt text, sender, tags, language, date and/or draft state; prints its URL")
     u.add_argument("id", help="the note's id")
     u.add_argument("--title", help='the note\'s title ("" removes it)')
     u.add_argument("--alt", help='a picture\'s alternative text ("" removes it)')
     u.add_argument("--sender", metavar="NAME", help='who posted it, as shown on the note ("" removes it)')
     u.add_argument("--tags", metavar="LIST", help='the note\'s tags, the whole new list, comma-separated ("" removes them)')
+    u.add_argument("--language", metavar="LANG", help='the note\'s language, a BCP 47 tag ("" removes it)')
     u.add_argument("--date", metavar="WHEN", help="the note's new date: 2026-10-01T09:30:00Z or 2026-10-01 (midnight UTC); a future one schedules the note")
     u.add_argument("--draft", action="store_true", help="make the note a draft: readers no longer see it")
     u.add_argument("--publish", action="store_true", help="publish a draft: readers see it from now on, at its date")
@@ -70,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
                 title=args.title,
                 sender=args.sender,
                 tags=args.tag,
+                language=args.language,
                 date=args.date,
                 draft=args.draft,
                 name=None if attachments else name,
@@ -84,10 +87,23 @@ def main(argv: list[str] | None = None) -> int:
                 raise _UsageError("give --draft or --publish, not both")
             # --draft makes the note a draft (#265), --publish publishes it; either alone is an update.
             draft = True if args.draft else False if args.publish else None
-            if all(v is None for v in (args.title, args.alt, args.sender, args.tags, args.date, draft)):
-                raise _UsageError("give --title, --alt, --sender, --tags, --date and/or --draft or --publish")
+            if all(v is None for v in (args.title, args.alt, args.sender, args.tags, args.language, args.date, draft)):
+                raise _UsageError("give --title, --alt, --sender, --tags, --language, --date and/or --draft or --publish")
             tags = None if args.tags is None else [t.strip() for t in args.tags.split(",") if t.strip()]
-            print(_client(args).update(args.id, title=args.title, alt=args.alt, sender=args.sender, date=args.date, tags=tags, draft=draft).url)
+            print(
+                _client(args)
+                .update(
+                    args.id,
+                    title=args.title,
+                    alt=args.alt,
+                    sender=args.sender,
+                    date=args.date,
+                    tags=tags,
+                    draft=draft,
+                    language=args.language,
+                )
+                .url
+            )
         elif args.command == "delete":
             _client(args).delete(args.id)
         else:

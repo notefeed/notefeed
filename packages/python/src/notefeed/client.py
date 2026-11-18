@@ -185,7 +185,7 @@ def _as_file(content: str | bytes, type: str | None) -> tuple[bytes, str]:
     return content, type
 
 
-def _post_headers(title, sender, tags, created, drafted, read_id) -> dict[str, Any]:
+def _post_headers(title, sender, tags, created, drafted, read_id, language=None) -> dict[str, Any]:
     """The headers of a post's metadata, for a single file and for a note with its pictures; what is left out sends nothing."""
     return {
         "x_read_id": read_id or UNSET,
@@ -194,6 +194,7 @@ def _post_headers(title, sender, tags, created, drafted, read_id) -> dict[str, A
         "x_note_tags": ",".join(tags) if tags else UNSET,
         "x_note_date": created,
         "x_note_draft": drafted,
+        "x_note_language": language or UNSET,
     }
 
 
@@ -291,6 +292,7 @@ class Client:
         date: str | date | None = None,
         draft: bool = False,
         sender: str | None = None,
+        language: str | None = None,
     ) -> Posted:
         """Post a note: a `str` is markdown, `bytes` are a file whose media type is `type` (`text/markdown`, `image/png`,
         `image/jpeg`, `image/gif` or `image/webp`; the server accepts nothing else and checks that the body is what the type
@@ -301,7 +303,7 @@ class Client:
         each 1 to 32 characters of letters, digits, `-`, `_`, `.`, `:`; not verified). `title` is its title (at most 100
         characters, one line); left out, it is taken from the text. `sender` is who posted it, as shown on the note (at most 100
         characters, one line; not verified): it wins over the name of a signed-in session. `alt` is a picture's alternative text, `name` the
-        file's original name. `date` is the note's date, if not now: a timezone-aware datetime, a date
+        file's original name. `language` is the note's language (a BCP 47 tag: `de`, `pt-BR`); a single `lang:` tag sets it when it is left out. `date` is the note's date, if not now: a timezone-aware datetime, a date
         (midnight UTC) or an ISO 8601 string (`2026-10-01T09:30:00Z`, `2026-10-01`), from 1970 to 9999; a future date schedules the note: readers see it from then on. `draft` posts it, and its attachments, as a
         draft: only whoever can post to the feed sees it, readers do not until update() publishes it with `draft=False`. `read_id` is the read id the feed gets when this post creates it (3 to 64 characters of
         `a-z`, `0-9`, `-`, `_`; random when left out; ignored for a feed that exists; a `taken` error when another feed has it).
@@ -310,7 +312,7 @@ class Client:
 
         `attachments` (pictures, at most 10 by the server) go in the same request as the markdown, one note each: `![](name)` in the
         markdown shows one by its `name`, and `.attachments` of the result lists them. `content` may then be None: there is no text
-        note, `title` goes on every picture, and the result is the first picture's `Created` (with `.attachments` all of them). `tags`
+        note, `title` and `language` go on every picture, and the result is the first picture's `Created` (with `.attachments` all of them). `tags`
         and `date` go on every note; `alt` and `name` are not allowed with attachments (use `Attachment.alt`). Checked here, before anything
         is sent (ConfigError): a name given twice, an attachment that is not a picture, content that is not markdown, `alt` or `name`
         with attachments. What a name may be is the server's rule (docs/using/pictures.md, "Posting a note with its pictures"): a name it refuses
@@ -321,7 +323,9 @@ class Client:
             if content is None:
                 raise ConfigError("no content given")
             return Posted(
-                **attrs.asdict(self._post_one(content, feed, feed_password, type, title, sender, tags, alt, name, read_id, created, drafted), recurse=False)
+                **attrs.asdict(
+                    self._post_one(content, feed, feed_password, type, title, sender, tags, alt, name, read_id, created, drafted, language), recurse=False
+                )
             )
         if (content is not None and not isinstance(content, str)) or (type or "text/markdown") != "text/markdown":
             raise ConfigError("attachments go with a markdown string")
@@ -346,7 +350,7 @@ class Client:
             feed=self._feed_for(feed),
             body=File(payload=b""),
             x_feed_password=self._fp(feed_password),
-            **_post_headers(title, sender, tags, created, drafted, read_id),
+            **_post_headers(title, sender, tags, created, drafted, read_id, language),
         )
         del kwargs["content"], kwargs["headers"]["Content-Type"]  # httpx writes the multipart body and its boundary
         kwargs["files"], kwargs["data"] = files, fields
@@ -358,13 +362,13 @@ class Client:
             raise NotefeedError(f"unexpected response from {self.url} (not a notefeed server?)") from None
         return Posted(**attrs.asdict(done, recurse=False), attachments=extra)
 
-    def _post_one(self, content, feed, feed_password, type, title, sender, tags, alt, name, read_id, created, drafted) -> Created:
+    def _post_one(self, content, feed, feed_password, type, title, sender, tags, alt, name, read_id, created, drafted, language) -> Created:
         payload, media = _as_file(content, type)
         kwargs = post_note._get_kwargs(
             feed=self._feed_for(feed),
             body=File(payload=payload),
             x_feed_password=self._fp(feed_password),
-            **_post_headers(title, sender, tags, created, drafted, read_id),
+            **_post_headers(title, sender, tags, created, drafted, read_id, language),
             x_note_alt=_header_value(alt) if alt else UNSET,
             x_note_name=_header_value(name) if name else UNSET,
         )
@@ -389,8 +393,9 @@ class Client:
         tags: list[str] | None = None,
         draft: bool | None = None,
         sender: str | None = None,
+        language: str | None = None,
     ) -> Note:
-        """Set a note's title, alt text (for pictures), sender (who posted it, as shown; "" removes it), tags, date (as in post(); a future one schedules the note) and/or whether it is a draft (False publishes it, True hides it from readers again; its date stays); "" removes a title or alt, so a markdown note's title follows its text again; tags replace the whole list ([] removes them); None leaves it. Same options as post()."""
+        """Set a note's title, alt text (for pictures), sender (who posted it, as shown; "" removes it), tags, language (as in post(); "" removes it), date (as in post(); a future one schedules the note) and/or whether it is a draft (False publishes it, True hides it from readers again; its date stays); "" removes a title or alt, so a markdown note's title follows its text again; tags replace the whole list ([] removes them); None leaves it. Same options as post()."""
         meta = NoteMeta(
             title=UNSET if title is None else title,
             alt=UNSET if alt is None else alt,
@@ -398,6 +403,7 @@ class Client:
             tags=UNSET if tags is None else list(tags),
             date=_date(date),
             draft=UNSET if draft is None else draft,
+            language=UNSET if language is None else language,
         )
         kwargs = patch_note._get_kwargs(feed=self._feed_for(feed), id=id, body=meta, x_feed_password=self._fp(feed_password))
         return self._parse(Note, self._call(kwargs))

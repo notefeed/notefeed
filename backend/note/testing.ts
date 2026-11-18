@@ -9,6 +9,7 @@ export const mdNote = ({
   sender,
   tags,
   title,
+  language,
 }: {
   id: string;
   markdown: string;
@@ -16,12 +17,13 @@ export const mdNote = ({
   sender?: string;
   tags?: string[];
   title?: string;
+  language?: string;
 }): MarkdownNote =>
   new MarkdownNote(
     {
       id,
       ext: "md",
-      meta: { ...(sender !== undefined && { sender }), ...(tags?.length && { tags }), ...(title !== undefined && { title }) },
+      meta: { ...(sender !== undefined && { sender }), ...(tags?.length && { tags }), ...(title !== undefined && { title }), ...(language && { language }) },
       date,
       size: Buffer.byteLength(markdown),
     },

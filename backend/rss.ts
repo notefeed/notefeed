@@ -30,11 +30,11 @@ export function renderFeed(notes: Note[], opts: FeedOptions): string {
 <link>${url}</link>
 <guid isPermaLink="true">${url}</guid>
 <pubDate>${n.date.toUTCString()}</pubDate>
-${description === undefined ? "" : `<description>${cdata(description)}</description>\n`}${enclosure ? `<enclosure url="${escapeXml(enclosure.url)}" length="${enclosure.length}" type="${enclosure.type}"/>\n` : ""}${image ? `<media:content url="${escapeXml(image.url)}" type="${image.type}" medium="image"/>\n<media:thumbnail url="${escapeXml(image.url)}"/>\n` : ""}${n.sender ? `<dc:creator>${escapeXml(n.sender)}</dc:creator>\n` : ""}${n.tags.map((t) => `<category>${escapeXml(t)}</category>\n`).join("")}</item>`;
+${description === undefined ? "" : `<description>${cdata(description)}</description>\n`}${enclosure ? `<enclosure url="${escapeXml(enclosure.url)}" length="${enclosure.length}" type="${enclosure.type}"/>\n` : ""}${image ? `<media:content url="${escapeXml(image.url)}" type="${image.type}" medium="image"/>\n<media:thumbnail url="${escapeXml(image.url)}"/>\n` : ""}${n.sender ? `<dc:creator>${escapeXml(n.sender)}</dc:creator>\n` : ""}${n.language ? `<dc:language>${escapeXml(n.language)}</dc:language>\n` : ""}${n.tags.map((t) => `<category>${escapeXml(t)}</category>\n`).join("")}</item>`;
   });
   const media = items.some((i) => i.includes("<media:"));
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"${notes.some((n) => n.sender) ? ' xmlns:dc="http://purl.org/dc/elements/1.1/"' : ""}${media ? ' xmlns:media="http://search.yahoo.com/mrss/"' : ""}>
+<rss version="2.0"${notes.some((n) => n.sender || n.language) ? ' xmlns:dc="http://purl.org/dc/elements/1.1/"' : ""}${media ? ' xmlns:media="http://search.yahoo.com/mrss/"' : ""}>
 <channel>
 <title>${escapeXml(opts.title)}</title>
 <link>${base}</link>
@@ -57,7 +57,7 @@ export function renderAtom(notes: Note[], opts: FeedOptions): string {
   const entries = notes.map((n) => {
     const url = `${base}/${n.id}`;
     const { description, enclosure, image } = n.rssContent(base);
-    return `<entry>
+    return `<entry${n.language ? ` xml:lang="${escapeXml(n.language)}"` : ""}>
 <id>${url}</id>
 <title>${escapeXml(itemTitle(n))}</title>
 <link rel="alternate" type="text/html" href="${url}"/>

@@ -8,8 +8,9 @@ import { decodeHeaderValue } from "../shared/headers";
 import { InvalidBodyError } from "./errors";
 import { checkLine, MAX_NOTE_TITLE, MAX_SENDER } from "./notes";
 import { checkTags, TAG_RULE, tagsFromHeader } from "./tags";
+import { checkLanguage, MAX_LANGUAGE } from "./language";
 
-type Kind = "line" | "name" | "tags" | "date" | "draft";
+type Kind = "line" | "name" | "tags" | "date" | "draft" | "language";
 type Field = {
   header: string;
   kind: Kind;
@@ -68,6 +69,15 @@ export const NOTE_FIELDS = {
       "The note takes its place in the feed by it; a time after now schedules it: readers see it from then on. Its attachments move with it.",
     post: "Left out or empty: now.",
   },
+  language: {
+    header: "X-Note-Language",
+    kind: "language",
+    rule:
+      `The note's language, a BCP 47 language tag (\`de\`, \`en\`, \`pt-BR\`): letters, digits and single hyphens, at most ${MAX_LANGUAGE} characters; ` +
+      "stored with the language lower-case, a region upper-case and a script title-case. Readers' pages and feeds mark the note with it.",
+    post: "Left out or empty: none. A single `lang:<language>` tag sets it when it is not given (the tag is then not stored).",
+    edit: "Empty removes it.",
+  },
   draft: {
     header: "X-Note-Draft",
     kind: "draft",
@@ -80,7 +90,16 @@ export const NOTE_FIELDS = {
 export type NoteField = keyof typeof NOTE_FIELDS;
 const ALL = Object.keys(NOTE_FIELDS) as NoteField[];
 
-export type NoteMeta = { title?: string; sender?: string; alt?: string; name?: string; tags?: string[]; date?: string; draft?: boolean };
+export type NoteMeta = {
+  title?: string;
+  sender?: string;
+  alt?: string;
+  name?: string;
+  tags?: string[];
+  date?: string;
+  draft?: boolean;
+  language?: string;
+};
 
 // The fields' headers of a request: UTF-8 bytes decoded, trimmed, an empty header is none. X-Note-Draft must be true or false.
 export function readNoteHeaders(h: Headers, keys: readonly NoteField[] = ALL): NoteMeta {
@@ -159,17 +178,34 @@ export function checkDate(value: string | undefined): Date | undefined {
   return at;
 }
 
-export type CheckedMeta = { title?: string; sender?: string; alt?: string; tags?: string[]; date?: Date };
+// The tag convention the field replaces (ADR 0063): `lang:<language>`. Tags with exactly one valid such tag, and no language of their
+// own, give the language and lose the tag; anything else stays a tag, so nothing a poster sent is lost.
+export function languageFromTags(tags: string[], given: string | undefined): { tags: string[]; language?: string } {
+  const found = tags.filter((t) => t.startsWith("lang:"));
+  if (given !== undefined || found.length !== 1) return { tags };
+  let language: string | undefined;
+  try {
+    language = checkLanguage(found[0].slice("lang:".length));
+  } catch {
+    return { tags };
+  }
+  return language ? { tags: tags.filter((t) => t !== found[0]), language } : { tags };
+}
+
+export type CheckedMeta = { title?: string; sender?: string; alt?: string; tags?: string[]; date?: Date; language?: string };
 
 // Every field given, checked before anything is written: the one-line fields trimmed and held to their length, tags folded, the
-// date parsed. What is left out stays undefined. The file name is cleaned where the note is made (cleanName).
+// date parsed, the language normalised; a lang: tag becomes the language (languageFromTags). What is left out stays undefined; an empty
+// language stays "" (an edit removes it). The file name is cleaned where the note is made (cleanName).
 export function checkNoteMeta(m: Omit<NoteMeta, "name" | "draft">): CheckedMeta {
   const out: CheckedMeta = {};
   for (const key of ["title", "sender", "alt"] as const) {
     const v = checkLine(key, m[key], NOTE_FIELDS[key].max);
     if (v !== undefined) out[key] = v;
   }
-  if (m.tags !== undefined) out.tags = checkTags(m.tags);
+  const language = checkLanguage(m.language);
+  if (language !== undefined) out.language = language;
+  if (m.tags !== undefined) Object.assign(out, languageFromTags(checkTags(m.tags), language));
   if (m.date !== undefined) out.date = checkDate(m.date);
   return out;
 }

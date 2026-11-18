@@ -69,7 +69,7 @@ What the operator leaves where a post was removed for breaking the content rules
 _Avoid_: Placeholder, stub, tombstone (that is the record that keeps the id out of use)
 
 **Metadata**:
-What is known about a note besides its content: title, sender, tags, alt text, file name and date. It is never part of the content.
+What is known about a note besides its content: title, sender, tags, alt text, file name, language and date. It is never part of the content.
 _Avoid_: Front matter, properties, sidecar
 
 **Date**:
@@ -91,6 +91,10 @@ _Avoid_: Author, user, poster, alias
 **Tag**:
 A label on a note that a feed can be filtered by.
 _Avoid_: Label, category
+
+**Language**:
+The language a note is written in, as a BCP 47 tag (`de`, `pt-BR`). Readers' pages and feeds mark the note with it.
+_Avoid_: Locale, lang tag
 
 ### Instances and access
 
