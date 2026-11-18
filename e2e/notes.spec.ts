@@ -28,7 +28,7 @@ test("a refused save keeps the text and says why", async ({ page }) => {
   await page.getByText("Edit", { exact: true }).click();
   await page.getByLabel("Note in markdown").fill("   ");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.locator("#note-actions-error")).toHaveText("The note is empty.");
+  await expect(page.locator("#compose-error")).toHaveText("The note is empty.");
   await expect(page.getByLabel("Note in markdown")).toHaveValue("   ");
 });
 
@@ -69,6 +69,17 @@ test("deleting the only note leaves a feed that cannot be given a password", asy
   await expect(page.getByRole("status")).toHaveText("Note deleted.");
   await expect(page.getByLabel("Note in markdown")).toBeVisible();
   await expect(page.getByLabel("Password (optional, protects this feed)")).toHaveCount(0);
+});
+
+test("Edit opens the feed's compose box with the note in it, and Cancel goes back to the note", async ({ page }) => {
+  const name = feedName();
+  await postAndOpen(page, name, "# In place");
+  await page.getByText("Edit", { exact: true }).click();
+  await expect(page.getByRole("form", { name: "Edit note" }).getByLabel("Note in markdown")).toHaveValue("# In place");
+  await expect(page).toHaveURL(new RegExp(`/${name}\\?edit=`));
+  await page.getByRole("link", { name: "Cancel" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${name}/[^/?]+$`));
+  await expect(page.getByRole("heading", { name: "In place" })).toBeVisible();
 });
 
 test("Ctrl+Enter saves an edit", async ({ page }) => {
