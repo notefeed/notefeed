@@ -196,3 +196,84 @@ test("an account token made on the account page lets a script act as the account
   await page.reload();
   await expect(page.getByText("backup script", { exact: true })).toBeVisible();
 });
+
+// An MCP client signs in as an account through Better Auth's OAuth server (ADR 0062): discovery, registration, the authorize page
+// (signed out: sign in and come back; signed in: Allow), the code, the token, and /mcp acting as the account.
+test("an MCP client connects as an account: sign in on the way, Allow, and its token works on /mcp", async ({ page, request, baseURL }) => {
+  const { number, key } = await createAccount(page);
+  await logOut(page);
+  const meta = await (await request.get("/.well-known/oauth-authorization-server")).json();
+  expect(meta.issuer).toBe(`${baseURL}/api/auth`);
+  expect((await (await request.get("/.well-known/oauth-protected-resource/mcp")).json()).authorization_servers).toEqual([meta.issuer]);
+  const redirect = "http://127.0.0.1:9/callback";
+  const reg = await request.post(meta.registration_endpoint, {
+    data: { client_name: "E2E client", redirect_uris: [redirect], token_endpoint_auth_method: "none" },
+  });
+  expect(reg.status()).toBe(201);
+  const { client_id } = await reg.json();
+  const verifier = "v".repeat(43);
+  const challenge = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))).toString("base64url");
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id,
+    redirect_uri: redirect,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    state: "e2e",
+    resource: `${baseURL}/mcp`,
+    scope: "openid offline_access",
+  });
+  await page.goto(`${meta.authorization_endpoint}?${params}`);
+  await expect(page.getByRole("heading", { name: "Connect E2E client" })).toBeVisible();
+  // The page that grants access can't be framed (clickjacking).
+  expect((await page.request.get(page.url())).headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
+  await page.getByRole("link", { name: "Sign in to your account first" }).click();
+  await page.getByLabel("Account number").fill(number);
+  await page.getByLabel("Recovery key").fill(key);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Connect E2E client" })).toBeVisible();
+  await expect(page.getByText(`account ${number}`)).toBeVisible();
+  // The client's redirect_uri isn't served: the code is read off the request the browser makes to it.
+  const toClient = page.waitForRequest((r) => r.url().startsWith(redirect));
+  await page.getByRole("button", { name: "Allow as your account" }).click();
+  const callback = new URL((await toClient).url());
+  expect(callback.searchParams.get("state")).toBe("e2e");
+  const tokens = await request.post(meta.token_endpoint, {
+    form: {
+      grant_type: "authorization_code",
+      code: callback.searchParams.get("code")!,
+      redirect_uri: redirect,
+      client_id,
+      code_verifier: verifier,
+      resource: `${baseURL}/mcp`,
+    },
+  });
+  expect(tokens.status()).toBe(200);
+  const { access_token } = await tokens.json();
+  const V = "2026-07-28";
+  const mcp = await request.post("/mcp", {
+    headers: {
+      authorization: `Bearer ${access_token}`,
+      accept: "application/json, text/event-stream",
+      "mcp-protocol-version": V,
+      "mcp-method": "tools/call",
+      "mcp-name": "list_feeds",
+    },
+    data: {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "list_feeds",
+        arguments: {},
+        _meta: {
+          "io.modelcontextprotocol/clientInfo": { name: "e2e", version: "0" },
+          "io.modelcontextprotocol/clientCapabilities": {},
+          "io.modelcontextprotocol/protocolVersion": V,
+        },
+      },
+    },
+  });
+  expect(mcp.status()).toBe(200);
+  expect((await mcp.json()).result.isError).toBeFalsy();
+});

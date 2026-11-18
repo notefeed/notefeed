@@ -48,4 +48,32 @@ Each link goes to the feed's read link and shows the feed's title, or its name. 
 
 ## OAuth for MCP clients
 
-Clients that can't send a header, such as the Claude.ai and Claude Desktop connectors for [MCP](../integrations/mcp.md), log in through notefeed's own OAuth login page with the instance password (or [sign-in](sign-in/index.md)). It only exists on a locked instance. `PUBLIC_URL` is the issuer, so set it with `https://`. Nothing is stored: codes and tokens are signed with a key derived from the secret and the password, so changing `NOTEFEED_PASSWORD` signs every client out. An access token lasts an hour, a refresh token 30 days.
+Clients that can't send a header, such as the Claude.ai and Claude Desktop connectors for [MCP](../integrations/mcp.md), log in through OAuth: Better Auth's OAuth server, on every instance that is locked or has accounts, with `PUBLIC_URL` set (`https://`).
+
+- **Locked by `NOTEFEED_PASSWORD`:** the authorize page asks for the instance password (the failed-attempt limit applies). The client then acts as the instance, as the password would. Changing `NOTEFEED_PASSWORD` ends every client at the next start; they log in again.
+- **With [accounts](accounts.md):** the client signs in as an account ([MCP](../integrations/mcp.md#as-an-account)).
+
+A connector's first sign-in, top to bottom. The person answers on notefeed's authorize page in their browser; the client only ever sees the code and the tokens.
+
+```mermaid
+sequenceDiagram
+  participant C as MCP client
+  actor P as Person
+  participant N as notefeed
+  participant B as Better Auth (/api/auth)
+  C->>N: call /mcp without a token
+  N-->>C: 401, where the protected resource's metadata is
+  C->>B: register (client metadata document or dynamic registration)
+  C->>P: open the authorize URL (PKCE)
+  P->>B: authorize
+  B-->>P: redirect to /oauth/authorize, the request signed
+  P->>N: Allow, as the account signed in or with the instance password
+  N->>B: consent for the account or the instance's user
+  B-->>P: redirect to the client with a code
+  P->>C: the code
+  C->>B: exchange it for an access and a refresh token
+  C->>N: call /mcp with the access token
+  N->>N: check the JWT, then the account (deleted, off the allow-list) or the instance's user
+```
+
+The issuer is `<PUBLIC_URL>/api/auth`, found from `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource/mcp`. A client registers itself, by its client metadata document or by dynamic registration (Claude.ai needs that); registrations count toward the [rate limit](limits.md). The clients, what was allowed and the refresh tokens are kept in `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`), also on an instance without accounts: back it up with your data. An access token is a signed JWT for `<PUBLIC_URL>/mcp` that lasts an hour; a refresh token lasts 30 days from its last use and works once. Without `PUBLIC_URL` there is no OAuth, and a client sends `Authorization: Bearer <password>`. An open instance without accounts takes everyone on `/mcp`.

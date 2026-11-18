@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0062: notefeed's own OAuth server is gone; Better Auth's issues the tokens for `/mcp`, with accounts or the instance password. The MCP endpoint on the official SDK stays.
+
 Amended by ADR 0060: the server also answers on an instance with accounts, and issues codes for the signed-in account.
 
 Amended by ADR 0058: an instance has the instance password or accounts, never both; instances with accounts move to Better Auth's OAuth in a later step.

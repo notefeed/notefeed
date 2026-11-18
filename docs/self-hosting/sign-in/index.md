@@ -39,11 +39,11 @@ Sign-in locks the instance to signed-in people, and there is no instance passwor
 
 ## MCP
 
-The OAuth authorize page that MCP clients open has a **Sign in with** button for each provider. A client authorised that way posts with the person's sender.
+An MCP client signs in as an account ([MCP](../../integrations/mcp.md#as-an-account)): its authorize page sends you to the login page, with a **Sign in with** button for each provider, and back. A client allowed that way posts with the person's sender, and stops working when the person is taken off the allow-list.
 
 ## Removing a person
 
-Take them off the allow-list and restart: they can no longer sign in, and their next request signs them out, in the browser and in MCP clients (an MCP client at its next token refresh, within an hour). Someone their provider removed while their address still fits the list (an `@domain` entry) keeps what they signed in with until it ends, at most 90 days after signing in: take them off the list too, or change `NOTEFEED_SECRET`. To sign everyone out at once, change `NOTEFEED_SECRET`. To remove what sign-in keeps about them, with notefeed stopped: `sqlite3 accounts.sqlite "pragma foreign_keys = on; delete from user where email = 'ann@example.com'"` (their sessions and provider id go with it; someone whose provider gave no address has a placeholder ending in `.oidc.invalid`, so use `where name = 'Ann'` then). Their notes keep the `sender` line until you delete the notes or edit it out of the files.
+Take them off the allow-list and restart: they can no longer sign in, and their next request signs them out, in the browser and in MCP clients. Someone their provider removed while their address still fits the list (an `@domain` entry) keeps what they signed in with until it ends, at most 90 days after signing in: take them off the list too, or change `NOTEFEED_SECRET`. To sign everyone out at once, change `NOTEFEED_SECRET`. To remove what sign-in keeps about them, with notefeed stopped: `sqlite3 accounts.sqlite "pragma foreign_keys = on; delete from user where email = 'ann@example.com'"` (their sessions and provider id go with it; someone whose provider gave no address has a placeholder ending in `.oidc.invalid`, so use `where name = 'Ann'` then). Their notes keep the `sender` line until you delete the notes or edit it out of the files.
 
 ## Privacy page and imprint
 

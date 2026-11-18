@@ -47,15 +47,6 @@ items:
     links:
       - {label: "#400", url: "https://github.com/notefeed/notefeed/issues/400"}
 
-  - id: oauth-on-better-auth
-    status: later
-    when: Later
-    icon: key-chain-variant
-    title: MCP sign-in on Better Auth
-    summary: The one OAuth server for MCP clients moves onto Better Auth, for every instance.
-    links:
-      - {label: "#401", url: "https://github.com/notefeed/notefeed/issues/401"}
-
   - id: account-recovery
     status: later
     when: Later
@@ -113,11 +104,12 @@ items:
     title: Accounts that are a number, not a person
     summary: An optional account holds your feeds and your license on every device, for scripts and MCP too. It is a generated number with passkeys, no e-mail and no name.
     details: |
-      Done in four steps:
+      Done in five steps:
 
       - **Sign-in on Better Auth**, and one sender any post can set.
       - **Accounts**: sign-ins that renew while used (no weekly sign-in, the allow-list checked on every request); account number, recovery key and passkeys; a feed's owner and its several named feed passwords; account tokens; either an instance password or accounts.
       - **Licenses on the account**: one checkout for several feeds, the number raised or lowered later.
+      - **MCP sign-in on Better Auth**: an MCP client signs in as an account, or with the instance password, through Better Auth's OAuth server; notefeed's own OAuth server is gone.
       - **Values and legal pages** for accounts, and notefeed.me's setup.
 
       Readers get nothing new, and nothing about who holds an account is stored.

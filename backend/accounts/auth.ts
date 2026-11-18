@@ -7,14 +7,18 @@ import Database from "better-sqlite3";
 import { apiKey } from "@better-auth/api-key";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
-import { username } from "better-auth/plugins";
+import { jwt, username } from "better-auth/plugins";
+import { mcp } from "@better-auth/mcp";
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { getMigrations } from "better-auth/db/migration";
+import { symmetricDecrypt } from "better-auth/crypto";
 import { createHmac } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { config } from "../config";
 import { logger } from "../log";
-import { key as signingKey, TTL } from "../oauth/tokens";
+import { key as signingKey, TTL } from "../signed";
 import { allowed, providerById, providers } from "../oidc/config";
 import { accountsMode, accountsOn } from "./mode";
 import { logFailure } from "../oidc/log";
@@ -34,7 +38,7 @@ function options() {
   return {
     database: new Database(path),
     basePath: AUTH_PATH,
-    // From the key of the other signed values (oauth/tokens.ts: the server secret and the instance password), so changing either
+    // From the key of the other signed values (signed.ts: the server secret and the instance password), so changing either
     // signs everyone out.
     secret: betterAuthSecret(),
     // Always PUBLIC_URL (migrateAccounts refuses to start without it): from a request's Host, Better Auth's origin check would trust
@@ -62,14 +66,42 @@ function options() {
     // Account numbers (ADR 0057): the username is the number, the password the recovery key. Accounts are made only by notefeed's
     // own createAccount (numbers.ts) on the server: the e-mail routes are outside authRoute's allow-list.
     emailAndPassword: { enabled: true, minPasswordLength: 20, maxPasswordLength: 64, autoSignIn: false },
+    // The JWT plugin signs MCP access tokens; its own /token (a JWT for a browser session) is never served.
+    disabledPaths: ["/token"],
     plugins: [
       genericOAuthPlugin(),
       username({ minUsernameLength: 16, maxUsernameLength: 16, usernameValidator: (u: string) => /^[1-9]\d{15}$/.test(u), displayUsername: false }),
       passkey({ rpID: new URL(config.publicUrl()).hostname, rpName: "notefeed" }),
       // Account tokens (tokens.ts): made and checked on the server only, never through a browser's session; notefeed counts requests itself.
       apiKey({ defaultPrefix: "nf_", requireName: true, maximumNameLength: 50, rateLimit: { enabled: false }, enableSessionForAPIKeys: false }),
+      ...mcpPlugins(),
     ],
   };
+}
+
+// MCP clients sign in as an account through Better Auth's OAuth server (conventions: Better Auth, MCP; ADR 0062): tokens bound to
+// /mcp, the client's identity from its metadata document (CIMD) or, for clients that need it (claude.ai), dynamic registration. The
+// authorize page (app/[lang]/(site)/oauth/authorize) is both the login and the consent page.
+export const MCP_SCOPES = ["openid", "offline_access"];
+function mcpPlugins() {
+  return [
+    jwt({ disableSettingJwtHeader: true }),
+    mcp({
+      resource: `${config.publicUrl()}/mcp`,
+      loginPage: "/oauth/authorize",
+      consentPage: "/oauth/authorize",
+      scopes: MCP_SCOPES,
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      // A client that registers loopback redirects without saying it is native (Cursor, older Claude Code) is treated as native.
+      clientRegistrationDefaultApplicationType: "infer",
+      // The authorize page names the client before sign-in, from the signed request (on the server; the route stays closed).
+      allowPublicClientPrelogin: true,
+      // A refresh token works once: no window in which a copied one gets a second answer.
+      refreshTokenReuseInterval: 0,
+    }),
+    cimd({ fetchClientMetadataResource, metadataProfile: "mcp-2026-07-28" }),
+  ];
 }
 
 const build = () => betterAuth(options());
@@ -79,9 +111,14 @@ const state = processState("accounts-auth", () => ({}) as { key?: string; auth?:
 // Everything the instance is built from, so a changed setting (or secret) builds it again.
 const key = () => JSON.stringify([config.accountsDb(), config.publicUrl(), betterAuthSecret(), accountsMode(), providers()]);
 
-// The instance, or undefined while accounts are off (or PUBLIC_URL is missing, which startup refuses).
-export function accountsAuth(): Auth | undefined {
-  if (!accountsOn() || !config.publicUrl()) return undefined;
+// Better Auth runs with accounts, and on an instance the password locks for its MCP OAuth server alone (ADR 0062): there, one
+// Better Auth user stands for the instance (instanceUser), and its sign-in, passkey and account routes stay closed (authRoute).
+// Both need PUBLIC_URL; a password-locked instance without it has no OAuth, only the password as a bearer.
+export const passwordOAuth = (): boolean => !accountsOn() && config.password() !== "" && !!config.publicUrl();
+
+// The instance for the MCP OAuth server: with accounts or the instance password; else undefined.
+export function oauthAuth(): Auth | undefined {
+  if (!(accountsOn() || passwordOAuth()) || !config.publicUrl()) return undefined;
   const k = key();
   if (state.key !== k || !state.auth) {
     state.auth = build();
@@ -90,13 +127,63 @@ export function accountsAuth(): Auth | undefined {
   return state.auth;
 }
 
+// The instance, or undefined while accounts are off (or PUBLIC_URL is missing, which startup refuses).
+export const accountsAuth = (): Auth | undefined => (accountsOn() ? oauthAuth() : undefined);
+
+// The Better Auth user an MCP client of a password-locked instance acts as (ADR 0062): no person, no name. Its address carries a
+// fingerprint of the password's key, so a changed password makes a new one and the old one is deleted with its clients' grants.
+// Found or made once per key and then kept in memory; callers meanwhile share that one lookup, so two can't make two users.
+const INSTANCE_DOMAIN = "instance.notefeed.invalid";
+const instance = processState("instance-user", () => ({ fp: "", id: undefined as Promise<string> | undefined }));
+export function instanceUser(auth: Auth): Promise<string> {
+  const fp = createHmac("sha256", signingKey()).update("notefeed-instance-user").digest("hex").slice(0, 32);
+  const at = `${fp} ${config.accountsDb()}`;
+  if (instance.fp !== at || !instance.id) {
+    instance.fp = at;
+    instance.id = findOrMakeInstanceUser(auth, fp).catch((e) => {
+      instance.id = undefined; // tried again by the next caller
+      throw e;
+    });
+  }
+  return instance.id;
+}
+async function findOrMakeInstanceUser(auth: Auth, fp: string): Promise<string> {
+  const ctx = await auth.$context;
+  const email = `${fp}@${INSTANCE_DOMAIN}`;
+  const found = await ctx.internalAdapter.findUserByEmail(email);
+  if (found) return found.user.id;
+  const old = await ctx.adapter.findMany<{ id: string }>({ model: "user", where: [{ field: "email", operator: "ends_with", value: `@${INSTANCE_DOMAIN}` }] });
+  for (const u of old) await ctx.internalAdapter.deleteUser(u.id);
+  return (await ctx.internalAdapter.createUser({ email, name: "", emailVerified: true }, { method: "admin" })).id;
+}
+
+// Better Auth's signing keys are sealed with its secret, which notefeed derives from NOTEFEED_SECRET and the instance password: after
+// either changed, the stored ones can't be opened and every token request would fail. They are dropped then, and the next token made
+// with a new key; the tokens signed with the old ones end with them, as a changed secret signs everyone out.
+async function dropUnreadableKeys(auth: Auth): Promise<void> {
+  const ctx = await auth.$context;
+  const keys = await ctx.adapter.findMany<{ privateKey: string }>({ model: "jwks" });
+  for (const k of keys) {
+    const opens = await symmetricDecrypt({ key: ctx.secretConfig, data: JSON.parse(k.privateKey) as string }).then(
+      () => true,
+      () => false,
+    );
+    if (opens) continue;
+    await ctx.adapter.deleteMany({ model: "jwks", where: [] });
+    betterAuthLog.warn({}, "signing keys sealed with an earlier secret dropped; MCP clients sign in again");
+    return;
+  }
+}
+
 // Creates or updates Better Auth's tables; nothing while accounts are off (no file is made). The settings were checked at start-up
 // (mode.ts, checkAccessSettings).
 export async function migrateAccounts(): Promise<void> {
-  const auth = accountsAuth();
+  const auth = oauthAuth();
   if (!auth) return;
   const { runMigrations } = await getMigrations(auth.options);
   await runMigrations();
+  await dropUnreadableKeys(auth);
+  if (!accountsOn()) return void (await instanceUser(auth)); // after a password change: the old clients go now, not at their next call
   await (await import("./subscriptions")).migrateSubscriptions(); // the license's subscriptions, notefeed's own table (#391)
 }
 
@@ -105,18 +192,38 @@ export async function migrateAccounts(): Promise<void> {
 // session lists) is 404: notefeed calls what it needs on the server (auth.api).
 // Passkeys (ADR 0057) are Better Auth's own: adding one needs the session, signing in with one makes it; the browser talks to them
 // directly (WebAuthn).
+// MCP clients reach the OAuth server's authorize, token, register and revoke steps and its public keys (ADR 0062); consent is the
+// authorize page's, on the server (mcpoauth.ts).
 const OPEN =
-  /^\/api\/auth\/(callback\/[a-z0-9_]{1,64}|error|ok|passkey\/(generate-register-options|verify-registration|generate-authenticate-options|verify-authentication|list-user-passkeys|delete-passkey))$/;
+  /^\/api\/auth\/(callback\/[a-z0-9_]{1,64}|error|ok|passkey\/(generate-register-options|verify-registration|generate-authenticate-options|verify-authentication|list-user-passkeys|delete-passkey)|oauth2\/(authorize|token|register|revoke)|jwks)$/;
+// The ones a browser-based MCP client calls cross-origin; none of them reads a cookie, so any origin may.
+const CORS = /^\/api\/auth\/(oauth2\/(token|register|revoke)|jwks)$/;
 
-// Passkey steps anyone may start, without a session: each writes a challenge to accounts.sqlite, so they count toward the posts limit
+// Passkey steps and MCP client registrations (claude.ai needs them) anyone may start, without a session: each writes to accounts.sqlite,
+// so they count toward the posts limit
 // (Better Auth's own limiter is off: it would need the client's address, which notefeed never gives it).
-const ANONYMOUS = /\/passkey\/(generate-authenticate-options|verify-authentication)$/;
+const ANONYMOUS = /\/(passkey\/(generate-authenticate-options|verify-authentication)|oauth2\/register)$/;
 
-// GET and POST /api/auth/*: 404 while sign-in is off.
+// What a password-locked instance serves of Better Auth: its MCP OAuth server only.
+const OAUTH_ONLY = /^\/api\/auth\/(oauth2\/(authorize|token|register|revoke)|jwks)$/;
+
+// GET, POST and OPTIONS /api/auth/*: 404 while Better Auth doesn't run.
 export async function authRoute(req: Request): Promise<Response> {
-  const auth = accountsAuth();
   const path = new URL(req.url).pathname;
-  if (!auth || !OPEN.test(path)) return new Response("not found", { status: 404 });
+  const auth = oauthAuth();
+  if (!auth || !OPEN.test(path) || (!accountsOn() && !OAUTH_ONLY.test(path))) return new Response("not found", { status: 404 });
+  const cors = CORS.test(path);
+  if (req.method === "OPTIONS")
+    return cors
+      ? new Response(null, {
+          status: 204,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST",
+            "Access-Control-Allow-Headers": "content-type, authorization",
+          },
+        })
+      : new Response("not found", { status: 404 });
   if (ANONYMOUS.test(path)) {
     const wait = rateLimit(clientIp(req.headers));
     if (wait !== null) return Response.json({ error: "rate limit exceeded" }, { status: 429, headers: { "Retry-After": String(wait) } });
@@ -136,7 +243,11 @@ export async function authRoute(req: Request): Promise<Response> {
     const session = await signedInSession(req.headers);
     if (session && !fresh(session)) return Response.json({ error: "sign in again" }, { status: 403 });
   }
-  return auth.handler(req);
+  const res = await auth.handler(req);
+  if (!cors) return res;
+  const out = new Response(res.body, res);
+  out.headers.set("Access-Control-Allow-Origin", "*");
+  return out;
 }
 
 // Why the person behind `userId` may no longer be signed in, or null while they may: their provider is still configured and its
@@ -154,7 +265,7 @@ async function refusal(auth: Auth, userId: string): Promise<{ reason: string; pr
   return allowed(p, { email, email_verified: user.emailVerified }) ? null : { reason: "person no longer on the allow-list", provider: p.id };
 }
 
-// Whether the person may still be signed in (for an MCP client's refresh, oauth/routes.ts); false while sign-in is off.
+// Whether the person may still be signed in: for an MCP client's token (mcp.ts) and an account token (tokens.ts); false while sign-in is off.
 export async function stillAllowed(userId: string): Promise<boolean> {
   const auth = accountsAuth();
   return auth ? (await refusal(auth, userId)) === null : false;

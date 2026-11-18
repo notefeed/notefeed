@@ -16,6 +16,7 @@ const log = logger("http");
 export const ROUTES = [
   "/",
   "/.well-known/oauth-authorization-server",
+  "/.well-known/oauth-authorization-server/api/auth",
   "/.well-known/oauth-protected-resource/mcp",
   "/[feed]",
   "/[feed]/[id]",
@@ -52,8 +53,6 @@ export const ROUTES = [
   "/mcp",
   "/metrics",
   "/oauth/authorize",
-  "/oauth/register",
-  "/oauth/token",
   "/privacy",
   "/r/[readId]",
   "/r/[readId]/[id]",

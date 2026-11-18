@@ -5,7 +5,7 @@ import { AccountLicenseJson } from "./http/schemas";
 import { checkNoteMeta, noteFieldSchemas, type NoteMeta } from "./notefields";
 import { McpServer, createMcpHandler, type AuthInfo } from "@modelcontextprotocol/server";
 import * as z from "zod";
-import { bearerOf, checkBearer, locked } from "./auth";
+import { bearerOf, checkBearer, locked, safeEqual } from "./auth";
 import { config } from "./config";
 import { AuthError, ImageTooLargeError, InvalidBodyError, NotefeedError, NotFoundError, TooManyAttemptsError, UnsupportedTypeError } from "./errors";
 import { addFeedPassword, changePassword, checkFeedAccess, claimFeed, listFeedPasswords, ownedFeeds, revokeFeedPassword } from "./feedlock";
@@ -13,7 +13,10 @@ import { createAccountToken, listAccountTokens, revokeAccountToken } from "./acc
 import { assertFeed, FEED_RE, hasFeed } from "./feeds";
 import { feedJson, licensesJson } from "./http/api";
 import { ownerFile } from "./http/files";
-import { sender } from "./http/request";
+import { accountName, instanceUser, oauthAuth, stillAllowed, type Auth } from "./accounts/auth";
+import { accountsOn } from "./accounts/mode";
+import { requireMcpAuth } from "@better-auth/mcp";
+import type { JWTPayload } from "jose";
 import { FeedJson, FreeTierJson, LicensesJson } from "./http/schemas";
 import { clientIp } from "./limits";
 import { runningVersion } from "./version";
@@ -22,7 +25,6 @@ import { parseMediaType } from "./note/types";
 import { logger } from "./log";
 import * as next from "./mcpguidance";
 import { getNote, isDraft, isScheduled, listNotes, refuseRemovedNote, type Note } from "./notes";
-import { verify } from "./oauth/tokens";
 import { MAX_REQUEST_BYTES } from "../shared/images";
 import { isAttachmentName, safeName } from "../shared/links";
 import { createFeed, deleteFeed, setFeedImage, deleteNote, editContent, editMeta, postNote, postWithPictures, setFeedCovered, updateFeed } from "./posting";
@@ -88,9 +90,10 @@ function guard<A, R>(f: (args: A) => Promise<R>) {
 
 // Every tool declares all four hints, as booleans: directories such as OpenAI's refuse a tool that leaves one out. Only get_licenses
 // reaches beyond this notefeed: its plans come from the payment provider.
-function server(h: Headers): McpServer {
-  // The account an MCP client signed in as (#390): its access token's, else none. Checked again at every refresh of the token.
-  const account = verify("access", bearerOf(h.get("authorization")))?.uid;
+function server(h: Headers, account: string | undefined): McpServer {
+  // `account`: the one the client signed in as (#390, ADR 0062), from its Better Auth access token, checked by the gate on every
+  // request; else none. Its sender name is its identity provider's (a number account has none).
+  const sender = async () => (account ? await accountName(account) : undefined);
   const needAccount = (): string => {
     if (!account) throw new AuthError("sign in with an account first: connect this MCP client again and choose your account on the authorize page");
     return account;
@@ -125,7 +128,7 @@ function server(h: Headers): McpServer {
     if (!parsed) throw new UnsupportedTypeError();
     const body = Buffer.from(data, "base64");
     if (parsed.type.name === "image" && body.length > config.maxImageBytes()) throw new ImageTooLargeError();
-    return postNote(feed, clientIp(h), async () => ({ ...meta, body, mediaType: parsed.mediaType }), { password, account }, await sender(h));
+    return postNote(feed, clientIp(h), async () => ({ ...meta, body, mediaType: parsed.mediaType }), { password, account }, await sender());
   };
   const fileUrl = (readId: string | null, file: string) => (readId ? base + imagePath(readId, file) : "");
 
@@ -197,7 +200,7 @@ function server(h: Headers): McpServer {
         clientIp(h),
         async () => ({ text: markdown, pictures, title, sender: given, name, tags, date, draft, password, readId: read_id }),
         { password, account },
-        await sender(h),
+        await sender(),
       );
       const feedUrl = base + feedPath(feed);
       const url = `${feedUrl}/${note.id}`;
@@ -702,7 +705,10 @@ function server(h: Headers): McpServer {
 // The SDK's default of 4 MiB would refuse a valid 3 MB picture (base64 is a third larger). Pictures are sent full size and shrunk here
 // (ADR 0049), so a call takes what Next's proxy passes on: several full-size photos in base64.
 // "auto" answers with one JSON body unless a tool emits mid-call notifications, which ours never do.
-const handler = createMcpHandler(({ requestInfo }) => server(requestInfo!.headers), { legacy: "reject", maxRequestBodySize: MAX_REQUEST_BYTES });
+const handler = createMcpHandler(({ requestInfo, authInfo }) => server(requestInfo!.headers, authInfo?.extra?.account as string | undefined), {
+  legacy: "reject",
+  maxRequestBodySize: MAX_REQUEST_BYTES,
+});
 
 const rpcError = (status: number, message: string, headers?: Record<string, string>) =>
   Response.json({ jsonrpc: "2.0", error: { code: -32600, message } }, { status, headers });
@@ -710,8 +716,9 @@ const rpcError = (status: number, message: string, headers?: Record<string, stri
 // What may reach the handler. The SDK doesn't check Origin, so a browser page of another site can't drive
 // this endpoint: no Origin (server-side clients) passes, a present one must be our own host. That stops
 // DNS rebinding only when PUBLIC_URL is set; without it our host comes from the request's own Host header.
-// A locked instance then wants an OAuth access token minted for this resource, or the password as the bearer.
-function gate(req: Request): Response | AuthInfo | undefined {
+// With accounts, a client sends Better Auth's access token (tokenGate). An instance the password locks takes the password as the
+// bearer, or, with PUBLIC_URL, a Better Auth token its OAuth login gave for the password (ADR 0062).
+async function gate(req: Request): Promise<Response | AuthInfo | undefined> {
   const origin = req.headers.get("origin");
   if (origin !== null) {
     let host: string | null = null;
@@ -720,34 +727,51 @@ function gate(req: Request): Response | AuthInfo | undefined {
     } catch {}
     if (host !== new URL(publicUrl(req.headers)).host) return rpcError(403, "forbidden origin");
   }
-  const unauthorized = (message: string, error = "") =>
-    rpcError(401, message, { "www-authenticate": `Bearer ${error}resource_metadata="${publicUrl(req.headers)}/.well-known/oauth-protected-resource/mcp"` });
-  const authorization = req.headers.get("authorization");
-  const token = bearerOf(authorization);
-  // An open instance: anyone may call; an account's client sends its token, which must still be good (#390).
-  if (!locked()) {
-    if (token && verify("access", token, 0) && verify("access", token)?.aud !== mcpResource(req.headers))
-      return unauthorized("invalid token", 'error="invalid_token", ');
-    return undefined;
-  }
-  // An access token we signed (now = 0 ignores expiry) is never a password guess: when it has expired or
-  // names another resource, invalid_token tells the client to refresh, and no failed attempt is counted.
-  if (verify("access", token, 0)) {
-    if (verify("access", token)?.aud === mcpResource(req.headers)) return { token, clientId: "oauth", scopes: [] };
-    return unauthorized("invalid token", 'error="invalid_token", ');
-  }
+  const auth = oauthAuth();
+  if (auth && accountsOn()) return tokenGate(req, auth);
+  if (!locked()) return undefined; // an open instance without accounts: anyone may call
+  // A JWT is never a password guess: it goes to Better Auth's check, and no failed attempt is counted. The password itself may look
+  // like one (two dots), so it is compared first.
+  const bearer = bearerOf(req.headers.get("authorization"));
+  if (auth && bearer.split(".").length === 3 && !safeEqual(bearer, config.password())) return tokenGate(req, auth);
   try {
-    checkBearer(authorization, clientIp(req.headers));
+    checkBearer(req.headers.get("authorization"), clientIp(req.headers));
   } catch (e) {
     if (e instanceof TooManyAttemptsError) return rpcError(429, e.message, { "retry-after": String(e.retryAfter) });
-    if (e instanceof AuthError) return unauthorized(e.message);
+    if (e instanceof AuthError) return rpcError(401, e.message, { "www-authenticate": auth ? `Bearer ${resourceMetadata(req)}` : 'Bearer realm="notefeed"' });
     throw e;
   }
   return { token: "", clientId: "password", scopes: [] };
 }
 
+const resourceMetadata = (req: Request) => `resource_metadata="${publicUrl(req.headers)}/.well-known/oauth-protected-resource/mcp"`;
+
+// Better Auth's MCP check (signature, issuer, audience /mcp, expiry) answers a missing or bad token with its 401 and the protected
+// resource's metadata (ADR 0062). With accounts, a token must name an account that may still be signed in (a client-only token names
+// none), checked on every request as a browser session is (ADR 0056), and an open instance lets a client without a token in, as
+// no one. Without accounts, it must name the user that stands for the instance under its current password.
+async function tokenGate(req: Request, auth: Auth): Promise<Response | AuthInfo | undefined> {
+  if (!req.headers.has("authorization") && !locked()) return undefined;
+  let claims: JWTPayload | undefined;
+  const checked = await requireMcpAuth(
+    auth,
+    (_req, c) => {
+      claims = c;
+      return new Response(null, { status: 204 });
+    },
+    { resource: mcpResource(req.headers) },
+  )(req);
+  if (!claims) return checked;
+  const sub = typeof claims.sub === "string" ? claims.sub : undefined;
+  const ok = !!sub && (accountsOn() ? await stillAllowed(sub) : sub === (await instanceUser(auth)));
+  if (!ok) return rpcError(401, "invalid token", { "www-authenticate": `Bearer error="invalid_token", ${resourceMetadata(req)}` });
+  const scope = typeof claims.scope === "string" ? claims.scope.split(" ") : [];
+  const token = bearerOf(req.headers.get("authorization"));
+  return { token, clientId: String(claims.azp ?? "oauth"), scopes: scope, ...(accountsOn() ? { extra: { account: sub } } : {}) };
+}
+
 export async function mcpRoute(req: Request): Promise<Response> {
-  const auth = gate(req);
+  const auth = await gate(req);
   if (auth instanceof Response) return auth;
   return handler.fetch(req, { authInfo: auth });
 }

@@ -47,18 +47,10 @@ export { loginRoute, logoutRoute } from "./http/session";
 export { fileRoute, ownerFileRoute } from "./http/files";
 export { atomRoute, rssRoute } from "./http/rss";
 export { mcpRoute } from "./mcp";
-export { authRoute } from "./accounts/auth";
+export { accountsAuth, authRoute, oauthAuth } from "./accounts/auth";
+export { oauthClient, oauthQuery } from "./accounts/mcpoauth";
 export { oidcFinishRoute, oidcStartRoute } from "./oidc/routes";
-export {
-  authServerRoute,
-  authorizeRoute,
-  checkAuthorize,
-  metadataPreflight,
-  protectedResourceRoute,
-  registerPreflight,
-  registerRoute,
-  tokenRoute,
-} from "./oauth/routes";
+export { authorizeRoute, authServerRoute, metadataPreflight, protectedResourceRoute } from "./accounts/mcpoauth";
 
 export { freeNoteCap, freeTier, isLicensed, licensePlans, licensingOn } from "./licensing";
 
@@ -186,7 +178,6 @@ export async function getReadNote(readId: string, id: string, asOf = new Date())
 }
 export { runningVersion, type RunningVersion } from "./version";
 export { accountsMode, accountsOn } from "./accounts/mode";
-export { oauthOn } from "./oauth/routes";
 export { listAccountTokens } from "./accounts/tokens";
 export { licenseOf as accountLicense } from "./licenseflow";
 export { accountOf, renewedAccountCookies } from "./accounts/numbers";

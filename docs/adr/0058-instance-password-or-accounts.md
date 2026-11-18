@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0062: MCP clients sign in through Better Auth's OAuth server on both kinds of instance, with the account or the instance password.
+
 Amended by ADR 0060: MCP clients on an instance with accounts sign in as the account, through notefeed's own OAuth server until it moves to Better Auth; scripts use account tokens, so a `closed` instance has a way in for both.
 
 An own instance could be locked by an instance password (`NOTEFEED_PASSWORD`, ADR 0001), by sign-in through an identity provider (ADR 0014), or by both. MCP clients authorise through notefeed's OAuth server (ADR 0007), which offered both. Accounts (ADR 0057) add a third way in. Which combinations should an instance allow, and which lock it?

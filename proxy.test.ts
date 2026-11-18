@@ -101,8 +101,6 @@ test.each([
   "/metrics",
   "/health",
   "/logout",
-  "/oauth/token",
-  "/oauth/register",
   "/.well-known/oauth-authorization-server",
   "/r/q2Zc9kD0bTnVx4LmAe7sWp/feed.xml",
   "/r/q2Zc9kD0bTnVx4LmAe7sWp/atom.xml",
@@ -213,18 +211,13 @@ test("locked: the service worker passes, so a browser whose sign-in ran out stil
   expect(passes(await proxy(req("/sw.js")))).toBe(true);
 });
 
-test.each([
-  "/mcp",
-  "/metrics",
-  "/health",
-  "/oauth/authorize?x=1",
-  "/oauth/token",
-  "/.well-known/oauth-authorization-server",
-  "/.well-known/oauth-protected-resource/mcp",
-])("locked: %s is not sent to /login", async (p) => {
-  process.env.NOTEFEED_PASSWORD = "pw";
-  expect(passes(await proxy(req(p)))).toBe(true);
-});
+test.each(["/mcp", "/metrics", "/health", "/oauth/authorize?x=1", "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp"])(
+  "locked: %s is not sent to /login",
+  async (p) => {
+    process.env.NOTEFEED_PASSWORD = "pw";
+    expect(passes(await proxy(req(p)))).toBe(true);
+  },
+);
 
 const OIDC = {
   NOTEFEED_SECRET: "a".repeat(40),

@@ -22,6 +22,9 @@
   },
   "dependencies": {
     "@better-auth/api-key": "1.7.23",
+    "@better-auth/cimd": "1.7.23",
+    "@better-auth/mcp": "1.7.23",
+    "@better-auth/oauth-provider": "1.7.23",
     "@better-auth/passkey": "1.7.23",
     "@creem_io/embed": "0.3.4",
     "@creem_io/webhook-types": "1.0.1",

@@ -1,4 +1,5 @@
-// MCP as an account (#390): a client signed in with an account acts as it; its feeds, claiming, feed passwords and tokens.
+// MCP as an account (#390, ADR 0062): a client signed in with an account, through Better Auth's OAuth server, acts as it; its feeds,
+// claiming, feed passwords and tokens.
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { migrateAccounts } from "./accounts/auth";
 import { createAccount } from "./accounts/numbers";
@@ -6,7 +7,7 @@ import { resetOwnersForTests } from "./feedlock";
 import { resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
 import { mcpRoute } from "./mcp";
-import { resetTokensForTests, sign } from "./oauth/tokens";
+import { mcpToken } from "./accounts/mcp.testkit";
 
 const BASE = "http://localhost:3000";
 beforeEach(async () => {
@@ -17,12 +18,12 @@ beforeEach(async () => {
   resetFeedsForTests();
   resetRateLimitsForTests();
   resetOwnersForTests();
-  resetTokensForTests();
   await migrateAccounts();
 });
 afterEach(() => vi.unstubAllEnvs());
 
 const V = "2026-07-28";
+const tokens: Record<string, string> = {};
 const META = {
   "io.modelcontextprotocol/clientInfo": { name: "t", version: "0" },
   "io.modelcontextprotocol/clientCapabilities": {},
@@ -37,7 +38,7 @@ async function call(tool: string, args: Record<string, unknown>, uid?: string) {
     "mcp-method": "tools/call",
     "mcp-name": tool,
   };
-  if (uid) headers.authorization = `Bearer ${sign("access", { aud: `${BASE}/mcp`, uid })}`;
+  if (uid) headers.authorization = `Bearer ${(tokens[uid] ??= await mcpToken(uid))}`;
   const body = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: tool, arguments: args, _meta: META } };
   const res = await mcpRoute(new Request(`${BASE}/mcp`, { method: "POST", headers, body: JSON.stringify(body) }));
   return (await res.json()).result as { isError?: boolean; structuredContent: Record<string, unknown>; content: { text: string }[] };

@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0062: MCP clients sign in as the account through Better Auth's OAuth server, not notefeed's own. Account tokens stay as decided here.
+
 Accounts (ADR 0057) own feeds (ADR 0059), but only a browser could be signed in as one. A script on an instance that accounts lock had no way in: the instance password is gone with accounts (ADR 0058). An MCP client could sign in only through an identity provider, and on an open instance not at all. How do scripts and MCP clients act as an account? Issue #390.
 
 ## Considered Options

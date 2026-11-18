@@ -4,7 +4,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, test, vi } from "vi
 import { logTo } from "../log";
 import { BASE, type MockProvider, providerEnv, signIn, startProvider } from "../oidc/mockprovider.testkit";
 import { resetRateLimitsForTests } from "../limits";
-import { resetTokensForTests } from "../oauth/tokens";
 import { migrateAccounts, signedInSession } from "./auth";
 
 const DAY = 86_400_000;
@@ -28,7 +27,6 @@ beforeEach(async () => {
   for (const [k, v] of Object.entries(providerEnv(idp, "ann@x.com"))) vi.stubEnv(k, v);
   idp.claims = { name: "Ann", email: "ann@x.com", email_verified: true };
   resetRateLimitsForTests();
-  resetTokensForTests();
   await migrateAccounts();
   lines = [];
   restore = logTo((l) => void lines.push(l));

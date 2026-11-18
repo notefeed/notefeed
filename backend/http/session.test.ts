@@ -5,7 +5,6 @@ import { signedInCookie, stubSignInOn } from "../accounts/signin.testkit";
 import { resetFeedsForTests } from "../feeds";
 import { resetRateLimitsForTests } from "../limits";
 import { logsOf } from "../log";
-import { sign } from "../oauth/tokens";
 import { authorize, sender } from "./request";
 import { loginRoute, logoutRoute } from "./session";
 
@@ -168,13 +167,9 @@ describe("signed-in session", () => {
     }
   });
 
-  test("an access bearer gives its sender; an expired one, a refresh token or the password bearer none", async () => {
-    const bearer = (t: string) => new Headers({ host: "localhost:3000", authorization: `Bearer ${t}` });
-    expect(await sender(bearer(sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" })))).toBe("Ann");
-    expect(await sender(bearer(sign("access", { aud: "http://localhost:3000/mcp", sender: "Ann" }, Date.now() - 3601_000)))).toBeUndefined();
-    expect(await sender(bearer(sign("refresh", { cid: "c", aud: "a", jti: "j", sender: "Ann" })))).toBeUndefined();
-    vi.stubEnv("NOTEFEED_PASSWORD", "pw");
-    expect(await sender(bearer("pw"))).toBeUndefined();
+  test("a request with an Authorization header names no sender: an MCP client's comes from its account", async () => {
+    const bearer = (t: string) => new Headers({ ...SAME, cookie: id, authorization: `Bearer ${t}` });
+    expect(await sender(bearer("anything"))).toBeUndefined();
   });
 
   test("sign-in off: a valid session cookie neither authorizes nor names a sender", async () => {
@@ -186,6 +181,5 @@ describe("signed-in session", () => {
     expect(await sessionOk(new Headers({ ...SAME, cookie }))).toBe(false);
     vi.stubEnv("NOTEFEED_PASSWORD", "");
     expect(await sender(new Headers({ ...SAME, cookie: id }))).toBeUndefined(); // open instance
-    expect(await sender(new Headers({ host: "localhost:3000", authorization: `Bearer ${sign("access", { aud: "a", sender: "Ann" })}` }))).toBeUndefined();
   });
 });
