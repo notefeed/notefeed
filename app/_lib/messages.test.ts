@@ -31,10 +31,8 @@ test("withPictures words a refusal that names a picture as an image refusal, wit
   expect(message("rate_limited", "5")).toBe("Too many requests, try again in 5 seconds.");
 });
 
-test("withPictures words a refused license key, and leaves other invalid bodies as they were", () => {
-  const message = withPictures(errorMessage);
-  expect(message("invalid_body", null, "that is not a license key")).toBe("That is not a license key. Check it against the key from your purchase.");
-  expect(message("invalid_body", null, "something else")).toBe("The note could not be read.");
+test("withPictures leaves an invalid body it has no words of its own for as the note's refusal", () => {
+  expect(withPictures(errorMessage)("invalid_body", null, "something else")).toBe("The note could not be read.");
 });
 
 test("withPictures words an unnamed too-large refusal of a request with pictures by its two causes", () => {

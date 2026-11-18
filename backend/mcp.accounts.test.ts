@@ -119,3 +119,13 @@ test("ACCOUNT_TOOLS names exactly the tools that call needAccount()", () => {
   const needing = blocks.filter((b) => b.includes("needAccount()")).map((b) => /^\s*"([a-z_]+)"/.exec(b)![1]);
   expect(needing.sort()).toEqual([...ACCOUNT_TOOLS].sort());
 });
+
+// A feed answer over MCP knows the client's account, as REST and the pages do: an owner sees `yours`.
+test("signed in, the owner's feed answer says it is theirs; another account's says it is owned, not theirs", async () => {
+  const a = await createAccount();
+  const b = await createAccount();
+  await call("create_feed", { feed: "mine" }, a.userId);
+  expect((await call("get_feed", { feed: "mine" }, a.userId)).structuredContent).toMatchObject({ owned: true, yours: true });
+  expect((await call("update_feed", { feed: "mine", title: "T" }, a.userId)).structuredContent).toMatchObject({ owned: true, yours: true });
+  expect((await call("get_feed", { feed: "mine" }, b.userId)).structuredContent).toMatchObject({ owned: true, yours: false });
+});

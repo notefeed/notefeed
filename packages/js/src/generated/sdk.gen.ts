@@ -410,7 +410,7 @@ export const getReadNote = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * What licenses are sold, where to buy them and where to manage them
  *
- * Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license lifts a feed's free tier; a person buys it on `buy_url` and gets a key to put on a feed. Cancelling, the payment method and invoices are at the payment provider, where buyers sign in with the e-mail address they bought with (`manage_url`); no license key opens it (ADR 0050).
+ * Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license belongs to an account and lifts the free tier for as many of its feeds as it has units (ADR 0061): it is bought on `buy_url` (or `POST /api/v1/account/license/checkout`), and the account's owner puts feeds under it. `manage_url` is the account page, where the license's units are changed and the payment provider's portal opens (cancelling, the payment method, invoices).
  */
 export const getLicenses = <ThrowOnError extends boolean = false>(options?: Options<GetLicensesData, ThrowOnError>): RequestResult<GetLicensesResponses, GetLicensesErrors, ThrowOnError> => (options?.client ?? client).get<GetLicensesResponses, GetLicensesErrors, ThrowOnError>({ url: '/api/v1/licenses', ...options });
 

@@ -349,7 +349,7 @@ function server(h: Headers, account: string | undefined): McpServer {
     guard(async ({ feed, password }) => {
       await checkAccess(feed, password);
       if (!(await hasFeed(feed))) throw new NotFoundError("no such feed");
-      const f = await feedJson(feed, h);
+      const f = await feedJson(feed, h, account);
       return ok({ ...f, guidance: next.afterFeed(feedGuidance(f)) });
     }),
   );
@@ -409,7 +409,7 @@ function server(h: Headers, account: string | undefined): McpServer {
       if (!settings && licensed === undefined && new_password === undefined)
         throw new InvalidBodyError("nothing to change: send title, description, image, read_id, name, sender_name, licensed, new_password or several");
       const ip = clientIp(h);
-      const readIdBefore = read_id === undefined ? undefined : (await feedJson(feed, h).catch(() => undefined))?.read_url;
+      const readIdBefore = read_id === undefined ? undefined : (await feedJson(feed, h, account).catch(() => undefined))?.read_url;
       // First, so a key that is refused changes nothing else (#247); the license may be what the new password needs.
       if (licensed !== undefined) await setFeedCovered(feed, ip, licensed, { password, account });
       if (new_password !== undefined) {
@@ -432,7 +432,7 @@ function server(h: Headers, account: string | undefined): McpServer {
           )
         ).feed;
       }
-      const f = await feedJson(now, h);
+      const f = await feedJson(now, h, account);
       const guidance = next.afterUpdate({
         ...feedGuidance(f),
         name: now !== feed ? now : undefined,
@@ -461,7 +461,7 @@ function server(h: Headers, account: string | undefined): McpServer {
     },
     guard(async ({ feed, password, read_id }) => {
       await createFeed(feed, clientIp(h), { password, readId: read_id }, account);
-      const f = await feedJson(feed, h);
+      const f = await feedJson(feed, h, account);
       return ok({ ...f, guidance: next.afterCreate(feedGuidance(f)) });
     }),
   );
@@ -530,7 +530,7 @@ function server(h: Headers, account: string | undefined): McpServer {
       if (body.length > config.maxImageBytes()) throw new ImageTooLargeError();
       if (!body.length) throw new UnsupportedTypeError("data is empty");
       await setFeedImage(feed, clientIp(h), async () => ({ body, mediaType: parsed.mediaType }), { password, account });
-      return ok({ ...(await feedJson(feed, h)), guidance: next.afterSetImage() });
+      return ok({ ...(await feedJson(feed, h, account)), guidance: next.afterSetImage() });
     }),
   );
 

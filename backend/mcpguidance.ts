@@ -63,8 +63,9 @@ export function afterUpdate(
   if (r.readIdChanged)
     parts.push(`The old read link stops working: tell the user to give readers the new one, ${r.readUrl ?? "which comes with the first note"}.`);
   if (r.newPassword) parts.push("The feed has a new password: every later call needs it; tell the user to update scripts and integrations that post.");
-  if (r.license === "on") parts.push("The license is on this feed now (and off the feed it was on).");
-  if (r.license === "off") parts.push("The license is off this feed: its key can go on another feed.");
+  if (r.license === "on") parts.push("The feed is under the account's license now: it keeps all its notes, takes pictures and can have a feed password.");
+  if (r.license === "off")
+    parts.push("The feed is off the account's license and on the free tier again; the unit it used can cover another of the account's feeds (get_license).");
   if (!parts.length) parts.push("Saved.");
   return parts;
 }
@@ -85,8 +86,8 @@ export const afterDeleteFeed = (): string[] => [
 
 export function afterLicenses(l: { buy_url: string }): string[] {
   return [
-    `To buy, send the user to ${l.buy_url}; the key comes after paying.`,
-    "Put it on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.",
+    `A license belongs to an account: buy_license gives the user a checkout link for the account this client signed in as, or send them to ${l.buy_url}.`,
+    "Then put one of the account's feeds under it with update_feed's licensed true; get_license shows what it covers.",
   ];
 }
 

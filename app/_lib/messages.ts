@@ -11,8 +11,6 @@ type Message = (code: unknown, retry?: unknown) => string | undefined;
 // A title or an alt text refused for holding a control or text-direction override character (a title pasted from Word with a line
 // separator, say): worded to point at it, from the server's own message (backend/notes.ts checkLine).
 const LINE_REFUSED = /^(title|alt) must be one line, without control or text-direction override characters/;
-// The post that creates a protected feed brought a license key the server does not know (backend/licenseflow.ts checkLicenseKey).
-const KEY_REFUSED = "that is not a license key";
 
 export function messagesFor(t: Copy) {
   const e = t.errors;
@@ -38,7 +36,6 @@ export function messagesFor(t: Copy) {
     const field = code === "invalid_body" ? LINE_REFUSED.exec(detail ?? "")?.[1] : undefined;
     return field && e.line(field as "title" | "alt");
   };
-  const keyRefusal = (code: unknown, detail: string | undefined) => (code === "invalid_body" && detail === KEY_REFUSED ? e.notAKey : undefined);
 
   return {
     // Under a new-password field, and what the browser says when the field's pattern doesn't match.
@@ -100,7 +97,7 @@ export function messagesFor(t: Copy) {
       (code: unknown, retry?: unknown, detail?: string): string | undefined => {
         const named = /^attachment "(.*)": (.*)$/s.exec(detail ?? "");
         if (named) return `${named[1]}: ${lineRefusal(code, named[2]) ?? imageErrorMessage(code, retry)}`;
-        const line = lineRefusal(code, detail) ?? keyRefusal(code, detail);
+        const line = lineRefusal(code, detail);
         if (line) return line;
         return pictures && code === "too_large" ? e.tooLargeWithPictures : message(code, retry);
       },
