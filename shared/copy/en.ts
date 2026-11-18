@@ -282,6 +282,7 @@ export const en = {
     takePhoto: "Take a photo",
     send: "Send note",
     newNote: "New note",
+    editNote: "Edit note",
     close: "Close",
     noteInMarkdown: "Note in markdown",
     writeInMarkdown: "Write a note in markdown…",

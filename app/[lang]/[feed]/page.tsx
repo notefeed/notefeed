@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { Compose } from "@/components/Compose";
+import { Compose, type NoteToEdit } from "@/components/Compose";
+import { kindOf } from "@/shared/notekinds";
 import { AppShell } from "@/components/AppShell";
 import { FeedAbout } from "@/components/FeedAbout";
 import { FreeTierNotice } from "@/components/FreeTier";
@@ -23,6 +24,7 @@ import {
   feedUnlocked,
   freeTier,
   getFeed,
+  getFeedNote,
   signedIn,
   imageUploadsOn,
   isRemovedFeed,
@@ -64,12 +66,30 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/[feed]">):
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 
+// The note the compose box edits (?edit=, from the note page's Edit): none when it is gone, damaged or removed by the operator.
+async function noteToEdit(feed: string, id?: string): Promise<NoteToEdit | undefined> {
+  if (!id) return undefined;
+  const note = await getFeedNote(feed, id).catch(() => null);
+  if (!note || note.removed) return undefined;
+  return {
+    id: note.id,
+    href: `${feedPath(feed)}/${note.id}`,
+    kind: kindOf(note.type).name,
+    markdown: note.content ?? "",
+    title: note.meta.title ?? "",
+    alt: note.alt ?? "",
+    tags: note.tags,
+    date: note.date.toISOString(),
+    draft: note.draft,
+  };
+}
+
 export default async function FeedPage({ params, searchParams }: PageProps<"/[lang]/[feed]">) {
   const { feed, lang } = await params;
   const t = copyFor(lang);
   const { createErrorMessage, errorMessage, feedErrorMessage } = messagesFor(t);
   const sp = await searchParams;
-  const { posted, deleted, error, retry, form, tag: tagParam, share_title, share_text, share_url, shared: sharedPictures } = sp;
+  const { posted, deleted, edit: editParam, error, retry, form, tag: tagParam, share_title, share_text, share_url, shared: sharedPictures } = sp;
   const tag = typeof tagParam === "string" ? tagParam.toLowerCase() : undefined;
   if (!checkFeed(feed) && (await isRemovedFeed(feed))) {
     return (
@@ -99,6 +119,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
   const shared = [one(share_text), one(share_url)].filter(Boolean).join("\n\n");
   const isNew = access === "open" && !exists;
   const licensePage = await licensePageOn(); // the links to /license (ADR 0035)
+  const edit = await noteToEdit(feed, one(editParam));
 
   return (
     <AppShell
@@ -137,7 +158,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
         </p>
       )}
       <Compose
-        key={String(posted)}
+        key={edit ? `edit-${edit.id}` : String(posted)}
         feed={feed}
         action={feedPath(feed)}
         error={form === "create" ? undefined : errorMessage(error, retry)}
@@ -151,6 +172,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
         initialTitle={one(share_title)}
         initialText={shared}
         shared={one(sharedPictures) === "1"}
+        edit={edit}
       />
       {tag && notes.length === 0 ? (
         <p className="text-muted">{t.feedPage.noTagged}</p>

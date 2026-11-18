@@ -18,7 +18,6 @@ import {
   getFeedNote,
   getFeedPictures,
   hasLegalPage,
-  imageUploadsOn,
   isRemovedFeed,
   isRemovedNote,
   licensingOn,
@@ -69,7 +68,7 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[la
   const readId = await readIdOf(feed);
   // Pictures come from the feed's own file route, not the read link, so a draft's and a scheduled note's show too (#349).
   const imageBase = `${feedPath(feed)}/files/`;
-  // The Report link goes in the note's action bar, not on the note. The bar sits in the shell's right column, the forms under
+  // The Report link goes in the note's action bar, not on the note. The bar sits in the shell's right column, the delete dialog under
   // the note; NoteActions holds what both share.
   const reportHref = readId && reportTemplate() ? reportUrl(reportTemplate(), { readId, noteId: note.id, file: note.file }) : undefined;
   // A note's attachments link to their own notes' pages.
@@ -77,22 +76,7 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[la
   const link = kind.attachments(note.content).length ? attachmentLinks(await getFeedPictures(feed), feedPath(feed)) : undefined;
 
   return (
-    <NoteActions
-      key={`${note.content}\n${note.meta.title}\n${note.alt}\n${note.tags.join(",")}\n${note.date.toISOString()}\n${note.draft}`}
-      feed={feed}
-      id={id}
-      kind={kind.name}
-      markdown={note.content ?? ""}
-      title={note.meta.title ?? ""}
-      alt={note.alt ?? ""}
-      tags={note.tags}
-      date={note.date.toISOString()}
-      draft={note.draft}
-      error={noteErrorMessage(error, retry)}
-      images={imageUploadsOn()}
-      imageBase={imageBase}
-      reportHref={reportHref}
-    >
+    <NoteActions feed={feed} id={id} error={noteErrorMessage(error, retry)} reportHref={reportHref}>
       <AppShell feed={feed} about={<NoteActionsBar />} docked>
         {edited === "1" && (
           <p role="status" className="mb-4 text-sm text-carbon">
