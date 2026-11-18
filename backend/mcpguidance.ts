@@ -42,9 +42,12 @@ export const afterDeleteNote = (): string[] => [
   "The note is deleted for good. Feed readers that fetched it already keep their copy; tell the user if it must not be seen.",
 ];
 
-export function afterFeed(f: { readUrl: string | null; protected: boolean; freeTier?: { notes: number; cap: number } | null }): string[] {
+// `yours`: the client is signed in as the feed's owner, who needs no password for it (ADR 0059).
+export function afterFeed(f: { readUrl: string | null; protected: boolean; yours: boolean; freeTier?: { notes: number; cap: number } | null }): string[] {
   const parts = [f.readUrl ? `Readers follow the feed at ${f.readUrl}; ${SHARE}.` : "The feed has no read link yet: it comes with the first note."];
-  if (f.protected) parts.push("The feed has a password: every call for it needs it.");
+  if (f.protected && f.yours)
+    parts.push("This client, signed in as its owner, needs no password for it; scripts and other clients use its feed passwords (list_feed_passwords).");
+  else if (f.protected) parts.push("The feed has a password: every call for it needs it.");
   if (f.freeTier && f.freeTier.notes >= f.freeTier.cap * 0.9)
     parts.push(
       `It is on the free tier with ${f.freeTier.notes} of ${f.freeTier.cap} notes: past the cap each new note drops the oldest. A license keeps them all.`,
