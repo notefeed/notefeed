@@ -120,7 +120,7 @@ function server(h: Headers, account: string | undefined): McpServer {
     await checkFeedAccess(feed, { password, account }, clientIp(h));
   };
   const state = (n: Note) => ({ draft: isDraft(n), scheduled: isScheduled(n), date: n.date.toISOString() });
-  const feedGuidance = (f: z.infer<typeof FeedJson>) => ({ readUrl: f.read_url, protected: f.protected, freeTier: f.free_tier });
+  const feedGuidance = (f: z.infer<typeof FeedJson>) => ({ readUrl: f.read_url, protected: f.protected, yours: f.yours, freeTier: f.free_tier });
   const s = new McpServer({ name: "notefeed", version: runningVersion().version }); // the instance's version (#306)
 
   // One file as a note: the type must be accepted and the bytes must be what it says (postNote checks that); a picture is size-limited.
