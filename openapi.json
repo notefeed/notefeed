@@ -214,7 +214,7 @@
             }
           },
           "400": {
-            "description": "Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Language`, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`",
+            "description": "Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Language`, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a multipart body with an unexpected part, no `text` and no `file`, more than 10 files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (`NOTEFEED_PARSE_TIMEOUT_MS`), or `X-Note-Alt` / `X-Note-Name`",
             "content": {
               "application/json": {
                 "schema": {
@@ -3987,7 +3987,7 @@
       "get": {
         "operationId": "getLicenses",
         "summary": "What licenses are sold, where to buy them and where to manage them",
-        "description": "Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license lifts a feed's free tier; a person buys it on `buy_url` and gets a key to put on a feed. Cancelling, the payment method and invoices are at the payment provider, where buyers sign in with the e-mail address they bought with (`manage_url`); no license key opens it (ADR 0050).",
+        "description": "Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license belongs to an account and lifts the free tier for as many of its feeds as it has units (ADR 0061): it is bought on `buy_url` (or `POST /api/v1/account/license/checkout`), and the account's owner puts feeds under it. `manage_url` is the account page, where the license's units are changed and the payment provider's portal opens (cancelling, the payment method, invoices).",
         "tags": [
           "Licenses"
         ],

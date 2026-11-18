@@ -72,7 +72,6 @@ export const en = {
       not_found: "Images can't be added to this feed yet.",
     },
     line: (field: "title" | "alt") => `The ${field === "alt" ? "alt text" : "title"} must be one line, without control or text-direction override characters.`,
-    notAKey: "That is not a license key. Check it against the key from your purchase.",
     tooLargeWithPictures: "The note is too large: its text is over 100 KB, or a picture is too large.",
   },
   // Pages of their own for what is missing or broken (components/ErrorPage.tsx).

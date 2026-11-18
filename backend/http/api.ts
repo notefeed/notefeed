@@ -199,8 +199,9 @@ export async function licensesJson(headers: Headers): Promise<z.infer<typeof Lic
   return { plans, buy_url: `${publicUrl(headers)}/license`, manage_url: manage, manage: MANAGE_PURCHASES };
 }
 
-export async function feedJson(feed: string, headers: Headers): Promise<z.infer<typeof FeedJson>> {
-  const ownership = await feedOwnership(feed, await requestAccount(headers));
+// `account`: who asks, when the caller knows it (an MCP client's sign-in, which the headers alone don't carry); else the request's own.
+export async function feedJson(feed: string, headers: Headers, account?: string): Promise<z.infer<typeof FeedJson>> {
+  const ownership = await feedOwnership(feed, account ?? (await requestAccount(headers)));
   const readId = (await countNotes(feed)) ? await readIdOf(feed) : null;
   const { title, description, image, showSender, senderName } = await getSettings(feed);
   return {
@@ -253,7 +254,7 @@ const OPS: AnyOp[] = [
     responses: {
       201: { description: "Stored: the note, and with a multipart body its pictures", schema: Posted },
       400: err(
-        "Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Language`, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; a license key that is none; " +
+        "Invalid or reserved feed name; a blank note; a bad title, sender, alt text, tags, `X-Note-Language`, `X-Note-Date` or `X-Note-Draft`; `X-Note-Created` (the header's name before 0.28.0); a new password that is not printable ASCII; " +
           `a multipart body with an unexpected part, no \`text\` and no \`file\`, more than ${MAX_ATTACHMENTS} files, a bad file name, a text that refers to a file name given twice, a text sent with pictures that takes too long to read (\`NOTEFEED_PARSE_TIMEOUT_MS\`), or \`X-Note-Alt\` / \`X-Note-Name\``,
       ),
       401: UNAUTHORIZED,
@@ -1154,8 +1155,8 @@ const OPS: AnyOp[] = [
     operationId: "getLicenses",
     summary: "What licenses are sold, where to buy them and where to manage them",
     description:
-      "Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license lifts a feed's free tier; a person buys it on `buy_url` and gets a key to put on a feed. " +
-      "Cancelling, the payment method and invoices are at the payment provider, where buyers sign in with the e-mail address they bought with (`manage_url`); no license key opens it (ADR 0050).",
+      "Only on an instance that sells licenses (404 elsewhere). Public, like the license page. A license belongs to an account and lifts the free tier for as many of its feeds as it has units (ADR 0061): it is bought on `buy_url` (or `POST /api/v1/account/license/checkout`), and the account's owner puts feeds under it. " +
+      "`manage_url` is the account page, where the license's units are changed and the payment provider's portal opens (cancelling, the payment method, invoices).",
     tags: ["Licenses"],
     params: {},
     responses: {
