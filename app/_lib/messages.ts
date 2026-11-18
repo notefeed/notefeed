@@ -61,16 +61,6 @@ export function messagesFor(t: Copy) {
     feedErrorMessage: ((code, retry) =>
       code === "auth" ? e.feed.auth : code === "invalid_body" ? e.feed.newPassword(PASSWORD_RULE) : errorMessage(code, retry)) as Message,
 
-    // Recovering a feed password with the feed's license key (ADR 0037).
-    recoverErrorMessage: ((code, retry) =>
-      code === "auth"
-        ? e.recover.auth
-        : code === "license_required"
-          ? e.recover.licenseRequired
-          : code === "invalid_body"
-            ? e.feed.newPassword(PASSWORD_RULE)
-            : errorMessage(code, retry)) as Message,
-
     // The new feed's "Create feed without a note" (#295).
     createErrorMessage: ((code, retry) =>
       code === "license_required"
@@ -83,14 +73,7 @@ export function messagesFor(t: Copy) {
 
     // What a password change on the settings page just did (#296), shown in the password row.
     passwordNotice: (saved: unknown): string | undefined => {
-      const done =
-        saved === "password-set"
-          ? e.passwordSaved.set
-          : saved === "password-changed"
-            ? e.passwordSaved.changed
-            : saved === "password-recovered"
-              ? e.passwordSaved.recovered
-              : undefined;
+      const done = saved === "password-set" ? e.passwordSaved.set : saved === "password-changed" ? e.passwordSaved.changed : undefined;
       return done && `${done} ${e.passwordSaved.others}`;
     },
 

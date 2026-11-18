@@ -1,17 +1,21 @@
 // A provider that charges nobody, for the tests and for trying the flow on a development instance (NOTEFEED_PAYMENT_PROVIDER=fake).
-// It sells a monthly and a yearly plan at fixed prices. The checkout is the success page itself, with a made-up checkout id whose
-// key is derived from it (fakeKey), so every route can tell it without shared state; the webhook is JSON that already is a list of
-// events, signed with HMAC-SHA256 in `x-fake-signature` using NOTEFEED_FAKE_WEBHOOK_SECRET.
+// It sells a monthly and a yearly plan at fixed prices. The checkout is the success page itself, with a made-up checkout id; the webhook
+// is JSON that already is a list of events, signed with HMAC-SHA256 in `x-fake-signature` using NOTEFEED_FAKE_WEBHOOK_SECRET. What a
+// test changed (units, cancellations) is kept in memory, per process.
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { WebhookRejectedError, type LicenseEvent, type PaymentProvider } from "./types";
+import { processState } from "../state";
+import { WebhookRejectedError, type LicenseEvent, type PaymentProvider, type ProviderSubscription } from "./types";
 
 export const fakeSignature = (secret: string, body: string) => createHmac("sha256", secret).update(body).digest("hex");
 
-/** The key the fake provider issues for a checkout. */
-export const fakeKey = (secret: string, checkoutId: string) => createHmac("sha256", secret).update(`key ${checkoutId}`).digest("base64url").slice(0, 22);
-
-/** What `cancel` was called with, for the tests. */
-export const cancelled: string[] = [];
+/** What the fake provider was asked, for the tests: checkouts, unit changes, cancellations, and the subscriptions it knows. */
+export const fake = processState("fake-payments", () => ({
+  checkouts: [] as { period: string; units: number; account: string }[],
+  changes: [] as { providerRef: string; units: number; how: "raise" | "lower" }[],
+  cancelled: [] as string[],
+  subscriptions: new Map<string, ProviderSubscription>(),
+}));
+export const cancelled = fake.cancelled;
 
 export function createFake(webhookSecret: string): PaymentProvider {
   return {
@@ -21,13 +25,23 @@ export function createFake(webhookSecret: string): PaymentProvider {
         { period: "year", name: "Yearly", description: "", amount: 1990, currency: "EUR", taxIncluded: true },
       ];
     },
-    async createCheckout({ successUrl }) {
-      return { url: `${successUrl}?checkout_id=fake_${randomBytes(9).toString("base64url")}` };
+    async createCheckout({ successUrl, period, units, account }) {
+      fake.checkouts.push({ period, units, account });
+      // The account rides in the made-up id, so a test can send the webhook the provider would (fake only: Creem's ids carry nothing).
+      const id = `fake_${Buffer.from(account).toString("base64url")}_${randomBytes(9).toString("base64url")}`;
+      return { url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}checkout_id=${id}` };
     },
-    async checkoutKey(checkoutId) {
-      return checkoutId.startsWith("fake_") ? fakeKey(webhookSecret, checkoutId) : null;
+    async changeUnits(providerRef, units, how) {
+      fake.changes.push({ providerRef, units, how });
+      const s = fake.subscriptions.get(providerRef);
+      if (s) s.units = units;
     },
-    accountUrl: "https://fake.invalid/my-orders",
+    async subscription(providerRef) {
+      return fake.subscriptions.get(providerRef) ?? null;
+    },
+    async portalUrl(customerRef) {
+      return `https://fake.invalid/portal/${encodeURIComponent(customerRef)}`;
+    },
     async parseWebhook(rawBody, headers) {
       const a = Buffer.from(headers.get("x-fake-signature") ?? "");
       const b = Buffer.from(fakeSignature(webhookSecret, rawBody));
@@ -39,7 +53,7 @@ export function createFake(webhookSecret: string): PaymentProvider {
       throw new WebhookRejectedError("not a list of events");
     },
     async cancel(providerRef) {
-      cancelled.push(providerRef);
+      fake.cancelled.push(providerRef);
     },
   };
 }

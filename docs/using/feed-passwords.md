@@ -4,12 +4,12 @@ A feed can have a password of its own, so that strangers who guess or learn its 
 
 ## In the web UI
 
-On a feed that doesn't exist yet, the feed's details (under its card, on the right on a wide screen) have a **Protect this feed** section with an optional **Password** field: fill it in and the first note creates a protected feed, or press **Create feed without a note** to create it protected right away (on notefeed.me with a license key). The password is 1 to 256 printable ASCII characters, with no space at the start or end, so that it works from a script too.
+On a feed that doesn't exist yet, the feed's details (under its card, on the right on a wide screen) have a **Protect this feed** section with an optional **Password** field: fill it in and the first note creates a protected feed, or press **Create feed without a note** to create it protected right away (on notefeed.me signed in to an account whose [license](../hosted/licenses.md#which-feeds-it-covers) has room). The password is 1 to 256 printable ASCII characters, with no space at the start or end, so that it works from a script too.
 
 A protected feed shows an **Unlock** form before anything else. The browser then stays unlocked until the password changes or you press **Lock this browser**. Once unlocked, the settings page has a **Privacy & access** group to change or remove the password (both need the current one) and to lock the browser again. Changing the password signs every other browser out.
 
 !!! note "On notefeed.me"
-    A feed password needs a license. Fill in the **License key** field under the password, or send its key as `X-License-Key` on the post that creates the feed; without it the post is `402` (`license_required`). See [Free tier and licenses](../hosted/licenses.md#entering-the-key).
+    A feed password needs a feed under a license, which belongs to an account: sign in to one whose license covers one more feed, and the new feed goes under it; without it the post is `402` (`license_required`). See [Free tier and licenses](../hosted/licenses.md#which-feeds-it-covers).
 
 ## In the API
 
@@ -61,10 +61,8 @@ In the API, with the account signed in on this instance's own pages or its [acco
 | `DELETE /api/v1/feeds/<feed>/passwords/<id>` | revokes it |
 | `GET /api/v1/account/feeds` | the account's feeds |
 
-Anyone else gets `403`, code `owner_only`; claiming an owned feed is `409`, code `owned`. Changing or removing a feed's single password, and recovering it with a license key, are for feeds without an owner.
+Anyone else gets `403`, code `owner_only`; claiming an owned feed is `409`, code `owned`. Changing or removing a feed's single password is for feeds without an owner.
 
 ## A lost password
 
-The password is stored only as a salted hash, so nobody can look it up. On an instance that sells licenses, the feed's license key recovers it: the unlock screen's **Forgot the password?**, the API's `POST /api/v1/feeds/<feed>/password/recover` or the MCP tool `recover_feed_password` sets a new password or removes it ([hosted](../hosted/licenses.md#a-lost-feed-password)).
-
-Otherwise the operator removes it and the feed is open at once, with its notes intact. With the file storage the hash is `DATA_DIR/<feed>/.password`: delete that file, and back it up with the notes. With SQLite or PostgreSQL there is no file: the operator clears the feed's password hash in the database (its `password_hash`, on the row the feed's name finds; with encryption at rest, ADR 0033, that name is stored as a keyed hash). Then a new password can be set as for any [open feed](#a-password-for-an-open-feed).
+The password is stored only as a salted hash, so nobody can look it up. On a feed with an [owner](#a-feed-with-an-owner), the owner's account opens the feed without one and gives it a new password. Otherwise the operator removes it and the feed is open at once, with its notes intact. With the file storage the hash is `DATA_DIR/<feed>/.password`: delete that file, and back it up with the notes. With SQLite or PostgreSQL there is no file: the operator clears the feed's password hash in the database (its `password_hash`, on the row the feed's name finds; with encryption at rest, ADR 0033, that name is stored as a keyed hash). Then a new password can be set as for any [open feed](#a-password-for-an-open-feed).

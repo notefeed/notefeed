@@ -88,8 +88,8 @@ export class ImagesOffError extends NotefeedError {
 
 /** On an instance with a payment provider: the feed has no active license, and this (images, a feed password) is for licensed feeds (ADR 0029). */
 export class LicenseRequiredError extends NotefeedError {
-  constructor() {
-    super("license_required", "a license is needed for this feed");
+  constructor(message = "a license is needed for this feed") {
+    super("license_required", message);
   }
 }
 

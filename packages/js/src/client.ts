@@ -5,6 +5,9 @@
 import { createClient, createConfig } from "./generated/client/index.js";
 import {
   addFeedPassword,
+  buyLicense,
+  changeLicenseUnits,
+  getAccountLicense,
   changeFeedPassword,
   claimFeed,
   createFeed,
@@ -24,18 +27,28 @@ import {
   patchNote,
   postNote,
   putFeedLicense,
-  recoverFeedPassword,
   removeFeedImage,
   revokeFeedPassword,
   setFeedImage,
   updateFeed,
 } from "./generated/sdk.gen.js";
-import type { Created, Error as ApiError, Feed, FeedPassword, FeedSettings, Licenses, NewFeedPassword, Note, NoteList } from "./generated/types.gen.js";
+import type {
+  AccountLicense,
+  Created,
+  Error as ApiError,
+  Feed,
+  FeedPassword,
+  FeedSettings,
+  Licenses,
+  NewFeedPassword,
+  Note,
+  NoteList,
+} from "./generated/types.gen.js";
 
 /** The stable error codes the API answers with. */
 export type ErrorCode = NonNullable<ApiError["code"]>;
 
-export type { Created, Feed, FeedSettings, Licenses, Note };
+export type { AccountLicense, Created, Feed, FeedSettings, Licenses, Note };
 /** A picture posted with a note: `![](name)` in the markdown refers to it. `type` as for post(). */
 export type Attachment = { name: string; content: Uint8Array | Blob; type?: string; alt?: string };
 /** `timeoutMs` (default 10000) limits each whole request, including reading the answer. */
@@ -133,7 +146,6 @@ type PostOptions = {
   date?: string | Date;
   draft?: boolean;
   readId?: string;
-  licenseKey?: string;
 };
 
 // The headers of a post's metadata, once for a single file and for a note with its pictures (the server refuses alt and name with
@@ -148,7 +160,6 @@ function postHeaders(o: PostOptions) {
     ...(o.date && { "X-Note-Date": dateString(o.date) }),
     ...(o.draft && { "X-Note-Draft": "true" as const }),
     ...(o.readId && { "X-Read-Id": o.readId }),
-    ...(o.licenseKey && { "X-License-Key": o.licenseKey }),
   };
 }
 
@@ -198,8 +209,8 @@ export class Client {
    * text. `alt` is a picture's alternative text, `name` the file's original name. `date` is the note's date, if not now: a
    * Date or an ISO 8601 date-time with its offset (`2026-10-01T09:30:00Z`) or a date alone (midnight UTC), from 1970 to 9999; a future date schedules the note: readers see it from then on. `readId` is the read id the feed gets when this post creates it
    * (3 to 64 characters of `a-z`, `0-9`, `-`, `_`; random when left out; ignored for a feed that exists; a `taken` error when another feed has it).
-   * `licenseKey` goes with `feedPassword` on the post that creates the feed, on an instance that sells licenses: a feed password is for
-   * licensed feeds, and the new feed gets the license (a `license_required` error without the key; ignored on an existing feed).
+   * On an instance that sells licenses, a post that creates a feed with `feedPassword` or pictures needs the client's account (its token)
+   * with a unit of its license free; the new feed goes under it (a `license_required` error otherwise).
    *
    * `attachments` are pictures posted with the note in one request: `![](name)` in the markdown shows one (a picture the text never refers to is
    * added at the end), and `Created.attachments` lists them in order. `tags` label the pictures too. `content` may be `null` when there are
@@ -296,16 +307,27 @@ export class Client {
     return updated;
   }
 
-  /** Put the license the key names on the feed, taking it off the feed it was on; a feed needs no password for it. Only on an instance that sells licenses. Same options as post(). */
-  async attachLicense(key: string, options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
+  /** Put the feed under its owner's license (the client's account token), or take it off with `false`: a license covers as many of the account's feeds as its units. Only on an instance that sells licenses, for the feed's owner. */
+  async setFeedLicensed(licensed: boolean, options: { feed?: string } = {}): Promise<Feed> {
     const feed = this.feedFor(options.feed);
-    return this.call(putFeedLicense({ client: this.api, path: { feed }, body: { key }, ...this.opts(options.feedPassword) }));
+    const o = { client: this.api, path: { feed }, signal: AbortSignal.timeout(this.timeoutMs) };
+    return this.call(licensed ? putFeedLicense(o) : deleteFeedLicense(o));
   }
 
-  /** Take the feed's license off: it is a free feed again, and the key can go on another feed. Same options as post(). */
-  async detachLicense(options: { feed?: string; feedPassword?: string } = {}): Promise<Feed> {
-    const feed = this.feedFor(options.feed);
-    return this.call(deleteFeedLicense({ client: this.api, path: { feed }, ...this.opts(options.feedPassword) }));
+  /** The client's account's license: its subscriptions, how many feeds they cover (`units`), the feeds put under it (`covered`) and those it covers now (`licensed`). */
+  async license(): Promise<AccountLicense> {
+    return this.call(getAccountLicense({ client: this.api, signal: AbortSignal.timeout(this.timeoutMs) }));
+  }
+
+  /** A checkout at the payment provider for `units` feeds (1 to 100) per month or year, for the client's account: the URL for a person to pay at. */
+  async buyLicense(options: { period?: "month" | "year"; units?: number } = {}): Promise<string> {
+    const body = { ...(options.period ? { period: options.period } : {}), ...(options.units ? { units: options.units } : {}) };
+    return (await this.call(buyLicense({ client: this.api, body, signal: AbortSignal.timeout(this.timeoutMs) }))).url;
+  }
+
+  /** Change how many feeds one of the account's subscriptions covers (its id from license()): raising charges the difference now, lowering takes effect without a refund. */
+  async changeLicenseUnits(subscription: string, units: number): Promise<void> {
+    await this.call(changeLicenseUnits({ client: this.api, path: { id: subscription }, body: { units }, signal: AbortSignal.timeout(this.timeoutMs) }));
   }
 
   /** Set the feed's password. On a protected feed it changes it: `feedPassword` (or the client's) is the current one. An open feed takes one without, which claims it: its name was all that protected it. Every request for the feed then needs the new password; its read link stays open. Same options as post(). */
@@ -314,12 +336,11 @@ export class Client {
     await this.call(changeFeedPassword({ client: this.api, path: { feed }, body: { password }, ...this.opts(options.feedPassword) }));
   }
 
-  /** Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `readId` gives it that read link. Where licenses are sold `licenseKey` is required and goes on the new feed. A feed that exists is refused (409). */
-  async createFeed(options: { feed?: string; password?: string; licenseKey?: string; readId?: string } = {}): Promise<Feed> {
+  /** Create the feed without posting a note, to reserve its name: `password` protects it from its first moment, `readId` gives it that read link. Where licenses are sold it needs the client's account (its token) with a unit of its license free, and goes under it. A feed that exists is refused (409). */
+  async createFeed(options: { feed?: string; password?: string; readId?: string } = {}): Promise<Feed> {
     const feed = this.feedFor(options.feed);
     const body = {
       ...(options.password ? { password: options.password } : {}),
-      ...(options.licenseKey ? { license_key: options.licenseKey } : {}),
       ...(options.readId ? { read_id: options.readId } : {}),
     };
     return this.call(createFeed({ client: this.api, path: { feed }, body, signal: AbortSignal.timeout(this.timeoutMs) }));
@@ -352,12 +373,6 @@ export class Client {
   /** The names of the feeds the client's account owns (needs an account token). */
   async accountFeeds(): Promise<string[]> {
     return (await this.call(listAccountFeeds({ client: this.api, signal: AbortSignal.timeout(this.timeoutMs) }))).feeds;
-  }
-
-  /** For a lost password, only on an instance that sells licenses: the key of the license on the feed proves ownership instead of the current password. `password` becomes the feed's password (needs an active license); left out or empty, the password is removed, which a lapsed license's key may do too. A key that is not the feed's license is refused and counts as a failed attempt. */
-  async recoverFeedPassword(key: string, password = "", options: { feed?: string } = {}): Promise<void> {
-    const feed = this.feedFor(options.feed);
-    await this.call(recoverFeedPassword({ client: this.api, path: { feed }, body: { key, password }, signal: AbortSignal.timeout(this.timeoutMs) })); // the key instead of the (lost) feed password
   }
 
   /** Set the feed's title image: `content` the image's bytes, `type` its media type (image/png, image/jpeg, image/gif, image/webp). It is the feed's own image, in no list, so no post; a previous one set this way is deleted. Same options as post(). */

@@ -27,13 +27,14 @@ export { noteOutcome } from "./requestscope";
 export { hasLegalPage, licensePageOn, readLegalPage, readLicensePage, readNotice, type LegalPage } from "./legal";
 export { metricsRoute } from "./http/metrics";
 export { healthRoute } from "./http/health";
-export { attachRoute, checkoutRoute, feedLicenseRoute, keyRoute, webhookRoute } from "./http/licenses";
+export { webhookRoute } from "./http/licenses";
 export {
   moveImagesRoute,
   operatorAccountCreateRoute,
   operatorAccountDeleteRoute,
   operatorFeedDeleteRoute,
   operatorFeedOwnerRoute,
+  operatorSubscriptionsRoute,
   resealRoute,
   takedownRoute,
   unreferencedImagesRoute,
@@ -59,7 +60,7 @@ export {
   tokenRoute,
 } from "./oauth/routes";
 
-export { freeNoteCap, freeTier, isLicensed, licenseAccountUrl, licensePlans, licensingOn } from "./licensing";
+export { freeNoteCap, freeTier, isLicensed, licensePlans, licensingOn } from "./licensing";
 
 export const instanceTitle = config.title;
 /** The address of the footer's Support link; "" for none. */
@@ -187,4 +188,5 @@ export { runningVersion, type RunningVersion } from "./version";
 export { accountsMode, accountsOn } from "./accounts/mode";
 export { oauthOn } from "./oauth/routes";
 export { listAccountTokens } from "./accounts/tokens";
+export { licenseOf as accountLicense } from "./licenseflow";
 export { accountOf, renewedAccountCookies } from "./accounts/numbers";

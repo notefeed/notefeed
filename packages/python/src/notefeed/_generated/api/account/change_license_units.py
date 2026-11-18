@@ -7,21 +7,21 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error import Error
-from ...models.recovery_json import RecoveryJson
+from ...models.units import Units
 from ...types import Response
 
 
 def _get_kwargs(
-    feed: str,
+    id: str,
     *,
-    body: RecoveryJson,
+    body: Units,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
-        "method": "post",
-        "url": "/api/v1/feeds/{feed}/password/recover".format(
-            feed=quote(str(feed), safe=""),
+        "method": "put",
+        "url": "/api/v1/account/license/subscriptions/{id}".format(
+            id=quote(str(id), safe=""),
         ),
     }
 
@@ -48,11 +48,6 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 
         return response_401
 
-    if response.status_code == 402:
-        response_402 = Error.from_dict(response.json())
-
-        return response_402
-
     if response.status_code == 403:
         response_403 = Error.from_dict(response.json())
 
@@ -62,11 +57,6 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         response_404 = Error.from_dict(response.json())
 
         return response_404
-
-    if response.status_code == 429:
-        response_429 = Error.from_dict(response.json())
-
-        return response_429
 
     if response.status_code == 503:
         response_503 = Error.from_dict(response.json())
@@ -89,23 +79,20 @@ def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 
 
 def sync_detailed(
-    feed: str,
+    id: str,
     *,
     client: AuthenticatedClient,
-    body: RecoveryJson,
+    body: Units,
 ) -> Response[Any | Error]:
-    """Recover a feed's password with its license key
+    """Change how many feeds one of the account's subscriptions covers
 
-     Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license
-    on this feed proves ownership instead of the current password (ADR 0037). With a new password the
-    feed gets it (needs an active license, like any password change); with none, or an empty one, the
-    password is removed, which a lapsed license's key may do too. A key that is not this feed's license
-    is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before
-    the key is tried.
+     Raising charges the difference now; lowering takes effect without a refund, and goes no lower than
+    the feeds under the license allow (400: take a feed off first, so notefeed never guesses which loses
+    its cover).
 
     Args:
-        feed (str):
-        body (RecoveryJson):
+        id (str):
+        body (Units):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -116,7 +103,7 @@ def sync_detailed(
     """
 
     kwargs = _get_kwargs(
-        feed=feed,
+        id=id,
         body=body,
     )
 
@@ -128,23 +115,20 @@ def sync_detailed(
 
 
 def sync(
-    feed: str,
+    id: str,
     *,
     client: AuthenticatedClient,
-    body: RecoveryJson,
+    body: Units,
 ) -> Any | Error | None:
-    """Recover a feed's password with its license key
+    """Change how many feeds one of the account's subscriptions covers
 
-     Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license
-    on this feed proves ownership instead of the current password (ADR 0037). With a new password the
-    feed gets it (needs an active license, like any password change); with none, or an empty one, the
-    password is removed, which a lapsed license's key may do too. A key that is not this feed's license
-    is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before
-    the key is tried.
+     Raising charges the difference now; lowering takes effect without a refund, and goes no lower than
+    the feeds under the license allow (400: take a feed off first, so notefeed never guesses which loses
+    its cover).
 
     Args:
-        feed (str):
-        body (RecoveryJson):
+        id (str):
+        body (Units):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -155,30 +139,27 @@ def sync(
     """
 
     return sync_detailed(
-        feed=feed,
+        id=id,
         client=client,
         body=body,
     ).parsed
 
 
 async def asyncio_detailed(
-    feed: str,
+    id: str,
     *,
     client: AuthenticatedClient,
-    body: RecoveryJson,
+    body: Units,
 ) -> Response[Any | Error]:
-    """Recover a feed's password with its license key
+    """Change how many feeds one of the account's subscriptions covers
 
-     Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license
-    on this feed proves ownership instead of the current password (ADR 0037). With a new password the
-    feed gets it (needs an active license, like any password change); with none, or an empty one, the
-    password is removed, which a lapsed license's key may do too. A key that is not this feed's license
-    is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before
-    the key is tried.
+     Raising charges the difference now; lowering takes effect without a refund, and goes no lower than
+    the feeds under the license allow (400: take a feed off first, so notefeed never guesses which loses
+    its cover).
 
     Args:
-        feed (str):
-        body (RecoveryJson):
+        id (str):
+        body (Units):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -189,7 +170,7 @@ async def asyncio_detailed(
     """
 
     kwargs = _get_kwargs(
-        feed=feed,
+        id=id,
         body=body,
     )
 
@@ -199,23 +180,20 @@ async def asyncio_detailed(
 
 
 async def asyncio(
-    feed: str,
+    id: str,
     *,
     client: AuthenticatedClient,
-    body: RecoveryJson,
+    body: Units,
 ) -> Any | Error | None:
-    """Recover a feed's password with its license key
+    """Change how many feeds one of the account's subscriptions covers
 
-     Only on an instance that sells licenses (404 elsewhere). For a lost password: the key of the license
-    on this feed proves ownership instead of the current password (ADR 0037). With a new password the
-    feed gets it (needs an active license, like any password change); with none, or an empty one, the
-    password is removed, which a lapsed license's key may do too. A key that is not this feed's license
-    is 401 and counts as a failed attempt, like a wrong password; a bad new password is refused before
-    the key is tried.
+     Raising charges the difference now; lowering takes effect without a refund, and goes no lower than
+    the feeds under the license allow (400: take a feed off first, so notefeed never guesses which loses
+    its cover).
 
     Args:
-        feed (str):
-        body (RecoveryJson):
+        id (str):
+        body (Units):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -227,7 +205,7 @@ async def asyncio(
 
     return (
         await asyncio_detailed(
-            feed=feed,
+            id=id,
             client=client,
             body=body,
         )

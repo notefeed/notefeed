@@ -67,7 +67,7 @@ const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : u
 export default async function FeedPage({ params, searchParams }: PageProps<"/[lang]/[feed]">) {
   const { feed, lang } = await params;
   const t = copyFor(lang);
-  const { createErrorMessage, errorMessage, feedErrorMessage, recoverErrorMessage } = messagesFor(t);
+  const { createErrorMessage, errorMessage, feedErrorMessage } = messagesFor(t);
   const sp = await searchParams;
   const { posted, deleted, error, retry, form, tag: tagParam, share_title, share_text, share_url, shared: sharedPictures } = sp;
   const tag = typeof tagParam === "string" ? tagParam.toLowerCase() : undefined;
@@ -84,12 +84,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
   if (access === "locked") {
     return (
       <AppShell feed={feed}>
-        <UnlockForm
-          feed={feed}
-          share={shareQuery(sp)}
-          error={form === "recover" ? undefined : feedErrorMessage(error, retry)}
-          recover={licensingOn() ? { open: form === "recover", error: form === "recover" ? recoverErrorMessage(error, retry) : undefined } : undefined}
-        />
+        <UnlockForm feed={feed} share={shareQuery(sp)} error={form === "recover" ? undefined : feedErrorMessage(error, retry)} />
       </AppShell>
     );
   }

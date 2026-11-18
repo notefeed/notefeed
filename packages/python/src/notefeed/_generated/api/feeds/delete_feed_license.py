@@ -8,17 +8,12 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.feed import Feed
-from ...types import UNSET, Response, Unset
+from ...types import Response
 
 
 def _get_kwargs(
     feed: str,
-    *,
-    x_feed_password: str | Unset = UNSET,
 ) -> dict[str, Any]:
-    headers: dict[str, Any] = {}
-    if not isinstance(x_feed_password, Unset):
-        headers["X-Feed-Password"] = x_feed_password
 
     _kwargs: dict[str, Any] = {
         "method": "delete",
@@ -27,7 +22,6 @@ def _get_kwargs(
         ),
     }
 
-    _kwargs["headers"] = headers
     return _kwargs
 
 
@@ -86,17 +80,15 @@ def sync_detailed(
     feed: str,
     *,
     client: AuthenticatedClient,
-    x_feed_password: str | Unset = UNSET,
 ) -> Response[Error | Feed]:
-    """Take a feed's license off
+    """Take a feed off its owner's license
 
-     Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the key
-    can be put on another feed; the subscription runs on. A feed without a license answers the same.
-    Needs the feed's password if it has one, and counts against the post rate limit.
+     Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the unit
+    can cover another of the account's feeds; the subscription runs on. A feed not under it answers the
+    same. Only for the feed's owner.
 
     Args:
         feed (str):
-        x_feed_password (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -108,7 +100,6 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         feed=feed,
-        x_feed_password=x_feed_password,
     )
 
     response = client.get_httpx_client().request(
@@ -122,17 +113,15 @@ def sync(
     feed: str,
     *,
     client: AuthenticatedClient,
-    x_feed_password: str | Unset = UNSET,
 ) -> Error | Feed | None:
-    """Take a feed's license off
+    """Take a feed off its owner's license
 
-     Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the key
-    can be put on another feed; the subscription runs on. A feed without a license answers the same.
-    Needs the feed's password if it has one, and counts against the post rate limit.
+     Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the unit
+    can cover another of the account's feeds; the subscription runs on. A feed not under it answers the
+    same. Only for the feed's owner.
 
     Args:
         feed (str):
-        x_feed_password (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -145,7 +134,6 @@ def sync(
     return sync_detailed(
         feed=feed,
         client=client,
-        x_feed_password=x_feed_password,
     ).parsed
 
 
@@ -153,17 +141,15 @@ async def asyncio_detailed(
     feed: str,
     *,
     client: AuthenticatedClient,
-    x_feed_password: str | Unset = UNSET,
 ) -> Response[Error | Feed]:
-    """Take a feed's license off
+    """Take a feed off its owner's license
 
-     Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the key
-    can be put on another feed; the subscription runs on. A feed without a license answers the same.
-    Needs the feed's password if it has one, and counts against the post rate limit.
+     Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the unit
+    can cover another of the account's feeds; the subscription runs on. A feed not under it answers the
+    same. Only for the feed's owner.
 
     Args:
         feed (str):
-        x_feed_password (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -175,7 +161,6 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         feed=feed,
-        x_feed_password=x_feed_password,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -187,17 +172,15 @@ async def asyncio(
     feed: str,
     *,
     client: AuthenticatedClient,
-    x_feed_password: str | Unset = UNSET,
 ) -> Error | Feed | None:
-    """Take a feed's license off
+    """Take a feed off its owner's license
 
-     Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the key
-    can be put on another feed; the subscription runs on. A feed without a license answers the same.
-    Needs the feed's password if it has one, and counts against the post rate limit.
+     Only on an instance that sells licenses (404 elsewhere). The feed is a free one again, and the unit
+    can cover another of the account's feeds; the subscription runs on. A feed not under it answers the
+    same. Only for the feed's owner.
 
     Args:
         feed (str):
-        x_feed_password (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -211,6 +194,5 @@ async def asyncio(
         await asyncio_detailed(
             feed=feed,
             client=client,
-            x_feed_password=x_feed_password,
         )
     ).parsed

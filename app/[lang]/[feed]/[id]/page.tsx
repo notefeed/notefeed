@@ -45,7 +45,7 @@ export default async function NotePage({ params, searchParams }: PageProps<"/[la
   if ((await feedUnlocked(feed, (await cookies()).get(feedCookieName(feed))?.value, (await accountOf(await headers()))?.userId)) === "locked") {
     return (
       <AppShell feed={feed}>
-        <UnlockForm feed={feed} recover={licensingOn() ? { open: false } : undefined} />
+        <UnlockForm feed={feed} />
       </AppShell>
     );
   }

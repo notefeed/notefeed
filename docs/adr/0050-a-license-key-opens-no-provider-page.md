@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-28
 decision-makers: Marcel Bruckner
 ---
@@ -7,6 +7,8 @@ decision-makers: Marcel Bruckner
 # A license key opens no provider page
 
 ## Context and Problem Statement
+
+Superseded by ADR 0061: the provider's portal opens from the account page, for the account that bought.
 
 The license page had **Manage subscription**: whoever entered a key got a link into the payment provider's customer portal (`POST /api/licenses/portal`, `PaymentProvider.portalUrl`). Creem's portal belongs to the customer, not to one subscription (#316). It shows the buyer's e-mail address, payment method and invoices, and every license the buyer bought, each with its key.
 

@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Amended by ADR 0061: a license belongs to an account and still needs no feed password: an open feed goes under it too.
+
 On notefeed.me a license only came with a password: `X-License-Key` counted on the post that creates the feed together with `X-Feed-Password`, and was silently ignored without one (ADR 0029, #193). On an existing feed the key went in through the settings page or `/api/licenses/attach`, which is not part of the public API, the clients or MCP. So a feed created by a script or an assistant could not start licensed, and an agent had to send its user to the settings page to enter the key (#247).
 
 A license is about keeping every note and posting pictures, not about protection: the feed name is the password, and most feeds don't need a second secret.

@@ -139,17 +139,9 @@ export const PasswordJson = z.object({ password: z.string().describe(`The new pa
 export const CreateFeedJson = z
   .object({
     password: z.string().optional().describe(`A password that protects the new feed: ${PASSWORD_RULE}. Empty or left out: an open feed`),
-    license_key: z.string().optional().describe("Where licenses are sold, required: the key of the license to put on the new feed"),
     read_id: z.string().optional().describe("The read id to give the feed (3 to 64 characters of a-z, 0-9, - and _); left out: a random one"),
   })
   .meta({ id: "CreateFeedJson" });
-export const RecoveryJson = z
-  .object({
-    key: z.string().describe("The license key on this feed, as the checkout or the receipt gave it"),
-    password: z.string().optional().describe(`The new password: ${PASSWORD_RULE}. Empty or left out removes the password`),
-  })
-  .meta({ id: "RecoveryJson" });
-export const LicenseKeyJson = z.object({ key: z.string().describe("The license key, as the checkout or the receipt gave it") }).meta({ id: "LicenseKey" });
 
 export const FeedPasswordHeader = z
   .string()
@@ -162,13 +154,6 @@ export const ReadIdHeader = z
   .string()
   .describe(
     "The read id the feed gets when this post creates it: 3 to 64 characters (a-z, 0-9, - and _), random when left out or empty, ignored for a feed that exists. A short readable one is guessable: protect the feed with a password if that matters. 409 when it is taken",
-  );
-export const LicenseKeyHeader = z
-  .string()
-  .describe(
-    "Only on an instance that sells licenses, on the post that creates the feed: the key of the license to put on the new feed, with or without `X-Feed-Password` " +
-      "(a feed password is for licensed feeds: with one and no key, 402). 400 for a key that is none, 402 for one whose license has lapsed; either way nothing is created. " +
-      "Ignored on an existing feed: put a license on it with `PUT /api/v1/feeds/{feed}/license`",
   );
 export const CurrentPasswordHeader = z.string().describe("The feed's current password");
 
@@ -235,12 +220,8 @@ export const LicensesJson = z
         }),
       )
       .describe("What is sold right now, monthly then yearly; empty while the payment provider can't be read"),
-    buy_url: z.url().describe("The license page: a person buys there, and gets the key after paying"),
-    manage_url: z
-      .url()
-      .describe(
-        "The payment provider's sign-in for buyers, by the e-mail address bought with: cancelling, the payment method, invoices, keys. No license key opens it",
-      ),
+    buy_url: z.url().describe("The license page: a person signed in to an account buys there, for as many feeds as they choose"),
+    manage_url: z.url().describe("The account page, where the account's holder manages its license and opens the payment provider's portal"),
     manage: z.string().describe("How managing a purchase works, in a sentence to show a person"),
   })
   .meta({ id: "Licenses" });
@@ -314,6 +295,30 @@ export const AccountTokenRequestJson = z
     days: z.number().int().optional().describe("How long it works, 1 to 365 days; default 90"),
   })
   .meta({ id: "AccountTokenRequest" });
+export const AccountLicenseJson = z
+  .object({
+    subscriptions: z.array(
+      z.object({
+        id: z.string().describe("The provider's subscription id"),
+        period: z.enum(["month", "year"]),
+        units: z.number().int().describe("How many feeds it covers"),
+        valid_until: z.number().nullable().describe("When its paid period ends (ms since the epoch), or null"),
+        active: z.boolean().describe("Whether it is paid for now"),
+      }),
+    ),
+    units: z.number().int().describe("How many feeds the active subscriptions cover together"),
+    covered: z.array(z.string()).describe("The account's feeds put under the license, oldest first"),
+    licensed: z.array(z.string()).describe("Those it covers now: the first `units` of `covered`"),
+  })
+  .meta({ id: "AccountLicense" });
+export const CheckoutRequestJson = z
+  .object({
+    period: z.enum(["month", "year"]).optional().describe("Default month"),
+    units: z.number().int().optional().describe("How many feeds, 1 to 100; default 1"),
+  })
+  .meta({ id: "CheckoutRequest" });
+export const CheckoutJson = z.object({ url: z.url().describe("Where to send the browser") }).meta({ id: "Checkout" });
+export const UnitsJson = z.object({ units: z.number().int().describe("The new number of feeds, 1 to 100") }).meta({ id: "Units" });
 export const AccountFeedsJson = z
   .object({ feeds: z.array(z.string()).describe("The names of the feeds the account owns, sorted") })
   .meta({ id: "AccountFeeds" });
@@ -328,9 +333,7 @@ export const COMPONENTS = [
   ErrorJson,
   MetaJson,
   PasswordJson,
-  RecoveryJson,
   CreateFeedJson,
-  LicenseKeyJson,
   FeedSettingsJson,
   FreeTierJson,
   FeedJson,
@@ -342,6 +345,10 @@ export const COMPONENTS = [
   NewFeedPasswordJson,
   FeedPasswordNameJson,
   AccountFeedsJson,
+  AccountLicenseJson,
+  CheckoutRequestJson,
+  CheckoutJson,
+  UnitsJson,
   AccountTokenJson,
   AccountTokensJson,
   NewAccountTokenJson,

@@ -3,7 +3,7 @@
 // starts the next one and answers with the last, and only the very first scrape waits for it. Counts only: nothing here leaves the
 // process that names a feed, a read id or a license key.
 import { config } from "./config";
-import { licenses, licensingOn } from "./licensing";
+import { licensingOn } from "./licensing";
 import { logger } from "./log";
 import { usageCounted, type UsageCount } from "./metrics";
 import { typeForExt } from "./note/types";
@@ -64,7 +64,7 @@ async function count(): Promise<void> {
   const on = licensingOn();
   const s = storage();
   const database = config.storage() === "fs" ? null : (s as SqlStorage).databaseStats();
-  const [feeds, held, db] = await Promise.all([s.usage(), on ? licenses().counts() : null, database]);
+  const [feeds, held, db] = await Promise.all([s.usage(), on ? licenseCounts() : null, database]);
   usageCounted({ ...countUsage(feeds, on ? config.freeNoteCap() : null), licenses: held, database: db }, (performance.now() - start) / 1000);
   state.counted = true;
 }
@@ -87,3 +87,11 @@ export const resetUsageForTests = (): void => {
   state.counted = false;
   state.running = undefined;
 };
+
+// The subscriptions behind the gauge (ADR 0061): paid for now, or lapsed. A license is no longer bought apart from its account, so none
+// is unattached; the state stays for the dashboards that read it.
+async function licenseCounts(): Promise<{ active: number; unattached: number; lapsed: number }> {
+  const { subscriptionCounts } = await import("./accounts/subscriptions");
+  const { active, lapsed } = await subscriptionCounts();
+  return { active, unattached: 0, lapsed };
+}

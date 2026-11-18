@@ -8,13 +8,21 @@ import { processState } from "./state";
 import { PASSWORD_PATTERN, PASSWORD_RULE } from "../shared/password";
 import { storage } from "./storage";
 import { FeedGoneError } from "./storage/types";
-import { AuthError, FeedExistsError, FeedOwnedError, InvalidBodyError, NotFoundError, OwnerOnlyError, TooManyAttemptsError } from "./errors";
+import {
+  AuthError,
+  FeedExistsError,
+  FeedOwnedError,
+  InvalidBodyError,
+  NotFoundError,
+  OwnerOnlyError,
+  TooManyAttemptsError,
+  LicenseRequiredError,
+} from "./errors";
 import { type FeedPassword, type FeedRecord, isProtected, LEGACY_ID, LEGACY_NAME, parseRecord, serializeRecord } from "./feedrecord";
 import { cleanLine } from "../shared/links";
 import { checkFeed, createProtectedFeed, hasFeed, secret } from "./feeds";
 import { authAttempt } from "./limits";
-import { licenses, licensingOn, requireLicense } from "./licensing";
-import { hashKey } from "./licenseflow";
+import { licensingOn, requireLicense } from "./licensing";
 
 // An empty password means none, wherever it comes from (header, body field, MCP argument). `account`: the signed-in account behind the
 // request, if any (a session from this instance's own pages; later an account token): the owner's passes without a password.
@@ -189,29 +197,6 @@ export async function removePassword(feed: string, current: string, ip: string):
   await writeRecord(feed, { entries: [] });
 }
 
-// A lost password (ADR 0037). With no accounts, the license key on the feed is the only proof of owning it; the buyer finds it
-// again in the provider's receipt and portal. A wrong key is a failed attempt, as a wrong password is. With `next`, the feed
-// gets that password and the cookie for it comes back, which needs an active license like any change; without, the password is
-// removed, which a lapsed license's key may do too. An owned feed's passwords are its owner's: the key recovers nothing there.
-export async function recoverPassword(feed: string, key: string, next: string, ip: string): Promise<string | null> {
-  if (!licensingOn()) throw new NotFoundError("licenses are not sold on this instance");
-  if (next) checkNewPassword(next);
-  const rec = await feedRecord(feed);
-  if (!key || !isProtected(rec)) throw new AuthError(); // nothing to prove, or nothing to recover
-  refuseOwned(rec);
-  const attempt = authAttempt(ip);
-  if (typeof attempt === "number") throw new TooManyAttemptsError(attempt);
-  // Found by its hash, as everywhere; a key that is someone's but on another feed (or on none) proves nothing here.
-  if ((await licenses().byKeyHash(hashKey(key)))?.feed !== feed) throw new AuthError();
-  attempt();
-  if (!next) {
-    await writeRecord(feed, { entries: [] });
-    return null;
-  }
-  await requireLicense(feed);
-  return writeNewHash(feed, next);
-}
-
 async function writeNewHash(feed: string, next: string): Promise<string> {
   const hash = await hashPassword(next);
   // ponytail: checked, not locked. The write is by path after the scrypt wait, so a feed deleted and re-created meanwhile (same
@@ -254,9 +239,15 @@ export async function claimFeed(feed: string, account: string, password: string,
     return cookieOf(feed, matched.hash);
   }
   checkNewPassword(password);
-  await requireLicense(feed);
+  // A password needs the license (ADR 0029), and an open feed has none until it is owned: where licenses are sold, claiming it takes
+  // a free unit of the account's license and puts it there, as creating a protected feed does (ADR 0061).
+  let covered: number | undefined;
+  if (licensingOn()) {
+    await requireFreeUnit(account);
+    covered = Date.now();
+  }
   const hash = await hashPassword(password);
-  await writeRecord(feed, { owner: account, entries: [{ id: LEGACY_ID, name: LEGACY_NAME, hash, created: Date.now() }] });
+  await writeRecord(feed, { owner: account, entries: [{ id: LEGACY_ID, name: LEGACY_NAME, hash, created: Date.now() }], ...(covered ? { covered } : {}) });
   return cookieOf(feed, hash);
 }
 
@@ -304,24 +295,66 @@ export async function setFeedOwner(feed: string, account: string | undefined): P
   await writeRecord(feed, { ...(rec ?? { entries: [] }), owner: account });
 }
 
+// ---- The license on the account (#391, ADR 0061) ----
+
+// The owner's feeds under its license, in the order they were put there (then by name): the license covers the first as many as its
+// units, so a lapse or a lower number takes the latest ones off first, and nothing is uncovered by guessing.
+export async function coveredFeeds(account: string): Promise<string[]> {
+  return (await ownedRecords(account))
+    .filter((o): o is { feed: string; covered: number } => o.covered !== undefined)
+    .sort((a, b) => a.covered - b.covered || (a.feed < b.feed ? -1 : 1))
+    .map((o) => o.feed);
+}
+
+// A free unit of the account's license for one more feed, or LicenseRequiredError. `units` when the caller has them already.
+export async function requireFreeUnit(account: string, units?: number): Promise<void> {
+  units ??= await (await import("./accounts/subscriptions")).activeUnits(account);
+  if ((await coveredFeeds(account)).length >= units) throw new LicenseRequiredError("the account's license covers no more feeds: raise its number first");
+}
+
+// Puts the owner's feed under its license (or takes it off): refused past the license's units (LicenseRequiredError).
+export async function setCovered(feed: string, account: string | undefined, covered: boolean, units: number): Promise<void> {
+  const rec = await ownersRecord(feed, account);
+  if (covered === (rec.covered !== undefined)) return;
+  if (covered) await requireFreeUnit(account!, units);
+  await writeRecord(feed, { ...rec, covered: covered ? Date.now() : undefined });
+}
+
 // ---- Which feeds an account owns ----
-// Found by reading every feed's record (sealed on an encrypted database, so the storage can't be asked): done once, then kept for a
-// minute and dropped at every change this process makes. Another process's change shows within that minute.
+// Found by reading every feed's record (sealed on an encrypted database, so the storage can't be asked): done once, with when each
+// was put under the license, then kept for a minute and dropped at every change this process makes. Another process's change shows
+// within that minute. Callers meanwhile share one scan, and a scan that a change overtook is used once but not kept.
 const OWNERS_TTL = 60_000;
-const owners = processState("feed-owners", () => ({ at: -Infinity, byAccount: new Map<string, string[]>() }));
+type Owned = { feed: string; covered?: number };
+const owners = processState("feed-owners", () => ({
+  at: -Infinity,
+  gen: 0,
+  byAccount: new Map<string, Owned[]>(),
+  scan: undefined as Promise<Map<string, Owned[]>> | undefined,
+}));
 export function ownersChanged(): void {
   owners.at = -Infinity;
+  owners.gen++;
+  owners.scan = undefined;
 }
-export async function ownedFeeds(account: string): Promise<string[]> {
-  if (Date.now() - owners.at > OWNERS_TTL) {
-    const byAccount = new Map<string, string[]>();
+async function ownedRecords(account: string): Promise<Owned[]> {
+  if (Date.now() - owners.at <= OWNERS_TTL) return owners.byAccount.get(account) ?? [];
+  const gen = owners.gen;
+  const scan = (owners.scan ??= (async () => {
+    const byAccount = new Map<string, Owned[]>();
     for (const feed of await storage().listFeeds()) {
-      const owner = (await feedRecord(feed).catch(() => null))?.owner;
-      if (owner) byAccount.set(owner, [...(byAccount.get(owner) ?? []), feed]);
+      const rec = await feedRecord(feed).catch(() => null);
+      if (rec?.owner) byAccount.set(rec.owner, [...(byAccount.get(rec.owner) ?? []), { feed, ...(rec.covered !== undefined ? { covered: rec.covered } : {}) }]);
     }
+    return byAccount;
+  })());
+  const byAccount = await scan;
+  if (owners.scan === scan) owners.scan = undefined;
+  if (owners.gen === gen) {
     owners.byAccount = byAccount;
     owners.at = Date.now();
   }
-  return [...(owners.byAccount.get(account) ?? [])].sort();
+  return byAccount.get(account) ?? [];
 }
+export const ownedFeeds = async (account: string): Promise<string[]> => (await ownedRecords(account)).map((o) => o.feed).sort();
 export const resetOwnersForTests = ownersChanged;

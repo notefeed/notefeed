@@ -8,6 +8,8 @@ decision-makers: Marcel Bruckner
 
 ## Context and Problem Statement
 
+Superseded in part by ADR 0061: a license belongs to an account, for as many of its feeds as its units; licenses.db is gone.
+
 notefeed.me needs income. The decisions so far are in issue #42: the feed owner pays, on the SaaS only; readers never pay; there are no accounts and no personal data; self-hosted instances keep every feature. How is "paid" represented, what does it unlock, what happens when it ends, and how does a payment provider plug in without the rest of the code knowing which one it is?
 
 ## Considered Options

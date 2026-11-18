@@ -8,71 +8,55 @@ Every feed on notefeed.me starts on the free tier, with nothing to sign up for:
 
 - **It keeps its newest 100 notes.** Every note counts: a text, a picture kept from a license that ran out, and the mark the operator leaves where a post was removed. At the cap, each new note drops the oldest one; a post is never refused for it.
 - **No pictures.** A picture, posted on its own or with a note, is refused with `402` (`license_required`).
-- **No feed password.** A [feed password](../using/feed-passwords.md) needs a license: on the post that creates the feed, with the key next to the password (below), or later, once the feed has one ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)). Without one it is refused with `402`. A license needs no password, though: an open feed can be licensed too.
+- **No feed password.** A [feed password](../using/feed-passwords.md) needs a feed under a license (below). Without one it is refused with `402`. A license needs no password, though: an open feed can be under it too.
 
-The feed's settings show the tier under **License**, as *Free tier · N of 100 notes*, with a meter. From 90 % of the cap on, the feed's page tells whoever can post to it; readers, the read-only view and RSS never see it. Scripts read the same from the [Feeds API](../integrations/api.md): `GET /api/v1/feeds/<feed>` answers `free_tier` as `{ "notes": N, "cap": 100 }`, or `null` for a licensed feed.
+The feed's settings show the tier under **License**, as *Free tier · N of 100 notes*, with a meter. From 90 % of the cap on, the feed's page tells whoever can post to it; readers, the read-only view and RSS never see it. Scripts read the same from the [Feeds API](../integrations/api.md): `GET /api/v1/feeds/<feed>` answers `free_tier` as `{ "notes": N, "cap": 100 }`, or `null` for a feed under a license.
 
 ## What a license is
 
-A license is for one feed, by the month or by the year; the price is on the [license page](https://notefeed.me/license). With it the feed keeps every note, can have a feed password, takes pictures, and its posts, edits and deletes don't count against the per-client rate limit, so a burst from CI is never answered with `429`.
+A license belongs to an [account](../self-hosting/accounts.md) (a number, no e-mail, no name), by the month or by the year, for as many feeds as you choose; the price per feed is on the [license page](https://notefeed.me/license). Every feed under it keeps every note, can have feed passwords, takes pictures, and its posts, edits and deletes don't count against the per-client rate limit, so a burst from CI is never answered with `429`.
 
-There are no accounts. A license is a **key** you keep: notefeed stores only a hash of it and nothing about you; the payment provider holds the purchase. The key is issued by the payment provider: it is shown on the page you land on after paying, and it is in the provider's receipt e-mail and customer portal, where you find it again if you lose it. notefeed itself cannot show it again.
-
-Where the key comes from and where it goes, top to bottom; notefeed never sees who paid:
+notefeed keeps the subscription's reference at the payment provider, how many feeds it covers, and its end, with the account; nothing about who paid. The payment provider, Creem, holds the purchase.
 
 ```mermaid
 sequenceDiagram
   actor You
-  participant L as License page
-  participant C as Creem
   participant N as notefeed.me
-  You->>L: pick a license
-  L->>C: checkout
+  participant C as Creem
+  You->>N: signed in: buy a license for 3 feeds
+  N->>C: checkout for 3, for your account
   You->>C: pay
-  C-->>N: webhook: license active (signed)
-  C-->>You: the key, in the receipt e-mail
-  You->>N: back on the license page
-  N->>C: the checkout's key
-  N-->>You: the key, on the success page
-  You->>N: enter the key on a feed
-  N->>N: compare its hash, put the license on the feed
+  C-->>N: webhook: subscription for your account (signed)
+  You->>N: put feeds under it
 ```
 
-## Entering the key
+## Buying
 
-A key works on one feed at a time, and can be moved:
+Sign in to your account, or create one (only an account number and a recovery key), then on the [license page](https://notefeed.me/license) choose how many feeds it covers and a plan. After paying you come back to the account page, which shows the license once Creem confirms it. Buying again later adds another subscription; the numbers add up. Scripts and agents use `POST /api/v1/account/license/checkout` with `{"period": "month" | "year", "units": 3}` and an [account token](../self-hosting/accounts.md#account-tokens), the MCP tool `buy_license`, or `buyLicense` / `buy_license` in the [clients](../integrations/clients.md): the answer is the URL to pay at.
 
-- **In the feed's settings:** open the **License** row and enter the key under *Use key*. Entering it on another feed later moves the license there. *Take the license off this feed* frees the key without moving it.
-- **When creating a protected feed:** a new feed's **Protect this feed** section has a **License key** field under the password, so the first note creates the feed protected and licensed in one go. Without the key, the compose box says so and links to the license page. **Create feed without a note** in the same section makes the feed right away with the key (and the password, if given); on notefeed.me a feed without a note always needs a license key. An open feed with a license gets a password later in its settings ([a password for an open feed](../using/feed-passwords.md#a-password-for-an-open-feed)).
-- **From a script, on the post that creates the feed:** send `X-License-Key`, with `X-Feed-Password` for a protected feed or without it for an open one. The [client libraries](../integrations/clients.md) take it as `license_key` (Python) or `licenseKey` (Node), and the [MCP server](../integrations/mcp.md)'s `post_note` as `license_key`. A password without a key is `402` (`license_required`); a key notefeed does not know is `400`, one whose license has lapsed `402`, and then nothing is created. On a feed that exists already, a key on a post is not used.
+## Which feeds it covers
 
-```sh
-curl -H "X-Feed-Password: ${FEED_PASSWORD:?}" -H "X-License-Key: ${LICENSE_KEY:?}" -H "Content-Type: text/markdown" \
-  --data-binary @note.md https://notefeed.me/homelab-7f3k2q9x4m8wz
-```
+A feed goes under the license of the account that owns it ([owners](../using/feed-passwords.md#a-feed-with-an-owner)):
 
-- **From a script, on a feed that exists:** `PUT /api/v1/feeds/<feed>/license` with `{"key": "…"}` puts the license on the feed (moving it from the feed it was on), and `DELETE` takes it off. Both need what posting needs (the feed's password, if it has one) and answer the feed, with `free_tier` `null` while it is licensed. The clients have `attach_license` / `detach_license` (Python) and `attachLicense` / `detachLicense` (Node), and the MCP server's `update_feed` takes `license_key` (empty takes it off).
+- **A feed made while signed in** with a password, with pictures, or without a note goes under it at once, if a unit is free. Without an account, or with every unit taken, that is `402` (`license_required`).
+- **Any of your feeds** from its settings: open the **License** row and choose **Put it under your license**, or **Take it off your license** to free the unit for another feed. Over the API: `PUT` or `DELETE /api/v1/feeds/<feed>/license`; the clients have `setFeedLicensed` / `set_feed_licensed`, and MCP's `update_feed` takes `licensed`.
 
-```sh
-curl -X PUT -H "Content-Type: application/json" -d "{\"key\": \"${LICENSE_KEY:?}\"}" https://notefeed.me/api/v1/feeds/homelab-7f3k2q9x4m8wz/license
-```
+The account page lists the feeds it covers. Should more feeds be under it than it covers (a subscription lapsed, or fewer units), the ones put there first stay covered and the page names the others.
 
-A key notefeed does not know counts as a wrong password, wherever it is sent.
+## More or fewer feeds
+
+On the account page each subscription has its number of feeds: raise it and Creem charges the difference now; lower it and it takes effect without a refund. It can't go below the feeds under the license: take one off first, so nothing loses its cover by guesswork. Over the API: `PUT /api/v1/account/license/subscriptions/<id>` with `{"units": 4}`, MCP's `change_license_units`, or `changeLicenseUnits` / `change_license_units`.
 
 ## Cancelling, invoices, payment method
 
-Your purchases live at the payment provider, Creem. Sign in at [creem.io/my-orders/login](https://creem.io/my-orders/login) with the e-mail address you bought with; Creem mails you a link. There you cancel a license, change how you pay or download invoices, and find your keys again. The [license page](https://notefeed.me/license) links there. A license key does not open these pages, so a key you hand on shows nobody your purchases. The provider's receipt is your record of the purchase. Scripts and agents find the same links with `GET /api/v1/licenses`, the MCP tool `get_licenses` or `licenses()` in the client packages.
-
-## A lost feed password
-
-The feed's license key proves the feed is yours. On the feed's unlock screen, open **Forgot the password?** (or, in a browser that is still unlocked, **Forgot the current password?** under *Feed password* in the settings), enter the key and a new password, and the feed is unlocked with it; leave the new password empty to remove the password instead. Setting a new one needs an active license; removing it works with a lapsed one too. Scripts and agents do the same with `POST /api/v1/feeds/<feed>/password/recover` and JSON `{"key": "…", "password": "…"}`, the MCP tool `recover_feed_password`, or `recoverFeedPassword` / `recover_feed_password` in the client packages. A wrong key counts as a wrong password. Give the password to scripts and co-authors, but keep the key to yourself: it can reset the feed's password.
+**Cancel, payment and invoices** on the account page opens Creem's customer portal for your purchases: there you cancel, change how you pay or download invoices. Only your signed-in account opens it. Scripts and agents get its address with `GET /api/v1/account/license/portal`.
 
 ## When a license ends
 
-When the subscription is cancelled or paused the license runs to the end of the paid period; a refund or chargeback ends it at once. The feed then returns to the free tier, and nothing is deleted:
+When a subscription is cancelled or paused it runs to the end of the paid period; a refund or chargeback of all of it ends it at once, and a partial refund lowers its number. The feeds it no longer covers return to the free tier, and nothing is deleted:
 
 - The notes stay. The cap applies to new notes again: past 100, each new note drops the oldest one.
-- A feed password that is set keeps protecting the feed, but cannot be changed until the feed is licensed again; it can be removed.
+- Feed passwords that are set keep protecting the feed, but no new one can be added until it is covered again.
 - Pictures already posted are still served; new ones are refused.
 
-Deleting a feed, or its removal by the operator, takes the license off it, so the key can be entered on another feed.
+Deleting your account deletes its feeds and cancels its subscriptions at Creem.

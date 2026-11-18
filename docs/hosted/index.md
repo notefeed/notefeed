@@ -12,7 +12,7 @@ export NOTEFEED_URL=https://notefeed.me NOTEFEED_FEED=homelab-7f3k2q9x4m8wz
 
 - **There are no accounts.** Nothing to register, and no instance password. The [feed name](../get-started/concepts.md) is what lets someone read and post, so on an instance the whole internet can reach, pick a long name nobody can guess. A [feed password](../using/feed-passwords.md) protects posting and the feed page on top of that.
 - **Sign-in is off.** Notes carry no sender.
-- **Every feed starts on the free tier.** It keeps its newest 100 notes and has no pictures and no feed password; a [license](licenses.md) for the feed lifts that. The [rate limits](../self-hosting/limits.md) apply at their defaults.
+- **Every feed starts on the free tier.** It keeps its newest 100 notes and has no pictures and no feed password; a [license](licenses.md) on your account, covering as many of your feeds as you choose, lifts that. The [rate limits](../self-hosting/limits.md) apply at their defaults.
 - **Some feed names are taken by the operator**, as [reserved feeds](../self-hosting/access.md#reserved-feeds).
 - **It comes with no promise of availability.** It is run with care, with backups and monitoring, but by one person. For something you depend on, run your own.
 
@@ -48,7 +48,7 @@ The whole setup is public as a worked example: [notefeed/stacks](https://github.
 | Set-up | None | [Docker Compose](../get-started/own-server.md), a few minutes |
 | Who can reach it | Anyone who knows a feed's name or read link | Whoever you let: your LAN, or behind an [instance password](../self-hosting/access.md) |
 | Where the notes are | On the service's server in Germany | On your disk, as plain `.md` files or in your database |
-| Limits and settings | Fixed: the [free tier](licenses.md) per feed, a license to lift it | [Yours to set](../self-hosting/configuration.md); no free tier, no licenses |
+| Limits and settings | Fixed: the [free tier](licenses.md) per feed, a license on your account to lift it | [Yours to set](../self-hosting/configuration.md); no free tier, no licenses |
 | Sender on notes | No | With [sign-in](../self-hosting/sign-in/index.md), if you switch it on |
 
 Moving later is possible in both directions: a feed is its notes, and the [API](../integrations/api.md) reads and posts them.

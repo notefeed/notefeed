@@ -23,7 +23,7 @@ type PostReply = { status: 201; body: Posted; headers?: HeadersInit };
 const headerOf = (req: Request) => (name: string) => decodeHeaderValue(req.headers.get(name) ?? "").trim() || undefined; // an empty header is none
 
 // What a post carries: the body is the file, `Content-Type` says which type (exactly one the registry accepts: no guessing, no lenient
-// defaults), and everything else is a header: X-Note-Title, -Sender, -Tags, -Alt, -Name, -Date; X-Feed-Password, X-Read-Id and X-License-Key for the post
+// defaults), and everything else is a header: X-Note-Title, -Sender, -Tags, -Alt, -Name, -Date; X-Feed-Password and X-Read-Id for the post
 // that creates the feed. The type decides the size limit (100 KB of markdown, NOTEFEED_MAX_IMAGE_BYTES for an image) before the body is read.
 export async function readPost(req: Request): Promise<PostInput> {
   const parsed = parseMediaType(req.headers.get("content-type"));
@@ -37,7 +37,6 @@ export async function readPost(req: Request): Promise<PostInput> {
     mediaType: parsed.mediaType,
     ...readNoteHeaders(req.headers), // the name is cleaned where the note is made (cleanName)
     readId: header("x-read-id"),
-    licenseKey: header("x-license-key"),
   };
 }
 
@@ -90,7 +89,6 @@ export async function readMultipart(req: Request, kind: "post" | "edit"): Promis
     pictures,
     ...readNoteHeaders(req.headers, ["title", "sender", "tags", "date", "draft"]),
     readId: header("x-read-id"),
-    licenseKey: header("x-license-key"),
   };
 }
 

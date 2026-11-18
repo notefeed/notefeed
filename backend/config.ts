@@ -188,8 +188,6 @@ export const config = {
   reportUrl: () => env("NOTEFEED_REPORT_URL").trim() || (env("NOTEFEED_REPORT_ENDPOINT").trim() ? REPORT_PAGE : ""),
   // The payment provider of the SaaS (ADR 0029). Empty: no licensing, every feature open and no free-tier cap, as on a self-hosted instance.
   paymentProvider,
-  // The SQLite file of the licenses (ADR 0029), apart from the feeds' storage: a path, or `file:<path>`.
-  licenseDb: () => (env("NOTEFEED_LICENSE_DB").trim() || `${dataDir().replace(/\/+$/, "")}/licenses.db`).replace(/^file:/, ""),
   // The SQLite file of sign-in (Better Auth, backend/accounts/auth.ts), apart from the content store: a path, or `file:<path>`.
   accountsDb: () => (env("NOTEFEED_ACCOUNTS_DB").trim() || `${dataDir().replace(/\/+$/, "")}/accounts.sqlite`).replace(/^file:/, ""),
   // Notes a free feed keeps while a payment provider is set: the oldest is dropped past it.

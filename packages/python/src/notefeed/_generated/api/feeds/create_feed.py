@@ -104,10 +104,11 @@ def sync_detailed(
     """Create a feed without posting a note
 
      Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a
-    read id it gets that read link. Where licenses are sold a license key is required and goes on the
-    new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post
-    rate limit and the instance's feed cap, like a first post. After it, change the title and
-    description with updateFeed.
+    read id it gets that read link. Where licenses are sold it needs an account (its token, or signed in
+    on this instance's pages) whose license covers one more feed, and the new feed goes under it; free
+    feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and
+    the instance's feed cap, like a first post. After it, change the title and description with
+    updateFeed.
 
     Args:
         feed (str):
@@ -142,10 +143,11 @@ def sync(
     """Create a feed without posting a note
 
      Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a
-    read id it gets that read link. Where licenses are sold a license key is required and goes on the
-    new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post
-    rate limit and the instance's feed cap, like a first post. After it, change the title and
-    description with updateFeed.
+    read id it gets that read link. Where licenses are sold it needs an account (its token, or signed in
+    on this instance's pages) whose license covers one more feed, and the new feed goes under it; free
+    feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and
+    the instance's feed cap, like a first post. After it, change the title and description with
+    updateFeed.
 
     Args:
         feed (str):
@@ -175,10 +177,11 @@ async def asyncio_detailed(
     """Create a feed without posting a note
 
      Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a
-    read id it gets that read link. Where licenses are sold a license key is required and goes on the
-    new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post
-    rate limit and the instance's feed cap, like a first post. After it, change the title and
-    description with updateFeed.
+    read id it gets that read link. Where licenses are sold it needs an account (its token, or signed in
+    on this instance's pages) whose license covers one more feed, and the new feed goes under it; free
+    feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and
+    the instance's feed cap, like a first post. After it, change the title and description with
+    updateFeed.
 
     Args:
         feed (str):
@@ -211,10 +214,11 @@ async def asyncio(
     """Create a feed without posting a note
 
      Reserves the feed name now (ADR 0047): with a password it is protected from its first moment, with a
-    read id it gets that read link. Where licenses are sold a license key is required and goes on the
-    new feed; free feeds start with their first note. A feed that exists is 409. Counts against the post
-    rate limit and the instance's feed cap, like a first post. After it, change the title and
-    description with updateFeed.
+    read id it gets that read link. Where licenses are sold it needs an account (its token, or signed in
+    on this instance's pages) whose license covers one more feed, and the new feed goes under it; free
+    feeds start with their first note. A feed that exists is 409. Counts against the post rate limit and
+    the instance's feed cap, like a first post. After it, change the title and description with
+    updateFeed.
 
     Args:
         feed (str):

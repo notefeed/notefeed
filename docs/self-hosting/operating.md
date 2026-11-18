@@ -70,7 +70,7 @@ With `NOTEFEED_METRICS=1`, `GET /metrics` serves the Prometheus text format; wit
 | `notefeed_notes_deleted_total{kind,reason="deleted"\|"free_cap"\|"takedown"}` | Notes deleted by a writer, dropped past the free tier's cap, or taken down by the operator with their post. |
 | `notefeed_license_events_total{event="bought"\|"attached"\|"renewed"\|"lapsed"}` | License events from the payment provider's webhook and from entering a key. A license that ends because its period ran out, with no webhook, shows only in `notefeed_licenses`. |
 
-No feed name, read id, note text, sender, license key or address is ever a label or a value: the usage metrics are counts over all feeds. A rule of thumb: the 95th percentile of `feed_page` over 200 ms for feeds under 1000 notes means reading notes is worth optimising; look at a few days of real use first.
+No feed name, read id, note text, sender, account or address is ever a label or a value: the usage metrics are counts over all feeds. A rule of thumb: the 95th percentile of `feed_page` over 200 ms for feeds under 1000 notes means reading notes is worth optimising; look at a few days of real use first.
 
 ### Scraping
 

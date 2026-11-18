@@ -14,7 +14,6 @@ import {
   ownedFeeds,
   ownNewFeed,
   protectedFeed,
-  recoverPassword,
   removePassword,
   requireOwner,
   requireOwnerIfOwned,
@@ -114,18 +113,6 @@ describe("the owner's feed passwords", () => {
     await expect(revokeFeedPassword("f", "bob", "feed-password")).rejects.toBeInstanceOf(OwnerOnlyError);
     await expect(changePassword("f", "first-password", "another-password", IP)).rejects.toBeInstanceOf(OwnerOnlyError);
     await expect(removePassword("f", "first-password", IP)).rejects.toBeInstanceOf(OwnerOnlyError);
-  });
-
-  test("an owned feed's password can't be recovered by a license key", async () => {
-    process.env.NOTEFEED_PAYMENT_PROVIDER = "fake";
-    process.env.NOTEFEED_FAKE_WEBHOOK_SECRET = "s";
-    try {
-      await owned();
-      await expect(recoverPassword("f", "some-key", "", IP)).rejects.toBeInstanceOf(OwnerOnlyError);
-    } finally {
-      delete process.env.NOTEFEED_PAYMENT_PROVIDER;
-      delete process.env.NOTEFEED_FAKE_WEBHOOK_SECRET;
-    }
   });
 
   test("a password's name is one line of 1 to 50 characters, trimmed", async () => {

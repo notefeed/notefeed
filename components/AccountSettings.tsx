@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/CopyButton";
 import { useCopy, useLocale } from "@/components/CopyProvider";
@@ -195,6 +196,118 @@ export function AccountTokens({ tokens }: { tokens: Token[] }) {
       </div>
       <p role="alert" className="mt-2 text-sm text-error">
         {failed ? t.passkeyError : null}
+      </p>
+    </div>
+  );
+}
+
+type LicenseView = {
+  subscriptions: { id: string; period: "month" | "year"; units: number; valid_until: number | null; active: boolean }[];
+  units: number;
+  covered: string[];
+  licensed: string[];
+};
+
+// The account's license (#391, ADR 0061): its subscriptions (each with its number of feeds, to raise or lower), the feeds under it,
+// the provider's portal and the way to buy more.
+export function AccountLicense({ license, bought, licensePage }: { license: LicenseView; bought: boolean; licensePage: boolean }) {
+  const all = useCopy();
+  const t = all.account;
+  const lang = useLocale();
+  const [units, setUnits] = useState<Record<string, number>>(Object.fromEntries(license.subscriptions.map((s) => [s.id, s.units])));
+  const [error, setError] = useState<string | null>(null);
+  const over = license.covered.filter((f) => !license.licensed.includes(f));
+  const refusal = async (res: Response | null) => {
+    const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+    setError(body?.error ? `${body.error[0].toUpperCase()}${body.error.slice(1)}.` : t.passkeyError);
+  };
+  const change = async (id: string) => {
+    setError(null);
+    const res = await fetch(`/api/v1/account/license/subscriptions/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ units: units[id] }),
+    }).catch(() => null);
+    if (res?.ok) window.location.reload();
+    else await refusal(res);
+  };
+  const portal = async () => {
+    setError(null);
+    const res = await fetch("/api/v1/account/license/portal", { method: "GET" }).catch(() => null);
+    if (res?.ok) window.location.assign((await res.json()).url);
+    else await refusal(res);
+  };
+  return (
+    <div>
+      {bought && <p className="mb-3 font-bold">{t.bought}</p>}
+      <p className="mb-2">{t.licenseIntro(license.units)}</p>
+      {license.licensed.length > 0 ? (
+        <p className="mb-2 text-sm text-muted">
+          {t.covered}{" "}
+          {license.licensed.map((f, i) => (
+            <span key={f}>
+              {i > 0 && ", "}
+              <a href={`/${f}/settings`} className="underline">
+                {f}
+              </a>
+            </span>
+          ))}
+        </p>
+      ) : (
+        license.units > 0 && <p className="mb-2 text-sm text-muted">{t.noneCovered}</p>
+      )}
+      {over.length > 0 && <p className="mb-2 text-sm text-error">{t.over(over.join(", "))}</p>}
+      <ul className="mb-3">
+        {license.subscriptions.map((s) => (
+          <li key={s.id} className="flex flex-wrap items-center gap-2 py-1">
+            <span>
+              {t.subscription(s.period, s.units)}
+              <span className="text-sm text-muted">
+                {" · "}
+                {s.active ? (s.valid_until ? t.endsOn(new Date(s.valid_until).toLocaleDateString(lang)) : "") : t.lapsed}
+              </span>
+            </span>
+            {s.active && (
+              <>
+                <label htmlFor={`units-${s.id}`} className="sr-only">
+                  {t.unitsLabel}
+                </label>
+                <input
+                  id={`units-${s.id}`}
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={units[s.id] ?? s.units}
+                  onChange={(e) => setUnits({ ...units, [s.id]: Math.max(1, Math.min(100, Math.trunc(Number(e.target.value)) || 1)) })}
+                  className="w-20 rounded-xl border border-rule bg-surface px-2 py-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => change(s.id)}
+                  disabled={units[s.id] === s.units}
+                  className="rounded-full bg-surface-2 px-3 py-1 text-sm font-bold"
+                >
+                  {t.changeUnits}
+                </button>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        {license.subscriptions.length > 0 && (
+          <button type="button" onClick={portal} className="rounded-full bg-surface-2 px-4 py-1.5 font-bold">
+            {t.portal}
+          </button>
+        )}
+        {licensePage && (
+          <Link href="/license" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+            {t.buyMore}
+          </Link>
+        )}
+      </div>
+      <p role="alert" className="mt-2 text-sm text-error">
+        {error}
       </p>
     </div>
   );

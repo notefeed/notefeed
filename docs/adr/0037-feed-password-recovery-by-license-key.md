@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-21
 decision-makers: Marcel Bruckner
 ---
@@ -7,6 +7,8 @@ decision-makers: Marcel Bruckner
 # Recovering a feed password with the feed's license key
 
 ## Context and Problem Statement
+
+Superseded by ADR 0061: there are no license keys; an owned feed is reached through its owner's account.
 
 A feed password is stored only as a hash (ADR 0008), so a lost one can be removed only by the operator. On notefeed.me that does not work as a promise: there are no accounts, so the operator cannot tell the owner of a feed from anyone else who writes "I lost the password of feed X", and removing it on such a request would open a stranger's private feed. With PostgreSQL there is also no file to delete. Since ADR 0036 the license key comes from the payment provider and is in the buyer's receipt and portal, and a feed can only have a password while it has a license (ADR 0029). The key attached to a protected feed is therefore the one proof of owning it that the buyer can always find again.
 

@@ -1,18 +1,19 @@
-// What notefeed needs from a payment provider (ADR 0029): the plans it sells (ADR 0035), a checkout to send the buyer to, the license key it issued for
-// that checkout, the provider's webhook turned into events about a license, where buyers manage their purchases, and a way to end a subscription. Everything provider-specific stays behind this; backend/licenseflow.ts is the only caller.
+// What notefeed needs from a payment provider (ADR 0029, ADR 0061): the plans it sells (ADR 0035), a checkout for some units of one, changing
+// the units, the subscription as it stands, the customer portal, the provider's webhook turned into events, and a way to end a subscription. Everything provider-specific stays behind this; backend/licenseflow.ts is the only caller.
 
-/** What a webhook says about a license. `providerRef` is the provider's subscription id; `validUntil` is when the paid period ends (ms). */
+/** What a webhook says about a subscription (ADR 0061). `providerRef` is the provider's subscription id; `validUntil` is when the
+ *  paid period ends (ms). */
 export type LicenseEvent =
-  /** Bought: the license with this key, which the provider issued, exists from now on. */
-  | { type: "started"; providerRef: string; key: string; validUntil: number | null }
-  /** Paid again: the period is extended. */
-  | { type: "renewed"; providerRef: string; validUntil: number | null }
+  /** Bought: `account` (the notefeed account the checkout was for) has this subscription of `units` from now on. */
+  | { type: "started"; providerRef: string; account: string; customerRef: string | null; period: LicensePeriod; units: number; validUntil: number | null }
+  /** Paid again, or changed: the period is extended; `units` when the provider says how many. */
+  | { type: "renewed"; providerRef: string; validUntil: number | null; units?: number }
   /** The buyer cancelled: it stays active until `validUntil`. */
   | { type: "cancelled"; providerRef: string; validUntil: number | null }
   /** The period ended without payment. `periodEnd` is when that period ended, if the provider says. */
   | { type: "ended"; providerRef: string; periodEnd: number | null }
-  /** Refunded or disputed: lapses at once. */
-  | { type: "refunded"; providerRef: string };
+  /** Refunded or disputed. `full`: the whole subscription, which lapses at once; else part of it, so its units are read again. */
+  | { type: "refunded"; providerRef: string; full: boolean };
 
 import type { LicensePeriod, Plan } from "@/shared/plans";
 
@@ -25,23 +26,26 @@ export class WebhookRejectedError extends Error {
   }
 }
 
+/** A subscription as the provider holds it now. */
+export type ProviderSubscription = { units: number; active: boolean; validUntil: number | null; customerRef: string | null; period: LicensePeriod };
+
 export interface PaymentProvider {
   /** The plans sold, monthly then yearly, as the provider holds them: name, description, price. Never throws: a provider that
    *  cannot be read gives what it gave last, or none. */
   plans(): Promise<Plan[]>;
-  /** The URL to send the buyer to; after paying, the buyer comes back to `successUrl` with the checkout's id in `checkout_id`.
-   *  `period` picks the product; throws when the provider has none for it. */
-  createCheckout(o: { successUrl: string; period: LicensePeriod }): Promise<{ url: string }>;
-  /** The license key issued for a completed checkout, the same one the `started` event carries; null while it is not completed, or
-   *  for a checkout that is none. */
-  checkoutKey(checkoutId: string): Promise<string | null>;
+  /** The URL to send the buyer to, for `units` of the plan of `period`, bought for `account` (the provider hands it back on the
+   *  `started` event). Throws when the provider has no product for the period. */
+  createCheckout(o: { successUrl: string; period: LicensePeriod; units: number; account: string }): Promise<{ url: string }>;
+  /** Changes how many units a subscription has: `raise` charges the difference now, `lower` takes effect without a refund. */
+  changeUnits(providerRef: string, units: number, how: "raise" | "lower"): Promise<void>;
+  /** The subscription as it stands, or null for a reference that is none. */
+  subscription(providerRef: string): Promise<ProviderSubscription | null>;
+  /** The provider's customer portal for that customer: cancelling, the payment method, invoices. Only for the account that bought. */
+  portalUrl(customerRef: string): Promise<string>;
   /** Verifies the signature over the raw body and returns the events it holds (none for an event kind notefeed does not use).
    *  Throws WebhookRejectedError for a bad signature or a body that is not the provider's. */
   parseWebhook(rawBody: string, headers: Headers): Promise<LicenseEvent[]>;
-  /** Where buyers manage their purchases themselves (cancelling, the payment method, the invoices), signing in at the provider
-   *  with the e-mail address they bought with. Never reached through a license key: the provider's pages show the buyer and
-   *  every license they bought, keys included (#316). */
-  readonly accountUrl: string;
-  /** Ends the subscription at once, so that a refunded one is not charged again. Nothing to do for a reference that is no subscription. */
+  /** Ends the subscription at once: a refunded one is not charged again, nor one whose account is deleted. Nothing to do for a
+   *  reference that is no subscription. */
   cancel(providerRef: string): Promise<void>;
 }

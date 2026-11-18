@@ -17,72 +17,87 @@ const sent = async (fetch: { mock: { calls: unknown[][] } }, i = 0) => {
   return { method: req.method, url: req.url, apiKey: req.headers.get("x-api-key"), body: req.method === "GET" ? undefined : await req.clone().json() };
 };
 const AT = "2026-10-21T13:22:11.824Z";
-// A license key as GET /v1/checkouts answers it, with what the SDK requires.
-const licenseKey = (key: string) => ({
-  object: "license",
-  id: "lk_1",
-  product_id: "prod_1",
-  status: "inactive",
-  key,
-  activation: 0,
-  activation_limit: 1,
-  expires_at: null,
-  created_at: AT,
-  instance: null,
-  mode: "test",
-});
 const checkoutAnswer = (o: Record<string, unknown>) => ({ object: "checkout", mode: "test", product: "prod_1", ...o });
 
 describe("Creem", () => {
-  test("a checkout is created in the sandbox for a test key, coming back to the success page", async () => {
+  test("a checkout is created in the sandbox for a test key, for the units and the account, coming back to the success page", async () => {
     const fetch = vi.fn(async () => Response.json(checkoutAnswer({ id: "ch_1", status: "pending", checkout_url: "https://creem.io/pay/ch_1" })));
-    const { url } = await creem(fetch as never).createCheckout({ successUrl: "https://n.test/license", period: "month" });
+    const { url } = await creem(fetch as never).createCheckout({ successUrl: "https://n.test/account", period: "month", units: 3, account: "acct_1" });
     expect(url).toBe("https://creem.io/pay/ch_1");
     expect(await sent(fetch)).toEqual({
       method: "POST",
       url: "https://test-api.creem.io/v1/checkouts",
       apiKey: "creem_test_abc",
-      body: { product_id: "prod_1", success_url: "https://n.test/license" },
+      body: { product_id: "prod_1", success_url: "https://n.test/account", units: 3, request_id: "acct_1" },
     });
-  });
-
-  test("the key of a checkout is Creem's, once the checkout is completed", async () => {
-    const checkouts: Record<string, unknown> = {
-      ch_done: checkoutAnswer({ id: "ch_done", status: "completed", license_keys: [licenseKey("ABCDE-FGHIJ-KLMNO-PQRST-UVWXY")] }),
-      ch_open: checkoutAnswer({ id: "ch_open", status: "pending" }),
-      ch_nokey: checkoutAnswer({ id: "ch_nokey", status: "completed" }),
-    };
-    const fetch = vi.fn(async (req: Request) => {
-      const c = checkouts[new URL(req.url).searchParams.get("checkout_id") ?? ""];
-      return c ? Response.json(c) : new Response("{}", { status: 404 });
-    });
-    const c = creem(fetch as never);
-    expect(await c.checkoutKey("ch_done")).toBe("ABCDE-FGHIJ-KLMNO-PQRST-UVWXY");
-    expect((await sent(fetch)).url).toBe("https://test-api.creem.io/v1/checkouts?checkout_id=ch_done");
-    expect(await c.checkoutKey("ch_open")).toBeNull();
-    expect(await c.checkoutKey("ch_nokey")).toBeNull();
-    expect(await c.checkoutKey("ch_gone")).toBeNull();
-    await expect(creem((async () => new Response("no", { status: 500 })) as never).checkoutKey("ch_done")).rejects.toThrow(/500/);
   });
 
   test("a failed checkout throws", async () => {
     await expect(
-      creem((async () => new Response("no", { status: 401 })) as never).createCheckout({ successUrl: "https://n.test/license", period: "month" }),
+      creem((async () => new Response("no", { status: 401 })) as never).createCheckout({
+        successUrl: "https://n.test/account",
+        period: "month",
+        units: 1,
+        account: "a",
+      }),
     ).rejects.toThrow(/401/);
   });
 
   test("a yearly license is its own product, and none without one", async () => {
     const fetch = vi.fn(async () => Response.json(checkoutAnswer({ id: "ch_2", status: "pending", checkout_url: "https://creem.io/pay/ch_2" })));
-    await creem(fetch as never, "prod_year").createCheckout({ successUrl: "https://n.test/license", period: "year" });
+    await creem(fetch as never, "prod_year").createCheckout({ successUrl: "https://n.test/account", period: "year", units: 1, account: "a" });
     expect((await sent(fetch)).body).toMatchObject({ product_id: "prod_year" });
-    await expect(creem(fetch as never).createCheckout({ successUrl: "https://n.test/license", period: "year" })).rejects.toThrow(/no product/);
+    await expect(creem(fetch as never).createCheckout({ successUrl: "https://n.test/account", period: "year", units: 1, account: "a" })).rejects.toThrow(
+      /no product/,
+    );
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  test("buyers manage their purchases at Creem's own login, never through a key (#316)", () => {
-    const provider = creem(vi.fn() as never);
-    expect(provider.accountUrl).toBe("https://creem.io/my-orders/login");
-    expect("portalUrl" in provider).toBe(false);
+  const subscriptionAnswer = (o: Record<string, unknown> = {}) => ({
+    id: "sub_1",
+    object: "subscription",
+    mode: "test",
+    product: "prod_1",
+    customer: "cust_1",
+    items: [{ id: "sitem_1", object: "subscription_item", mode: "test", product_id: "prod_1", price_id: "pprice_1", units: 2 }],
+    collection_method: "charge_automatically",
+    status: "active",
+    current_period_start_date: AT,
+    current_period_end_date: AT,
+    canceled_at: null,
+    created_at: AT,
+    updated_at: AT,
+    ...o,
+  });
+
+  test("units change on the subscription's item, named with its product and price: raising charges the difference now, lowering doesn't refund", async () => {
+    const fetch = vi.fn(async () => Response.json(subscriptionAnswer()));
+    await creem(fetch as never).changeUnits("sub_1", 3, "raise");
+    expect(await sent(fetch, 1)).toMatchObject({
+      method: "POST",
+      url: "https://test-api.creem.io/v1/subscriptions/sub_1",
+      body: { items: [{ id: "sitem_1", product_id: "prod_1", price_id: "pprice_1", units: 3 }], update_behavior: "proration-charge-immediately" },
+    });
+    await creem(fetch as never).changeUnits("sub_1", 1, "lower");
+    expect((await sent(fetch, 3)).body).toMatchObject({ update_behavior: "proration-none" });
+  });
+
+  test("a subscription is read with its units, state, end, customer and period; one Creem doesn't know is null", async () => {
+    const fetch = vi.fn(async (req: Request) => (req.url.endsWith("sub_1") ? Response.json(subscriptionAnswer()) : new Response("{}", { status: 404 })));
+    expect(await creem(fetch as never).subscription("sub_1")).toEqual({
+      units: 2,
+      active: true,
+      validUntil: Date.parse(AT),
+      customerRef: "cust_1",
+      period: "month",
+    });
+    expect(await creem(fetch as never).subscription("sub_gone")).toBeNull();
+  });
+
+  test("the customer portal is Creem's link for that customer", async () => {
+    const fetch = vi.fn(async () => Response.json({ customer_portal_link: "https://creem.io/portal/abc" }));
+    expect(await creem(fetch as never).portalUrl("cust_1")).toBe("https://creem.io/portal/abc");
+    expect(await sent(fetch)).toMatchObject({ method: "POST", url: "https://test-api.creem.io/v1/customers/billing", body: { customer_id: "cust_1" } });
   });
 
   test("cancelling ends a subscription at once, and leaves an order alone", async () => {
@@ -126,8 +141,16 @@ describe("Creem", () => {
     const parse = async (raw: string) => c.parseWebhook(raw, await sign(raw));
     const end = "2026-11-13T00:00:00.000Z";
     expect(
-      await parse(event("checkout.completed", { license_keys: [{ key: "K1" }, { key: "K2" }], subscription: { id: "sub_1", current_period_end_date: end } })),
-    ).toEqual([{ type: "started", providerRef: "sub_1", key: "K1", validUntil: Date.parse(end) }]);
+      await parse(
+        event("checkout.completed", {
+          request_id: "acct_1",
+          units: 3,
+          product: "prod_1",
+          customer: "cust_1",
+          subscription: { id: "sub_1", current_period_end_date: end },
+        }),
+      ),
+    ).toEqual([{ type: "started", providerRef: "sub_1", account: "acct_1", customerRef: "cust_1", period: "month", units: 3, validUntil: Date.parse(end) }]);
     expect(await parse(event("subscription.paid", { id: "sub_1", current_period_end_date: end }))).toEqual([
       { type: "renewed", providerRef: "sub_1", validUntil: Date.parse(end) },
     ]);
@@ -138,12 +161,17 @@ describe("Creem", () => {
       { type: "ended", providerRef: "sub_1", periodEnd: Date.parse(end) },
     ]);
     expect(await parse(event("subscription.expired", { id: "sub_1" }))).toEqual([{ type: "ended", providerRef: "sub_1", periodEnd: null }]);
-    expect(await parse(event("refund.created", { subscription: { id: "sub_1" } }))).toEqual([{ type: "refunded", providerRef: "sub_1" }]);
+    expect(
+      await parse(event("refund.created", { subscription: { id: "sub_1" }, refund_amount: 50, transaction: { amount: 150, status: "partialRefund" } })),
+    ).toEqual([{ type: "refunded", providerRef: "sub_1", full: false }]);
+    expect(
+      await parse(event("refund.created", { subscription: { id: "sub_1" }, refund_amount: 150, transaction: { amount: 150, status: "refunded" } })),
+    ).toEqual([{ type: "refunded", providerRef: "sub_1", full: true }]);
     expect(await parse(event("subscription.paused", { id: "sub_1", current_period_end_date: end }))).toEqual([
       { type: "cancelled", providerRef: "sub_1", validUntil: Date.parse(end) },
     ]);
     expect(await parse(event("subscription.unpaid", { id: "sub_1" }))).toEqual([{ type: "ended", providerRef: "sub_1", periodEnd: null }]);
-    expect(await parse(event("dispute.created", { order: "ord_1" }))).toEqual([{ type: "refunded", providerRef: "ord_1" }]);
+    expect(await parse(event("dispute.created", { order: "ord_1" }))).toEqual([{ type: "refunded", providerRef: "ord_1", full: true }]);
     expect(await parse(event("subscription.trialing", { id: "sub_1" }))).toEqual([]);
   });
 
@@ -217,23 +245,11 @@ describe("Creem", () => {
       feature: [{ type: "licenseKey" }],
       status: "completed",
       mode: "test",
+      request_id: "acct_1", // what notefeed sends since #391; the recorded checkout was made with a key instead
     };
     expect(await parse(event("checkout.completed", checkout))).toEqual([
-      { type: "started", providerRef: "sub_5ByrAINlOMEdV41p5rgCVD", key: "QG8JS-KFP31-7SAHT-QS770-7CD4O", validUntil: end },
+      { type: "started", providerRef: "sub_5ByrAINlOMEdV41p5rgCVD", account: "acct_1", customerRef: "cust_1", period: "month", units: 1, validUntil: end },
     ]);
-    // GET /v1/checkouts answers the same object; the fields cut above that the SDK requires are put back.
-    const stamps = { created_at: "2026-10-21T13:22:09.460Z", updated_at: "2026-10-21T13:22:11.824Z" };
-    const answered = {
-      ...checkout,
-      product: { ...FIXTURE, ...checkout.product },
-      order: { ...checkout.order, mode: "test", ...stamps },
-      subscription: { ...checkout.subscription, ...stamps },
-      customer: { ...checkout.customer, mode: "test", email: "buyer@example.com", country: "DE", ...stamps },
-    };
-    const fetch = vi.fn(async () => Response.json(answered));
-    // Its `feature` is a list, which the SDK refuses: the key is read from the answer as it came.
-    expect(await creem(fetch as never).checkoutKey("ch_3Hf2CMdqu6ju7QKwWldus4")).toBe("QG8JS-KFP31-7SAHT-QS770-7CD4O");
-    expect(await creem((async () => Response.json({ ...answered, status: "pending" })) as never).checkoutKey("ch_3Hf2CMdqu6ju7QKwWldus4")).toBeNull();
   });
 
   // The deliveries after a purchase in the sandbox (2026-10-14), cut the same way: a cancel in the customer portal (`canceled` at once,
@@ -279,7 +295,8 @@ describe("Creem", () => {
       checkout: { id: "ch_1", object: "checkout", request_id: "b75ed477" },
       mode: "test",
     };
-    expect(await parse(event("refund.created", refund))).toEqual([{ type: "refunded", providerRef: "sub_6I28jztOO823nH6JIoMh1S" }]);
+    // 150 paid, the refund's amount is all of it: the whole subscription.
+    expect(await parse(event("refund.created", refund))).toEqual([{ type: "refunded", providerRef: "sub_6I28jztOO823nH6JIoMh1S", full: true }]);
   });
 
   // A daily product in the sandbox (2026-10-19 to 21), cut the same way. A renewal is `subscription.update` then `subscription.paid`
@@ -304,7 +321,7 @@ describe("Creem", () => {
     const renewed = subscription("sub_5YSfn3UClqcsPBDHxZOBA3", "active", "2026-10-20T05:29:23.115Z", "2026-10-21T05:29:23.115Z");
     expect(await parse(event("subscription.update", renewed))).toEqual([]);
     expect(await parse(event("subscription.paid", { ...renewed, last_transaction_id: "tran_1", next_transaction_date: "2026-10-21T05:29:23.115Z" }))).toEqual([
-      { type: "renewed", providerRef: "sub_5YSfn3UClqcsPBDHxZOBA3", validUntil: Date.parse("2026-10-21T05:29:23.115Z") },
+      { type: "renewed", providerRef: "sub_5YSfn3UClqcsPBDHxZOBA3", validUntil: Date.parse("2026-10-21T05:29:23.115Z"), units: 1 },
     ]);
     const end = "2026-10-21T07:38:27.717Z";
     const carriedOut = { ...subscription("sub_MlPlfUVr4OJzJ9ACnubau", "canceled", "2026-10-20T07:38:27.717Z", end), canceled_at: "2026-10-20T20:00:01.967Z" };
@@ -342,9 +359,9 @@ describe("Creem", () => {
     ]);
   });
 
-  test("a completed checkout without a license key is rejected: the product does not issue keys", async () => {
-    for (const keys of [undefined, [], [{ id: "lk_1" }]]) {
-      const raw = event("checkout.completed", { subscription: { id: "sub_1" }, metadata: { key_hash: "h" }, license_keys: keys });
+  test("a completed checkout without the account it was for, or without a subscription, is rejected", async () => {
+    for (const o of [{ subscription: { id: "sub_1" } }, { request_id: "acct_1" }]) {
+      const raw = event("checkout.completed", o);
       await expect(creem().parseWebhook(raw, await sign(raw))).rejects.toBeInstanceOf(WebhookRejectedError);
     }
   });

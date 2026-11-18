@@ -3,7 +3,8 @@
 // own. A feed from before owners stored one bare scrypt hash: that reads as one password named "Feed password", and a feed that is
 // still only that is written back the same way, so its scripts and unlock cookies keep working. Must not import storage.
 export type FeedPassword = { id: string; name: string; hash: string; created: number };
-export type FeedRecord = { owner?: string; entries: FeedPassword[] };
+// `covered`: when the owner put the feed under its license (ms, #391); the license covers its first feeds by that time (licensing.ts).
+export type FeedRecord = { owner?: string; entries: FeedPassword[]; covered?: number };
 
 export const LEGACY_ID = "feed-password";
 export const LEGACY_NAME = "Feed password";
@@ -13,7 +14,7 @@ export function parseRecord(raw: string | null): FeedRecord | null {
   if (raw.startsWith("scrypt$")) return { entries: [{ id: LEGACY_ID, name: LEGACY_NAME, hash: raw, created: 0 }] };
   const v = JSON.parse(raw) as Partial<FeedRecord>;
   if (!Array.isArray(v.entries) || (v.owner !== undefined && typeof v.owner !== "string")) throw new Error("not a feed record");
-  return { ...(v.owner ? { owner: v.owner } : {}), entries: v.entries };
+  return { ...(v.owner ? { owner: v.owner } : {}), entries: v.entries, ...(typeof v.covered === "number" ? { covered: v.covered } : {}) };
 }
 
 // null: nothing to store (no owner, no password), the storage removes the value.
@@ -21,7 +22,7 @@ export function serializeRecord(rec: FeedRecord): string | null {
   if (!rec.owner && rec.entries.length === 0) return null;
   const [only, ...more] = rec.entries;
   if (!rec.owner && only && !more.length && only.id === LEGACY_ID && only.name === LEGACY_NAME) return only.hash;
-  return JSON.stringify({ ...(rec.owner ? { owner: rec.owner } : {}), entries: rec.entries });
+  return JSON.stringify({ ...(rec.owner ? { owner: rec.owner } : {}), entries: rec.entries, ...(rec.owner && rec.covered ? { covered: rec.covered } : {}) });
 }
 
 export const isProtected = (rec: FeedRecord | null): boolean => (rec?.entries.length ?? 0) > 0;

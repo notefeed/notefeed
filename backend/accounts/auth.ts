@@ -97,6 +97,7 @@ export async function migrateAccounts(): Promise<void> {
   if (!auth) return;
   const { runMigrations } = await getMigrations(auth.options);
   await runMigrations();
+  await (await import("./subscriptions")).migrateSubscriptions(); // the license's subscriptions, notefeed's own table (#391)
 }
 
 // What a browser may reach of Better Auth: a provider's return (/callback/<provider>), its error and health pages, and passkeys. Everything else

@@ -72,7 +72,7 @@ export function Compose({
   const { run, error, code, setError, pending, router } = useApiForm(action, initialError, withPictures(errorMessage, images.pending.length > 0), errorCode);
   const [text, setText] = useState(initialText);
   // What the last post sent of the feed's protection, for the banner of a refusal.
-  const [sent, setSent] = useState({ password: false, key: false });
+  const [sent, setSent] = useState({ password: false });
   const licenseRefused = code === "license_required";
   const [tags, setTags] = useState("");
   const [title, setTitle] = useState(initialTitle);
@@ -88,13 +88,11 @@ export function Compose({
   const submit = (e: FormEvent<HTMLFormElement>) => {
     const fields = new FormData(e.currentTarget); // with the feed's protection, outside the box
     const password = isNew ? String(fields.get("password") ?? "") : "";
-    const licenseKey = isNew ? String(fields.get("license_key") ?? "").trim() : "";
-    setSent({ password: password !== "", key: licenseKey !== "" });
+    setSent({ password: password !== "" });
     const headers = {
       ...(title.trim() && { "X-Note-Title": encodeHeaderValue(title.trim()) }),
       ...(senderName.trim() && { "X-Note-Sender": encodeHeaderValue(senderName.trim()) }),
       ...(password && { "X-Feed-Password": password }),
-      ...(password && licenseKey && { "X-License-Key": licenseKey }),
       ...(tagList.length && { "X-Note-Tags": tagList.join(",") }),
       ...(date && { "X-Note-Date": new Date(date).toISOString() }),
       ...(draft && { "X-Note-Draft": "true" as const }),
@@ -404,7 +402,7 @@ export function Compose({
           </button>
         </MarkdownInput>
         {sender && <p className="mt-2 text-sm text-muted">{SENDER_NOTICE}</p>}
-        {licenseRefused && <LicenseNeeded isNew={!!isNew} password={sent.password} keyGiven={sent.key} settingsHref={settingsHref} licensePage={licensePage} />}
+        {licenseRefused && <LicenseNeeded isNew={!!isNew} password={sent.password} settingsHref={settingsHref} licensePage={licensePage} />}
         <p id="compose-error" role="alert" className="text-sm text-error empty:hidden">
           {licenseRefused ? "" : error}
         </p>
@@ -415,26 +413,23 @@ export function Compose({
 
 // The post was refused with 402 (`license_required`): a banner instead of the one red line, with what needs the license, what to
 // do and where (issue #193). `password`: the post sent a password, so that is what was refused (else it was the pictures);
-// `keyGiven`: a key was sent with it, so the key's license is not active. `licensePage`: /license exists (ADR 0035), so the banner
+// `licensePage`: /license exists (ADR 0035), so the banner
 // says to buy one there; without it, only where a key goes.
 export function LicenseNeeded({
   isNew,
   password,
-  keyGiven,
   settingsHref,
   licensePage,
 }: {
   isNew: boolean;
   password: boolean;
-  keyGiven: boolean;
   settingsHref?: string;
   licensePage: boolean;
 }) {
   const t = useCopy().licenseNeeded;
   const what = password ? t.password : t.pictures;
-  const enter = licensePage ? t.buyAndEnter : t.enterKey;
-  const next =
-    isNew && password ? (keyGiven ? `${t.lapsed}${licensePage ? t.lapsedBuy : ""}` : `${enter}${t.underProtect}`) : `${t.freeTier} ${enter}${t.underLicense}`;
+  // A license is an account's (ADR 0061): a new feed goes under the signed-in account's, an existing one is put there by its owner.
+  const next = isNew ? t.newFeed : `${t.freeTier} ${t.ownerPutsIt}`;
   return (
     <section role="alert" aria-labelledby="license-needed" className="mt-3 rounded-xl border border-error/40 bg-error/5 p-4 text-sm">
       <p id="license-needed" className="font-bold text-ink">

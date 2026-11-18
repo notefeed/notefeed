@@ -1,10 +1,11 @@
 // Accounts nobody uses (#389): where anyone may create one (`open`), an account older than 30 days that owns no feed is deleted, so
 // the file doesn't fill with accounts made and forgotten. Accounts the operator made (`closed`) or an identity provider did
-// (`provider`) stay: someone meant them. Licenses on the account (step 3) will keep one too.
+// (`provider`) stay: someone meant them, and so does one with a license, also a lapsed one.
 import { logger } from "../log";
 import { processState } from "../state";
 import { accountsAuth } from "./auth";
 import { accountsMode } from "./mode";
+import { subscriptionsOf } from "./subscriptions";
 
 const DAY = 86_400_000;
 export const EMPTY_ACCOUNT_DAYS = 30;
@@ -31,7 +32,8 @@ export async function cleanupEmptyAccounts(now = Date.now()): Promise<number> {
       offset: kept,
     });
     for (const u of page) {
-      if ((await ownedFeeds(u.id)).length) kept++;
+      // A license, also a lapsed one, keeps it: its holder may come back for it.
+      if ((await ownedFeeds(u.id)).length || (await subscriptionsOf(u.id)).length) kept++;
       else {
         await deleteAccount(u.id);
         deleted++;
@@ -39,7 +41,7 @@ export async function cleanupEmptyAccounts(now = Date.now()): Promise<number> {
     }
     if (page.length < PAGE) break;
   }
-  if (deleted) log.info({ deleted }, "accounts without a feed deleted after 30 days"); // how many, never which
+  if (deleted) log.info({ deleted }, "accounts without a feed or a license deleted after 30 days"); // how many, never which
   return deleted;
 }
 
