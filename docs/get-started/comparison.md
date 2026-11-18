@@ -24,7 +24,7 @@ The other tools are described as of October 2026 and from their own documentatio
 
 ## ntfy
 
-ntfy is what notefeed copied its model from: no accounts, a topic is a name, posting is one `curl` line, and the name is the secret. If you know ntfy, [Concepts](concepts.md) will read as familiar.
+ntfy is what notefeed copied its model from: no account needed (an optional one keeps your feeds and your license), a topic is a name, posting is one `curl` line, and the name is the secret. If you know ntfy, [Concepts](concepts.md) will read as familiar.
 
 The difference is what happens to a message afterwards:
 

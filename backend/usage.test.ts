@@ -105,6 +105,7 @@ test("the usage gauges are absent before the first count, and the first scrape w
   expect(await sample("notefeed_usage_counted_timestamp_seconds")).toBeGreaterThan(0);
   // Licensing is off: there is no cap and there are no licenses.
   expect(await sample("notefeed_licenses", { state: "active" })).toBeUndefined();
+  expect(await sample("notefeed_license_units")).toBeUndefined();
   expect(await sample("notefeed_feeds_free_cap", { notes: "at" })).toBeUndefined();
 });
 
@@ -168,8 +169,9 @@ test.skipIf(!supported)("with licensing on: subscriptions by state, and the feed
   await putSubscription({ providerRef: "sub_old", account: userId, customerRef: null, period: "month", units: 2, validUntil: Date.now() - 1000 });
   await refreshUsage();
   expect(await sample("notefeed_licenses", { state: "active" })).toBe(1);
-  expect(await sample("notefeed_licenses", { state: "unattached" })).toBe(0);
+  expect(await sample("notefeed_licenses", { state: "unattached" })).toBeUndefined();
   expect(await sample("notefeed_licenses", { state: "lapsed" })).toBe(1);
+  expect(await sample("notefeed_license_units")).toBe(1);
   expect(await sample("notefeed_feeds_free_cap", { notes: "near" })).toBe(1);
   expect(await sample("notefeed_feeds_free_cap", { notes: "at" })).toBe(1);
   expect(await sample("notefeed_notes_deleted_total", { kind: "markdown", reason: "free_cap" })).toBe(1);

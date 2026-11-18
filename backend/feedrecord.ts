@@ -26,3 +26,14 @@ export function serializeRecord(rec: FeedRecord): string | null {
 }
 
 export const isProtected = (rec: FeedRecord | null): boolean => (rec?.entries.length ?? 0) > 0;
+
+// Whether a stored value guards its feed, for the storage's plain flag beside it, which the operator's usage counts without opening
+// anything (ADR 0039): no value or a record with only an owner doesn't; any other value does, as a bare hash always did.
+export function guardsFeed(raw: string | null): boolean {
+  if (raw === null) return false;
+  try {
+    return isProtected(parseRecord(raw));
+  } catch {
+    return true;
+  }
+}

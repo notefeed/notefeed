@@ -131,6 +131,7 @@ async function prepare(tx: Transaction<Schema>, kind: Kind, wrapper: KeyWrapper)
         name,
         read_id: fingerprint(fpKey, "read_id", f.read_id),
         password_hash: f.password_hash === null ? null : sealText(key, f.password_hash, `feed:${name}:hash`),
+        protected: f.protected,
         settings: f.settings === null ? null : sealText(key, f.settings, `feed:${name}:settings`),
         created_at: Number(f.created_at),
         key_id: wrapper.keyId,

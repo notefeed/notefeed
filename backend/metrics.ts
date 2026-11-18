@@ -36,6 +36,7 @@ type Metrics = {
     bytes: Gauge<"kind">;
     nearCap: Gauge<"notes">;
     licenses: Gauge<"state">;
+    licenseUnits: Gauge;
     dbBytes: Gauge;
     dbConnections: Gauge;
     at: Gauge;
@@ -117,7 +118,7 @@ function metrics(): Metrics {
         }),
         licenses: new Counter({
           name: "notefeed_license_events_total",
-          help: "License events: bought, attached to a feed, renewed, lapsed",
+          help: "License events: bought, attached to an account by the operator, renewed, lapsed",
           labelNames: ["event"],
           registers: [register],
         }),
@@ -149,8 +150,13 @@ function metrics(): Metrics {
         }),
         licenses: new Gauge({
           name: "notefeed_licenses",
-          help: "Licenses: active (paid, on a feed), unattached (paid, the key not entered) and lapsed; only with licensing on",
+          help: "Licenses (subscriptions on accounts): active (paid for now) and lapsed; only with licensing on",
           labelNames: ["state"],
+          registers: [],
+        }),
+        licenseUnits: new Gauge({
+          name: "notefeed_license_units",
+          help: "Feeds the active licenses are paid for (their units), as of the last count; only with licensing on",
           registers: [],
         }),
         dbBytes: new Gauge({
@@ -299,7 +305,7 @@ export type UsageCount = {
   notes: Record<NoteKind, { count: number; bytes: number }>;
   /** null with licensing off: there is no cap and there are no licenses. */
   freeCap: { near: number; at: number; over: number } | null;
-  licenses: { active: number; unattached: number; lapsed: number } | null;
+  licenses: { active: number; lapsed: number; units: number } | null;
   /** null on file storage; `connections` null on SQLite. */
   database?: { bytes: number; connections: number | null } | null;
 };
@@ -310,7 +316,11 @@ export function usageCounted(c: UsageCount, seconds: number, now = Date.now()): 
   const m = metrics();
   const u = m.usage;
   // An unlabelled gauge that is registered shows 0 even when never set: one without a value this time leaves the registry.
-  const absent = new Set<Gauge>([...(c.database ? [] : [u.dbBytes]), ...(c.database?.connections != null ? [] : [u.dbConnections])]);
+  const absent = new Set<Gauge>([
+    ...(c.database ? [] : [u.dbBytes]),
+    ...(c.database?.connections != null ? [] : [u.dbConnections]),
+    ...(c.licenses ? [] : [u.licenseUnits]),
+  ]);
   for (const g of Object.values(u)) {
     g.reset();
     const name = (g as unknown as { name: string }).name;
@@ -326,7 +336,11 @@ export function usageCounted(c: UsageCount, seconds: number, now = Date.now()): 
     u.bytes.set({ kind }, n.bytes);
   }
   if (c.freeCap) for (const [notes, n] of Object.entries(c.freeCap)) u.nearCap.set({ notes }, n);
-  if (c.licenses) for (const [state, n] of Object.entries(c.licenses)) u.licenses.set({ state }, n);
+  if (c.licenses) {
+    u.licenses.set({ state: "active" }, c.licenses.active);
+    u.licenses.set({ state: "lapsed" }, c.licenses.lapsed);
+    u.licenseUnits.set(c.licenses.units);
+  }
   if (c.database) u.dbBytes.set(c.database.bytes);
   if (c.database?.connections != null) u.dbConnections.set(c.database.connections);
   u.at.set(Math.floor(now / 1000));

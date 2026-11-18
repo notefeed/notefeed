@@ -117,6 +117,7 @@ describe.skipIf(!supported)("sqlite", () => {
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
     // Back to the schema of 001: the later migrations' columns and tables go, and so do their records, in order.
+    raw.exec("alter table feeds drop column protected; delete from kysely_migration where name = '009_feed_protected'");
     raw.exec("drop table note_tombstones; delete from kysely_migration where name = '008_note_tombstones'");
     raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
     raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");
@@ -139,6 +140,19 @@ describe.skipIf(!supported)("sqlite", () => {
     ]);
   });
 
+  test("a database from before the protected flag counts every feed with a password value as protected", async () => {
+    const a = await fresh();
+    await a.storage.createFeed("f", "rid-f", "scrypt$old");
+    await a.storage.createFeed("g", "rid-g");
+    await a.storage.close();
+    const Database = (await import("better-sqlite3")).default;
+    const raw = new Database(a.url.slice("file:".length));
+    raw.exec("alter table feeds drop column protected; delete from kysely_migration where name = '009_feed_protected'");
+    raw.close();
+    const again = createSqlStorage(() => connect("sqlite", a.url));
+    open.push({ storage: again, root: a.root });
+    expect((await again.usage()).map((u) => u.protected).sort()).toEqual([false, true]);
+  });
   test("a database from before note dates reads its notes as dated 0", async () => {
     const a = await fresh();
     await a.storage.createFeed("f", "rid-f");
@@ -146,6 +160,7 @@ describe.skipIf(!supported)("sqlite", () => {
     await a.storage.close();
     const Database = (await import("better-sqlite3")).default;
     const raw = new Database(a.url.slice("file:".length));
+    raw.exec("alter table feeds drop column protected; delete from kysely_migration where name = '009_feed_protected'");
     raw.exec("drop table note_tombstones; delete from kysely_migration where name = '008_note_tombstones'");
     raw.exec("drop table markers; delete from kysely_migration where name = '006_markers'");
     raw.exec("drop index notes_by_draft_date; alter table notes drop column draft; delete from kysely_migration where name = '007_note_draft'");

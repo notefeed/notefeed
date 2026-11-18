@@ -6,6 +6,7 @@ import { config } from "./config";
 import { FeedNameTakenError, InvalidBodyError, NotFoundError, ReadIdTakenError, ReservedFeedError } from "./errors";
 import { checkFeed, CUSTOM_READ_ID_RE, heldBack, isHeldBack, isReadId } from "./feednames";
 import { logger } from "./log";
+import { guardsFeed } from "./feedrecord";
 import { feedCreated, feedRemoved } from "./metrics";
 import { resetSecretForTests } from "./secret";
 import { storage, resetStorageForTests } from "./storage";
@@ -103,14 +104,15 @@ export async function createOpenFeed(feed: string, wanted?: string): Promise<boo
   return created;
 }
 
-// A protected feed: it appears already holding the hash and its read id. false = the feed exists.
+// A feed that appears already holding its record (a password, an owner or both) and its read id. false = the feed exists.
 export async function createProtectedFeed(feed: string, hash: string, wanted?: string): Promise<boolean> {
   const s = await prepared();
   if (wanted !== undefined) checkReadId(wanted);
   const { created } = await s.createFeed(feed, wanted ?? newReadId(), hash);
   if (created) {
-    log.info({ protected: true }, "feed created");
-    feedCreated(true);
+    const guarded = guardsFeed(hash); // an owner without a password leaves it open
+    log.info({ protected: guarded }, "feed created");
+    feedCreated(guarded);
   }
   return created;
 }

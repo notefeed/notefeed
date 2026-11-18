@@ -138,6 +138,17 @@ const migrations = (kind: Kind): Record<string, Migration> => ({
         .execute();
     },
   },
+  // Whether a feed's password_hash guards it, plain beside the value (#392): since owners (ADR 0059) the value may name only an owner,
+  // and usage() counts protected feeds without opening a sealed one. Every value written before owners was a password.
+  "009_feed_protected": {
+    async up(db: Kysely<any>) {
+      await db.schema
+        .alterTable("feeds")
+        .addColumn("protected", "integer", (c) => c.notNull().defaultTo(0))
+        .execute();
+      await db.updateTable("feeds").set({ protected: 1 }).where("password_hash", "is not", null).execute();
+    },
+  },
 });
 
 /** Every migration's name, in order; the tests check the count the migrator recorded against it, so a new one changes no test. */
