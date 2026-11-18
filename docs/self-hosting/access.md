@@ -61,7 +61,7 @@ sequenceDiagram
   actor P as Person
   participant N as notefeed
   participant B as Better Auth (/api/auth)
-  C->>N: call /mcp without a token
+  C->>N: call /mcp without a token (on an open instance: a tool that needs an account)
   N-->>C: 401, where the protected resource's metadata is
   C->>B: register (client metadata document or dynamic registration)
   C->>P: open the authorize URL (PKCE)

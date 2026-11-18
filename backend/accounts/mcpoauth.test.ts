@@ -123,7 +123,7 @@ test("the answer needs the signed request unchanged, a session, and this instanc
   expect(cross.status).toBe(404); // consent is the page's, on the server
 });
 
-test("/mcp refuses a bad token, and one whose account is gone; an open instance lets a client without one in", async () => {
+test("/mcp refuses a bad token, and one whose account is gone; an open instance asks a client without one to sign in for an account tool", async () => {
   const { userId } = await createAccount();
   const t = await mcpToken(userId);
   const bad = await mcpRoute(mcp(`Bearer ${t.slice(0, -4)}AAAA`));
@@ -131,8 +131,9 @@ test("/mcp refuses a bad token, and one whose account is gone; an open instance 
   expect(bad.headers.get("www-authenticate")).toMatch(/resource_metadata=/);
   await (await accountsAuth()!.$context).internalAdapter.deleteUser(userId);
   expect((await mcpRoute(mcp(`Bearer ${t}`))).status).toBe(401);
-  const anonymous = await (await mcpRoute(mcp())).json();
-  expect(anonymous.result.isError).toBe(true); // list_feeds needs an account
+  const anonymous = await mcpRoute(mcp()); // list_feeds needs an account: the client is asked to sign in
+  expect(anonymous.status).toBe(401);
+  expect(anonymous.headers.get("www-authenticate")).toMatch(/resource_metadata=/);
 });
 
 test("an instance that accounts lock wants a token on /mcp", async () => {

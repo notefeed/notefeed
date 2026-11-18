@@ -713,6 +713,38 @@ const handler = createMcpHandler(({ requestInfo, authInfo }) => server(requestIn
   maxRequestBodySize: MAX_REQUEST_BYTES,
 });
 
+// The tools that act as the client's account (needAccount), and update_feed's arguments that only the feed's owner may send. A client
+// without a sign-in that calls one gets the sign-in challenge instead of a refusal: a 401 is what makes an MCP client open the
+// authorize page, and an open instance never sends one otherwise.
+export const ACCOUNT_TOOLS: ReadonlySet<string> = new Set([
+  "get_license",
+  "buy_license",
+  "change_license_units",
+  "list_feeds",
+  "claim_feed",
+  "list_feed_passwords",
+  "add_feed_password",
+  "revoke_feed_password",
+  "create_account_token",
+  "list_account_tokens",
+  "revoke_account_token",
+]);
+const OWNER_ARGUMENTS: Readonly<Record<string, readonly string[]>> = { update_feed: ["licensed", "sender_name"] };
+
+// Whether a request calls a tool that needs an account: read from a copy of its body (one call or a batch); anything unreadable is not.
+async function needsAccount(req: Request): Promise<boolean> {
+  const body: unknown = await req
+    .clone()
+    .json()
+    .catch(() => null);
+  return (Array.isArray(body) ? body : [body]).some((m) => {
+    if (typeof m !== "object" || m === null || (m as { method?: unknown }).method !== "tools/call") return false;
+    const { name, arguments: args } = ((m as { params?: unknown }).params ?? {}) as { name?: unknown; arguments?: Record<string, unknown> };
+    if (typeof name !== "string") return false;
+    return ACCOUNT_TOOLS.has(name) || (OWNER_ARGUMENTS[name] ?? []).some((a) => args?.[a] !== undefined);
+  });
+}
+
 const rpcError = (status: number, message: string, headers?: Record<string, string>) =>
   Response.json({ jsonrpc: "2.0", error: { code: -32600, message } }, { status, headers });
 
@@ -752,9 +784,10 @@ const resourceMetadata = (req: Request) => `resource_metadata="${publicUrl(req.h
 // Better Auth's MCP check (signature, issuer, audience /mcp, expiry) answers a missing or bad token with its 401 and the protected
 // resource's metadata (ADR 0062). With accounts, a token must name an account that may still be signed in (a client-only token names
 // none), checked on every request as a browser session is (ADR 0056), and an open instance lets a client without a token in, as
-// no one. Without accounts, it must name the user that stands for the instance under its current password.
+// no one, except into an account tool, where it gets the sign-in challenge (needsAccount). Without accounts, it must name the user that stands for the instance under its current password.
 async function tokenGate(req: Request, auth: Auth): Promise<Response | AuthInfo | undefined> {
-  if (!req.headers.has("authorization") && !locked()) return undefined;
+  if (!req.headers.has("authorization") && !locked())
+    return (await needsAccount(req)) ? rpcError(401, "sign in with an account first", { "www-authenticate": `Bearer ${resourceMetadata(req)}` }) : undefined;
   let claims: JWTPayload | undefined;
   const checked = await requireMcpAuth(
     auth,

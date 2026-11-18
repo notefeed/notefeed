@@ -6,7 +6,8 @@ import { createAccount } from "./accounts/numbers";
 import { resetOwnersForTests } from "./feedlock";
 import { resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
-import { mcpRoute } from "./mcp";
+import { readFileSync } from "node:fs";
+import { ACCOUNT_TOOLS, mcpRoute } from "./mcp";
 import { mcpToken } from "./accounts/mcp.testkit";
 
 const BASE = "http://localhost:3000";
@@ -29,7 +30,7 @@ const META = {
   "io.modelcontextprotocol/clientCapabilities": {},
   "io.modelcontextprotocol/protocolVersion": V,
 };
-async function call(tool: string, args: Record<string, unknown>, uid?: string) {
+async function send(tool: string, args: Record<string, unknown>, uid?: string) {
   const headers: Record<string, string> = {
     host: "localhost:3000",
     "content-type": "application/json",
@@ -40,7 +41,10 @@ async function call(tool: string, args: Record<string, unknown>, uid?: string) {
   };
   if (uid) headers.authorization = `Bearer ${(tokens[uid] ??= await mcpToken(uid))}`;
   const body = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: tool, arguments: args, _meta: META } };
-  const res = await mcpRoute(new Request(`${BASE}/mcp`, { method: "POST", headers, body: JSON.stringify(body) }));
+  return mcpRoute(new Request(`${BASE}/mcp`, { method: "POST", headers, body: JSON.stringify(body) }));
+}
+async function call(tool: string, args: Record<string, unknown>, uid?: string) {
+  const res = await send(tool, args, uid);
   return (await res.json()).result as { isError?: boolean; structuredContent: Record<string, unknown>; content: { text: string }[] };
 }
 
@@ -82,8 +86,36 @@ test("account tokens through MCP: made (shown once), listed, revoked", async () 
   expect((await call("revoke_account_token", { id: made.structuredContent.id }, userId)).isError).toBeFalsy();
 });
 
-test("without an account, the account tools say to sign in", async () => {
-  const r = await call("list_feeds", {});
-  expect(r.isError).toBe(true);
-  expect(r.content[0].text).toMatch(/sign in with an account/);
+// A client without a sign-in is let in as no one, so open feeds work without an account (V12); an account tool answers it with the sign-in
+// challenge (401 with the resource metadata), which is what makes an MCP client open the authorize page.
+const CHALLENGE = `Bearer resource_metadata="${BASE}/.well-known/oauth-protected-resource/mcp"`;
+test.each([
+  ["list_feeds", {}],
+  ["get_license", {}],
+  ["create_account_token", { name: "x" }],
+  ["update_feed", { feed: "open", licensed: true }],
+  ["update_feed", { feed: "open", sender_name: "Ann" }],
+])("without a sign-in, %s %j asks the client to sign in", async (tool, args) => {
+  const res = await send(tool, args);
+  expect(res.status).toBe(401);
+  expect(res.headers.get("www-authenticate")).toBe(CHALLENGE);
+});
+
+test("without a sign-in, the open tools work as before: a feed, a note, its title", async () => {
+  expect((await call("post_note", { feed: "open", markdown: "# hi" })).isError).toBeFalsy();
+  expect((await call("update_feed", { feed: "open", title: "Open" })).isError).toBeFalsy();
+  expect((await call("list_notes", { feed: "open" })).structuredContent.notes).toHaveLength(1);
+});
+
+test("signed in, an account tool runs", async () => {
+  const { userId } = await createAccount();
+  expect((await send("list_feeds", {}, userId)).status).toBe(200);
+});
+
+// The list the sign-in challenge reads is the list of tools that need an account: every tool whose handler calls needAccount().
+test("ACCOUNT_TOOLS names exactly the tools that call needAccount()", () => {
+  const source = readFileSync("backend/mcp.ts", "utf8");
+  const blocks = source.split("s.registerTool(").slice(1);
+  const needing = blocks.filter((b) => b.includes("needAccount()")).map((b) => /^\s*"([a-z_]+)"/.exec(b)![1]);
+  expect(needing.sort()).toEqual([...ACCOUNT_TOOLS].sort());
 });
