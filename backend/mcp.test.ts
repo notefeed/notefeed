@@ -131,6 +131,9 @@ describe("protocol", () => {
   test("tools/list", async () => {
     const tools = (await (await rpc("tools/list")).json()).result.tools;
     expect(tools.map((t: { name: string }) => t.name).sort()).toEqual([
+      "add_feed_password",
+      "claim_feed",
+      "create_account_token",
       "create_feed",
       "delete_feed",
       "delete_note",
@@ -138,10 +141,15 @@ describe("protocol", () => {
       "get_feed",
       "get_licenses",
       "get_note",
+      "list_account_tokens",
+      "list_feed_passwords",
+      "list_feeds",
       "list_notes",
       "post_file",
       "post_note",
       "recover_feed_password",
+      "revoke_account_token",
+      "revoke_feed_password",
       "set_feed_image",
       "update_feed",
     ]);
@@ -149,10 +157,19 @@ describe("protocol", () => {
       // All four hints, as booleans, on every tool: directories refuse a tool that leaves one out.
       expect(Object.keys(t.annotations ?? {}).sort()).toEqual(["destructiveHint", "idempotentHint", "openWorldHint", "readOnlyHint"]);
       expect(Object.values(t.annotations).every((v) => typeof v === "boolean")).toBe(true);
-      const reads = ["get_feed", "get_licenses", "get_note", "list_notes"];
+      const reads = ["get_feed", "get_licenses", "get_note", "list_notes", "list_feeds", "list_feed_passwords", "list_account_tokens"];
       expect(t.annotations.readOnlyHint).toBe(reads.includes(t.name));
       expect(t.annotations.destructiveHint).toBe(
-        ["edit_note", "delete_note", "update_feed", "recover_feed_password", "set_feed_image", "delete_feed"].includes(t.name),
+        [
+          "edit_note",
+          "delete_note",
+          "update_feed",
+          "recover_feed_password",
+          "set_feed_image",
+          "delete_feed",
+          "revoke_feed_password",
+          "revoke_account_token",
+        ].includes(t.name),
       );
       expect(t.annotations.idempotentHint).toBe([...reads, "edit_note", "update_feed", "set_feed_image"].includes(t.name));
       expect(t.annotations.openWorldHint).toBe(t.name === "get_licenses");

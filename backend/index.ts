@@ -185,4 +185,6 @@ export async function getReadNote(readId: string, id: string, asOf = new Date())
 }
 export { runningVersion, type RunningVersion } from "./version";
 export { accountsMode, accountsOn } from "./accounts/mode";
+export { oauthOn } from "./oauth/routes";
+export { listAccountTokens } from "./accounts/tokens";
 export { accountOf, renewedAccountCookies } from "./accounts/numbers";

@@ -18,7 +18,7 @@ For Python and Node there are client packages, both called `notefeed`. They post
 
 ## From code
 
-Create the client with the server's URL and, usually, a default feed; every call can name another. Pass `password` only if the instance has one, and `feed_password` / `feedPassword` for a [protected feed](../using/feed-passwords.md). `Client.from_env()` / `Client.fromEnv()` reads `NOTEFEED_URL`, `NOTEFEED_FEED`, `NOTEFEED_PASSWORD` and `NOTEFEED_FEED_PASSWORD` instead. Keep the password and the feed name out of source code.
+Create the client with the server's URL and, usually, a default feed; every call can name another. Pass `password` only if the instance has one, `token` for an [account token](../self-hosting/accounts.md#account-tokens) (the client then acts as that account: `account_feeds()` / `accountFeeds()`, `claim_feed`, and an owned feed's `feed_passwords`, `add_feed_password` and `revoke_feed_password`; never together with `password`), and `feed_password` / `feedPassword` for a [protected feed](../using/feed-passwords.md). `Client.from_env()` / `Client.fromEnv()` reads `NOTEFEED_URL`, `NOTEFEED_FEED`, `NOTEFEED_PASSWORD`, `NOTEFEED_TOKEN` and `NOTEFEED_FEED_PASSWORD` instead. Keep the password and the feed name out of source code.
 
 === "Python"
 

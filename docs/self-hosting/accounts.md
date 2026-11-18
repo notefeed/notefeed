@@ -19,7 +19,7 @@ Unset with an identity provider configured (`NOTEFEED_OIDC_*`) means `provider`,
     notefeed refuses to start with `NOTEFEED_PASSWORD` and accounts both set. An identity provider counts as accounts. Pick one: the instance password for one person, accounts for several. `closed` with an identity provider doesn't start either: its sign-ins would create accounts (use `provider` or `open`).
 
 !!! note "Scripts and MCP clients"
-    With `open`, scripts and MCP clients work as on any open instance, and [feed passwords](../using/feed-passwords.md) protect single feeds. With `provider` or `closed` the instance is locked and has no instance password: scripts can't post to it yet, and MCP clients connect only through an identity provider (`provider`), until accounts get tokens for scripts and their own MCP sign-in.
+    A script acts as an account with an [account token](#account-tokens), and an MCP client signs in as one on its authorize page ([MCP](../integrations/mcp.md#as-an-account)), in every mode. With `open`, they also work without one, as on any open instance, and [feed passwords](../using/feed-passwords.md) protect single feeds.
 
 ## Creating one
 
@@ -39,6 +39,10 @@ Wrong keys count toward the failed-attempt limit, like wrong passwords. With `pr
 
 !!! note "Passkeys belong to `PUBLIC_URL`'s host"
     A passkey works only on the host it was made on. Moving notefeed to another host name (a changed `PUBLIC_URL`) leaves every passkey behind: people sign in with their number and key, and add new ones.
+
+## Account tokens
+
+On the account page, **Account tokens** makes a token for a script: a name, whether it may only read or read and write, and 90 days (over the API or MCP, 1 to 365). It is shown once and starts with `nf_`. Send it as `Authorization: Bearer <token>` to the [REST API](../integrations/api.md), or set `NOTEFEED_TOKEN` for the [clients and CLIs](../integrations/clients.md): the script acts as the account, creates its feeds, posts to and manages the ones it owns. A token works on the REST API only, never on MCP or as a browser's sign-in, and a `read` one is refused on anything that writes (`403`, code `read_only`). Revoke one on the account page; deleting the account revokes them all. For a script that posts to one feed, a [feed password](../using/feed-passwords.md#a-feed-with-an-owner) is the smaller key.
 
 ## Lost accounts
 
@@ -84,6 +88,7 @@ In `accounts.sqlite` (`NOTEFEED_ACCOUNTS_DB`, apart from the notes on every stor
 - a hash of the recovery key
 - each passkey's public key, the name its holder gave it (optional, such as `Work laptop`), when it was added, and the kind of passkey store that made it (its AAGUID: iCloud Keychain, 1Password and the like, never the person or the device), shown to tell passkeys apart
 - the sessions, without the browser's address or user agent
+- each account token's hash, its name, scope, end and when it was last used
 - when the account was made, for the 30-day cleanup above
 
 The e-mail field the sign-in library needs holds a placeholder, `<number>@accounts.invalid`. An account made through an identity provider holds what [sign-in keeps](sign-in/index.md#the-sender) instead. Back the file up with your data ([Backups](backups.md)).

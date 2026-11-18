@@ -4,7 +4,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { processState } from "./state";
 
-export type RequestScope = { id: string; route?: string; outcome?: string };
+// `method`: the API request's, for an account token that may only read (accounts/tokens.ts).
+export type RequestScope = { id: string; route?: string; outcome?: string; method?: string };
 
 // One for all route bundles (see processState).
 const scope = () => processState("request-scope", () => new AsyncLocalStorage<RequestScope>());
@@ -28,4 +29,10 @@ export function noteRoute(route: string): void {
 export function noteOutcome(outcome: string): void {
   const s = scope().getStore();
   if (s) s.outcome = outcome;
+}
+
+/** The API request's method, set by its dispatcher. */
+export function noteMethod(method: string): void {
+  const s = scope().getStore();
+  if (s) s.method = method;
 }

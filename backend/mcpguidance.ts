@@ -89,3 +89,25 @@ export function afterLicenses(l: { buy_url: string }): string[] {
     "Put it on a feed with update_feed's license_key, or with create_feed or post_note when the feed is created.",
   ];
 }
+
+// Accounts (#389, #390).
+export const afterListFeeds = (n: number): string[] =>
+  n
+    ? ["These are the account's own feeds: it manages their passwords, renames and deletes them."]
+    : ["The account owns no feed yet: create_feed or claim_feed makes one its own."];
+export const afterClaim = (): string[] => [
+  "The feed is the account's now. Its password keeps working as 'Feed password'; add_feed_password gives each person or script one of their own.",
+];
+export const afterListFeedPasswords = (n: number): string[] =>
+  n
+    ? ["revoke_feed_password stops one by its id; the others keep working."]
+    : ["The feed has no password: it is open to anyone who knows its name. It stays the account's."];
+export const afterAddSecret = (what: "feed password" | "account token"): string[] => [
+  `This is the only time the ${what} is shown: hand it to the person to store in their password manager, and do not repeat it later.`,
+  ...(what === "account token"
+    ? ["It works on the REST API only, as Authorization: Bearer <token>, never on MCP."]
+    : ["It is sent as X-Feed-Password, or entered on the feed's page."]),
+];
+export const afterRevoke = (what: "feed password" | "account token"): string[] => [`The ${what} stops working at once.`];
+export const afterListTokens = (n: number): string[] =>
+  n ? ["revoke_account_token stops one by its id."] : ["The account has no tokens: create_account_token makes one for a script."];

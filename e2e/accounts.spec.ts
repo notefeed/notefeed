@@ -180,3 +180,19 @@ test("the owner's name on their notes, and their feeds in the side bar", async (
   await expect(page.getByText("Ann", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("complementary").getByText("e2e-named", { exact: true })).toBeVisible();
 });
+
+test("an account token made on the account page lets a script act as the account", async ({ page, playwright, baseURL }) => {
+  await createAccount(page);
+  await page.goto("/account");
+  await page.getByLabel("What it's for").fill("backup script");
+  await page.getByRole("button", { name: "Make a token" }).click();
+  const shown = page.locator("code").filter({ hasText: /^nf_/ });
+  await expect(shown).toHaveCount(1);
+  const token = (await shown.textContent())!;
+  const script = await playwright.request.newContext({ baseURL, extraHTTPHeaders: { authorization: `Bearer ${token}` } });
+  expect((await script.post("/api/v1/feeds/e2e-scripted", { data: {} })).status()).toBe(201);
+  expect(await (await script.get("/api/v1/account/feeds")).json()).toEqual({ feeds: ["e2e-scripted"] });
+  await script.dispose();
+  await page.reload();
+  await expect(page.getByText("backup script", { exact: true })).toBeVisible();
+});

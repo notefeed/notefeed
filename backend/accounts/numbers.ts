@@ -74,6 +74,7 @@ export async function newRecoveryKey(userId: string, keep?: string): Promise<str
 export async function deleteAccount(userId: string): Promise<void> {
   const ctx = await auth().$context;
   await ctx.adapter.deleteMany({ model: "passkey", where: [{ field: "userId", value: userId }] });
+  await ctx.adapter.deleteMany({ model: "apikey", where: [{ field: "referenceId", value: userId }] });
   await ctx.internalAdapter.deleteUser(userId); // with its sessions and sign-in records
 }
 

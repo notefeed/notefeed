@@ -157,6 +157,8 @@ function client(values: { url?: string; feed?: string; password?: string }): Cli
     url,
     feed,
     password: values.password || process.env.NOTEFEED_PASSWORD,
+    // An account token (nf_…) acts as its account; never together with the instance password.
+    token: values.password ? undefined : process.env.NOTEFEED_TOKEN,
     feedPassword: process.env.NOTEFEED_FEED_PASSWORD,
   });
 }

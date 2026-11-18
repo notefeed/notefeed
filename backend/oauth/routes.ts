@@ -10,6 +10,9 @@ import { parseForm, readCapped, seeOther } from "../http/request";
 import { clientIp } from "../limits";
 import { logger } from "../log";
 import { identityOn } from "../oidc/config";
+import { accountsOn } from "../accounts/mode";
+import { signedInSession } from "../accounts/auth";
+import { sameOrigin } from "../http/request";
 import { mcpResource, publicUrl } from "../urls";
 import { cid, newJti, sign, spendOnce, TTL, verify } from "./tokens";
 
@@ -22,9 +25,13 @@ const cors = { "Access-Control-Allow-Origin": "*" };
 const noStore = { ...cors, "Cache-Control": "no-store" };
 const oauthError = (error: string, status = 400) => Response.json({ error }, { status, headers: noStore });
 
+// The OAuth server for MCP clients answers on a locked instance (the instance password, ADR 0007) and wherever there are accounts, also
+// open ones: an account signs its MCP client in to act as itself (#390).
+export const oauthOn = () => locked() || accountsOn();
+
 // OPTIONS for the metadata documents and /oauth/register. /oauth/token takes a plain form POST, which needs no preflight.
 const preflight = (method: string) => (): Response =>
-  locked()
+  oauthOn()
     ? new Response(null, {
         status: 204,
         headers: { ...cors, "Access-Control-Allow-Methods": method, "Access-Control-Allow-Headers": "content-type, mcp-protocol-version" },
@@ -34,13 +41,13 @@ export const metadataPreflight = preflight("GET");
 export const registerPreflight = preflight("POST");
 
 export function protectedResourceRoute(req: Request): Response {
-  if (!locked()) return notFound();
+  if (!oauthOn()) return notFound();
   const body = { resource: mcpResource(req.headers), authorization_servers: [publicUrl(req.headers)], bearer_methods_supported: ["header"] };
   return Response.json(body, { headers: cors });
 }
 
 export function authServerRoute(req: Request): Response {
-  if (!locked()) return notFound();
+  if (!oauthOn()) return notFound();
   const base = publicUrl(req.headers);
   return Response.json(
     {
@@ -67,7 +74,7 @@ export function redirectUriOk(u: unknown): u is string {
 }
 
 export async function registerRoute(req: Request): Promise<Response> {
-  if (!locked()) return notFound();
+  if (!oauthOn()) return notFound();
   const bytes = await readCapped(req, 16 * 1024);
   let body: { client_name?: unknown; redirect_uris?: unknown } | null = null;
   try {
@@ -99,7 +106,7 @@ const CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/; // base64url of a SHA-256
 // The authorize request, for the page (GET) and the login POST alike. Until client_id and redirect_uri
 // check out, nothing redirects: an unchecked redirect_uri would make this an open redirector.
 export function checkAuthorize(params: URLSearchParams, h: Headers): Checked {
-  if (!locked()) return { kind: "error", message: "Not found." };
+  if (!oauthOn()) return { kind: "error", message: "Not found." };
   // A repeated parameter counts as missing (RFC 6749 3.1).
   const one = (k: string) => {
     const v = params.getAll(k);
@@ -140,9 +147,10 @@ export function checkAuthorize(params: URLSearchParams, h: Headers): Checked {
 }
 
 // POST /api/oauth/authorize: the page's form. The password is checked like /login (the failed-attempt
-// limit applies); success sends the browser back to the client with a code.
+// limit applies); or, with `account`, the account signed in on this instance's pages is the one the client acts as (#390), for a
+// form from those pages only. Success sends the browser back to the client with a code.
 export async function authorizeRoute(req: Request): Promise<Response> {
-  if (!locked()) return notFound();
+  if (!oauthOn()) return notFound();
   const h = req.headers;
   const bytes = await readCapped(req, 16 * 1024);
   const form = bytes ? await parseForm(bytes, h).catch(() => null) : null;
@@ -152,6 +160,12 @@ export async function authorizeRoute(req: Request): Promise<Response> {
   if (checked.kind === "redirect") return seeOther(checked.location);
   if (checked.kind === "error") return new Response(checked.message, { status: 400 });
   const { fields } = checked;
+  if (form?.get("account") === "1") {
+    const session = sameOrigin(h) ? await signedInSession(h) : undefined;
+    if (!session) return seeOther(`/oauth/authorize?${new URLSearchParams(fields)}&error=auth`);
+    log.info({ via: "account" }, "authorization granted");
+    return issueCode(fields, h, { ...(session.name ? { sender: session.name } : {}), uid: session.userId });
+  }
   try {
     checkPassword(String(form?.get("password") ?? ""), clientIp(h));
   } catch (e) {
@@ -166,7 +180,7 @@ export async function authorizeRoute(req: Request): Promise<Response> {
 
 // Back to the client with a code, after a password login or an identity sign-in (`signedIn`: the sender and the Better Auth user
 // id, re-checked at every refresh). `fields` must come from checkAuthorize, never from a request.
-export function issueCode(fields: Record<string, string>, h: Headers, signedIn?: { sender: string; uid: string }): Response {
+export function issueCode(fields: Record<string, string>, h: Headers, signedIn?: { sender?: string; uid: string }): Response {
   const code = sign("code", {
     cid: cid(fields.client_id),
     redirect_uri: fields.redirect_uri,
@@ -190,7 +204,7 @@ function issue(clientHash: string, aud: string, signedIn: { sender?: string; uid
   const u = { ...(uid === undefined ? {} : { uid }), ...(until === undefined ? {} : { until }) };
   return Response.json(
     {
-      access_token: sign("access", { aud, ...s }),
+      access_token: sign("access", { aud, ...s, ...(uid === undefined ? {} : { uid }) }),
       token_type: "Bearer",
       expires_in: TTL.access,
       refresh_token: sign("refresh", { cid: clientHash, aud, jti: newJti(), ...s, ...u }),
@@ -207,7 +221,7 @@ const refusedRefresh = (reason: string) => {
 // POST /oauth/token. Every check runs before the code or refresh token is spent, so a failed attempt
 // (a wrong verifier from someone who intercepted the code) can't burn the legitimate client's grant.
 export async function tokenRoute(req: Request): Promise<Response> {
-  if (!locked()) return notFound();
+  if (!oauthOn()) return notFound();
   const bytes = await readCapped(req, 16 * 1024);
   const form = bytes ? await parseForm(bytes, req.headers).catch(() => null) : null;
   const get = (k: string) => {
@@ -241,8 +255,10 @@ export async function tokenRoute(req: Request): Promise<Response> {
     if (r.cid !== cid(clientId)) return oauthError("invalid_grant");
     if (resource !== undefined && resource !== r.aud) return oauthError("invalid_grant");
     // A sign-in's chain ends with sign-in switched off or with the sign-in's lifetime, like a browser session.
-    if (r.sender !== undefined && !identityOn()) return refusedRefresh("sign-in switched off");
-    if (r.sender !== undefined && !(r.until !== undefined && Date.now() <= r.until * 1000)) return refusedRefresh("sign-in past its lifetime");
+    // An account's chain (uid) ends with accounts off; one from before accounts (a sender, no uid) with sign-in off.
+    if (r.uid !== undefined ? !accountsOn() : r.sender !== undefined && !identityOn()) return refusedRefresh("sign-in switched off");
+    if ((r.sender !== undefined || r.uid !== undefined) && !(r.until !== undefined && Date.now() <= r.until * 1000))
+      return refusedRefresh("sign-in past its lifetime");
     // The person, as a browser session is checked on every request (ADR 0056). A chain from before ADR 0056 has no uid: it ends
     // with its until.
     if (r.uid !== undefined && !(await stillAllowed(r.uid))) return refusedRefresh("no longer allowed");

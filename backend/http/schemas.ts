@@ -294,6 +294,26 @@ export const NewFeedPasswordJson = FeedPasswordJson.extend({
   password: z.string().describe("The password, 24 characters: shown only this once. Send it as X-Feed-Password"),
 }).meta({ id: "NewFeedPassword" });
 export const FeedPasswordNameJson = z.object({ name: z.string().describe("What it is for: one line, 1 to 50 characters") }).meta({ id: "FeedPasswordName" });
+export const AccountTokenJson = z
+  .object({
+    id: z.string().describe("The token's id, to revoke it"),
+    name: z.string().describe("What it is for"),
+    scope: z.enum(["read", "read+write"]).describe("`read`: only reading requests; `read+write`: everything the account may do"),
+    expires_at: z.string().nullable().describe("When it stops working (ISO 8601)"),
+    last_used: z.string().nullable().describe("When it was last used (ISO 8601), or null"),
+  })
+  .meta({ id: "AccountToken" });
+export const AccountTokensJson = z.object({ tokens: z.array(AccountTokenJson) }).meta({ id: "AccountTokens" });
+export const NewAccountTokenJson = AccountTokenJson.extend({
+  token: z.string().describe("The token, shown only this once: send it as `Authorization: Bearer <token>` to the REST API"),
+}).meta({ id: "NewAccountToken" });
+export const AccountTokenRequestJson = z
+  .object({
+    name: z.string().describe("What it is for: one line, 1 to 50 characters"),
+    scope: z.enum(["read", "read+write"]).optional().describe("Default `read+write`"),
+    days: z.number().int().optional().describe("How long it works, 1 to 365 days; default 90"),
+  })
+  .meta({ id: "AccountTokenRequest" });
 export const AccountFeedsJson = z
   .object({ feeds: z.array(z.string()).describe("The names of the feeds the account owns, sorted") })
   .meta({ id: "AccountFeeds" });
@@ -322,6 +342,10 @@ export const COMPONENTS = [
   NewFeedPasswordJson,
   FeedPasswordNameJson,
   AccountFeedsJson,
+  AccountTokenJson,
+  AccountTokensJson,
+  NewAccountTokenJson,
+  AccountTokenRequestJson,
 ];
 
 export const FeedParam = z.string().regex(FEED_RE).describe("The feed's name. It is the write key: anyone who knows it can post.");

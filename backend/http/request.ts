@@ -1,6 +1,8 @@
 // Reading requests, for the handlers in backend/http.
-import { AuthError, NotefeedError, RateLimitedError } from "../errors";
+import { AuthError, NotefeedError, RateLimitedError, ReadOnlyTokenError } from "../errors";
 import { signedInName, signedInSession } from "../accounts/auth";
+import { TOKEN_PREFIX, tokenAccount } from "../accounts/tokens";
+import { requestScope } from "../requestscope";
 import { bearerOf, checkBearer, cookieOf, locked, sessionOk } from "../auth";
 import { type FeedAccess, feedCookieName } from "../feedlock";
 import { assertFeed } from "../feeds";
@@ -91,12 +93,30 @@ export function errorRedirect(page: string, e: unknown): Response {
 export async function authorize(h: Headers, ip: string): Promise<void> {
   if (!locked()) return;
   if (!h.has("authorization") && sameOrigin(h) && (await sessionOk(h))) return;
+  // An account token (#390) on an instance accounts lock; a wrong one falls through and counts as a failed attempt below.
+  const bearer = bearerOf(h.get("authorization"));
+  if (bearer.startsWith(TOKEN_PREFIX) && (await tokenAccount(bearer))) return;
   checkBearer(h.get("authorization"), ip);
 }
 
-// The signed-in account behind a request from this instance's own pages (a session cookie, honoured like the instance's own: same
-// origin, no Authorization header), or undefined. Account tokens for scripts come with #390.
+// The account behind a request, or undefined: an account token as the bearer (REST only, #390; a read token on a request that writes
+// is refused), or else a session from this instance's own pages (honoured like the instance's own cookie: same origin, no
+// Authorization header).
 export async function requestAccount(h: Headers): Promise<string | undefined> {
+  const bearer = bearerOf(h.get("authorization"));
+  if (bearer.startsWith(TOKEN_PREFIX)) {
+    const t = await tokenAccount(bearer);
+    if (!t) return undefined;
+    // Only a request known to be a GET (or HEAD) reads: a route outside the REST dispatcher notes no method, and counts as a write.
+    const method = requestScope()?.method;
+    if (!t.write && method !== "GET" && method !== "HEAD") throw new ReadOnlyTokenError();
+    return t.userId;
+  }
+  return sessionAccount(h);
+}
+
+// The account signed in on this instance's own pages, never a token: for what a token may not do (making tokens).
+export async function sessionAccount(h: Headers): Promise<string | undefined> {
   if (h.has("authorization") || !sameOrigin(h)) return undefined;
   return (await signedInSession(h))?.userId;
 }

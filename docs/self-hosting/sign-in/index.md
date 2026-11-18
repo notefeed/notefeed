@@ -35,7 +35,7 @@ The sender shows on the feed page, in the read-only view, in RSS as `<dc:creator
 
 ## Scripts and passwords
 
-Sign-in locks the instance to signed-in people, and there is no instance password beside it ([Accounts](../accounts.md)). Scripts can't post to such an instance until accounts get tokens for scripts.
+Sign-in locks the instance to signed-in people, and there is no instance password beside it ([Accounts](../accounts.md)). Scripts post to it with an [account token](../accounts.md#account-tokens).
 
 ## MCP
 

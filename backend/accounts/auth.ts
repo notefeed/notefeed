@@ -4,6 +4,7 @@
 // Stricter than Better Auth's defaults: no e-mail sign-up or sign-in, no social sign-in, telemetry never turned on, the secret
 // derived from notefeed's own.
 import Database from "better-sqlite3";
+import { apiKey } from "@better-auth/api-key";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { username } from "better-auth/plugins";
@@ -65,6 +66,8 @@ function options() {
       genericOAuthPlugin(),
       username({ minUsernameLength: 16, maxUsernameLength: 16, usernameValidator: (u: string) => /^[1-9]\d{15}$/.test(u), displayUsername: false }),
       passkey({ rpID: new URL(config.publicUrl()).hostname, rpName: "notefeed" }),
+      // Account tokens (tokens.ts): made and checked on the server only, never through a browser's session; notefeed counts requests itself.
+      apiKey({ defaultPrefix: "nf_", requireName: true, maximumNameLength: 50, rateLimit: { enabled: false }, enableSessionForAPIKeys: false }),
     ],
   };
 }

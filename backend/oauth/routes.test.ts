@@ -175,8 +175,8 @@ describe("flow", () => {
     const first = await (await exchange(c)).json();
     expect(verify("access", first.access_token)?.sender).toBe("Ann");
     expect(verify("refresh", first.refresh_token)).toMatchObject({ sender: "Ann", uid: c.uid, until });
-    // The 1-hour access token carries no person's id: it is re-checked at its next refresh (ADR 0056).
-    expect(verify("access", first.access_token)).not.toHaveProperty("uid");
+    // The access token carries the account too: MCP's tools act as it (#390); it is re-checked at its next refresh (ADR 0056).
+    expect(verify("access", first.access_token)).toMatchObject({ uid: c.uid });
     const second = await (await token({ grant_type: "refresh_token", refresh_token: first.refresh_token, client_id: c.id })).json();
     expect(verify("access", second.access_token)?.sender).toBe("Ann");
     expect(verify("refresh", second.refresh_token)).toMatchObject({ sender: "Ann", until });

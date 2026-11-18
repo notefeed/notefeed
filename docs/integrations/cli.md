@@ -7,6 +7,7 @@ The command takes its settings from flags, or else from these environment variab
 | `--url` | `NOTEFEED_URL` | notefeed's base URL, e.g. `https://notes.example.com` |
 | `--feed` | `NOTEFEED_FEED` | the feed |
 | `--password` | `NOTEFEED_PASSWORD` | the instance password (`NOTEFEED_PASSWORD` on the server), only if it has one |
+| | `NOTEFEED_TOKEN` | an [account token](../self-hosting/accounts.md#account-tokens) instead, on an instance with accounts: posts as the account |
 
 A feed's own password is read from `NOTEFEED_FEED_PASSWORD`, and has no flag at all. Prefer the environment variables for the passwords and the feed name: flag values are visible to other users of the machine in the process list.
 

@@ -2,7 +2,8 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { messagesFor } from "@/app/_lib/messages";
 import { copyFor } from "@/shared/copy";
-import { checkAuthorize, identityOn, locked, passwordSet, signInProviders } from "@/backend";
+import Link from "next/link";
+import { accountOf, accountsOn, checkAuthorize, identityOn, oauthOn, passwordSet, signInProviders } from "@/backend";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,9 @@ export const dynamic = "force-dynamic";
 export default async function AuthorizePage({ params: route, searchParams }: PageProps<"/[lang]/oauth/authorize">) {
   const t = copyFor((await route).lang);
   const { SENDER_NOTICE, errorMessage } = messagesFor(t);
-  if (!locked()) notFound();
+  if (!oauthOn()) notFound();
   const { error, retry, ...rest } = await searchParams;
+  const account = accountsOn() ? await accountOf(await headers()) : undefined;
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(rest)) for (const one of [v ?? []].flat()) params.append(k, one);
   const checked = checkAuthorize(params, await headers());
@@ -30,6 +32,30 @@ export default async function AuthorizePage({ params: route, searchParams }: Pag
     <main className="mt-[6vh]">
       <h1 className="mb-2 text-xl font-bold tracking-tight">{t.login.connect(checked.clientName)}</h1>
       <p className="mb-6 text-muted">{t.login.sentTo(checked.redirectHost)}</p>
+      {accountsOn() && (
+        // The account signed in on these pages is the one the client acts as (#390); signed out, the login page brings you back here.
+        <div className="mb-6 max-w-sm">
+          {account ? (
+            <form method="post" action="/api/oauth/authorize">
+              {Object.entries(checked.fields).map(([name, value]) => (
+                <input key={name} type="hidden" name={name} value={value} />
+              ))}
+              <input type="hidden" name="account" value="1" />
+              <button type="submit" className="rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon">
+                {t.login.allowAccount}
+              </button>
+              <p className="mt-2 text-sm text-muted">{account.number ? t.login.asAccount(account.number) : t.login.asYou}</p>
+            </form>
+          ) : (
+            <Link
+              href={`/login?next=${encodeURIComponent(`/oauth/authorize?${new URLSearchParams(checked.fields)}`)}`}
+              className="inline-block rounded-full bg-carbon px-4 py-1.5 font-bold text-on-carbon"
+            >
+              {t.login.signInFirst}
+            </Link>
+          )}
+        </div>
+      )}
       {identityOn() && (
         // A form POST, not a link: a cross-site GET must never start an MCP sign-in.
         <div className="mb-6 max-w-sm">

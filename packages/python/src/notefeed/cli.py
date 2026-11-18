@@ -125,6 +125,8 @@ def _client(args: argparse.Namespace) -> Client:
         feed,
         args.password or os.environ.get("NOTEFEED_PASSWORD"),
         feed_password=os.environ.get("NOTEFEED_FEED_PASSWORD"),
+        # An account token (nf_…) acts as its account; never together with the instance password.
+        token=None if args.password else os.environ.get("NOTEFEED_TOKEN"),
     )
 
 
