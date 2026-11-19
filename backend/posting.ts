@@ -58,6 +58,7 @@ import { capReached, rateLimit } from "./limits";
 import { logger } from "./log";
 import { MEDIA_TYPES } from "./note/media";
 import { planInWorker } from "./place";
+import { makeUpload, uploadType, type NewUpload } from "./uploads";
 import { type NoteType, parseMediaType } from "./note/types";
 import { checkTags } from "./tags";
 import {
@@ -97,6 +98,16 @@ async function admit(feed: string, ip: string, access: FeedAccess): Promise<bool
   const wait = rateLimit(ip);
   if (wait !== null) throw new RateLimitedError(wait);
   return proved;
+}
+
+// An upload (#381, ADR 0064): made with the feed's access and counted as a post, so it opens nothing a post wouldn't; a picture is
+// refused at once where image uploads are off. The post that uses it runs every check again.
+export async function createUpload(feed: string, ip: string, access: FeedAccess, type: string, size?: number): Promise<NewUpload> {
+  assertFeed(feed);
+  const t = uploadType(type);
+  refuseImages(t.isImage);
+  await admit(feed, ip, access);
+  return makeUpload(feed, t, size);
 }
 
 // An image the operator removed may not come back, in any feed (issue #155).

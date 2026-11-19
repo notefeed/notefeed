@@ -13,6 +13,8 @@ import { mcpRoute } from "./mcp";
 import { takedownNote } from "./takedown";
 import { loadSharp } from "./imageprocess";
 import { PNG } from "./testimages";
+import { dispatch } from "./http/api";
+import { resetUploads } from "./uploads";
 
 // Log lines, captured per test.
 let logs: string[] = [];
@@ -136,6 +138,7 @@ describe("protocol", () => {
       "claim_feed",
       "create_account_token",
       "create_feed",
+      "create_upload",
       "delete_feed",
       "delete_note",
       "edit_note",
@@ -914,5 +917,94 @@ describe("guidance", () => {
     vi.stubEnv("NOTEFEED_FAKE_WEBHOOK_SECRET", "w");
     const lic = await g("get_licenses", {});
     expect(lic.guidance).toContain(lic.buy_url as string);
+  });
+});
+
+// Uploads (#381): the bytes go to a URL with curl, the tool call carries only the id.
+describe("uploads", () => {
+  beforeEach(() => resetUploads());
+  // The PUT curl -T sends, through the REST dispatcher as the route does.
+  const put = (url: string, body: Uint8Array) => {
+    const u = new URL(url);
+    return dispatch(
+      new Request(u, { method: "PUT", body: Buffer.from(body), headers: { host: u.host } }),
+      u.pathname.split("/").slice(3).map(decodeURIComponent),
+    );
+  };
+  const upload = async (feed: string, type: string, body: Uint8Array, extra: Record<string, unknown> = {}) => {
+    const made = await call("create_upload", { feed, type, ...extra });
+    expect(made.isError, JSON.stringify(made.content)).toBeFalsy();
+    expect((await put(made.structuredContent.upload_url, body)).status).toBe(200);
+    return made.structuredContent as { upload_id: string; upload_url: string; expires_at: string; max_bytes: number; guidance: string[] };
+  };
+
+  test("a 5 MB photo: create_upload, one PUT, post_file by upload_id; the URL names no feed", async () => {
+    const photo = await loadSharp()({
+      create: { width: 4000, height: 3000, channels: 3, background: "#888", noise: { type: "gaussian", mean: 128, sigma: 30 } },
+    })
+      .jpeg({ quality: 95 })
+      .toBuffer();
+    expect(photo.length).toBeGreaterThan(5 * 1024 * 1024);
+    const u = await upload("secret-feed", "image/jpeg", photo, { password: "pw-of-the-feed" });
+    expect(u.upload_url).toMatch(/^http:\/\/localhost:3000\/api\/v1\/uploads\/[A-Za-z0-9_-]{43}$/);
+    expect(u.upload_url).not.toContain("secret-feed");
+    expect(u.guidance.join(" ")).toContain(`curl -sS --fail-with-body -T <path to the file> "${u.upload_url}"`);
+    const r = await call("post_file", { feed: "secret-feed", upload_id: u.upload_id });
+    expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+    const stored = await readFile(join(process.env.DATA_DIR!, "secret-feed", r.structuredContent.file));
+    expect(await loadSharp()(stored).metadata()).toMatchObject({ width: 2560, height: 1920 });
+    // Used once: the upload is gone.
+    const again = await call("post_file", { feed: "secret-feed", upload_id: u.upload_id });
+    expect(again.isError).toBe(true);
+    expect(again.content[0].text).toMatch(/no such upload/);
+  }, 60_000);
+
+  test("post_note attachments mix data and upload_id; set_feed_image takes one", async () => {
+    const u = await upload("f", "image/png", PNG);
+    const r = await call("post_note", {
+      feed: "f",
+      markdown: "![](a.png) ![](b.png)",
+      attachments: [
+        { name: "a.png", upload_id: u.upload_id, alt: "A" },
+        { name: "b.png", type: "image/png", data: Buffer.from(PNG).toString("base64") },
+      ],
+    });
+    expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+    expect(r.structuredContent.attachments).toHaveLength(2);
+    const img = await upload("f", "image/png", PNG);
+    const set = await call("set_feed_image", { feed: "f", upload_id: img.upload_id });
+    expect(set.isError, JSON.stringify(set.content)).toBeFalsy();
+    expect(set.structuredContent.image_url).toMatch(/\.png$/);
+  });
+
+  test("a refused post keeps the upload for another try", async () => {
+    const u = await upload("f", "image/png", PNG);
+    const bad = await call("post_file", { feed: "f", upload_id: u.upload_id, alt: "x\u202e" });
+    expect(bad.isError).toBe(true);
+    expect((await call("post_file", { feed: "f", upload_id: u.upload_id, alt: "fine" })).isError).toBeFalsy();
+  });
+
+  test("refusals: both or neither of data and upload_id, a type other than the upload's, another feed's upload, no file yet", async () => {
+    const b64 = Buffer.from(PNG).toString("base64");
+    const u = await upload("f", "image/png", PNG);
+    const both = await call("post_file", { feed: "f", type: "image/png", data: b64, upload_id: u.upload_id });
+    expect(both.content[0].text).toMatch(/give either data or upload_id/);
+    expect((await call("post_file", { feed: "f" })).content[0].text).toMatch(/give either data or upload_id/);
+    expect((await call("post_file", { feed: "f", data: b64 })).content[0].text).toMatch(/type is needed with data/);
+    expect((await call("post_file", { feed: "f", type: "image/jpeg", upload_id: u.upload_id })).content[0].text).toMatch(/made for image\/png/);
+    expect((await call("post_file", { feed: "other", upload_id: u.upload_id })).content[0].text).toMatch(/no such upload/);
+    const empty = await call("create_upload", { feed: "f", type: "image/png" });
+    expect((await call("post_file", { feed: "f", upload_id: empty.structuredContent.upload_id })).content[0].text).toMatch(/has no file yet/);
+    expect(await hasFeed("other")).toBe(false);
+  });
+
+  test("create_upload: a protected feed needs its password, an unaccepted type is refused, images off is said at once", async () => {
+    await call("post_note", { feed: "p", markdown: "x", password: "pw-pw-pw-pw" });
+    expect((await call("create_upload", { feed: "p", type: "image/png" })).isError).toBe(true);
+    expect((await call("create_upload", { feed: "p", type: "image/png", password: "pw-pw-pw-pw" })).isError).toBeFalsy();
+    expect((await call("create_upload", { feed: "f", type: "image/svg+xml" })).isError).toBe(true);
+    vi.stubEnv("NOTEFEED_IMAGE_UPLOADS", "0");
+    expect((await call("create_upload", { feed: "f", type: "image/png" })).content[0].text).toMatch(/image uploads are off/);
+    expect((await call("create_upload", { feed: "f", type: "text/markdown" })).isError).toBeFalsy();
   });
 });
