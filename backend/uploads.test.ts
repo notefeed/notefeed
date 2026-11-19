@@ -2,7 +2,7 @@ import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { API_PREFIX, dispatch } from "./http/api";
-import { resetFeedsForTests } from "./feeds";
+import { listFeeds, resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
 import { createUpload } from "./posting";
 import { PNG } from "./testimages";
@@ -23,7 +23,7 @@ const put = (token: string, body: BodyInit, headers: Record<string, string> = {}
     "uploads",
     token,
   ]);
-const uploadsDir = () => join(process.env.DATA_DIR!, "uploads");
+const uploadsDir = () => join(process.env.DATA_DIR!, ".uploads");
 
 describe("an upload", () => {
   test("takes one file, which a post reads once; the files on disk are named by id, never by token", async () => {
@@ -123,6 +123,23 @@ describe("an upload", () => {
     await writeFile(join(uploadsDir(), "left-over"), "x");
     await makeUpload("f", "ip", PNG_TYPE);
     expect(await readdir(uploadsDir())).toEqual([]);
+  });
+
+  test("the uploads folder is no feed's: a feed called uploads survives a restart's clearing, and none appears", async () => {
+    const feedDir = join(process.env.DATA_DIR!, "uploads");
+    await mkdir(feedDir, { recursive: true });
+    await writeFile(join(feedDir, "a-note.md"), "kept");
+    await makeUpload("f", "ip", PNG_TYPE); // the first upload after a restart clears its folder
+    expect(await readdir(feedDir)).toEqual(["a-note.md"]);
+    expect(await listFeeds()).not.toContain(".uploads");
+  });
+
+  test("the sender is an account, else a feed's password, else the address: many people behind one address aren't one sender", async () => {
+    for (let i = 0; i < MAX_UPLOADS_PER_FEED; i++) await createUpload(`open${i}`, "shared", { account: `acct${i}` }, "image/png");
+    expect((await createUpload("open-x", "shared", {}, "image/png")).id).toBeTruthy();
+    for (let i = 1; i < MAX_UPLOADS_PER_FEED; i++) await createUpload(`anon${i}`, "shared", {}, "image/png");
+    await expect(createUpload("anon-x", "shared", {}, "image/png")).rejects.toThrow(/too many uploads waiting/);
+    await expect(createUpload("anon-y", "shared", { account: "acct-new" }, "image/png")).resolves.toBeTruthy();
   });
 
   test("createUpload needs a protected feed's password, like a post", async () => {

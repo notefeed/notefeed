@@ -18,8 +18,8 @@ import { logger } from "./log";
 import { processState } from "./state";
 
 export const UPLOAD_TTL_MS = 15 * 60_000;
-// At most this many uploads wait for one feed, and for one sender (a post's pictures fit). The sender is its address's hash, in
-// memory only and gone with the upload, as the rate limit keeps it.
+// At most this many uploads wait for one feed, and for one sender (a post's pictures fit). The sender is an account, a feed's
+// password or, for anyone else, an address (posting.ts, createUpload); only its hash is kept, in memory and gone with the upload.
 export const MAX_UPLOADS_PER_FEED = MAX_ATTACHMENTS;
 // At most this many files wait on disk, checked when a file is sent: an upload without its file costs no disk, so only a sender who
 // sends real files can take these places.
@@ -29,7 +29,7 @@ export const MAX_UPLOADS = 1000;
 
 type Upload = {
   feed: string;
-  sender: string; // a hash of the address it was made from
+  sender: string; // a hash of who made it: an account, a feed password or an address
   mediaType: string;
   isImage: boolean;
   maxBytes: number;
@@ -42,7 +42,8 @@ type Upload = {
 
 const log = logger("uploads");
 const uploads = processState("uploads", () => ({ byId: new Map<string, Upload>(), cleared: new Map<string, Promise<void>>() }));
-const dir = () => join(config.dataDir(), "uploads");
+// A dot first: a feed's name can't start with one, and the file system storage keeps each feed in a folder of the data directory.
+const dir = () => join(config.dataDir(), ".uploads");
 const fileOf = (id: string) => join(dir(), id);
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const ID_RE = /^[0-9a-f]{32}$/;
@@ -84,16 +85,22 @@ export function uploadType(type: string): { mediaType: string; isImage: boolean 
 
 export type NewUpload = { id: string; token: string; expires: Date; maxBytes: number };
 
-/** Makes an upload for `feed`, asked for from `ip`; the caller has admitted it (posting.ts, createUpload). `size`, when given, is what
- *  the PUT must send. */
-export async function makeUpload(feed: string, ip: string, type: { mediaType: string; isImage: boolean }, size?: number, now = Date.now()): Promise<NewUpload> {
+/** Makes an upload for `feed`, asked for by `senderKey`; the caller has admitted it (posting.ts, createUpload). `size`, when given,
+ *  is what the PUT must send. */
+export async function makeUpload(
+  feed: string,
+  senderKey: string,
+  type: { mediaType: string; isImage: boolean },
+  size?: number,
+  now = Date.now(),
+): Promise<NewUpload> {
   const maxBytes = limitOf(type.isImage);
   if (size !== undefined && (!Number.isSafeInteger(size) || size < 1)) throw new InvalidRequestError("size must be the file's size in bytes, at least 1");
   if (size !== undefined && size > maxBytes) throw tooLarge(type.isImage);
   await ready();
   await sweep(now);
   const all = [...uploads.byId.values()];
-  const sender = hash(`sender:${ip}`);
+  const sender = hash(`sender:${senderKey}`);
   if (
     all.length >= MAX_UPLOADS ||
     all.filter((u) => u.feed === feed).length >= MAX_UPLOADS_PER_FEED ||

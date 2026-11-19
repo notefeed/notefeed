@@ -106,9 +106,12 @@ export async function createUpload(feed: string, ip: string, access: FeedAccess,
   assertFeed(feed);
   const t = uploadType(type);
   refuseImages(t.isImage);
-  await admit(feed, ip, access);
+  const proved = await admit(feed, ip, access);
   await feedCapped(feed);
-  return makeUpload(feed, ip, t, size);
+  // Who the per-sender cap counts: an account, else a feed's password (its own feed's cap counts that), else the address. Many
+  // people share one address (claude.ai's connectors, an instance without NOTEFEED_TRUST_PROXY), so it comes last.
+  const sender = access.account ? `account:${access.account}` : proved ? `feed:${feed}` : `ip:${ip}`;
+  return makeUpload(feed, sender, t, size);
 }
 
 // An image the operator removed may not come back, in any feed (issue #155).
