@@ -101,13 +101,15 @@ async function admit(feed: string, ip: string, access: FeedAccess): Promise<bool
 }
 
 // An upload (#381, ADR 0064): made with the feed's access and counted as a post, so it opens nothing a post wouldn't; a picture is
-// refused at once where image uploads are off, and so is a new feed past NOTEFEED_MAX_FEEDS. The post that uses it runs every check again.
+// refused at once where image uploads are off or the feed has no license for it, and so is a new feed past NOTEFEED_MAX_FEEDS. The post that uses it runs every check again.
 export async function createUpload(feed: string, ip: string, access: FeedAccess, type: string, size?: number): Promise<NewUpload> {
   assertFeed(feed);
   const t = uploadType(type);
   refuseImages(t.isImage);
   const proved = await admit(feed, ip, access);
-  await feedCapped(feed);
+  // Where licenses are sold, a picture needs a licensed feed (or room in the account's license for a new one): said now, before a
+  // file is sent that could never be posted.
+  await licenseForImages(feed, t.isImage, await feedCapped(feed), access);
   // Who the per-sender cap counts: an account, else a feed's password (its own feed's cap counts that), else the address. Many
   // people share one address (claude.ai's connectors, an instance without NOTEFEED_TRUST_PROXY), so it comes last.
   const sender = access.account ? `account:${access.account}` : proved ? `feed:${feed}` : `ip:${ip}`;
