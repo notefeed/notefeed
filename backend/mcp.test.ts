@@ -949,6 +949,7 @@ describe("uploads", () => {
     expect(u.upload_url).toMatch(/^http:\/\/localhost:3000\/api\/v1\/uploads\/[A-Za-z0-9_-]{43}$/);
     expect(u.upload_url).not.toContain("secret-feed");
     expect(u.guidance.join(" ")).toContain(`curl -sS --fail-with-body -T <path to the file> "${u.upload_url}"`);
+    expect(u.guidance.join(" ")).toContain(`doesn't reach ${new URL(u.upload_url).host}: in claude.ai's code execution`);
     const r = await call("post_file", { feed: "secret-feed", upload_id: u.upload_id });
     expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
     const stored = await readFile(join(process.env.DATA_DIR!, "secret-feed", r.structuredContent.file));

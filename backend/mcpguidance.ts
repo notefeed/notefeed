@@ -85,6 +85,7 @@ export const afterRecover = (removed: boolean): string[] => [
 export function afterCreateUpload(r: { url: string; id: string; expires: string; maxBytes: number }): string[] {
   return [
     `Send the file from a shell, raw bytes, not base64: curl -sS --fail-with-body -T <path to the file> "${r.url}"`,
+    `If curl fails before notefeed answers (a proxy refuses the host, or the name doesn't resolve), the shell's network doesn't reach ${new URL(r.url).host}: in claude.ai's code execution, tell the user to allow that domain in the network access setting, then try again. A file the user attached in claude.ai is under /mnt/user-data/uploads/.`,
     `Then post it with upload_id "${r.id}" instead of data: post_file, an attachment of post_note, or set_feed_image. The type may be left out there.`,
     `The URL takes one file of at most ${r.maxBytes} bytes and works until ${r.expires}; the upload is gone once it is posted. Keep the URL to yourself: whoever has it can send the file.`,
   ];
