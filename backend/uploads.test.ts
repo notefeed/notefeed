@@ -1,4 +1,4 @@
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { API_PREFIX, dispatch } from "./http/api";
@@ -6,7 +6,7 @@ import { resetFeedsForTests } from "./feeds";
 import { resetRateLimitsForTests } from "./limits";
 import { createUpload } from "./posting";
 import { PNG } from "./testimages";
-import { MAX_UPLOADS, MAX_UPLOADS_PER_FEED, UPLOAD_TTL_MS, makeUpload, receiveUpload, resetUploads, withUploads } from "./uploads";
+import { MAX_UPLOAD_FILES, MAX_UPLOADS_PER_FEED, UPLOAD_TTL_MS, makeUpload, receiveUpload, resetUploads, withUploads } from "./uploads";
 
 beforeEach(() => {
   process.env.NOTEFEED_SECRET = "test-secret-".padEnd(32, "x");
@@ -27,7 +27,7 @@ const uploadsDir = () => join(process.env.DATA_DIR!, "uploads");
 
 describe("an upload", () => {
   test("takes one file, which a post reads once; the files on disk are named by id, never by token", async () => {
-    const u = await makeUpload("f", PNG_TYPE);
+    const u = await makeUpload("f", "ip", PNG_TYPE);
     expect(await receiveUpload(u.token, bytes(PNG))).toEqual({ size: PNG.length, mediaType: "image/png" });
     await expect(receiveUpload(u.token, bytes(PNG))).rejects.toThrow(/already has its file/);
     expect(await readdir(uploadsDir())).toEqual([u.id]);
@@ -39,41 +39,74 @@ describe("an upload", () => {
 
   test("expires after 15 minutes, file and all", async () => {
     const now = Date.now();
-    const u = await makeUpload("f", PNG_TYPE, undefined, now);
+    const u = await makeUpload("f", "ip", PNG_TYPE, undefined, now);
     await receiveUpload(u.token, bytes(PNG), now);
     expect(u.expires.getTime()).toBe(now + UPLOAD_TTL_MS);
     await expect(withUploads("f", [u.id], async () => 1, now + UPLOAD_TTL_MS)).rejects.toThrow(/no such upload/);
-    const late = await makeUpload("f", PNG_TYPE, undefined, now);
+    const late = await makeUpload("f", "ip", PNG_TYPE, undefined, now);
     await expect(receiveUpload(late.token, bytes(PNG), now + UPLOAD_TTL_MS)).rejects.toThrow(/no such upload/);
     expect(await readdir(uploadsDir())).toEqual([]);
   });
 
   test("a refused file may be sent again: too large, empty, the wrong size or not its type", async () => {
     vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", String(PNG.length));
-    const u = await makeUpload("f", PNG_TYPE, PNG.length);
+    const u = await makeUpload("f", "ip", PNG_TYPE, PNG.length);
     await expect(receiveUpload(u.token, bytes(new Uint8Array([...PNG, 0])))).rejects.toThrow(/size limit/);
     await expect(receiveUpload(u.token, bytes(new Uint8Array()))).rejects.toThrow(/empty/);
     await expect(receiveUpload(u.token, bytes(PNG.slice(0, 10)))).rejects.toThrow(/made for \d+ bytes/);
-    const v = await makeUpload("f", PNG_TYPE);
+    const v = await makeUpload("f", "ip", PNG_TYPE);
     await expect(receiveUpload(v.token, bytes(new TextEncoder().encode("not a png")))).rejects.toThrow(/not image\/png/);
     expect((await receiveUpload(u.token, bytes(PNG))).size).toBe(PNG.length);
   });
 
   test("a size over the limit is refused when the upload is made", async () => {
     vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "100");
-    await expect(makeUpload("f", PNG_TYPE, 101)).rejects.toThrow();
-    await expect(makeUpload("f", PNG_TYPE, 0)).rejects.toThrow(/at least 1/);
+    await expect(makeUpload("f", "ip", PNG_TYPE, 101)).rejects.toThrow();
+    await expect(makeUpload("f", "ip", PNG_TYPE, 0)).rejects.toThrow(/at least 1/);
   });
 
-  test(`at most ${MAX_UPLOADS_PER_FEED} wait for one feed and ${MAX_UPLOADS} in all`, async () => {
-    for (let i = 0; i < MAX_UPLOADS_PER_FEED; i++) await makeUpload("f", PNG_TYPE);
-    await expect(makeUpload("f", PNG_TYPE)).rejects.toThrow(/too many uploads waiting/);
-    for (let i = MAX_UPLOADS_PER_FEED; i < MAX_UPLOADS; i++) await makeUpload(`g${i % 5}`, PNG_TYPE);
-    await expect(makeUpload("h", PNG_TYPE)).rejects.toThrow(/too many uploads waiting/);
+  test(`at most ${MAX_UPLOADS_PER_FEED} wait for one feed or one sender, and ${MAX_UPLOAD_FILES} files in all`, async () => {
+    for (let i = 0; i < MAX_UPLOADS_PER_FEED; i++) await makeUpload("f", `ip${i}`, PNG_TYPE);
+    await expect(makeUpload("f", "other", PNG_TYPE)).rejects.toThrow(/too many uploads waiting/);
+    for (let i = 0; i < MAX_UPLOADS_PER_FEED; i++) await makeUpload(`g${i}`, "ip", PNG_TYPE);
+    await expect(makeUpload("h", "ip", PNG_TYPE)).rejects.toThrow(/too many uploads waiting/);
+    resetUploads();
+    // Uploads without their file take no place on disk: one sender's empty uploads block no one else's file.
+    const made = [];
+    for (let i = 0; i <= MAX_UPLOAD_FILES; i++) made.push(await makeUpload(`k${i}`, `ip${i}`, PNG_TYPE));
+    for (const u of made.slice(0, MAX_UPLOAD_FILES)) await receiveUpload(u.token, bytes(PNG));
+    await expect(receiveUpload(made[MAX_UPLOAD_FILES].token, bytes(PNG))).rejects.toThrow(/too many uploads waiting/);
+  });
+
+  test("a PUT still reading when its upload expires keeps no place and stores nothing", async () => {
+    const now = Date.now();
+    const u = await makeUpload("f", "ip", PNG_TYPE, undefined, now);
+    let send!: (b: Uint8Array) => void;
+    const put = receiveUpload(u.token, () => new Promise((r) => (send = r)), now);
+    await vi.waitFor(() => expect(send).toBeDefined());
+    await expect(receiveUpload(u.token, bytes(PNG), now)).rejects.toThrow(/being sent/);
+    await makeUpload("f", "ip", PNG_TYPE, undefined, now + UPLOAD_TTL_MS); // sweeps it
+    send(PNG);
+    await expect(put).rejects.toThrow(/no such upload/);
+    expect(await readdir(uploadsDir())).toEqual([]);
+  });
+
+  test("a posted upload is used up even when its file can't be deleted", async () => {
+    const u = await makeUpload("f", "ip", PNG_TYPE);
+    await receiveUpload(u.token, bytes(PNG));
+    const file = join(uploadsDir(), u.id);
+    // A directory where the file was: the delete fails.
+    const posted = await withUploads("f", [u.id], async () => {
+      await rm(file);
+      await mkdir(join(file, "x"), { recursive: true });
+      return "posted";
+    });
+    expect(posted).toBe("posted");
+    await expect(withUploads("f", [u.id], async () => 1)).rejects.toThrow(/no such upload/);
   });
 
   test("a post that fails leaves it, and two posts can't take it at once", async () => {
-    const u = await makeUpload("f", PNG_TYPE);
+    const u = await makeUpload("f", "ip", PNG_TYPE);
     await receiveUpload(u.token, bytes(PNG));
     await expect(withUploads("f", [u.id], async () => Promise.reject(new Error("refused")))).rejects.toThrow("refused");
     let release!: () => void;
@@ -88,7 +121,7 @@ describe("an upload", () => {
   test("what is on disk from before a restart is cleared by the first upload", async () => {
     await mkdir(uploadsDir(), { recursive: true });
     await writeFile(join(uploadsDir(), "left-over"), "x");
-    await makeUpload("f", PNG_TYPE);
+    await makeUpload("f", "ip", PNG_TYPE);
     expect(await readdir(uploadsDir())).toEqual([]);
   });
 
@@ -101,18 +134,18 @@ describe("an upload", () => {
 describe("PUT /uploads/{token}", () => {
   test("200 with the size; needs no instance password; an unknown token is 404, a second PUT 400, a wrong file 415", async () => {
     process.env.NOTEFEED_PASSWORD = "instance-pw";
-    const u = await makeUpload("f", PNG_TYPE);
+    const u = await makeUpload("f", "ip", PNG_TYPE);
     const ok = await put(u.token, Buffer.from(PNG));
     expect(ok.status).toBe(200);
     expect(await ok.json()).toEqual({ size: PNG.length, type: "image/png" });
     expect((await put(u.token, Buffer.from(PNG))).status).toBe(400);
     expect((await put("nope", Buffer.from(PNG))).status).toBe(404);
-    const v = await makeUpload("f", PNG_TYPE);
+    const v = await makeUpload("f", "ip", PNG_TYPE);
     expect((await put(v.token, "plain text")).status).toBe(415);
   });
   test("413 over the limit", async () => {
     vi.stubEnv("NOTEFEED_MAX_IMAGE_BYTES", "10");
-    const u = await makeUpload("f", PNG_TYPE);
+    const u = await makeUpload("f", "ip", PNG_TYPE);
     expect((await put(u.token, Buffer.from(PNG))).status).toBe(413);
   });
 });

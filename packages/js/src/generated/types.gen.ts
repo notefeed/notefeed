@@ -862,7 +862,7 @@ export type PutUploadData = {
 
 export type PutUploadErrors = {
     /**
-     * An empty body, a size other than the one the upload was made for, or an upload that already has its file
+     * An empty body, a size other than the one the upload was made for, an upload that already has its file, or one a file is being sent to right now
      */
     400: Error;
     /**
@@ -881,6 +881,10 @@ export type PutUploadErrors = {
      * The bytes are not the type the upload was made for
      */
     415: Error;
+    /**
+     * Too many files wait on the server to be posted: try again after Retry-After
+     */
+    429: Error;
 };
 
 export type PutUploadError = PutUploadErrors[keyof PutUploadErrors];

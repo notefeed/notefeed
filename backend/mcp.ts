@@ -96,8 +96,9 @@ type Source = { data?: string; upload_id?: string; type?: string };
 type Bytes = { body: Uint8Array; mediaType: string };
 
 // Base64 as given: Buffer.from skips what is not base64, so it is decoded and compared.
+// Standard base64, or its URL-safe alphabet ('-' and '_'), which post_file and set_feed_image always took.
 function decodeBase64(data: string, what: string): Buffer {
-  const clean = data.replace(/\s/g, "");
+  const clean = data.replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/");
   const body = Buffer.from(clean, "base64");
   if (body.toString("base64").replace(/=+$/, "") !== clean.replace(/=+$/, "")) throw new InvalidBodyError(`${what}: data is not valid base64`);
   return body;

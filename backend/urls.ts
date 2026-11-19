@@ -17,9 +17,9 @@ export const API_PREFIX = "/api/v1";
 export const feedPath = (feed: string) => `/${feed}`;
 export const settingsPath = (feed: string) => `/${feed}/settings`;
 export const readPath = (readId: string) => `/r/${readId}`;
-// A file of the feed (an image): served under the read id like the notes, never under the feed name.
 // An upload's URL (#381): only its random token, never the feed.
 export const uploadPath = (token: string) => `${API_PREFIX}/uploads/${token}`;
+// A file of the feed (an image): served under the read id like the notes, never under the feed name.
 export const imagePath = (readId: string, file: string) => `${readPath(readId)}/${file}`;
 export const rssPath = (readId: string) => `${readPath(readId)}/feed.xml`;
 export const atomPath = (readId: string) => `${readPath(readId)}/atom.xml`;

@@ -534,7 +534,7 @@
             }
           },
           "400": {
-            "description": "An empty body, a size other than the one the upload was made for, or an upload that already has its file",
+            "description": "An empty body, a size other than the one the upload was made for, an upload that already has its file, or one a file is being sent to right now",
             "content": {
               "application/json": {
                 "schema": {
@@ -575,6 +575,24 @@
           },
           "415": {
             "description": "The bytes are not the type the upload was made for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many files wait on the server to be posted: try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {

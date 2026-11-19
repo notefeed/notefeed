@@ -101,13 +101,14 @@ async function admit(feed: string, ip: string, access: FeedAccess): Promise<bool
 }
 
 // An upload (#381, ADR 0064): made with the feed's access and counted as a post, so it opens nothing a post wouldn't; a picture is
-// refused at once where image uploads are off. The post that uses it runs every check again.
+// refused at once where image uploads are off, and so is a new feed past NOTEFEED_MAX_FEEDS. The post that uses it runs every check again.
 export async function createUpload(feed: string, ip: string, access: FeedAccess, type: string, size?: number): Promise<NewUpload> {
   assertFeed(feed);
   const t = uploadType(type);
   refuseImages(t.isImage);
   await admit(feed, ip, access);
-  return makeUpload(feed, t, size);
+  await feedCapped(feed);
+  return makeUpload(feed, ip, t, size);
 }
 
 // An image the operator removed may not come back, in any feed (issue #155).

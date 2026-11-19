@@ -999,6 +999,20 @@ describe("uploads", () => {
     expect(await hasFeed("other")).toBe(false);
   });
 
+  test("data in base64's URL-safe alphabet is taken, as before uploads", async () => {
+    const urlSafe = Buffer.from(PNG).toString("base64url");
+    const r = await call("post_file", { feed: "f", type: "image/png", data: urlSafe });
+    expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+  });
+
+  test("an upload for a new feed past NOTEFEED_MAX_FEEDS is refused when it is made", async () => {
+    await call("post_file", { feed: "first", type: "text/markdown", data: Buffer.from("hi").toString("base64") });
+    vi.stubEnv("NOTEFEED_MAX_FEEDS", "1");
+    expect((await call("create_upload", { feed: "second", type: "image/png" })).content[0].text).toMatch(/feed limit reached/);
+    expect((await call("create_upload", { feed: "first", type: "image/png" })).isError).toBeFalsy();
+    vi.unstubAllEnvs();
+  });
+
   test("create_upload: a protected feed needs its password, an unaccepted type is refused, images off is said at once", async () => {
     await call("post_note", { feed: "p", markdown: "x", password: "pw-pw-pw-pw" });
     expect((await call("create_upload", { feed: "p", type: "image/png" })).isError).toBe(true);

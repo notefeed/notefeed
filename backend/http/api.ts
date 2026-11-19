@@ -290,10 +290,13 @@ const OPS: AnyOp[] = [
     body: { "application/octet-stream": FileBody },
     responses: {
       200: { description: "Received: the upload can now be posted by its id", schema: UploadedJson },
-      400: err("An empty body, a size other than the one the upload was made for, or an upload that already has its file"),
+      400: err(
+        "An empty body, a size other than the one the upload was made for, an upload that already has its file, or one a file is being sent to right now",
+      ),
       404: err("No such upload: it expired, was posted, or never existed"),
       413: err("Larger than the upload takes: NOTEFEED_MAX_IMAGE_BYTES for an image, " + `${MAX_BYTES} bytes for markdown`),
       415: err("The bytes are not the type the upload was made for"),
+      429: { ...err("Too many files wait on the server to be posted: try again after Retry-After"), headers: RETRY },
     },
   }).handle(async ({ req, params }) => {
     const got = await receiveUpload(params.token, (max) => readCapped(req, max));
