@@ -58,7 +58,11 @@ _Avoid_: Picture, photo, media
 
 **Attachment**:
 An image posted together with a text note in the same request and referred to from that text.
-_Avoid_: Upload, embed
+_Avoid_: Embed
+
+**Upload**:
+A file sent on its own to a short-lived URL (MCP `create_upload`) and posted afterwards by its id, so an assistant's tool call doesn't carry the bytes. It is no note until a post uses it.
+_Avoid_: Attachment, staging, draft
 
 **Post**:
 What was posted together: a text note and its attachments, or an image posted alone. The operator's takedown of one note removes its whole post.

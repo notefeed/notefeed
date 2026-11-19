@@ -474,6 +474,17 @@ export type Claim = {
     password: string;
 };
 
+export type Uploaded = {
+    /**
+     * The bytes received
+     */
+    size: number;
+    /**
+     * The media type the upload was made for
+     */
+    type: string;
+};
+
 export type FeedPassword = {
     /**
      * The password's id, to revoke it
@@ -833,6 +844,59 @@ export type PostNoteResponses = {
 };
 
 export type PostNoteResponse = PostNoteResponses[keyof PostNoteResponses];
+
+export type PutUploadData = {
+    /**
+     * The note, a file: its bytes, of the type `Content-Type` declares
+     */
+    body: Blob | File;
+    path: {
+        /**
+         * The upload's token, from its upload_url
+         */
+        token: string;
+    };
+    query?: never;
+    url: '/api/v1/uploads/{token}';
+};
+
+export type PutUploadErrors = {
+    /**
+     * An empty body, a size other than the one the upload was made for, an upload that already has its file, or one a file is being sent to right now
+     */
+    400: Error;
+    /**
+     * An account token that may only read (`read_only`)
+     */
+    403: Error;
+    /**
+     * No such upload: it expired, was posted, or never existed
+     */
+    404: Error;
+    /**
+     * Larger than the upload takes: NOTEFEED_MAX_IMAGE_BYTES for an image, 102400 bytes for markdown
+     */
+    413: Error;
+    /**
+     * The bytes are not the type the upload was made for
+     */
+    415: Error;
+    /**
+     * Too many files wait on the server to be posted: try again after Retry-After
+     */
+    429: Error;
+};
+
+export type PutUploadError = PutUploadErrors[keyof PutUploadErrors];
+
+export type PutUploadResponses = {
+    /**
+     * Received: the upload can now be posted by its id
+     */
+    200: Uploaded;
+};
+
+export type PutUploadResponse = PutUploadResponses[keyof PutUploadResponses];
 
 export type DeleteNoteData = {
     body?: never;

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddFeedPasswordData, AddFeedPasswordErrors, AddFeedPasswordResponses, BuyLicenseData, BuyLicenseErrors, BuyLicenseResponses, ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, ChangeLicenseUnitsData, ChangeLicenseUnitsErrors, ChangeLicenseUnitsResponses, ClaimFeedData, ClaimFeedErrors, ClaimFeedResponses, CreateAccountTokenData, CreateAccountTokenErrors, CreateAccountTokenResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetAccountLicenseData, GetAccountLicenseErrors, GetAccountLicenseResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensePortalData, GetLicensePortalErrors, GetLicensePortalResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListAccountFeedsData, ListAccountFeedsErrors, ListAccountFeedsResponses, ListAccountTokensData, ListAccountTokensErrors, ListAccountTokensResponses, ListFeedPasswordsData, ListFeedPasswordsErrors, ListFeedPasswordsResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, RevokeAccountTokenData, RevokeAccountTokenErrors, RevokeAccountTokenResponses, RevokeFeedPasswordData, RevokeFeedPasswordErrors, RevokeFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
+import type { AddFeedPasswordData, AddFeedPasswordErrors, AddFeedPasswordResponses, BuyLicenseData, BuyLicenseErrors, BuyLicenseResponses, ChangeFeedPasswordData, ChangeFeedPasswordErrors, ChangeFeedPasswordResponses, ChangeLicenseUnitsData, ChangeLicenseUnitsErrors, ChangeLicenseUnitsResponses, ClaimFeedData, ClaimFeedErrors, ClaimFeedResponses, CreateAccountTokenData, CreateAccountTokenErrors, CreateAccountTokenResponses, CreateFeedData, CreateFeedErrors, CreateFeedResponses, DeleteFeedData, DeleteFeedErrors, DeleteFeedLicenseData, DeleteFeedLicenseErrors, DeleteFeedLicenseResponses, DeleteFeedResponses, DeleteNoteData, DeleteNoteErrors, DeleteNoteResponses, EditNoteData, EditNoteErrors, EditNoteResponses, GetAccountLicenseData, GetAccountLicenseErrors, GetAccountLicenseResponses, GetFeedData, GetFeedErrors, GetFeedResponses, GetFileData, GetFileErrors, GetFileResponses, GetLicensePortalData, GetLicensePortalErrors, GetLicensePortalResponses, GetLicensesData, GetLicensesErrors, GetLicensesResponses, GetNoteData, GetNoteErrors, GetNoteResponses, GetOpenApiData, GetOpenApiResponses, GetReadFeedData, GetReadFeedErrors, GetReadFeedResponses, GetReadNoteData, GetReadNoteErrors, GetReadNoteResponses, ListAccountFeedsData, ListAccountFeedsErrors, ListAccountFeedsResponses, ListAccountTokensData, ListAccountTokensErrors, ListAccountTokensResponses, ListFeedPasswordsData, ListFeedPasswordsErrors, ListFeedPasswordsResponses, ListNotesData, ListNotesErrors, ListNotesResponses, ListReadNotesData, ListReadNotesErrors, ListReadNotesResponses, PatchNoteData, PatchNoteErrors, PatchNoteResponses, PostNoteData, PostNoteErrors, PostNoteResponses, PutFeedLicenseData, PutFeedLicenseErrors, PutFeedLicenseResponses, PutUploadData, PutUploadErrors, PutUploadResponses, RemoveFeedImageData, RemoveFeedImageErrors, RemoveFeedImageResponses, RemoveFeedPasswordData, RemoveFeedPasswordErrors, RemoveFeedPasswordResponses, RevokeAccountTokenData, RevokeAccountTokenErrors, RevokeAccountTokenResponses, RevokeFeedPasswordData, RevokeFeedPasswordErrors, RevokeFeedPasswordResponses, SetFeedImageData, SetFeedImageErrors, SetFeedImageResponses, UpdateFeedData, UpdateFeedErrors, UpdateFeedResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -41,6 +41,21 @@ export const postNote = <ThrowOnError extends boolean = false>(options: Options<
     ...options,
     headers: {
         'Content-Type': 'text/markdown',
+        ...options.headers
+    }
+});
+
+/**
+ * Send the file of an upload
+ *
+ * The URL of an upload that the MCP tool `create_upload` made (#381): its body is the file's raw bytes (`curl -T file <url>`), of the type the upload was made for; `Content-Type` is not read. The token in the path is the only credential: no instance password, feed password or account. The URL takes one file, within 15 minutes of being made; a refused file may be sent again. The file is then posted by the upload's id, over MCP (`post_file`, `post_note`'s attachments, `set_feed_image`), which runs every check of a post and deletes the upload. Over REST, a post takes the file in its own body, so there is no upload to make.
+ */
+export const putUpload = <ThrowOnError extends boolean = false>(options: Options<PutUploadData, ThrowOnError>): RequestResult<PutUploadResponses, PutUploadErrors, ThrowOnError> => (options.client ?? client).put<PutUploadResponses, PutUploadErrors, ThrowOnError>({
+    bodySerializer: null,
+    url: '/api/v1/uploads/{token}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/octet-stream',
         ...options.headers
     }
 });

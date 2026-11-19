@@ -81,7 +81,9 @@ import {
   CheckoutJson,
   CheckoutRequestJson,
   UnitsJson,
+  UploadedJson,
 } from "./schemas";
+import { receiveUpload } from "../uploads";
 
 export { API_PREFIX };
 
@@ -272,6 +274,34 @@ const OPS: AnyOp[] = [
       507: err("NOTEFEED_MAX_FEEDS, NOTEFEED_MAX_NOTES_PER_FEED or NOTEFEED_MAX_IMAGES_PER_FEED reached"),
     },
   }).handle(({ req, params }) => handlePostNote(req, params.feed)),
+
+  op({
+    method: "PUT",
+    path: `${API_PREFIX}/uploads/{token}`,
+    operationId: "putUpload",
+    summary: "Send the file of an upload",
+    description:
+      "The URL of an upload that the MCP tool `create_upload` made (#381): its body is the file's raw bytes (`curl -T file <url>`), of the type the upload was made for; `Content-Type` is not read. " +
+      "The token in the path is the only credential: no instance password, feed password or account. The URL takes one file, within 15 minutes of being made; a refused file may be sent again. " +
+      "The file is then posted by the upload's id, over MCP (`post_file`, `post_note`'s attachments, `set_feed_image`), which runs every check of a post and deletes the upload. " +
+      "Over REST, a post takes the file in its own body, so there is no upload to make.",
+    tags: ["Uploads"],
+    params: { token: z.string().describe("The upload's token, from its upload_url") },
+    body: { "application/octet-stream": FileBody },
+    responses: {
+      200: { description: "Received: the upload can now be posted by its id", schema: UploadedJson },
+      400: err(
+        "An empty body, a size other than the one the upload was made for, an upload that already has its file, or one a file is being sent to right now",
+      ),
+      404: err("No such upload: it expired, was posted, or never existed"),
+      413: err("Larger than the upload takes: NOTEFEED_MAX_IMAGE_BYTES for an image, " + `${MAX_BYTES} bytes for markdown`),
+      415: err("The bytes are not the type the upload was made for"),
+      429: { ...err("Too many files wait on the server to be posted: try again after Retry-After"), headers: RETRY },
+    },
+  }).handle(async ({ req, params }) => {
+    const got = await receiveUpload(params.token, (max) => readCapped(req, max));
+    return { status: 200, body: { size: got.size, type: got.mediaType } };
+  }),
 
   op({
     method: "GET",
@@ -1274,6 +1304,7 @@ export function openApiDocument(serverUrl: string): Json {
         description:
           "Where accounts are on: what the account signed in on this instance's pages owns, and its tokens. A request with an account token (`Authorization: Bearer nf_…`) acts as its account on every Feeds operation.",
       },
+      { name: "Uploads", description: "A file sent apart from the MCP call that posts it, to a short-lived URL whose token is its only credential." },
       { name: "Licenses", description: "Where licenses are sold: what they cost, where to buy them and where buyers manage them. Public." },
       { name: "Meta", description: "About the API itself." },
     ],

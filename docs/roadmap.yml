@@ -97,6 +97,16 @@ items:
       - {label: "V4", url: "https://docs.notefeed.me/values/#v4"}
 
   # ---- done ------------------------------------------------------------------------------------------------------------
+  - id: uploads
+    status: done
+    date: 2026-11-19
+    icon: cloud-upload-outline
+    title: Full-size pictures from AI assistants
+    summary: An assistant sends a picture with curl to a short-lived upload URL and posts it by its id, so the bytes never pass through the conversation.
+    links:
+      - {label: "#416", url: "https://github.com/notefeed/notefeed/pull/416"}
+      - {label: "V11", url: "https://docs.notefeed.me/values/#v11"}
+
   - id: language-and-path
     status: done
     date: 2026-11-18

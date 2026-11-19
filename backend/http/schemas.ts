@@ -257,6 +257,12 @@ export const ReadFeedJson = z.object({ title: TITLE, description: DESCRIPTION, i
 // A raw request body, not JSON.
 export const FileBody = z.string().meta({ format: "binary" }).describe("The note, a file: its bytes, of the type `Content-Type` declares");
 
+export const UploadedJson = z
+  .object({
+    size: z.number().int().describe("The bytes received"),
+    type: z.string().describe("The media type the upload was made for"),
+  })
+  .meta({ id: "Uploaded" });
 export const ClaimJson = z
   .object({
     password: z.string().describe(`A protected feed: one of its passwords. An open feed: the password it gets now, as setting one does (${PASSWORD_RULE})`),
@@ -341,6 +347,7 @@ export const COMPONENTS = [
   ReadFeedJson,
   LicensesJson,
   ClaimJson,
+  UploadedJson,
   FeedPasswordJson,
   FeedPasswordsJson,
   NewFeedPasswordJson,

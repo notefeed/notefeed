@@ -40,6 +40,7 @@ from .post_note_x_note_draft import PostNoteXNoteDraft
 from .posted import Posted
 from .read_feed import ReadFeed
 from .units import Units
+from .uploaded import Uploaded
 
 __all__ = (
     "AccountFeeds",
@@ -82,4 +83,5 @@ __all__ = (
     "Posted",
     "ReadFeed",
     "Units",
+    "Uploaded",
 )

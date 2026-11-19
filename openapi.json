@@ -28,6 +28,10 @@
       "description": "Where accounts are on: what the account signed in on this instance's pages owns, and its tokens. A request with an account token (`Authorization: Bearer nf_…`) acts as its account on every Feeds operation."
     },
     {
+      "name": "Uploads",
+      "description": "A file sent apart from the MCP call that posts it, to a short-lived URL whose token is its only credential."
+    },
+    {
       "name": "Licenses",
       "description": "Where licenses are sold: what they cost, where to buy them and where buyers manage them. Public."
     },
@@ -467,6 +471,120 @@
           },
           "503": {
             "description": "The key service is unreachable: the instance is down for maintenance; try again after Retry-After",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/uploads/{token}": {
+      "put": {
+        "operationId": "putUpload",
+        "summary": "Send the file of an upload",
+        "description": "The URL of an upload that the MCP tool `create_upload` made (#381): its body is the file's raw bytes (`curl -T file <url>`), of the type the upload was made for; `Content-Type` is not read. The token in the path is the only credential: no instance password, feed password or account. The URL takes one file, within 15 minutes of being made; a refused file may be sent again. The file is then posted by the upload's id, over MCP (`post_file`, `post_note`'s attachments, `set_feed_image`), which runs every check of a post and deletes the upload. Over REST, a post takes the file in its own body, so there is no upload to make.",
+        "tags": [
+          "Uploads"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "The upload's token, from its upload_url",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "description": "The note, a file: its bytes, of the type `Content-Type` declares"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Received: the upload can now be posted by its id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Uploaded"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An empty body, a size other than the one the upload was made for, an upload that already has its file, or one a file is being sent to right now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An account token that may only read (`read_only`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such upload: it expired, was posted, or never existed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Larger than the upload takes: NOTEFEED_MAX_IMAGE_BYTES for an image, 102400 bytes for markdown",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The bytes are not the type the upload was made for",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many files wait on the server to be posted: try again after Retry-After",
             "headers": {
               "Retry-After": {
                 "description": "Seconds to wait before trying again",
@@ -4868,6 +4986,26 @@
         },
         "required": [
           "password"
+        ],
+        "additionalProperties": false
+      },
+      "Uploaded": {
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "The bytes received"
+          },
+          "type": {
+            "type": "string",
+            "description": "The media type the upload was made for"
+          }
+        },
+        "required": [
+          "size",
+          "type"
         ],
         "additionalProperties": false
       },
