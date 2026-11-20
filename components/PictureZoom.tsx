@@ -6,7 +6,7 @@ import { useCopy } from "@/components/CopyProvider";
 
 // A note's pictures, enlarged (#418): a click on one opens it in a dialog over the page, as a diagram does (#301), in the feed and on
 // the note's page. `Lightbox` holds one note's pictures: the arrows (and the arrow keys) step through them in the order the note shows
-// them, as does a swipe. Esc, the close button or a click beside the picture closes it. A picture with a page of its own keeps that page, the address
+// them, as does a swipe, which slides them. Esc, the close button or a click beside the picture closes it. A picture with a page of its own keeps that page, the address
 // to share it, one link away in the dialog.
 
 /** A picture that enlarges: a link to its page (else the file) underneath, which a click without JavaScript or with a modifier follows. */
@@ -20,6 +20,8 @@ export function ZoomLink({ src, page, className = "block w-fit", children }: { s
 }
 
 type Item = { src: string; alt: string; page?: string };
+
+const SLIDE_MS = 200;
 
 /** One note's pictures (its `ZoomLink`s) and the dialog that shows them enlarged. */
 export function Lightbox({ children }: { children: ReactNode }) {
@@ -41,6 +43,21 @@ export function Lightbox({ children }: { children: ReactNode }) {
   };
   const close = () => dialog.current?.close();
   const step = (by: number) => setAt((i) => (i + by + items.length) % items.length);
+  // A swipe's slide: out to the side the finger went, then the next picture in from the other side. Without motion, at once.
+  const [slide, setSlide] = useState({ x: 0, eased: false });
+  const swipe = (by: number) => {
+    const width = window.innerWidth;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setSlide({ x: 0, eased: false });
+      return step(by);
+    }
+    setSlide({ x: -by * width, eased: true });
+    window.setTimeout(() => {
+      step(by);
+      setSlide({ x: by * width, eased: false });
+      requestAnimationFrame(() => requestAnimationFrame(() => setSlide({ x: 0, eased: true })));
+    }, SLIDE_MS);
+  };
   const keys = (e: KeyboardEvent) => {
     if (items.length < 2) return;
     if (e.key === "ArrowLeft") step(-1);
@@ -79,20 +96,34 @@ export function Lightbox({ children }: { children: ReactNode }) {
                 <CloseIcon aria-hidden className="h-5 w-5" />
               </button>
             </div>
-            {/* The arrows lie over the picture's edges, so a phone's narrow screen gives the picture its whole width; a swipe steps too. */}
+            {/* The arrows lie over the picture's edges, so a phone's narrow screen gives the picture its whole width. A swipe moves the
+                picture with the finger; let go past 50 px, it slides out and the next one slides in, else it slides back. */}
             <div
               onClick={beside}
-              onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
-              onTouchEnd={(e) => {
-                const dx = e.changedTouches[0].clientX - (touch.current ?? e.changedTouches[0].clientX);
-                touch.current = null;
-                if (many && Math.abs(dx) > 50) step(dx < 0 ? 1 : -1);
+              onTouchStart={(e) => {
+                if (!many) return;
+                touch.current = e.touches[0].clientX;
+                setSlide({ x: 0, eased: false });
               }}
-              className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-2"
+              onTouchMove={(e) => touch.current !== null && setSlide({ x: e.touches[0].clientX - touch.current, eased: false })}
+              onTouchEnd={(e) => {
+                if (touch.current === null) return;
+                const dx = e.changedTouches[0].clientX - touch.current;
+                touch.current = null;
+                if (Math.abs(dx) > 50) swipe(dx < 0 ? 1 : -1);
+                else setSlide({ x: 0, eased: true });
+              }}
+              className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden px-2 pb-2"
             >
               {/* The same file as in the note, already fetched: as large as the screen allows, never past its own size. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img key={item.src} src={item.src} alt={item.alt} className="max-h-full max-w-full object-contain" />
+              <img
+                key={item.src}
+                src={item.src}
+                alt={item.alt}
+                style={{ transform: `translateX(${slide.x}px)`, transition: slide.eased ? `transform ${SLIDE_MS}ms ease-out` : "none" }}
+                className="max-h-full max-w-full object-contain"
+              />
               {many && (
                 <>
                   <button type="button" onClick={() => step(-1)} aria-label={t.previous} className={`${arrow} left-2`}>

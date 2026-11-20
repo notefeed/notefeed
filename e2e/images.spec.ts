@@ -31,6 +31,22 @@ async function drop(page: Page, ...names: string[]) {
   );
 }
 
+// A horizontal swipe of `dx` pixels across the middle of `target`, as touch events (what a phone sends).
+async function swipe(page: Page, target: ReturnType<Page["locator"]>, dx: number) {
+  await target.evaluate(async (el, dx) => {
+    const { left, top, width, height } = el.getBoundingClientRect();
+    const x = left + width / 2;
+    const y = top + height / 2;
+    const at = (cx: number) => [new Touch({ identifier: 1, target: el, clientX: cx, clientY: y })];
+    const send = (type: string, cx: number) =>
+      el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === "touchend" ? [] : at(cx), changedTouches: at(cx) }));
+    send("touchstart", x);
+    send("touchmove", x + dx / 2);
+    send("touchmove", x + dx);
+    send("touchend", x + dx);
+  }, dx);
+}
+
 const loaded = (img: ReturnType<Page["locator"]>) => expect.poll(() => img.first().evaluate((i: HTMLImageElement) => i.naturalWidth));
 
 test("a new feed offers the same box as any feed, with the password field and the image button", async ({ page }) => {
@@ -463,6 +479,17 @@ test("a note's pictures show once in the feed and enlarge where they show, one a
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   expect(page.url()).toBe(feed);
+
+  // A swipe on a phone: the picture follows the finger and slides; a short one goes nowhere.
+  await zoom.first().click();
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), -120);
+  await expect(dialog.getByText("2 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), 120);
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), -20);
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // On the note's page, the same; the dialog's link opens the picture's own note.
   await page.getByRole("link", { name: /^Herzii, / }).click();
