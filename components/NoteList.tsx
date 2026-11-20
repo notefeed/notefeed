@@ -7,7 +7,7 @@ import type { Note } from "@/backend";
 import { serverCopy } from "@/app/_lib/copy";
 import type { Copy } from "@/shared/copy";
 import { RemovedMark } from "@/components/RemovedNote";
-import { withoutAttachments } from "@/shared/notekinds";
+import { attachmentLinks, withoutAttachments } from "@/shared/notekinds";
 
 // Times use the server's TZ (set TZ in compose.yaml).
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA");
@@ -54,6 +54,7 @@ export async function NoteList({
   terms?: boolean;
 }) {
   const t = await serverCopy();
+  const attachments = attachmentLinks(notes, base);
   return groupByDay(t, withoutAttachments(notes)).map(([day, items]) => (
     <section key={day} aria-labelledby={`day-${dayKey(items[0].date)}`} className="mb-6">
       <h2
@@ -78,7 +79,7 @@ export async function NoteList({
               <RemovedMark terms={terms} />
             ) : (
               <div lang={n.language}>
-                <CardContent t={t} note={n} imageBase={imageBase} />
+                <CardContent t={t} note={n} imageBase={imageBase} attachments={attachments} />
               </div>
             )}
             <Foot t={t} note={n} base={base} when={time(n.date)} open={`${base}/${n.id}`} report={n.removed ? undefined : report} />

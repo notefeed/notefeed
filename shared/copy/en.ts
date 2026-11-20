@@ -170,8 +170,16 @@ export const en = {
   },
   homeFeeds: { yours: "Your feeds" },
   mermaid: { enlarge: "Enlarge diagram", diagram: "Diagram", close: "Close", source: "Diagram source" },
-  // A note's picture enlarged on the note's page (components/PictureZoom.tsx).
-  picture: { enlarge: "Enlarge picture", picture: "Picture", close: "Close", page: "Picture's page" },
+  // A note's pictures enlarged, in the feed and on the note's page (components/PictureZoom.tsx).
+  picture: {
+    enlarge: "Enlarge picture",
+    picture: "Picture",
+    close: "Close",
+    page: "Picture's page",
+    previous: "Previous picture",
+    next: "Next picture",
+    position: (n: number, of: number) => `${n} of ${of}`,
+  },
   // The built-in report form (components/ReportForm.tsx). The reasons are what a person sees; the inbox gets REASONS' English values.
   report: {
     notAccepted: "The report was not accepted.",

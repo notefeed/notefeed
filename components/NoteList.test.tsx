@@ -45,7 +45,7 @@ test("a markdown note without a title of its own shows its text as written, in t
   expect(html).toMatch(/<div class="md break-words"><h1>Hello<\/h1>\s*<p>some <em>text<\/em>/);
   expect(html).not.toContain(">m1<"); // no id in place of a title
   const page = async (markdown: string) => await render(<NoteArticle note={mdNote({ id: "m1", markdown })} back="/feed" />);
-  expect(await page("Ich liebe dich\n\n![](pic.png)")).toMatch(/<div class="md break-words"><p>Ich liebe dich<\/p>\s*<p><img src="pic.png"/);
+  expect(await page("Ich liebe dich\n\n![](pic.png)")).toMatch(/<div class="md break-words"><p>Ich liebe dich<\/p>\s*<p><a [^>]*data-zoom="pic.png"[^>]*><img src="pic.png"/);
   expect(await page("Ich liebe dich")).not.toContain("<h1");
 });
 
@@ -74,7 +74,7 @@ test("a markdown note's own title is its heading on card and page, and the text 
   expect(card).toContain(">notefeed 1.0</p>");
   expect(card).toContain("<em>Released today</em>");
   const page = await render(<NoteArticle note={note} back="/feed" />);
-  expect(page).toMatch(/<h1[^>]*>notefeed 1.0<\/h1><div[^>]*><p><em>Released today<\/em>/);
+  expect(page).toMatch(/<h1[^>]*>notefeed 1.0<\/h1><div><div[^>]*><p><em>Released today<\/em>/); // the note's pictures' lightbox, then the text
   // A stored title that is the text's own first line is shown once.
   const same = await render(<NoteArticle note={mdNote({ id: "m2", markdown: "Hello\nworld", title: "Hello" })} back="/feed" />);
   expect(same.match(/Hello/g)).toHaveLength(1);
@@ -96,7 +96,7 @@ test("a damaged note is a placeholder in its place: no title, no content, a link
   expect(html).not.toContain(">b<"); // the id is no title
 });
 
-test("a picture a markdown note in the list shows is not listed again; in the list only the note's time links, to the note (ADR 0040)", async () => {
+test("a picture a markdown note in the list shows is not listed again; a picture enlarges, else only the note's time links (ADR 0040, 0065)", async () => {
   const at = new Date("2026-10-24T10:00:00Z");
   const html = await list([
     mdNote({ id: "n1", markdown: "# Herzii\n\n![](p1.png)", date: at }),
@@ -104,7 +104,9 @@ test("a picture a markdown note in the list shows is not listed again; in the li
     imgNote({ id: "p2", date: at }),
   ]);
   expect(html.match(/<li /g)).toHaveLength(2); // the markdown note and the picture nobody shows
-  expect(html).not.toMatch(/<a [^>]*><img/); // the card opens the note, a click on the picture too (components/NoteCard.tsx)
+  // A picture enlarges (components/PictureZoom.tsx), its own page one link away; every other click on the card opens the note.
+  expect(html).toMatch(/<a href="\/feed\/p1" data-zoom="\/r\/rid\/p1\.png" data-page="\/feed\/p1"[^>]*><img src="\/r\/rid\/p1\.png"/);
+  expect(html).toMatch(/<a href="\/r\/rid\/p2\.png" data-zoom="\/r\/rid\/p2\.png"[^>]*><img src="\/r\/rid\/p2\.png"/); // an image note: the file
   const open = html.match(/<a [^>]*data-open[^>]*>/)?.[0];
   expect(open).toContain('href="/feed/n1"');
   expect(open).toMatch(/aria-label="Herzii, \d\d:\d\d"/);
