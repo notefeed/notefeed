@@ -11,7 +11,7 @@ import { changeUnits, licenseOf } from "./licenseflow";
 import { freeTier, isLicensed, licensedFeedsOf, licensingOn } from "./licensing";
 import { countNotes, createNote } from "./notes";
 import { fake } from "./payments/fake";
-import { createFeed, createUpload, postNote, setFeedCovered, updateFeed } from "./posting";
+import { createFeed, createUpload, fetchSource, postNote, setFeedCovered, updateFeed } from "./posting";
 import { png as pngOf } from "./testimages";
 
 const supported = Number(process.versions.node.split(".")[0]) >= 22;
@@ -128,6 +128,12 @@ describe.skipIf(!supported)("licensing on the account (ADR 0061)", () => {
       expect((await createUpload("free", "ip", {}, "text/markdown")).id).toMatch(/^[0-9a-f]{32}$/);
       const { userId } = await licensedAccount(1, ["licensed"]);
       expect((await createUpload("licensed", "ip", { account: userId }, "image/png")).id).toBeTruthy();
+    });
+
+    test("a picture by URL is refused where its post would be, before anything is fetched (#422)", async () => {
+      await text("free");
+      await expect(fetchSource("free", "ip", {}, "https://example.com/a.png", "image/png")).rejects.toBeInstanceOf(LicenseRequiredError);
+      await expect(fetchSource("brand-new", "ip", {}, "https://example.com/a.png", "image/png")).rejects.toBeInstanceOf(LicenseRequiredError);
     });
 
     test("a password at creation needs room in the account's license, and the protected feed goes under it", async () => {

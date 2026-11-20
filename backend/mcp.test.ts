@@ -15,6 +15,11 @@ import { loadSharp } from "./imageprocess";
 import { PNG } from "./testimages";
 import { dispatch } from "./http/api";
 import { resetUploads } from "./uploads";
+import { fetchPublic } from "./fetchurl";
+import { InvalidRequestError } from "./errors";
+
+// The network is never used here: fetchurl.test.ts covers the fetch and its address checks; these cover what the tools do with it.
+vi.mock("./fetchurl", async (original) => ({ ...(await original<typeof import("./fetchurl")>()), fetchPublic: vi.fn() }));
 
 // Log lines, captured per test.
 let logs: string[] = [];
@@ -167,7 +172,10 @@ describe("protocol", () => {
         ["edit_note", "delete_note", "update_feed", "set_feed_image", "delete_feed", "revoke_feed_password", "revoke_account_token"].includes(t.name),
       );
       expect(t.annotations.idempotentHint).toBe([...reads, "edit_note", "update_feed", "set_feed_image", "change_license_units"].includes(t.name));
-      expect(t.annotations.openWorldHint).toBe(["get_licenses", "buy_license", "change_license_units"].includes(t.name));
+      // The payment provider, and a source_url's site (#422).
+      expect(t.annotations.openWorldHint).toBe(
+        ["get_licenses", "buy_license", "change_license_units", "post_note", "post_file", "set_feed_image"].includes(t.name),
+      );
       expect(t.outputSchema.type).toBe("object");
     }
   });
@@ -985,12 +993,47 @@ describe("uploads", () => {
     expect((await call("post_file", { feed: "f", upload_id: u.upload_id, alt: "fine" })).isError).toBeFalsy();
   });
 
+  test("post_file, a post_note attachment and set_feed_image take a source_url, fetched within the size limit (#422)", async () => {
+    vi.mocked(fetchPublic).mockResolvedValue({ body: Buffer.from(PNG), mediaType: "image/png; charset=binary" });
+    const r = await call("post_file", { feed: "f", source_url: "https://example.com/pic" });
+    expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+    expect(r.structuredContent.file).toMatch(/\.png$/);
+    expect(vi.mocked(fetchPublic)).toHaveBeenCalledWith("https://example.com/pic", { maxBytes: 10485760 });
+    const n = await call("post_note", {
+      feed: "f",
+      markdown: "![](a.png)",
+      attachments: [{ name: "a.png", source_url: "https://example.com/a.png", type: "image/png" }],
+    });
+    expect(n.isError, JSON.stringify(n.content)).toBeFalsy();
+    expect(n.structuredContent.attachments).toHaveLength(1);
+    expect((await call("set_feed_image", { feed: "f", source_url: "https://example.com/a.png" })).isError).toBeFalsy();
+  });
+
+  test("source_url refusals: before any fetch for a feed one can't post to or with the switch off; a type the bytes aren't; no type at all", async () => {
+    await call("post_note", { feed: "locked", markdown: "x", password: "the-password" });
+    vi.mocked(fetchPublic)
+      .mockClear()
+      .mockResolvedValue({ body: Buffer.from(PNG), mediaType: undefined });
+    const wrong = await call("post_file", { feed: "locked", source_url: "https://example.com/a.png", password: "nope" });
+    expect(wrong.isError).toBe(true);
+    vi.stubEnv("NOTEFEED_FETCH_URLS", "0");
+    expect((await call("post_file", { feed: "f", source_url: "https://example.com/a.png" })).content[0].text).toMatch(/source_url is off/);
+    vi.unstubAllEnvs();
+    expect(vi.mocked(fetchPublic)).not.toHaveBeenCalled();
+    expect((await call("post_file", { feed: "f", source_url: "https://example.com/a" })).content[0].text).toMatch(/calls the file nothing; give type/);
+    expect((await call("post_file", { feed: "f", source_url: "https://example.com/a", type: "image/jpeg" })).content[0].text).toMatch(/not image\/jpeg/);
+    expect((await call("post_file", { feed: "f", source_url: "x", data: "AAAA", type: "image/png" })).content[0].text).toMatch(/give one of/);
+    vi.mocked(fetchPublic).mockRejectedValue(new InvalidRequestError("source_url: 10.0.0.1 is not a public address"));
+    expect((await call("post_file", { feed: "f", source_url: "https://10.0.0.1/a.png" })).content[0].text).toMatch(/is not a public address/);
+    expect(await hasFeed("f")).toBe(false);
+  });
+
   test("refusals: both or neither of data and upload_id, a type other than the upload's, another feed's upload, no file yet", async () => {
     const b64 = Buffer.from(PNG).toString("base64");
     const u = await upload("f", "image/png", PNG);
     const both = await call("post_file", { feed: "f", type: "image/png", data: b64, upload_id: u.upload_id });
-    expect(both.content[0].text).toMatch(/give either data or upload_id/);
-    expect((await call("post_file", { feed: "f" })).content[0].text).toMatch(/give either data or upload_id/);
+    expect(both.content[0].text).toMatch(/give one of data, upload_id or source_url/);
+    expect((await call("post_file", { feed: "f" })).content[0].text).toMatch(/give one of data, upload_id or source_url/);
     expect((await call("post_file", { feed: "f", data: b64 })).content[0].text).toMatch(/type is needed with data/);
     expect((await call("post_file", { feed: "f", type: "image/jpeg", upload_id: u.upload_id })).content[0].text).toMatch(/made for image\/png/);
     expect((await call("post_file", { feed: "other", upload_id: u.upload_id })).content[0].text).toMatch(/no such upload/);

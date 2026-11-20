@@ -211,8 +211,8 @@ export class KeyServiceUnavailableError extends NotefeedError {
 /** Too many images are being processed (backend/imageprocess.ts): 503 with Retry-After, like a rate limit but for everyone. */
 export class BusyError extends NotefeedError {
   readonly retryAfter = 5;
-  constructor() {
-    super("busy", "too many images are being processed, try again shortly");
+  constructor(message = "too many images are being processed, try again shortly") {
+    super("busy", message);
   }
 }
 

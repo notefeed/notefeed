@@ -14,6 +14,7 @@ import {
   ImagesOffError,
   ImageTooLargeError,
   InvalidBodyError,
+  InvalidRequestError,
   NotefeedError,
   NoteLimitError,
   NotFoundError,
@@ -58,7 +59,9 @@ import { capReached, rateLimit } from "./limits";
 import { logger } from "./log";
 import { MEDIA_TYPES } from "./note/media";
 import { planInWorker } from "./place";
-import { makeUpload, uploadType, type NewUpload } from "./uploads";
+import { limitOf, makeUpload, uploadType, type NewUpload } from "./uploads";
+import { fetchPublic } from "./fetchurl";
+import { ACCEPTED_TYPES } from "./note/media";
 import { type NoteType, parseMediaType } from "./note/types";
 import { checkTags } from "./tags";
 import {
@@ -100,16 +103,41 @@ async function admit(feed: string, ip: string, access: FeedAccess): Promise<bool
   return proved;
 }
 
-// An upload (#381, ADR 0064): made with the feed's access and counted as a post, so it opens nothing a post wouldn't; a picture is
-// refused at once where image uploads are off or the feed has no license for it, and so is a new feed past NOTEFEED_MAX_FEEDS. The post that uses it runs every check again.
+// What a file that comes later (an upload, a fetched URL) must pass first: the feed's access, counted as a post, so it opens nothing a
+// post wouldn't; a picture is refused at once where image uploads are off or the feed has no license for it, and so is a new feed past
+// NOTEFEED_MAX_FEEDS. Whether the caller proved the feed's password comes back. The post itself runs every check again.
+async function admitFile(feed: string, ip: string, access: FeedAccess, isImage: boolean): Promise<boolean> {
+  assertFeed(feed);
+  refuseImages(isImage);
+  const proved = await admit(feed, ip, access);
+  // Where licenses are sold, a picture needs a licensed feed (or room in the account's license for a new one): said now, before a
+  // file is sent or fetched that could never be posted.
+  await licenseForImages(feed, isImage, await feedCapped(feed), access);
+  return proved;
+}
+
+// A file from a public URL, for MCP's source_url (#422, ADR 0066): admitted like an upload before anything is fetched, so no one makes
+// the server fetch for a feed they can't post to. `type`, when given, is what the file must be; else the site's Content-Type says.
+// The post that follows runs every check on the bytes (the type by its signature, the size, the license).
+export async function fetchSource(feed: string, ip: string, access: FeedAccess, url: string, type?: string): Promise<{ body: Uint8Array; mediaType: string }> {
+  if (!config.fetchUrls()) throw new InvalidRequestError("source_url is off on this instance (NOTEFEED_FETCH_URLS=0): send the file as data or upload_id");
+  assertFeed(feed);
+  const given = type === undefined ? undefined : uploadType(type);
+  await admitFile(feed, ip, access, given?.isImage ?? false);
+  const fetched = await fetchPublic(url, { maxBytes: limitOf(given?.isImage ?? true) });
+  if (given) return { body: fetched.body, mediaType: given.mediaType };
+  try {
+    return { body: fetched.body, mediaType: uploadType((fetched.mediaType ?? "").split(";")[0].trim()).mediaType };
+  } catch {
+    throw new UnsupportedTypeError(`source_url: the site calls the file ${fetched.mediaType ?? "nothing"}; give type, one of ${ACCEPTED_TYPES}`);
+  }
+}
+
+// An upload (#381, ADR 0064), made after admitFile.
 export async function createUpload(feed: string, ip: string, access: FeedAccess, type: string, size?: number): Promise<NewUpload> {
   assertFeed(feed);
   const t = uploadType(type);
-  refuseImages(t.isImage);
-  const proved = await admit(feed, ip, access);
-  // Where licenses are sold, a picture needs a licensed feed (or room in the account's license for a new one): said now, before a
-  // file is sent that could never be posted.
-  await licenseForImages(feed, t.isImage, await feedCapped(feed), access);
+  const proved = await admitFile(feed, ip, access, t.isImage);
   // Who the per-sender cap counts: an account, else a feed's password (its own feed's cap counts that), else the address. Many
   // people share one address (claude.ai's connectors, an instance without NOTEFEED_TRUST_PROXY), so it comes last.
   const sender = access.account ? `account:${access.account}` : proved ? `feed:${feed}` : `ip:${ip}`;

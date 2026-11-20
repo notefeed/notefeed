@@ -246,6 +246,8 @@ export const config = {
   // "0" refuses every image upload (API, MCP, web UI; an image note, a replaced one or a picture sent with a text) with
   // `images_off`; stored images keep being served. Anything else is on.
   imageUploads: () => env("NOTEFEED_IMAGE_UPLOADS").trim() !== "0",
+  // "0" refuses MCP's source_url (#422, ADR 0066): the server then never fetches a file from another site. Anything else is on.
+  fetchUrls: () => env("NOTEFEED_FETCH_URLS").trim() !== "0",
   // Unset, empty or not a level → info (the startup line warns about the last).
   logLevel: (): LogLevel => ((l) => ((LOG_LEVELS as readonly string[]).includes(l) ? (l as LogLevel) : "info"))(env("NOTEFEED_LOG_LEVEL").trim().toLowerCase()),
   // Optional OIDC sign-in (see oidc/config.ts): one provider per set of variables. `name` "" is the unprefixed
