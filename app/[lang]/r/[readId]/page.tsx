@@ -6,7 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { FeedAbout } from "@/components/FeedAbout";
 import { NoteList } from "@/components/NoteList";
 import { Removed } from "@/components/Removed";
-import { atomPath, getReadFeed, hasLegalPage, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
+import { atomPath, getReadFeed, getReadPictures, hasLegalPage, instanceTitle, isRemovedReadId, readPath, reportTemplate, rssPath } from "@/backend";
 import { sortTags } from "@/shared/tags";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +64,7 @@ export default async function ReadPage({ params, searchParams }: PageProps<"/[la
           imageBase={`${readPath(readId)}/`}
           report={reportTemplate() ? { template: reportTemplate(), readId } : undefined}
           terms={await hasLegalPage("terms")}
+          pictures={() => getReadPictures(readId)}
         />
       )}
     </AppShell>

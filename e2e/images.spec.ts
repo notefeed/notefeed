@@ -31,20 +31,24 @@ async function drop(page: Page, ...names: string[]) {
   );
 }
 
-// A horizontal swipe of `dx` pixels across the middle of `target`, as touch events (what a phone sends).
-async function swipe(page: Page, target: ReturnType<Page["locator"]>, dx: number) {
-  await target.evaluate(async (el, dx) => {
-    const { left, top, width, height } = el.getBoundingClientRect();
-    const x = left + width / 2;
-    const y = top + height / 2;
-    const at = (cx: number) => [new Touch({ identifier: 1, target: el, clientX: cx, clientY: y })];
-    const send = (type: string, cx: number) =>
-      el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === "touchend" ? [] : at(cx), changedTouches: at(cx) }));
-    send("touchstart", x);
-    send("touchmove", x + dx / 2);
-    send("touchmove", x + dx);
-    send("touchend", x + dx);
-  }, dx);
+// A horizontal swipe of `dx` pixels across the middle of `target`, as touch events (what a phone sends): with one finger, or two
+// (a pinch that drifts sideways); `end` "touchcancel" is one the system breaks off (a call, a system gesture).
+async function swipe(page: Page, target: ReturnType<Page["locator"]>, dx: number, { fingers = 1, end = "touchend" } = {}) {
+  await target.evaluate(
+    async (el, { dx, fingers, end }) => {
+      const { left, top, width, height } = el.getBoundingClientRect();
+      const x = left + width / 2;
+      const y = top + height / 2;
+      const at = (cx: number) => Array.from({ length: fingers }, (_, i) => new Touch({ identifier: i + 1, target: el, clientX: cx + i * 40, clientY: y }));
+      const send = (type: string, cx: number) =>
+        el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === end ? [] : at(cx), changedTouches: at(cx) }));
+      send("touchstart", x);
+      send("touchmove", x + dx / 2);
+      send("touchmove", x + dx);
+      send(end, x + dx);
+    },
+    { dx, fingers, end },
+  );
 }
 
 const loaded = (img: ReturnType<Page["locator"]>) => expect.poll(() => img.first().evaluate((i: HTMLImageElement) => i.naturalWidth));
@@ -457,8 +461,8 @@ test("a note's pictures show once in the feed and enlarge where they show, one a
   expect(res.status()).toBe(201);
   const posted = await res.json();
   const [beach, dune] = posted.attachments;
-  const dialog = page.getByRole("dialog", { name: "Picture" });
-  const zoom = page.locator("main a[title='Enlarge picture'] img");
+  const dialog = page.getByRole("dialog", { name: "Image" });
+  const zoom = page.locator("main a[title='Enlarge image'] img");
 
   // In the feed: the markdown note alone (its pictures are not listed again); a click on a picture enlarges it, not opens the note.
   await page.goto(`/${name}`);
@@ -471,16 +475,16 @@ test("a note's pictures show once in the feed and enlarge where they show, one a
   await loaded(dialog.locator("img")).toBeGreaterThan(0);
   await page.keyboard.press("ArrowRight");
   await expect(dialog.getByText("2 of 2")).toBeVisible();
-  await dialog.getByRole("button", { name: "Next picture" }).click(); // round to the first
+  await dialog.getByRole("button", { name: "Next image" }).click(); // round to the first
   await expect(dialog.getByText("1 of 2")).toBeVisible();
-  await dialog.getByRole("button", { name: "Previous picture" }).click();
-  await expect(dialog.getByRole("link", { name: "Picture's page" })).toHaveAttribute("href", new RegExp(`/${name}/${dune.id}$`));
+  await dialog.getByRole("button", { name: "Previous image" }).click();
+  await expect(dialog.getByRole("link", { name: "Image's page" })).toHaveAttribute("href", new RegExp(`/${name}/${dune.id}$`));
   await dialog.locator("img").click(); // a click on the picture is not one on the card
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   expect(page.url()).toBe(feed);
 
-  // A swipe on a phone: the picture follows the finger and slides; a short one goes nowhere.
+  // A swipe on a phone: the picture follows the finger and slides; a short one, two fingers or a cancelled one go nowhere.
   await zoom.first().click();
   await expect(dialog.getByText("1 of 2")).toBeVisible();
   await swipe(page, dialog.locator("img"), -120);
@@ -489,6 +493,11 @@ test("a note's pictures show once in the feed and enlarge where they show, one a
   await expect(dialog.getByText("1 of 2")).toBeVisible();
   await swipe(page, dialog.locator("img"), -20);
   await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), -120, { fingers: 2 }); // a pinch, not a swipe
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), -120, { end: "touchcancel" }); // broken off: the picture goes back in its place
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await expect(dialog.locator("img")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
   await page.keyboard.press("Escape");
 
   // On the note's page, the same; the dialog's link opens the picture's own note.
@@ -496,12 +505,12 @@ test("a note's pictures show once in the feed and enlarge where they show, one a
   await expect(page).toHaveURL(new RegExp(`/${name}/${posted.id}$`));
   await zoom.first().click();
   await expect(dialog.getByText("1 of 2")).toBeVisible();
-  await dialog.getByRole("link", { name: "Picture's page" }).click();
+  await dialog.getByRole("link", { name: "Image's page" }).click();
   await expect(page).toHaveURL(new RegExp(`/${name}/${beach.id}$`));
 
   // The picture's own page enlarges it too, alone: no arrows, no link to the page it is on.
   await zoom.click();
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Next picture" })).toHaveCount(0);
-  await expect(dialog.getByRole("link", { name: "Picture's page" })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Next image" })).toHaveCount(0);
+  await expect(dialog.getByRole("link", { name: "Image's page" })).toHaveCount(0);
 });

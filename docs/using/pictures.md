@@ -47,4 +47,4 @@ sequenceDiagram
   N-->>C: the text note + attachments
 ```
 
-The feed, the read-only view and RSS show such a picture once, inside the note that shows it, not again as a note of its own. Clicking a picture, in the feed or on a note's page, shows it enlarged over the page; the arrows (or the arrow keys) go through the note's other pictures, and a link there opens the picture's own page, the address to share it. Esc or a click beside it closes it. A picture is only left out of a list that also holds the note showing it, so a tag filter that lists the picture alone still shows it. The API lists every note.
+The feed, the read-only view and RSS show such a picture once, inside the note that shows it, not again as a note of its own. Clicking a picture, in the feed or on a note's page, shows it enlarged over the page; the arrows, the arrow keys or a swipe go through the note's other pictures, and a link there opens the picture's own page, the address to share it. Esc or a click beside it closes it. A picture is only left out of a list that also holds the note showing it, so a tag filter that lists the picture alone still shows it. The API lists every note.

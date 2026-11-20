@@ -108,13 +108,22 @@ test("a picture a markdown note in the list shows is not listed again; a picture
   expect(html.match(/<li /g)).toHaveLength(2); // the markdown note and the picture nobody shows
   // A picture enlarges (components/PictureZoom.tsx), its own page one link away; every other click on the card opens the note.
   expect(html).toMatch(/<a href="\/feed\/p1" data-zoom="\/r\/rid\/p1\.png" data-page="\/feed\/p1"[^>]*><img src="\/r\/rid\/p1\.png"/);
-  expect(html).toMatch(/<a href="\/r\/rid\/p2\.png" data-zoom="\/r\/rid\/p2\.png"[^>]*><img src="\/r\/rid\/p2\.png"/); // an image note: the file
+  expect(html).toMatch(/<a href="\/feed\/p2" data-zoom="\/r\/rid\/p2\.png" data-page="\/feed\/p2"[^>]*><img src="\/r\/rid\/p2\.png"/); // an image note: its page
   const open = html.match(/<a [^>]*data-open[^>]*>/)?.[0];
   expect(open).toContain('href="/feed/n1"');
   expect(open).toMatch(/aria-label="Herzii, \d\d:\d\d"/);
 
   expect(html.match(/src="\/r\/rid\/p1\.png"/g)).toHaveLength(1);
   expect(html).toMatch(/src="\/r\/rid\/p2\.png"/);
+});
+
+test("a picture whose note is not in the list (another page, a tag) gets its page from the feed's pictures, loaded only then", async () => {
+  let loads = 0;
+  const pictures = async () => (loads++, [imgNote({ id: "old" })]);
+  const html = await render(<NoteList notes={[mdNote({ id: "n1", markdown: "![](old.png)" })]} base="/feed" imageBase="/r/rid/" pictures={pictures} />);
+  expect(html).toMatch(/<a href="\/feed\/old" data-zoom="\/r\/rid\/old\.png" data-page="\/feed\/old"/);
+  await render(<NoteList notes={[mdNote({ id: "n2", markdown: "# No pictures" })]} base="/feed" pictures={pictures} />);
+  expect(loads).toBe(1);
 });
 
 test("a scheduled note's card says Scheduled for", async () => {

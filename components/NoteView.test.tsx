@@ -23,10 +23,11 @@ test("with zoom, a picture opens enlarged, linking to its own page or else its f
   const html = renderToStaticMarkup(
     <NoteView markdown={"![](beach.png)\n\n![](other.png)\n\n[![](beach.png)](https://x.test)"} imageBase="/r/rid/" link={link} zoom />,
   );
-  expect(html).toMatch(/<a href="\/f\/p1" data-zoom="\/r\/rid\/beach.png" data-page="\/f\/p1" title="Enlarge picture"[^>]*><img src="\/r\/rid\/beach.png"/);
-  expect(html).toMatch(/<a href="\/r\/rid\/other.png" data-zoom="\/r\/rid\/other.png" title="Enlarge picture"[^>]*><img src="\/r\/rid\/other.png"/);
+  expect(html).toMatch(/<a href="\/f\/p1" data-zoom="\/r\/rid\/beach.png" data-page="\/f\/p1" title="Enlarge image"[^>]*><img src="\/r\/rid\/beach.png"/);
+  expect(html).toMatch(/<a href="\/r\/rid\/other.png" data-zoom="\/r\/rid\/other.png" title="Enlarge image"[^>]*><img src="\/r\/rid\/other.png"/);
   expect(html).toContain('<a href="https://x.test"><img src="/r/rid/beach.png"'); // no link in a link
   expect(html.match(/<dialog/g)).toHaveLength(1); // one for the note's pictures
+  expect(html).toMatch(/<a [^>]*class="inline-block[^"]*"[^>]*><img src="\/r\/rid\/beach.png"/); // inline: pictures side by side stay so
 });
 
 test("without zoom (the compose box's preview), a picture is only a picture", () => {

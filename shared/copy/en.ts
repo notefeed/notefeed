@@ -172,12 +172,12 @@ export const en = {
   mermaid: { enlarge: "Enlarge diagram", diagram: "Diagram", close: "Close", source: "Diagram source" },
   // A note's pictures enlarged, in the feed and on the note's page (components/PictureZoom.tsx).
   picture: {
-    enlarge: "Enlarge picture",
-    picture: "Picture",
+    enlarge: "Enlarge image",
+    picture: "Image",
     close: "Close",
-    page: "Picture's page",
-    previous: "Previous picture",
-    next: "Next picture",
+    page: "Image's page",
+    previous: "Previous image",
+    next: "Next image",
     position: (n: number, of: number) => `${n} of ${of}`,
   },
   // The built-in report form (components/ReportForm.tsx). The reasons are what a person sees; the inbox gets REASONS' English values.

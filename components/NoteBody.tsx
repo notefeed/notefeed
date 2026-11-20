@@ -22,12 +22,13 @@ type Body = {
 
 // An image note's picture, from the feed's current read link (`imageBase`), so it follows a changed read id. The text alternative is
 // the note's own, else its title, else none: a picture without a description is decoration to a screen reader, not a file name.
-// A click on it shows it enlarged (#418); in the feed, the card's foot links to its page.
-function Picture({ note, imageBase, className }: { note: Note; imageBase?: string; className: string }) {
+// A click on it shows it enlarged (#418).
+// `page`: its own page, from a list (ADR 0065); on that page itself, none.
+function Picture({ note, imageBase, page, className }: { note: Note; imageBase?: string; page?: string; className: string }) {
   const src = (imageBase ?? "") + note.file;
   return (
     <Lightbox>
-      <ZoomLink src={src} className="block">
+      <ZoomLink src={src} page={page} className="block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={src} alt={note.alt ?? note.title} loading="lazy" className={className} />
       </ZoomLink>
@@ -87,9 +88,16 @@ function Contents({ t, headings }: { t: Copy; headings: Heading[] }) {
 
 const image: Body = {
   heading: (note) => note.title || undefined,
-  Content({ note, place, imageBase }) {
+  Content({ note, place, imageBase, attachmentLink }) {
     if (place === "page") return <Picture note={note} imageBase={imageBase} className="max-h-[80vh] max-w-full rounded-xl object-contain" />;
-    return <Picture note={note} imageBase={imageBase} className={`max-h-96 w-full max-w-[40rem] rounded-xl object-cover ${note.title ? "mt-3" : ""}`} />;
+    return (
+      <Picture
+        note={note}
+        imageBase={imageBase}
+        page={attachmentLink?.(note.file)}
+        className={`max-h-96 w-full max-w-[40rem] rounded-xl object-cover ${note.title ? "mt-3" : ""}`}
+      />
+    );
   },
 };
 

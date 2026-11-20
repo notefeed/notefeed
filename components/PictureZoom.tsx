@@ -1,16 +1,27 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type TouchEvent } from "react";
 import { CloseIcon, NextIcon, PreviousIcon } from "@/components/icons";
 import { useCopy } from "@/components/CopyProvider";
 
 // A note's pictures, enlarged (#418): a click on one opens it in a dialog over the page, as a diagram does (#301), in the feed and on
 // the note's page. `Lightbox` holds one note's pictures: the arrows (and the arrow keys) step through them in the order the note shows
-// them, as does a swipe, which slides them. Esc, the close button or a click beside the picture closes it. A picture with a page of its own keeps that page, the address
-// to share it, one link away in the dialog.
+// them, as does a one-finger swipe, which slides them; two fingers pinch-zoom as anywhere else. Esc, the close button or a click
+// beside the picture closes it. A picture with a page of its own keeps that page, the address to share it, one link away in the dialog.
 
 /** A picture that enlarges: a link to its page (else the file) underneath, which a click without JavaScript or with a modifier follows. */
-export function ZoomLink({ src, page, className = "block w-fit", children }: { src: string; page?: string; className?: string; children: ReactNode }) {
+export function ZoomLink({
+  src,
+  page,
+  className = "inline-block max-w-full align-bottom",
+  children,
+}: {
+  src: string;
+  page?: string;
+  className?: string;
+  children: ReactNode;
+}) {
   const t = useCopy().picture;
   return (
     <a href={page ?? src} data-zoom={src} data-page={page} title={t.enlarge} className={`${className} cursor-zoom-in`}>
@@ -31,6 +42,16 @@ export function Lightbox({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const [at, setAt] = useState(0);
   const touch = useRef<number | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  // A swipe's slide: out to the side the finger went, then the next picture in from the other side. Without motion, at once.
+  const [slide, setSlide] = useState({ x: 0, eased: false });
+  // Back to the start, the picture in its place: on opening and closing, and when a touch ends or is cancelled.
+  const settle = () => {
+    window.clearTimeout(timer.current);
+    touch.current = null;
+    setSlide({ x: 0, eased: false });
+  };
+  useEffect(() => () => window.clearTimeout(timer.current), []);
 
   const open = (e: MouseEvent) => {
     const link = (e.target as Element).closest<HTMLAnchorElement>("a[data-zoom]");
@@ -39,12 +60,14 @@ export function Lightbox({ children }: { children: ReactNode }) {
     const links = [...box.current.querySelectorAll<HTMLAnchorElement>("a[data-zoom]")];
     setItems(links.map((l) => ({ src: l.dataset.zoom!, alt: l.querySelector("img")?.alt ?? "", page: l.dataset.page })));
     setAt(links.indexOf(link));
+    settle();
     dialog.current?.showModal();
   };
-  const close = () => dialog.current?.close();
+  const close = () => {
+    settle();
+    dialog.current?.close();
+  };
   const step = (by: number) => setAt((i) => (i + by + items.length) % items.length);
-  // A swipe's slide: out to the side the finger went, then the next picture in from the other side. Without motion, at once.
-  const [slide, setSlide] = useState({ x: 0, eased: false });
   const swipe = (by: number) => {
     const width = window.innerWidth;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -52,11 +75,19 @@ export function Lightbox({ children }: { children: ReactNode }) {
       return step(by);
     }
     setSlide({ x: -by * width, eased: true });
-    window.setTimeout(() => {
+    timer.current = window.setTimeout(() => {
       step(by);
       setSlide({ x: by * width, eased: false });
       requestAnimationFrame(() => requestAnimationFrame(() => setSlide({ x: 0, eased: true })));
     }, SLIDE_MS);
+  };
+  const many = items.length > 1;
+  // Only one finger on a page at its own scale swipes: two are a pinch, and on a zoomed-in page a drag moves the page.
+  const zoomed = () => (window.visualViewport?.scale ?? 1) > 1.01;
+  const follow = (e: TouchEvent) => {
+    if (!many || e.touches.length > 1 || zoomed()) return settle();
+    touch.current = e.touches[0].clientX;
+    setSlide({ x: 0, eased: false });
   };
   const keys = (e: KeyboardEvent) => {
     if (items.length < 2) return;
@@ -65,7 +96,6 @@ export function Lightbox({ children }: { children: ReactNode }) {
   };
   const beside = (e: MouseEvent) => e.target === e.currentTarget && close();
   const item = items[at];
-  const many = items.length > 1;
   const round = "inline-flex h-10 w-10 items-center justify-center rounded-full text-white/85 hover:bg-white/10 hover:text-white";
   const arrow = "absolute top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white hover:bg-black/70";
 
@@ -81,16 +111,16 @@ export function Lightbox({ children }: { children: ReactNode }) {
           beside(e);
         }}
         onKeyDown={keys}
-        className="picture-enlarged m-auto h-[calc(100dvh-2rem)] max-h-none w-[calc(100vw-2rem)] max-w-none cursor-default bg-transparent p-0 backdrop:bg-black/85"
+        className="m-auto h-[calc(100dvh-2rem)] max-h-none w-[calc(100vw-2rem)] max-w-none cursor-default bg-transparent p-0 backdrop:bg-black/85"
       >
         {item && (
           <div onClick={beside} className="flex h-full flex-col">
             <div className="flex items-center justify-end gap-2 p-2 text-[14px] text-white/85">
               {many && <span className="mr-auto px-3 tabular-nums">{t.position(at + 1, items.length)}</span>}
               {item.page && (
-                <a href={item.page} className="rounded-full px-3 py-1.5 text-white/85 hover:bg-white/10 hover:text-white">
+                <Link href={item.page} onClick={close} className="rounded-full px-3 py-1.5 text-white/85 hover:bg-white/10 hover:text-white">
                   {t.page}
-                </a>
+                </Link>
               )}
               <button type="button" onClick={close} aria-label={t.close} className={round}>
                 <CloseIcon aria-hidden className="h-5 w-5" />
@@ -100,12 +130,10 @@ export function Lightbox({ children }: { children: ReactNode }) {
                 picture with the finger; let go past 50 px, it slides out and the next one slides in, else it slides back. */}
             <div
               onClick={beside}
-              onTouchStart={(e) => {
-                if (!many) return;
-                touch.current = e.touches[0].clientX;
-                setSlide({ x: 0, eased: false });
-              }}
-              onTouchMove={(e) => touch.current !== null && setSlide({ x: e.touches[0].clientX - touch.current, eased: false })}
+              onTouchStart={follow}
+              onTouchMove={(e) =>
+                e.touches.length > 1 || zoomed() ? settle() : touch.current !== null && setSlide({ x: e.touches[0].clientX - touch.current, eased: false })
+              }
               onTouchEnd={(e) => {
                 if (touch.current === null) return;
                 const dx = e.changedTouches[0].clientX - touch.current;
@@ -113,7 +141,8 @@ export function Lightbox({ children }: { children: ReactNode }) {
                 if (Math.abs(dx) > 50) swipe(dx < 0 ? 1 : -1);
                 else setSlide({ x: 0, eased: true });
               }}
-              className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden px-2 pb-2"
+              onTouchCancel={settle}
+              className="relative flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom items-center justify-center overflow-hidden px-2 pb-2"
             >
               {/* The same file as in the note, already fetched: as large as the screen allows, never past its own size. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
