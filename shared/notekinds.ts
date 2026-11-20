@@ -44,13 +44,16 @@ const decoded = (name: string): string => {
   }
 };
 
-/** The relative names a markdown text refers to, as written and decoded. */
+/** The relative names a markdown text refers to, as written and decoded, each also without its fragment. */
 function referencedNames(markdown: string): string[] {
   const names: string[] = [];
   for (const re of [INLINE, DEFINITION]) {
     for (const m of markdown.matchAll(re)) {
-      const name = m[1] ?? m[2];
-      if (name && isRelativeLink(name)) names.push(name, decoded(name));
+      const written = m[1] ?? m[2];
+      if (!written || !isRelativeLink(written)) continue;
+      // With its fragment (a picture's size, shared/markdown.ts) and without: a name may hold a # of its own (#420).
+      const name = written.replace(/#.*$/s, "");
+      names.push(written, decoded(written), name, decoded(name));
     }
   }
   return names;

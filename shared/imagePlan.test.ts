@@ -140,3 +140,21 @@ test("placeImages finds the destination after an alt text with a ] inside a code
   // a backtick that never closes is literal, so the bracket after it still closes the label
   expect(placeImages("![a ` b](a.png)", sent)).toBe("![a ` b](F1.png)");
 });
+
+test("placeImages matches a name with a fragment (a picture's size, #243) and keeps the fragment on the stored file (#420)", () => {
+  const sent = new Map([
+    ["a.png", "F1.png"],
+    ["b c.png", "F2.png"],
+  ]);
+  expect(placeImages("![](a.png#width=200) ![](<b c.png#height=90>)\n\n[d]: a.png#width=480&height=270", sent)).toBe(
+    "![](F1.png#width=200) ![](F2.png#height=90)\n\n[d]: F1.png#width=480&height=270",
+  );
+});
+
+test("placeImages prefers a name that holds the # itself over the name before it", () => {
+  const sent = new Map([
+    ["a#1.png", "F1.png"],
+    ["a", "F2.png"],
+  ]);
+  expect(placeImages("![](a#1.png)", sent)).toBe("![](F1.png)\n\n![](F2.png)");
+});

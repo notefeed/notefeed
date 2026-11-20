@@ -85,6 +85,22 @@ test("dropped images wait in the box; removing one takes its reference out; post
   await loaded(page.locator("ol > li img")).toBeGreaterThan(0);
 });
 
+test("a picture given a size in its own post shows at that size, once (#420)", async ({ page, request }) => {
+  const name = feedName();
+  const res = await request.post(`/api/v1/feeds/${name}/notes`, {
+    multipart: { text: "# Sized\n\n![](beach.png#width=120)", file: { name: "beach.png", mimeType: "image/png", buffer: readFileSync(PNG) } },
+  });
+  expect(res.status()).toBe(201);
+  const posted = await res.json();
+  const stored = (await (await request.get(`/api/v1/feeds/${name}/notes/${posted.id}`)).json()).content;
+  expect(stored).toMatch(/!\[\]\([A-Za-z0-9_-]{22}\.png#width=120\)/);
+  await page.goto(`/${name}`);
+  await expect(page.locator("ol > li")).toHaveCount(1); // the picture is not listed again
+  const img = page.locator(".md img");
+  await expect(img).toHaveAttribute("width", "120");
+  await loaded(img).toBeGreaterThan(0);
+});
+
 test("more than 10 pictures: the first 10 wait in the box, and the box says why the rest do not", async ({ page }) => {
   await page.goto(`/${feedName()}`);
   await drop(page, ...Array.from({ length: 11 }, (_, i) => `p${i}.png`));
