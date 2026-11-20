@@ -428,7 +428,10 @@ test("the preview shows a dropped picture from its file, before it is uploaded",
 
 // A picture posted with a markdown note is a note of its own; the feed shows it once, inside the note, and that picture leads to
 // the picture's own page.
-test("a note's picture shows once in the feed; clicking it opens the note, and there the picture's own note", async ({ page, request }) => {
+test("a note's picture shows once in the feed; clicking it opens the note, there it enlarges, with the picture's own note one link away (#418)", async ({
+  page,
+  request,
+}) => {
   const name = feedName();
   const bytes = readFileSync(PNG);
   const res = await request.post(`/api/v1/feeds/${name}/notes`, {
@@ -444,6 +447,15 @@ test("a note's picture shows once in the feed; clicking it opens the note, and t
   await expect(page.locator("main img")).toHaveCount(1);
   await page.locator("main img").click();
   await expect(page).toHaveURL(new RegExp(`/${name}/${posted.id}$`)); // the note first
-  await page.locator("main img").click();
-  await expect(page).toHaveURL(new RegExp(`/${name}/${picture.id}$`)); // then the picture's own note
+  const url = page.url();
+  const dialog = page.getByRole("dialog", { name: "Picture" });
+  await page.locator(".md a[title='Enlarge picture'] img").click(); // then enlarged, over the note
+  await expect(dialog).toBeVisible();
+  await loaded(dialog.locator("img")).toBeGreaterThan(0);
+  expect(page.url()).toBe(url);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await page.locator(".md a[title='Enlarge picture'] img").click();
+  await dialog.getByRole("link", { name: "Picture's page" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${name}/${picture.id}$`)); // the picture's own note, the address to share it
 });

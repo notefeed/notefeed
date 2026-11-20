@@ -18,7 +18,7 @@ test("a resolver wins for the links it knows, the rest resolve as before (#146)"
   expect([...html.matchAll(/<img src="([^"]*)"/g)].map((m) => m[1])).toEqual(["blob:cat", "/r/rid/b.png"]);
 });
 
-test("a picture with a note of its own links to that note's page, unless the text already put it in a link", () => {
+test("a picture with a note of its own opens enlarged, linking to that note's page, unless the text already put it in a link (#418)", () => {
   const link = (s: string) => (s === "beach.png" ? "/f/p1" : undefined);
   const html = renderToStaticMarkup(
     <NoteView markdown={"![](beach.png)\n\n![](other.png)\n\n[![](beach.png)](https://x.test)"} imageBase="/r/rid/" link={link} />,
@@ -27,6 +27,8 @@ test("a picture with a note of its own links to that note's page, unless the tex
   expect(html).toContain('<a href="https://x.test"><img src="/r/rid/beach.png"'); // no link in a link
   expect(html).not.toMatch(/href="[^"]*"[^>]*><img src="\/r\/rid\/other.png"/);
   expect(html).not.toContain('<a href="/f/p1"><a'); // never nested
+  expect(html).toMatch(/<dialog[^>]*aria-label="Picture"[^>]*>.*<a href="\/f\/p1"[^>]*>Picture&#x27;s page<\/a>.*<img src="\/r\/rid\/beach.png"/s);
+  expect(html.match(/<dialog/g)).toHaveLength(1); // only the picture with a page of its own
 });
 
 test("a picture's size comes from its link's fragment, which is taken off; other fragments stay (#243)", () => {

@@ -207,6 +207,19 @@ body {
   height: 100%;
   max-width: none !important;
 }
+/* A note's picture enlarged in its dialog (#418): as large as the screen allows, past the column's 40rem; its link white on the
+   dark backdrop, not a link of the note's text. */
+.md .picture-enlarged a {
+  color: rgb(255 255 255 / 0.85);
+  text-decoration: none;
+}
+.md .picture-enlarged a:hover {
+  color: white;
+}
+.md .picture-enlarged img {
+  max-width: 100%;
+  max-height: 100%;
+}
 /* A heading's link to itself on a note's page (#243): shown on hover or focus. */
 .md .anchor {
   margin-left: 0.4em;

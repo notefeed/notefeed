@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import type { PluggableList } from "unified";
@@ -6,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { isRelativeLink } from "@/shared/links";
 import { headingIds, imageSizes } from "@/shared/markdown";
 import { MermaidBlock } from "@/components/MermaidBlock";
+import { PictureZoom } from "@/components/PictureZoom";
 
 type Hast = { type: string; value?: string; tagName?: string; properties?: Record<string, unknown>; children?: Hast[] };
 
@@ -30,7 +30,8 @@ const markPicturesInLinks = () => (tree: Hast) => {
 
 // Raw HTML in notes stays escaped: no rehype-raw. `resolve` gives a picture's URL for a link the text holds (the compose box's preview
 // shows the pictures waiting in it from their files, by the name the text calls them, issue #146); undefined falls through to `imageBase`.
-// `link` gives the page of the picture's own note (shared/notekinds.ts), which the picture then links to unless the text put it in a link.
+// `link` gives the page of the picture's own note (shared/notekinds.ts) on a note's page: unless the text put it in a link, a click opens
+// the picture enlarged, with that page one link away (PictureZoom, #418).
 // `anchors` (a note's own page, #243): each heading gets an id and a link to itself. A picture's size comes from its link (shared/markdown.ts).
 // `plugins`: more rehype plugins, from a server component, so what they need stays out of the browser's bundle (code highlighting).
 // `diagrams` (a note's own page and the timeline, #301): a ```mermaid block is drawn in the browser, its source the fallback (MermaidBlock).
@@ -78,10 +79,10 @@ export function NoteView({
             // eslint-disable-next-line @next/next/no-img-element
             const img = <img src={typeof url === "string" ? url : undefined} alt={alt ?? ""} title={title} width={width} height={height} loading="lazy" />;
             const page = typeof src === "string" && !node?.properties?.dataInLink ? link?.(src) : undefined;
-            return page ? (
-              <Link href={page} className="block w-fit">
+            return page && typeof url === "string" ? (
+              <PictureZoom page={page} src={url} alt={alt ?? ""}>
                 {img}
-              </Link>
+              </PictureZoom>
             ) : (
               img
             );
