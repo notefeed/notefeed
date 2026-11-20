@@ -3,7 +3,7 @@
   "name": "io.github.notefeed/notefeed",
   "title": "notefeed",
   "description": "Post markdown notes and pictures to feeds read in the browser or by RSS.",
-  "version": "0.38.2",
+  "version": "0.38.3",
   "websiteUrl": "https://notefeed.me",
   "repository": {
     "url": "https://github.com/notefeed/notefeed",
