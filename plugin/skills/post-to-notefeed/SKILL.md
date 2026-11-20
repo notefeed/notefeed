@@ -77,7 +77,8 @@ same whatever the note is: **draft, show, revise, post on approval.**
    `post_note` on `feed` with `draft: true`; readers don't see it or its pictures. Without either:
    keep it in the conversation. Send each picture as an upload when you can run a shell:
    `create_upload`, `curl -T` the file to its `upload_url`, then the attachment's `upload_id`
-   instead of base64 `data`.
+   instead of base64 `data`. Without a shell, a picture that is public on the web goes as its
+   `source_url`.
 5. **Show it**: the title and the whole text in the reply, so the user can review it in place,
    plus, with `drafts_feed`, the draft's read link (`<url>/r/<drafts read id>/<id>`, from the
    answer's `read_url`). A draft on the feed has no link readers can open: say it is on the feed

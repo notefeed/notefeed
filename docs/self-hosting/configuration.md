@@ -27,6 +27,7 @@ See [Rate limits and caps](limits.md).
 | `NOTEFEED_MAX_IMAGE_BYTES` | `10485760` (10 MiB) | Largest picture as sent, at most 10 MiB; it is stored shrunk. |
 | `NOTEFEED_MAX_IMAGES_PER_FEED` | `0`: no limit | Most image notes in one feed. |
 | `NOTEFEED_IMAGE_UPLOADS` | on | `0` refuses every picture with `403` (`images_off`); stored ones keep being served. |
+| `NOTEFEED_FETCH_URLS` | on | `0` refuses MCP's `source_url`: the server then never fetches a file from another site. It only ever fetches public `https` addresses ([ADR 0066](../adr/0066-the-server-fetches-a-public-file-for-a-post.md)). |
 | `NOTEFEED_ALLOW_CUSTOM_IDS` | on | `0` leaves only random [read ids](../using/read-links.md#choosing-a-feeds-read-id). |
 | `NOTEFEED_PARSE_TIMEOUT_MS` | `10000` | How long reading a text posted with pictures may take; past it the post is `400`. |
 

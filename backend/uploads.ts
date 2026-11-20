@@ -72,8 +72,8 @@ async function sweep(now: number): Promise<void> {
   await Promise.all(gone.map((id) => rm(fileOf(id), { force: true })));
 }
 
-// The largest file an upload of this type takes: a picture's limit, or a text note's.
-const limitOf = (isImage: boolean) => (isImage ? config.maxImageBytes() : MAX_BYTES);
+// The largest file an upload (or a fetched file, posting.ts) of this type takes: a picture's limit, or a text note's.
+export const limitOf = (isImage: boolean) => (isImage ? config.maxImageBytes() : MAX_BYTES);
 const tooLarge = (isImage: boolean) => (isImage ? new ImageTooLargeError() : new NoteTooLargeError());
 
 /** The type an upload is made for: an accepted media type. Checked before anything else, so admission (posting.ts) can depend on it. */

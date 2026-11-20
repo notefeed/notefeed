@@ -40,6 +40,7 @@ import {
   createFeed,
   createUpload,
   deleteFeed,
+  fetchSource,
   setFeedImage,
   deleteNote,
   editContent,
@@ -61,7 +62,7 @@ const password = z.string().optional();
 const PROTECTED = "A protected feed needs its password as password.";
 // Every picture is processed on the server (ADR 0049): an assistant should send the file it has, not shrink it first.
 const PICTURES =
-  "Send a picture as it is, full size (up to 10 MiB, 100 megapixels), best as an upload (create_upload, then upload_id) when you can run curl: it is stored turned upright, at most 2560 px on its long side and without metadata (EXIF, GPS position). If the server answers busy, try again after a few seconds.";
+  "Send a picture as it is, full size (up to 10 MiB, 100 megapixels), best as an upload (create_upload, then upload_id) when you can run curl, or as source_url when it is public on the web: it is stored turned upright, at most 2560 px on its long side and without metadata (EXIF, GPS position). If the server answers busy, try again after a few seconds.";
 // Drafts (#265): what a post takes, and what its answer says.
 const DRAFT_OUT = z.literal(true).optional().describe("Only present when the note was stored as a draft");
 const NoteSummary = z.object({
@@ -86,13 +87,20 @@ const NoteSummary = z.object({
       "The mark the operator left where a post was removed for breaking the content rules: it has the removed note's id and date and nothing else; get_note and edit_note refuse it. Deleting it works; the post does not come back",
     ),
 });
-// A file's bytes come as base64 in data, or as an upload (#381, ADR 0064): sent with curl to create_upload's URL, never through the model.
+// A file's bytes come as base64 in data, as an upload (#381, ADR 0064): sent with curl to create_upload's URL, never through the
+// model, or from a public URL the server fetches (#422, ADR 0066).
 const UPLOAD_ID = z
   .string()
   .optional()
   .describe("Instead of data: the upload_id from create_upload, once its file was sent to its upload_url. Best for anything larger than a few KB");
-const DATA = (what: string) => z.string().optional().describe(`${what}, standard base64 (not URL-safe). Or give upload_id instead`);
-type Source = { data?: string; upload_id?: string; type?: string };
+const SOURCE_URL = z
+  .string()
+  .optional()
+  .describe(
+    "Instead of data: the https URL of a file that is public on the web, which notefeed fetches itself (only public addresses, port 443, within the size limit). Best when you can't run curl. type, if given, is what the file must be; else the site's Content-Type",
+  );
+const DATA = (what: string) => z.string().optional().describe(`${what}, standard base64 (not URL-safe). Or give upload_id or source_url instead`);
+type Source = { data?: string; upload_id?: string; source_url?: string; type?: string };
 type Bytes = { body: Uint8Array; mediaType: string };
 
 // Base64 as given: Buffer.from skips what is not base64, so it is decoded and compared.
@@ -104,22 +112,34 @@ function decodeBase64(data: string, what: string): Buffer {
   return body;
 }
 
-// The files a call names, base64 or uploads, handed to `run` in the order given; the uploads are deleted when `run` succeeds. A type
-// given with an upload must be the upload's own. `what(i)` names the i-th in a refusal.
-async function withSources<T>(feed: string, sources: Source[], what: (i: number) => string, run: (files: Bytes[]) => Promise<T>): Promise<T> {
-  const given = sources.map((s, i) => {
-    if ((s.data === undefined) === (s.upload_id === undefined)) throw new InvalidRequestError(`${what(i)}: give either data or upload_id`);
-    if (s.upload_id !== undefined) return { upload: s.upload_id, type: s.type };
-    if (s.type === undefined) throw new InvalidRequestError(`${what(i)}: type is needed with data`);
-    return { body: decodeBase64(s.data!, what(i)), mediaType: s.type };
+// The files a call names, base64, uploads or URLs, handed to `run` in the order given; the uploads are deleted when `run` succeeds. A
+// type given with an upload must be the upload's own. A URL is fetched by `fetch` (posting.ts, fetchSource: admitted first), one after
+// another. `what(i)` names the i-th in a refusal.
+async function withSources<T>(
+  feed: string,
+  sources: Source[],
+  what: (i: number) => string,
+  fetch: (url: string, type?: string) => Promise<Bytes>,
+  run: (files: Bytes[]) => Promise<T>,
+): Promise<T> {
+  sources.forEach((s, i) => {
+    if ([s.data, s.upload_id, s.source_url].filter((v) => v !== undefined).length !== 1)
+      throw new InvalidRequestError(`${what(i)}: give one of data, upload_id or source_url`);
+    if (s.data !== undefined && s.type === undefined) throw new InvalidRequestError(`${what(i)}: type is needed with data`);
   });
+  const given: ({ upload: string; type?: string } | Bytes)[] = [];
+  for (const [i, s] of sources.entries()) {
+    if (s.upload_id !== undefined) given.push({ upload: s.upload_id, type: s.type });
+    else if (s.source_url !== undefined) given.push(await fetch(s.source_url, s.type));
+    else given.push({ body: decodeBase64(s.data!, what(i)), mediaType: s.type! });
+  }
   const ids = given.flatMap((g) => ("upload" in g ? [g.upload as string] : []));
   if (!ids.length) return run(given as Bytes[]);
   return withUploads(feed, ids, async (files) => {
     let k = 0;
     return run(
       given.map((g, i) => {
-        if (!("upload" in g)) return g;
+        if (!("upload" in g)) return g as Bytes;
         const f = files[k++];
         if (g.type !== undefined && parseMediaType(g.type)?.mediaType !== f.mediaType)
           throw new UnsupportedTypeError(`${what(i)}: the upload was made for ${f.mediaType}, not ${g.type}`);
@@ -225,9 +245,13 @@ function server(h: Headers, account: string | undefined): McpServer {
                 .describe(
                   "What the markdown calls it: ![](name). Any single path segment (no / or \\; spaces allowed, written <name with spaces> or name%20with%20spaces in the markdown); unique when the markdown refers to it, else pictures of the same name are appended",
                 ),
-              type: z.string().optional().describe(`The picture's media type: ${ACCEPTED_TYPES}. Needed with data; an upload has its own`),
+              type: z
+                .string()
+                .optional()
+                .describe(`The picture's media type: ${ACCEPTED_TYPES}. Needed with data; an upload has its own, a source_url the site's`),
               data: DATA("The picture's bytes"),
               upload_id: UPLOAD_ID,
+              source_url: SOURCE_URL,
               alt: z
                 .string()
                 .optional()
@@ -246,7 +270,7 @@ function server(h: Headers, account: string | undefined): McpServer {
         attachments: z.array(z.object({ id: z.string(), file: z.string(), url: z.string() })),
         guidance: GUIDANCE,
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
     guard(async ({ feed, markdown, title, sender: given, name, password, tags, language, date, draft, read_id, attachments = [] }) => {
       // The bytes are checked here (base64, an upload's type); the rest of the checks are postWithPictures's.
@@ -259,6 +283,7 @@ function server(h: Headers, account: string | undefined): McpServer {
         feed,
         attachments,
         (i) => `attachment "${safeName(attachments[i].name)}"`,
+        (url, type) => fetchSource(feed, clientIp(h), { password, account }, url, type),
         async (files) =>
           postWithPictures(
             feed,
@@ -594,23 +619,25 @@ function server(h: Headers, account: string | undefined): McpServer {
   s.registerTool(
     "set_feed_image",
     {
-      description: `Set the feed's title image, shown in its header: the image as base64 in data with its media type in type (image/png, image/jpeg, image/gif or image/webp), or as upload_id from create_upload. It is the feed's own image, in no list (timeline, RSS, counts), so it is no post; a previous one set this way is deleted. To remove the title image, use update_feed with image "". To use a picture already posted, use update_feed's image instead. ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Set the feed's title image, shown in its header: the image as base64 in data with its media type in type (image/png, image/jpeg, image/gif or image/webp), as upload_id from create_upload, or as source_url, a public https URL notefeed fetches. It is the feed's own image, in no list (timeline, RSS, counts), so it is no post; a previous one set this way is deleted. To remove the title image, use update_feed with image "". To use a picture already posted, use update_feed's image instead. ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
-        type: z.string().optional().describe("The image's media type. Needed with data; an upload has its own"),
+        type: z.string().optional().describe("The image's media type. Needed with data; an upload has its own, a source_url the site's"),
         data: DATA("The image's bytes"),
         upload_id: UPLOAD_ID,
+        source_url: SOURCE_URL,
         password,
       }),
       outputSchema: FeedOut,
-      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
-    guard(async ({ feed, type, data, upload_id, password }) => {
+    guard(async ({ feed, type, data, upload_id, source_url, password }) => {
       assertFeed(feed);
       await withSources(
         feed,
-        [{ type, data, upload_id }],
+        [{ type, data, upload_id, source_url }],
         () => "the image",
+        (url, t) => fetchSource(feed, clientIp(h), { password, account }, url, t),
         async ([{ body, mediaType }]) => {
           const parsed = parseMediaType(mediaType);
           if (parsed?.type.name !== "image") throw new UnsupportedTypeError("a title image must be an image");
@@ -673,24 +700,26 @@ function server(h: Headers, account: string | undefined): McpServer {
   s.registerTool(
     "post_file",
     {
-      description: `Post a file as a note: as base64 in data with its media type in type (${ACCEPTED_TYPES}), or as upload_id from create_upload, which keeps the bytes out of the conversation (best for a picture). Nothing is guessed: the data must be what type says (an image has its format's signature, markdown is UTF-8). The feed is created by its first note. Returns the note's id, its file name and its public URL (public like the feed's read link). ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
+      description: `Post a file as a note: as base64 in data with its media type in type (${ACCEPTED_TYPES}), as upload_id from create_upload, which keeps the bytes out of the conversation (best for a picture), or as source_url, a public https URL notefeed fetches. Nothing is guessed: the data must be what type says (an image has its format's signature, markdown is UTF-8). The feed is created by its first note. Returns the note's id, its file name and its public URL (public like the feed's read link). ${PICTURES} ${PROTECTED} ${SECRET_NOTE}`,
       inputSchema: z.object({
         feed,
-        type: z.string().optional().describe("The file's media type. Needed with data; an upload has its own"),
+        type: z.string().optional().describe("The file's media type. Needed with data; an upload has its own, a source_url the site's"),
         data: DATA("The file's bytes"),
         upload_id: UPLOAD_ID,
+        source_url: SOURCE_URL,
         ...noteFieldSchemas(["title", "sender", "alt", "name", "tags", "language", "date", "draft"], "post"),
         password,
       }),
       outputSchema: z.object({ id: z.string(), file: z.string(), url: z.string(), draft: DRAFT_OUT, guidance: GUIDANCE }),
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    guard(async ({ feed, type, data, upload_id, password, ...meta }) => {
+    guard(async ({ feed, type, data, upload_id, source_url, password, ...meta }) => {
       assertFeed(feed);
       const { note, readId } = await withSources(
         feed,
-        [{ type, data, upload_id }],
+        [{ type, data, upload_id, source_url }],
         () => "the file",
+        (url, t) => fetchSource(feed, clientIp(h), { password, account }, url, t),
         ([f]) => postBytes(feed, { ...f, ...meta }, password),
       );
       const url = fileUrl(readId, note.file);

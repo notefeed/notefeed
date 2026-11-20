@@ -13,7 +13,7 @@ decision-makers: Marcel Bruckner
 ## Considered Options
 
 * **Uploads to a short-lived URL** (chosen): a tool makes a URL, a shell sends the bytes to it with curl, and the post names the upload's id.
-* **`source_url`**: the server fetches a public file itself. This needs protection against server-side request forgery (private ranges, DNS rebinding, redirects), which is its own security surface. It also only helps with files that are already public. It is left for a later issue.
+* **`source_url`**: the server fetches a public file itself. This needs protection against server-side request forgery (private ranges, DNS rebinding, redirects), which is its own security surface. It also only helps with files that are already public. It was left for a later issue, and came with ADR 0066.
 * **Chunked base64**: it doesn't reduce what the model writes.
 
 ## Decision Outcome
