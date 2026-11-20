@@ -45,7 +45,9 @@ test("a markdown note without a title of its own shows its text as written, in t
   expect(html).toMatch(/<div class="md break-words"><h1>Hello<\/h1>\s*<p>some <em>text<\/em>/);
   expect(html).not.toContain(">m1<"); // no id in place of a title
   const page = async (markdown: string) => await render(<NoteArticle note={mdNote({ id: "m1", markdown })} back="/feed" />);
-  expect(await page("Ich liebe dich\n\n![](pic.png)")).toMatch(/<div class="md break-words"><p>Ich liebe dich<\/p>\s*<p><a [^>]*data-zoom="pic.png"[^>]*><img src="pic.png"/);
+  expect(await page("Ich liebe dich\n\n![](pic.png)")).toMatch(
+    /<div class="md break-words"><p>Ich liebe dich<\/p>\s*<p><a [^>]*data-zoom="pic.png"[^>]*><img src="pic.png"/,
+  );
   expect(await page("Ich liebe dich")).not.toContain("<h1");
 });
 
