@@ -36,3 +36,8 @@ test("a note's kind comes from its media type", () => {
   expect(kindOf("text/markdown; charset=utf-8").name).toBe("markdown");
   expect(kindOf("image/webp").name).toBe("image");
 });
+
+test("a reference with a fragment (a picture's size, #243) counts as the picture's (#420)", () => {
+  const notes = [md("n1", "![](beach.png#width=200) ![](<dune%20x.png#height=90>)"), pic("p1", "beach.png"), pic("p2", "dune x.png")];
+  expect(withoutAttachments(notes).map((n) => n.id)).toEqual(["n1"]);
+});

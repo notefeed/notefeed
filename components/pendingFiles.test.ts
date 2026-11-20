@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { fitPending, onlyReferences, removeReference, uniqueToken } from "./pendingFiles";
+import { altsOf, fitPending, onlyReferences, removeReference, uniqueToken } from "./pendingFiles";
 import { MAX_ATTACHMENTS } from "@/shared/links";
 
 test("uniqueToken keeps a free name and numbers a taken one before the extension", () => {
@@ -59,4 +59,13 @@ test("fitPending adds the files that fit under the limit and says when some were
   expect(fitPending(waiting(8), files)).toEqual({ fit: ["a", "b"], leftOut: true });
   expect(fitPending(waiting(10), files)).toEqual({ fit: [], leftOut: true });
   expect(fitPending(waiting(10), [])).toEqual({ fit: [], leftOut: false });
+});
+
+test("a reference with a size (#420): removing the picture takes it out; it is no text of only pictures, so the size is kept", () => {
+  expect(removeReference("![](a.png#width=200)\nafter", "a.png")).toBe("after");
+  expect(removeReference("x ![](a.png#width=200&height=90) y", "a.png")).toBe("x  y");
+  expect(removeReference("![](a.png-2#width=1)", "a.png")).toBe("![](a.png-2#width=1)"); // another token
+  expect(onlyReferences("![](a.png)", ["a.png"])).toBe(true);
+  expect(onlyReferences("![](a.png#width=200)", ["a.png"])).toBe(false);
+  expect(altsOf("![a cat](a.png#width=200)", ["a.png"])).toEqual({ "a.png": "a cat" });
 });

@@ -4,7 +4,7 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 
 /** @typedef {{ type: string, identifier?: string, children?: MdNode[], position?: { start: { offset?: number }, end: { offset?: number } } }} MdNode */
-/** Where the destinations of the images and link definitions that name a picture are (see `applyImages`). @typedef {{ markdown: string, edits: { from: number, to: number, name: string }[], unused: string[] }} ImagePlan */
+/** Where the destinations of the images and link definitions that name a picture are (see `applyImages`). @typedef {{ markdown: string, edits: { from: number, to: number, name: string, fragment: string }[], unused: string[] }} ImagePlan */
 
 /** @param {MdNode} node @param {MdNode[]} [out] @returns {MdNode[]} */
 const collect = (node, out = []) => {
@@ -95,17 +95,22 @@ export function planImages(markdown, names) {
       }
       const range = destinationRange(src, node);
       if (!range) continue;
-      const name = resolve(src.slice(range[0], range[1]).replace(/^<(.*)>$/s, "$1"), names);
+      const dest = src.slice(range[0], range[1]).replace(/^<(.*)>$/s, "$1");
+      // A fragment is no part of the file's name: `a.png#width=200` (a picture's size, shared/markdown.ts) is a.png, and keeps its
+      // fragment on the stored file (#420). A name that holds the # itself wins.
+      const hash = dest.indexOf("#");
+      const exact = resolve(dest, names);
+      const name = exact ?? (hash > 0 ? resolve(dest.slice(0, hash), names) : undefined);
       if (name === undefined) continue;
       used.add(name);
-      edits.push({ from: range[0] + bom, to: range[1] + bom, name });
+      edits.push({ from: range[0] + bom, to: range[1] + bom, name, fragment: exact === undefined ? dest.slice(hash) : "" });
     }
   }
   return { markdown, edits, unused: [...names].filter((name) => !used.has(name)) };
 }
 
 /**
- * The plan's markdown with each destination swapped for the file name `sent` (name → file name) gives its picture; every other byte
+ * The plan's markdown with each destination swapped for the file name `sent` (name → file name) gives its picture, its fragment kept; every other byte
  * stays. Each picture the text never referred to is appended as `![](file)`, one paragraph each, after the trimmed text.
  * @param {ImagePlan} plan @param {ReadonlyMap<string, string>} sent @returns {string}
  */
@@ -113,8 +118,8 @@ export function applyImages(plan, sent) {
   const { markdown } = plan;
   let text = "";
   let at = 0;
-  for (const { from, to, name } of plan.edits) {
-    text += markdown.slice(at, from) + sent.get(name);
+  for (const { from, to, name, fragment } of plan.edits) {
+    text += markdown.slice(at, from) + sent.get(name) + fragment;
     at = to;
   }
   text += markdown.slice(at);

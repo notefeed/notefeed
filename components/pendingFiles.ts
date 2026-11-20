@@ -42,13 +42,17 @@ export function uniqueToken(name: string, taken: ReadonlySet<string>): string {
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// The destination of a reference to `token`, with a fragment or without: `a.png#width=200` sets the picture's size (shared/markdown.ts, #420).
+const destination = (token: string, fragment = true) => escapeRe(token) + (fragment ? "(?:#[^)\\s]*)?" : "");
 
-/** Whether the text holds nothing but pictures from `tokens`: posting it makes their notes and no text note. */
-export const onlyReferences = (text: string, tokens: readonly string[]): boolean => tokens.reduce(removeReference, text).trim() === "";
+/** Whether the text holds nothing but pictures from `tokens`: posting it makes their notes and no text note. A picture given a size
+ *  (a fragment) is not only a picture: the text keeps its size. */
+export const onlyReferences = (text: string, tokens: readonly string[]): boolean =>
+  tokens.reduce((t, token) => removeReference(t, token, false), text).trim() === "";
 
-/** Takes the images that refer to `token` out of the text: a line holding only the image goes whole, an image in a line goes alone. */
-export function removeReference(text: string, token: string): string {
-  const ref = `!\\[[^\\]]*\\]\\(${escapeRe(token)}\\)`;
+/** Takes the images that refer to `token` (with a fragment too, unless `fragment` is false) out of the text: a line holding only the image goes whole, an image in a line goes alone. */
+export function removeReference(text: string, token: string, fragment = true): string {
+  const ref = `!\\[[^\\]]*\\]\\(${destination(token, fragment)}\\)`;
   return text.replace(new RegExp(`^${ref}[ \\t]*(\\n|$)`, "gm"), "").replace(new RegExp(ref, "g"), "");
 }
 
@@ -60,7 +64,7 @@ export function removeReference(text: string, token: string): string {
 export function altsOf(text: string, tokens: readonly string[]): Record<string, string> {
   const alts: Record<string, string> = {};
   for (const token of tokens) {
-    for (const [, raw] of text.matchAll(new RegExp(`!\\[([^\\]]*)\\]\\(${escapeRe(token)}\\)`, "g"))) {
+    for (const [, raw] of text.matchAll(new RegExp(`!\\[([^\\]]*)\\]\\(${destination(token)}\\)`, "g"))) {
       const alt = Array.from(raw.replace(new RegExp(FORBIDDEN_IN_TEXT, "g"), " ").replace(/\s+/g, " ").trim())
         .slice(0, MAX_ALT)
         .join("")
