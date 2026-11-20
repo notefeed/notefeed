@@ -51,6 +51,8 @@ export {
   ChevronLeft as BackIcon,
   ChevronDown as ExpandIcon,
   ChevronRight as DisclosureIcon,
+  ChevronLeft as PreviousIcon,
+  ChevronRight as NextIcon,
   ArrowUpRight as ExternalIcon,
   X as CloseIcon,
   Info as InfoIcon,

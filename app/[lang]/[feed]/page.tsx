@@ -25,6 +25,7 @@ import {
   freeTier,
   getFeed,
   getFeedNote,
+  getFeedPictures,
   signedIn,
   imageUploadsOn,
   isRemovedFeed,
@@ -190,6 +191,7 @@ export default async function FeedPage({ params, searchParams }: PageProps<"/[la
           posted={typeof posted === "string" ? posted : undefined}
           report={report(readId)}
           terms={await hasLegalPage("terms")}
+          pictures={() => getFeedPictures(feed)}
         />
       )}
     </AppShell>

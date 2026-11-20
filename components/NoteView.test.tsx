@@ -18,15 +18,22 @@ test("a resolver wins for the links it knows, the rest resolve as before (#146)"
   expect([...html.matchAll(/<img src="([^"]*)"/g)].map((m) => m[1])).toEqual(["blob:cat", "/r/rid/b.png"]);
 });
 
-test("a picture with a note of its own links to that note's page, unless the text already put it in a link", () => {
+test("with zoom, a picture opens enlarged, linking to its own page or else its file, unless the text already put it in a link (#418)", () => {
   const link = (s: string) => (s === "beach.png" ? "/f/p1" : undefined);
   const html = renderToStaticMarkup(
-    <NoteView markdown={"![](beach.png)\n\n![](other.png)\n\n[![](beach.png)](https://x.test)"} imageBase="/r/rid/" link={link} />,
+    <NoteView markdown={"![](beach.png)\n\n![](other.png)\n\n[![](beach.png)](https://x.test)"} imageBase="/r/rid/" link={link} zoom />,
   );
-  expect(html.match(/<a [^>]*href="\/f\/p1"[^>]*><img src="\/r\/rid\/beach.png"/g)).toHaveLength(1);
+  expect(html).toMatch(/<a href="\/f\/p1" data-zoom="\/r\/rid\/beach.png" data-page="\/f\/p1" title="Enlarge image"[^>]*><img src="\/r\/rid\/beach.png"/);
+  expect(html).toMatch(/<a href="\/r\/rid\/other.png" data-zoom="\/r\/rid\/other.png" title="Enlarge image"[^>]*><img src="\/r\/rid\/other.png"/);
   expect(html).toContain('<a href="https://x.test"><img src="/r/rid/beach.png"'); // no link in a link
-  expect(html).not.toMatch(/href="[^"]*"[^>]*><img src="\/r\/rid\/other.png"/);
-  expect(html).not.toContain('<a href="/f/p1"><a'); // never nested
+  expect(html.match(/<dialog/g)).toHaveLength(1); // one for the note's pictures
+  expect(html).toMatch(/<a [^>]*class="inline-block[^"]*"[^>]*><img src="\/r\/rid\/beach.png"/); // inline: pictures side by side stay so
+});
+
+test("without zoom (the compose box's preview), a picture is only a picture", () => {
+  const html = renderToStaticMarkup(<NoteView markdown="![](beach.png)" imageBase="/r/rid/" link={() => "/f/p1"} />);
+  expect(html).not.toContain("<a ");
+  expect(html).not.toContain("<dialog");
 });
 
 test("a picture's size comes from its link's fragment, which is taken off; other fragments stay (#243)", () => {
@@ -35,6 +42,7 @@ test("a picture's size comes from its link's fragment, which is taken off; other
       markdown={"![](a.png#width=480) ![](b.png#width=320&height=200) ![](c.png#height=99999) ![](d.png#top)"}
       imageBase="/r/rid/"
       link={(s) => (s === "a.png" ? "/f/a" : undefined)}
+      zoom
     />,
   );
   expect(html).toContain('<img src="/r/rid/a.png" alt="" width="480" loading="lazy"/>');

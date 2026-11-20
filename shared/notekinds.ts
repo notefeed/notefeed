@@ -13,7 +13,7 @@
 // that only ever hides a picture that the list would have shown twice or that the text names.
 import { isRelativeLink } from "./links";
 
-type Listed = { id: string; type: string; file: string; content?: string };
+export type Listed = { id: string; type: string; file: string; content?: string };
 
 export type KindName = "markdown" | "image" | "removed";
 

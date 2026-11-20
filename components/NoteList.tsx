@@ -7,7 +7,7 @@ import type { Note } from "@/backend";
 import { serverCopy } from "@/app/_lib/copy";
 import type { Copy } from "@/shared/copy";
 import { RemovedMark } from "@/components/RemovedNote";
-import { withoutAttachments } from "@/shared/notekinds";
+import { attachmentLinks, kindOf, withoutAttachments, type Listed } from "@/shared/notekinds";
 
 // Times use the server's TZ (set TZ in compose.yaml).
 const dayKey = (d: Date) => d.toLocaleDateString("en-CA");
@@ -37,6 +37,8 @@ function groupByDay(t: Copy, notes: Note[]): [string, Note[]][] {
 
 // image links point. The day label sticks below the phone's top bar (components/AppShell.tsx), at the top from lg.
 // An attachment that a note in the list shows is left out (shared/notekinds.ts).
+// `pictures` loads the feed's pictures, for a note in the list whose pictures are not in it (another page, a tag filter): each
+// enlarges with its own page one link away (ADR 0065), as on the note's page. Loaded only then.
 // `terms`: the instance has a terms page, which the operator's mark (#159) links to.
 export async function NoteList({
   notes,
@@ -45,6 +47,7 @@ export async function NoteList({
   posted,
   report,
   terms,
+  pictures,
 }: {
   notes: Note[];
   base: string;
@@ -52,8 +55,16 @@ export async function NoteList({
   posted?: string;
   report?: Report;
   terms?: boolean;
+  pictures?: () => Promise<Listed[]>;
 }) {
   const t = await serverCopy();
+  const inList = attachmentLinks(notes, base);
+  const elsewhere = notes.some((n) =>
+    kindOf(n.type)
+      .attachments(n.content)
+      .some((src) => !inList(src)),
+  );
+  const attachments = elsewhere && pictures ? attachmentLinks([...notes, ...(await pictures())], base) : inList;
   return groupByDay(t, withoutAttachments(notes)).map(([day, items]) => (
     <section key={day} aria-labelledby={`day-${dayKey(items[0].date)}`} className="mb-6">
       <h2
@@ -78,7 +89,7 @@ export async function NoteList({
               <RemovedMark terms={terms} />
             ) : (
               <div lang={n.language}>
-                <CardContent t={t} note={n} imageBase={imageBase} />
+                <CardContent t={t} note={n} imageBase={imageBase} attachments={attachments} />
               </div>
             )}
             <Foot t={t} note={n} base={base} when={time(n.date)} open={`${base}/${n.id}`} report={n.removed ? undefined : report} />

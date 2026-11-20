@@ -31,6 +31,26 @@ async function drop(page: Page, ...names: string[]) {
   );
 }
 
+// A horizontal swipe of `dx` pixels across the middle of `target`, as touch events (what a phone sends): with one finger, or two
+// (a pinch that drifts sideways); `end` "touchcancel" is one the system breaks off (a call, a system gesture).
+async function swipe(page: Page, target: ReturnType<Page["locator"]>, dx: number, { fingers = 1, end = "touchend" } = {}) {
+  await target.evaluate(
+    async (el, { dx, fingers, end }) => {
+      const { left, top, width, height } = el.getBoundingClientRect();
+      const x = left + width / 2;
+      const y = top + height / 2;
+      const at = (cx: number) => Array.from({ length: fingers }, (_, i) => new Touch({ identifier: i + 1, target: el, clientX: cx + i * 40, clientY: y }));
+      const send = (type: string, cx: number) =>
+        el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === end ? [] : at(cx), changedTouches: at(cx) }));
+      send("touchstart", x);
+      send("touchmove", x + dx / 2);
+      send("touchmove", x + dx);
+      send(end, x + dx);
+    },
+    { dx, fingers, end },
+  );
+}
+
 const loaded = (img: ReturnType<Page["locator"]>) => expect.poll(() => img.first().evaluate((i: HTMLImageElement) => i.naturalWidth));
 
 test("a new feed offers the same box as any feed, with the password field and the image button", async ({ page }) => {
@@ -354,7 +374,7 @@ test("the title of an image note can be set and changed on its page", async ({ p
   await page.goto(`/${name}`);
   await choose(page, "Add image", PNG);
   await page.getByRole("button", { name: "Post note" }).click();
-  await page.locator("ol > li a").first().click(); // the picture links to its page
+  await page.locator("ol > li a[data-open]").click(); // the note's time links to its page; the picture enlarges
   await expect(page.locator("article img")).toBeVisible();
   await page.getByText("Edit", { exact: true }).click();
   await expect(page.getByLabel("Note in markdown")).toHaveCount(0); // a picture has no text to edit
@@ -379,7 +399,7 @@ test("the title image can be picked from the feed's images, and goes when its no
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await expect(page.locator('header img:not([src="/icon.svg"])')).toBeVisible();
   await page.goto(`/${name}`);
-  await page.locator("ol > li a").first().click();
+  await page.locator("ol > li a[data-open]").first().click();
   await page.getByText("Delete", { exact: true }).click();
   await page.getByRole("button", { name: "Delete note" }).click();
   await expect(page).toHaveURL(new RegExp(`/${name}\\?deleted=`));
@@ -428,22 +448,69 @@ test("the preview shows a dropped picture from its file, before it is uploaded",
 
 // A picture posted with a markdown note is a note of its own; the feed shows it once, inside the note, and that picture leads to
 // the picture's own page.
-test("a note's picture shows once in the feed; clicking it opens the note, and there the picture's own note", async ({ page, request }) => {
+test("a note's pictures show once in the feed and enlarge where they show, one after the other, their own notes one link away (#418)", async ({
+  page,
+  request,
+}) => {
   const name = feedName();
   const bytes = readFileSync(PNG);
-  const res = await request.post(`/api/v1/feeds/${name}/notes`, {
-    multipart: { text: "# Herzii\n\n![](beach.png)", file: { name: "beach.png", mimeType: "image/png", buffer: bytes } },
-  });
+  const form = new FormData();
+  form.append("text", "# Herzii\n\n![](beach.png)\n\n![](dune.png)");
+  for (const file of ["beach.png", "dune.png"]) form.append("file", new Blob([bytes], { type: "image/png" }), file);
+  const res = await request.post(`/api/v1/feeds/${name}/notes`, { multipart: form });
   expect(res.status()).toBe(201);
   const posted = await res.json();
-  const picture = posted.attachments[0];
-  expect((await request.get(`/api/v1/feeds/${name}/notes`)).ok()).toBe(true);
+  const [beach, dune] = posted.attachments;
+  const dialog = page.getByRole("dialog", { name: "Image" });
+  const zoom = page.locator("main a[title='Enlarge image'] img");
 
+  // In the feed: the markdown note alone (its pictures are not listed again); a click on a picture enlarges it, not opens the note.
   await page.goto(`/${name}`);
-  await expect(page.getByRole("listitem")).toHaveCount(1); // the markdown note; the picture is not listed again
-  await expect(page.locator("main img")).toHaveCount(1);
-  await page.locator("main img").click();
-  await expect(page).toHaveURL(new RegExp(`/${name}/${posted.id}$`)); // the note first
-  await page.locator("main img").click();
-  await expect(page).toHaveURL(new RegExp(`/${name}/${picture.id}$`)); // then the picture's own note
+  const feed = page.url();
+  await expect(page.getByRole("listitem")).toHaveCount(1);
+  await expect(page.locator("main img")).toHaveCount(2);
+  await zoom.first().click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await loaded(dialog.locator("img")).toBeGreaterThan(0);
+  await page.keyboard.press("ArrowRight");
+  await expect(dialog.getByText("2 of 2")).toBeVisible();
+  await dialog.getByRole("button", { name: "Next image" }).click(); // round to the first
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await dialog.getByRole("button", { name: "Previous image" }).click();
+  await expect(dialog.getByRole("link", { name: "Image's page" })).toHaveAttribute("href", new RegExp(`/${name}/${dune.id}$`));
+  await dialog.locator("img").click(); // a click on the picture is not one on the card
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  expect(page.url()).toBe(feed);
+
+  // A swipe on a phone: the picture follows the finger and slides; a short one, two fingers or a cancelled one go nowhere.
+  await zoom.first().click();
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), -120);
+  await expect(dialog.getByText("2 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), 120);
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), -20);
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), -120, { fingers: 2 }); // a pinch, not a swipe
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await swipe(page, dialog.locator("img"), -120, { end: "touchcancel" }); // broken off: the picture goes back in its place
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await expect(dialog.locator("img")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+  await page.keyboard.press("Escape");
+
+  // On the note's page, the same; the dialog's link opens the picture's own note.
+  await page.getByRole("link", { name: /^Herzii, / }).click();
+  await expect(page).toHaveURL(new RegExp(`/${name}/${posted.id}$`));
+  await zoom.first().click();
+  await expect(dialog.getByText("1 of 2")).toBeVisible();
+  await dialog.getByRole("link", { name: "Image's page" }).click();
+  await expect(page).toHaveURL(new RegExp(`/${name}/${beach.id}$`));
+
+  // The picture's own page enlarges it too, alone: no arrows, no link to the page it is on.
+  await zoom.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Next image" })).toHaveCount(0);
+  await expect(dialog.getByRole("link", { name: "Image's page" })).toHaveCount(0);
 });

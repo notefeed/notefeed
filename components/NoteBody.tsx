@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import rehypeHighlight from "rehype-highlight";
 import type { PluggableList } from "unified";
 import { NoteView } from "@/components/NoteView";
+import { Lightbox, ZoomLink } from "@/components/PictureZoom";
 import type { Note } from "@/backend";
 import { kindOf, type KindName } from "@/shared/notekinds";
 import type { Copy } from "@/shared/copy";
@@ -21,9 +22,18 @@ type Body = {
 
 // An image note's picture, from the feed's current read link (`imageBase`), so it follows a changed read id. The text alternative is
 // the note's own, else its title, else none: a picture without a description is decoration to a screen reader, not a file name.
-function Picture({ note, imageBase, className }: { note: Note; imageBase?: string; className: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={(imageBase ?? "") + note.file} alt={note.alt ?? note.title} loading="lazy" className={className} />;
+// A click on it shows it enlarged (#418).
+// `page`: its own page, from a list (ADR 0065); on that page itself, none.
+function Picture({ note, imageBase, page, className }: { note: Note; imageBase?: string; page?: string; className: string }) {
+  const src = (imageBase ?? "") + note.file;
+  return (
+    <Lightbox>
+      <ZoomLink src={src} page={page} className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={note.alt ?? note.title} loading="lazy" className={className} />
+      </ZoomLink>
+    </Lightbox>
+  );
 }
 
 // A markdown note shows its text as written (ADR 0040); only a title of its own (set when posted or edited) is a heading above it.
@@ -42,14 +52,14 @@ const markdown: Body = {
       return (
         <>
           <Contents t={t} headings={headingsOf(text)} />
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} anchors={{ label: t.noteBody.anchor }} diagrams plugins={SERVER_PLUGINS} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} zoom anchors={{ label: t.noteBody.anchor }} diagrams plugins={SERVER_PLUGINS} />
         </>
       );
     }
     return (
       text.trim() && (
         <div className={`note-card text-[15px] ${ownTitle(note) ? "mt-1" : ""}`}>
-          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} diagrams plugins={SERVER_PLUGINS} />
+          <NoteView markdown={text} imageBase={imageBase} link={attachmentLink} zoom diagrams plugins={SERVER_PLUGINS} />
         </div>
       )
     );
@@ -78,9 +88,16 @@ function Contents({ t, headings }: { t: Copy; headings: Heading[] }) {
 
 const image: Body = {
   heading: (note) => note.title || undefined,
-  Content({ note, place, imageBase }) {
+  Content({ note, place, imageBase, attachmentLink }) {
     if (place === "page") return <Picture note={note} imageBase={imageBase} className="max-h-[80vh] max-w-full rounded-xl object-contain" />;
-    return <Picture note={note} imageBase={imageBase} className={`max-h-96 w-full max-w-[40rem] rounded-xl object-cover ${note.title ? "mt-3" : ""}`} />;
+    return (
+      <Picture
+        note={note}
+        imageBase={imageBase}
+        page={attachmentLink?.(note.file)}
+        className={`max-h-96 w-full max-w-[40rem] rounded-xl object-cover ${note.title ? "mt-3" : ""}`}
+      />
+    );
   },
 };
 
@@ -97,15 +114,25 @@ const removed: Body = {
 const BODIES: Record<KindName, Body> = { markdown, image, removed };
 
 // Where a click on a note goes, the same for every kind (ADR 0038, 0040): in a list, a click anywhere on a note's card opens that
-// note (components/NoteCard.tsx), so nothing in the card's content links but what its text links to; on a note's own page, an
-// attachment opens the attachment's own page.
-export function CardContent({ t, note, imageBase }: { t: Copy; note: Note; imageBase?: string }) {
+// note (components/NoteCard.tsx), so nothing in the card's content links but what its text links to. A picture, in a list and on
+// a note's own page, enlarges instead (ADR 0065), with its own page (`attachments`) one link away.
+export function CardContent({
+  t,
+  note,
+  imageBase,
+  attachments,
+}: {
+  t: Copy;
+  note: Note;
+  imageBase?: string;
+  attachments?: (src: string) => string | undefined;
+}) {
   const body = BODIES[kindOf(note.type).name];
   const heading = body.heading(note, "card");
   return (
     <>
       {heading && <p className="text-[17px] font-bold tracking-tight">{heading}</p>}
-      <body.Content t={t} note={note} place="card" imageBase={imageBase} />
+      <body.Content t={t} note={note} place="card" imageBase={imageBase} attachmentLink={attachments} />
     </>
   );
 }
