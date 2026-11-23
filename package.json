@@ -67,7 +67,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^10",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.5",
     "eslint-config-prettier": "10.1.8",
     "oauth2-mock-server": "9.3.0",
     "plist": "^5.1.0",
